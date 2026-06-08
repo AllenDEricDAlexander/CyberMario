@@ -1,9 +1,13 @@
 import type {FormEventHandler} from 'react'
 import {useMemo, useRef, useState} from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {Button} from '../../components/Button'
 import {resolveErrorMessage} from '../../services/request'
 import {streamChatResponse} from '../../services/userService'
 import type {ChatMessage} from '../../types/chat'
+
+const markdownPlugins = [remarkGfm]
 
 const initialMessages: ChatMessage[] = [
     {
@@ -165,20 +169,34 @@ export function Home() {
                 </div>
 
                 <div className="message-list" aria-live="polite">
-                    {messages.map((message) => (
-                        <article
-                            className={`message-row ${message.role}`}
-                            key={message.id}
-                        >
-                            <div className="message-avatar" aria-hidden="true">
-                                {message.role === 'assistant' ? 'C' : '你'}
-                            </div>
-                            <div className="message-bubble">
-                                <p>{message.content || '正在生成...'}</p>
-                            </div>
-                        </article>
-                    ))}
+                    {messages.map((message, index) => {
+                        const isLastMessage = index === messages.length - 1
+                        const isStreaming = isLastMessage && message.role === 'assistant' && isSending
+                        const hasContent = message.content && message.content.length > 0
+                        return (
+                            <article
+                                className={`message-row ${message.role}`}
+                                key={message.id}
+                            >
+                                <div className="message-avatar" aria-hidden="true">
+                                    {message.role === 'assistant' ? 'C' : '你'}
+                                </div>
+                                <div className="message-bubble">
+                                    {hasContent ? (
+                                        <div className="message-content">
+                                            <ReactMarkdown remarkPlugins={markdownPlugins}>
+                                                {message.content}
+                                            </ReactMarkdown>
+                                        </div>
+                                    ) : isStreaming ? (
+                                        <p>正在生成...</p>
+                                    ) : null}
+                                </div>
+                            </article>
+                        )
+                    })}
                 </div>
+
 
                 {error && <p className="error-message">{error}</p>}
 

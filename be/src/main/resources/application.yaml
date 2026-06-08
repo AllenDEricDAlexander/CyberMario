@@ -6,6 +6,16 @@ spring:
   ai:
     dashscope:
       api-key: ${AI_DASHSCOPE_API_KEY:}
+    alibaba:
+      toolcalling:
+        duckduckgo:
+          enabled: true
+          api-key: ${SEARCH_API_KEY:}
+        wikipedia:
+          enabled: true
+          language: en
+          limit: 10
+
 
 server:
   port: ${SERVER_PORT:28080}

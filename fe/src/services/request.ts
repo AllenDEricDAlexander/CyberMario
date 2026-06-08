@@ -2,13 +2,15 @@ import type {ChatResponse} from '../types/chat'
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 
+type StreamChunkHandler = (chunk: ChatResponse) => void
+
 export async function streamServerSentEvents(
     endpoint: string,
     request: {
         body: unknown
         signal: AbortSignal
     },
-    onChunk: (chunk: ChatResponse) => void,
+    onChunk: StreamChunkHandler,
 ) {
     const response = await fetch(endpoint, {
         method: 'POST',
@@ -43,34 +45,16 @@ export async function streamServerSentEvents(
         buffer = lines.pop() ?? ''
 
         for (const line of lines) {
-            const lineData = normalizeSseDataLine(line)
-            if (lineData === null) {
-                continue
-            }
-
-            if (!lineData) {
-                dataLines = processEventDataLines(dataLines, onChunk)
-            } else {
-                dataLines.push(lineData)
-            }
+            dataLines = await processServerSentEventLine(line, dataLines, onChunk)
         }
     }
 
     buffer += decoder.decode()
     const finalLines = buffer.replaceAll('\r\n', '\n').split('\n')
     for (const line of finalLines) {
-        const lineData = normalizeSseDataLine(line)
-        if (lineData === null) {
-            continue
-        }
-
-        if (!lineData) {
-            dataLines = processEventDataLines(dataLines, onChunk)
-        } else {
-            dataLines.push(lineData)
-        }
+        dataLines = await processServerSentEventLine(line, dataLines, onChunk)
     }
-    processEventDataLines(dataLines, onChunk)
+    await processEventDataLines(dataLines, onChunk)
 }
 
 export function resolveErrorMessage(error: unknown) {
@@ -89,25 +73,68 @@ function parseServerSentEvent(event: string): ChatResponse | null {
     try {
         return JSON.parse(data) as ChatResponse
     } catch {
-        return {threadId: '', message: data}
+        return {threadId: '', message: event}
     }
 }
 
-function normalizeSseDataLine(line: string): string | null {
-    if (line.startsWith(':')) {
+type ServerSentEventLine =
+    | { type: 'data'; value: string }
+    | { type: 'dispatch' }
+    | { type: 'raw'; value: string }
+
+// SSE frames are committed by a blank line, so data lines must be buffered before parsing.
+function readServerSentEventLine(line: string): ServerSentEventLine | null {
+    const trimmed = line.trim()
+    if (!trimmed) {
+        return {type: 'dispatch'}
+    }
+
+    if (trimmed.startsWith(':')) {
         return null
     }
 
-    if (!line.startsWith('data:')) {
-        return null
+    if (line.startsWith('data:')) {
+        return {type: 'data', value: line.slice(5).trimStart()}
     }
 
-    return line.slice(5).trimStart()
+    if (line === 'data') {
+        return {type: 'data', value: ''}
+    }
+
+    if (trimmed.startsWith('{') || trimmed === '[DONE]') {
+        return {type: 'raw', value: trimmed}
+    }
+
+    return null
 }
 
-function processEventDataLines(
+async function processServerSentEventLine(
+    line: string,
+    dataLines: string[],
+    onChunk: StreamChunkHandler,
+) {
+    const eventLine = readServerSentEventLine(line)
+    if (eventLine === null) {
+        return dataLines
+    }
+
+    if (eventLine.type === 'dispatch') {
+        return processEventDataLines(dataLines, onChunk)
+    }
+
+    if (eventLine.type === 'raw') {
+        await processEventDataLines(dataLines, onChunk)
+        await processEventDataLines([eventLine.value], onChunk)
+        return []
+    }
+
+    dataLines.push(eventLine.value)
+    return dataLines
+}
+
+async function processEventDataLines(
     lines: string[],
-    onChunk: (chunk: ChatResponse) => void,
+    onChunk: StreamChunkHandler,
 ) {
     if (lines.length === 0) {
         return []
@@ -116,7 +143,14 @@ function processEventDataLines(
     const chunk = parseServerSentEvent(lines.join('\n'))
     if (chunk) {
         onChunk(chunk)
+        await yieldAfterStreamChunk()
     }
 
     return []
+}
+
+function yieldAfterStreamChunk() {
+    return new Promise<void>((resolve) => {
+        setTimeout(resolve, 0)
+    })
 }
