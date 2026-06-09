@@ -16,7 +16,7 @@ public class ArxivToolConfig {
     public ToolCallback searchArxivToolCallback() {
         return FunctionToolCallback
                 .builder(SEARCH_ARXIV_TOOL, new ArxivTools())
-                .description("搜索 arXiv 学术论文。当用户询问论文、preprint、arXiv、LLM paper、AI paper、机器学习研究时，使用这个工具。")
+                .description("search arXiv paper.when user ask paper、arXiv or you need get some specialist info，use this tool.")
                 .inputType(ArxivSearchRequest.class)
                 .build();
     }

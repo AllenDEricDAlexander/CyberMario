@@ -1,5 +1,4 @@
-import type {FormEventHandler} from 'react'
-import {useMemo, useRef, useState} from 'react'
+import {type ComponentProps, useMemo, useRef, useState} from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {Button} from '../../components/Button'
@@ -13,7 +12,7 @@ const initialMessages: ChatMessage[] = [
     {
         id: 'welcome',
         role: 'assistant',
-        content: '你好，我是 CyberMario。当前会话已连接 Spring AI Alibaba agent。',
+        content: 'Hello，I\'m CyberMario.This session is connecting Cyber Mario Agent.',
     },
 ]
 
@@ -26,9 +25,9 @@ export function Home() {
     const abortControllerRef = useRef<AbortController | null>(null)
 
     const canSend = input.trim().length > 0 && !isSending
-    const threadLabel = useMemo(() => threadId || '新会话', [threadId])
+    const threadLabel = useMemo(() => threadId || 'New Session', [threadId])
 
-    const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
+    const handleSubmit: ComponentProps<'form'>['onSubmit'] = async (event) => {
         event.preventDefault()
 
         const message = input.trim()
@@ -69,10 +68,15 @@ export function Home() {
                     setMessages((currentMessages) =>
                         currentMessages.map((chatMessage) =>
                             chatMessage.id === assistantMessageId
-                                ? {
-                                    ...chatMessage,
-                                    content: `${chatMessage.content}${chunk.message ?? ''}`,
-                                }
+                                ? chunk.type === 'think'
+                                    ? {
+                                        ...chatMessage,
+                                        thinkContent: `${chatMessage.thinkContent ?? ''}${chunk.message ?? ''}`,
+                                    }
+                                    : {
+                                        ...chatMessage,
+                                        content: `${chatMessage.content}${chunk.message ?? ''}`,
+                                    }
                                 : chatMessage,
                         ),
                     )
@@ -85,7 +89,7 @@ export function Home() {
                         chatMessage.id === assistantMessageId && !chatMessage.content
                             ? {
                                 ...chatMessage,
-                                content: '已停止。',
+                                content: 'Stopped。',
                             }
                             : chatMessage,
                     ),
@@ -182,6 +186,18 @@ export function Home() {
                                     {message.role === 'assistant' ? 'C' : '你'}
                                 </div>
                                 <div className="message-bubble">
+                                    {message.thinkContent && (
+                                        <details className="think-block" open={isStreaming && !hasContent}>
+                                            <summary className="think-summary">
+                                                {isStreaming && !hasContent ? '🤔 Thinking...' : '💭 思考过程'}
+                                            </summary>
+                                            <div className="think-content">
+                                                <ReactMarkdown remarkPlugins={markdownPlugins}>
+                                                    {message.thinkContent}
+                                                </ReactMarkdown>
+                                            </div>
+                                        </details>
+                                    )}
                                     {hasContent ? (
                                         <div className="message-content">
                                             <ReactMarkdown remarkPlugins={markdownPlugins}>

@@ -1,7 +1,18 @@
 package top.egon.mario.pojo.response;
 
 /**
- * Response returned by the chat API after an agent turn completes.
+ * Streaming chunk emitted during an agent conversation turn.
+ *
+ * @param threadId conversation identifier
+ * @param message  text content of this chunk (think or final message)
+ * @param type     chunk type: "think" for reasoning content, "message" for final output
  */
-public record ChatResponse(String threadId, String message) {
+public record ChatResponse(String threadId, String message, String type) {
+
+    /**
+     * Convenience constructor defaulting type to "message".
+     */
+    public ChatResponse(String threadId, String message) {
+        this(threadId, message, "message");
+    }
 }

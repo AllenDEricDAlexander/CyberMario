@@ -1,8 +1,11 @@
 package top.egon.mario.agent.service.impl;
 
+import com.alibaba.cloud.ai.graph.NodeOutput;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
+import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -10,54 +13,89 @@ import reactor.core.scheduler.Schedulers;
 import top.egon.mario.agent.service.ChatAgentService;
 import top.egon.mario.pojo.response.ChatResponse;
 
-import java.util.ArrayList;
 import java.util.UUID;
-import java.util.List;
 
 /**
- * Reactive adapter around Spring AI Alibaba's synchronous ReactAgent API.
+ * Reactive adapter around Spring AI Alibaba ReactAgent's streaming API.
+ * <p>
+ * Uses {@link ReactAgent#stream(String, RunnableConfig)} for token-level
+ * streaming and exposes both reasoning (think) and final message chunks.
  */
 public class ReactAgentChatService implements ChatAgentService {
 
     private final ReactAgent agent;
-    private static final int RESPONSE_CHUNK_SIZE = 48;
 
     public ReactAgentChatService(ReactAgent agent) {
         this.agent = agent;
     }
 
-    /**
-     * Runs the blocking agent call on a bounded elastic scheduler and preserves conversation memory by thread id.
-     */
     @Override
     public Flux<ChatResponse> chat(String message, String threadId) {
         String conversationThreadId = resolveThreadId(threadId);
-        return Mono.fromCallable(() -> {
-                    RunnableConfig config = RunnableConfig.builder()
-                            .threadId(conversationThreadId)
-                            .build();
-                    AssistantMessage response = agent.call(message, config);
-                    return response.getText();
+        RunnableConfig config = RunnableConfig.builder()
+                .threadId(conversationThreadId)
+                .build();
+
+        return Mono.just(config)
+                .<NodeOutput>flatMapMany(cfg -> {
+                    try {
+                        return agent.stream(message, cfg);
+                    } catch (GraphRunnerException e) {
+                        return Flux.error(e);
+                    }
                 })
                 .subscribeOn(Schedulers.boundedElastic())
-                .flatMapMany(responseText -> splitToChunks(responseText).map(chunk -> new ChatResponse(conversationThreadId, chunk)));
+                .flatMap(output -> toChatResponse(output, conversationThreadId));
     }
 
-    private Flux<String> splitToChunks(String responseText) {
-        return Flux.fromIterable(splitResponseText(responseText));
+    private Flux<ChatResponse> toChatResponse(NodeOutput output, String threadId) {
+        // 1) Direct message via reflection-friendly access
+        try {
+            Object msg = output.getClass().getMethod("message").invoke(output);
+            if (msg instanceof Message m && StringUtils.hasText(m.getText())) {
+                String type = inferType(output);
+                return Flux.just(new ChatResponse(threadId, m.getText(), type));
+            }
+        } catch (Exception ignored) {
+            // method not available
+        }
+
+        // 2) Fallback: extract from state
+        Object state = output.state();
+        if (state instanceof java.util.Map<?, ?> stateMap) {
+            Object messages = stateMap.get("messages");
+            if (messages instanceof java.util.List<?> list && !list.isEmpty()) {
+                Object last = list.get(list.size() - 1);
+                String text = extractText(last);
+                if (StringUtils.hasText(text)) {
+                    return Flux.just(new ChatResponse(threadId, text, "message"));
+                }
+            }
+        }
+
+        return Flux.empty();
     }
 
-    private List<String> splitResponseText(String responseText) {
-        if (!StringUtils.hasText(responseText)) {
-            return List.of("");
+    private String inferType(NodeOutput output) {
+        try {
+            Object ot = output.getClass().getMethod("getOutputType").invoke(output);
+            if (ot != null && "THINKING".equalsIgnoreCase(ot.toString())) {
+                return "think";
+            }
+        } catch (Exception ignored) {
         }
+        return "message";
+    }
 
-        List<String> chunks = new ArrayList<>();
-        for (int start = 0; start < responseText.length(); start += RESPONSE_CHUNK_SIZE) {
-            int end = Math.min(start + RESPONSE_CHUNK_SIZE, responseText.length());
-            chunks.add(responseText.substring(start, end));
+    private String extractText(Object msg) {
+        if (msg instanceof AssistantMessage am) {
+            return am.getText();
         }
-        return chunks;
+        try {
+            return (String) msg.getClass().getMethod("getText").invoke(msg);
+        } catch (Exception e) {
+            return msg.toString();
+        }
     }
 
     private String resolveThreadId(String threadId) {

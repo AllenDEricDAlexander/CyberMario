@@ -28,19 +28,19 @@ class ChatControllerTests {
                 .willReturn(Flux.just(new ChatResponse("thread-1", "你好，我是 CyberMario。")));
 
         StepVerifier.create(webTestClient.post()
-                .uri("/api/chat")
-                .contentType(MediaType.APPLICATION_JSON)
-                .accept(MediaType.TEXT_EVENT_STREAM)
-                .bodyValue("""
-                        {
-                          "message": "你好",
-                          "threadId": "thread-1"
-                        }
-                        """)
-                .exchange()
-                .expectStatus().isOk()
-                .returnResult(ChatResponse.class)
-                .getResponseBody())
+                        .uri("/demo/chat/stream")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_NDJSON)
+                        .bodyValue("""
+                                {
+                                  "message": "你好",
+                                  "threadId": "thread-1"
+                                }
+                                """)
+                        .exchange()
+                        .expectStatus().isOk()
+                        .returnResult(ChatResponse.class)
+                        .getResponseBody())
                 .expectNext(new ChatResponse("thread-1", "你好，我是 CyberMario。"))
                 .verifyComplete();
     }

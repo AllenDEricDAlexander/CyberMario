@@ -9,6 +9,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import top.egon.mario.agent.interceptor.ToolErrorInterceptor;
 import top.egon.mario.agent.service.ChatAgentService;
 import top.egon.mario.agent.service.impl.ReactAgentChatService;
 
@@ -30,14 +31,22 @@ public class AgentConfiguration {
                         .model("qwen3.6-max-preview")
                         .temperature(0.7)
                         .multiModel(true)
-                        .enableThinking(false)
+                        .enableThinking(true)
+                        .topP(0.9)
                         .build())
                 .dashScopeApi(dashScopeApi)
                 .build();
-        return ReactAgent.builder().name("cyber_mario_agent").model(chatModel).systemPrompt("""
-                You are CyberMario, a concise and helpful conversational assistant.
-                Answer user questions directly and keep the conversation context by thread.
-                """).tools(toolCallbacks.toArray(new ToolCallback[0])).saver(new MemorySaver()).build();
+        return ReactAgent.builder()
+                .name("cyber_mario_agent")
+                .model(chatModel)
+                .systemPrompt("""
+                        You are CyberMario, a concise and helpful conversational assistant.
+                        Answer user questions directly and keep the conversation context by thread.
+                        """).
+                tools(toolCallbacks.toArray(new ToolCallback[0]))
+                .interceptors(new ToolErrorInterceptor())
+                .saver(new MemorySaver())
+                .build();
     }
 
     @Bean

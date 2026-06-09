@@ -531,3 +531,53 @@ textarea {
         height: 34px;
     }
 }
+
+/* ── Think block (agent reasoning) ── */
+.think-block {
+    margin-bottom: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fafdfb;
+    overflow: hidden;
+}
+
+.think-summary {
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+}
+
+.think-summary::-webkit-details-marker {
+    display: none;
+}
+
+.think-summary::before {
+    content: '▸';
+    display: inline-block;
+    margin-right: 6px;
+    transition: transform 0.2s;
+    font-size: 11px;
+}
+
+.think-block[open] > .think-summary::before {
+    transform: rotate(90deg);
+}
+
+.think-content {
+    padding: 0 14px 12px;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+.think-content > *:first-child {
+    margin-top: 0;
+}
+
+.think-content > *:last-child {
+    margin-bottom: 0;
+}
