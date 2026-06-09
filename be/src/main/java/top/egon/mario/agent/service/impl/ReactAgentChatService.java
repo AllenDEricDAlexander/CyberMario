@@ -37,7 +37,7 @@ public class ReactAgentChatService implements ChatAgentService {
                 .build();
 
         return Mono.just(config)
-                .<NodeOutput>flatMapMany(cfg -> {
+                .flatMapMany(cfg -> {
                     try {
                         return agent.stream(message, cfg);
                     } catch (GraphRunnerException e) {

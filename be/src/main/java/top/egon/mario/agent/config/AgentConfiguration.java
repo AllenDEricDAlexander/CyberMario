@@ -9,7 +9,8 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import top.egon.mario.agent.interceptor.ToolErrorInterceptor;
+import top.egon.mario.agent.hooks.LoggingHook;
+import top.egon.mario.agent.interceptor.ToolMonitorInterceptor;
 import top.egon.mario.agent.service.ChatAgentService;
 import top.egon.mario.agent.service.impl.ReactAgentChatService;
 
@@ -42,9 +43,10 @@ public class AgentConfiguration {
                 .systemPrompt("""
                         You are CyberMario, a concise and helpful conversational assistant.
                         Answer user questions directly and keep the conversation context by thread.
-                        """).
-                tools(toolCallbacks.toArray(new ToolCallback[0]))
-                .interceptors(new ToolErrorInterceptor())
+                        """)
+                .tools(toolCallbacks.toArray(new ToolCallback[0]))
+                .interceptors(new ToolMonitorInterceptor())
+                .hooks(new LoggingHook())
                 .saver(new MemorySaver())
                 .build();
     }
