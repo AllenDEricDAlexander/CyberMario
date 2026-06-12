@@ -14,12 +14,21 @@
 
     <input>
         <global>
-            <glob>{*.java,*.xml,*.properties,*.yml,*.yaml,*.proto}</glob>
+            <glob>{*.java,*.xml,*.properties,*.yml,*.yaml,*.proto,*.sql,*.graphqls}</glob>
+            <includes>
+                <include>src/main/java</include>
+                <include>src/main/resources</include>
+                <include>src/test/java</include>
+                <include>src/test/resources</include>
+            </includes>
             <excludes>
                 <exclude>.idea</exclude>
                 <exclude>.vscode</exclude>
                 <exclude>target</exclude>
+                <exclude>logs</exclude>
                 <exclude glob="*.log"></exclude>
+                <exclude glob="*.tmp"></exclude>
+                <exclude glob="*.iml"></exclude>
             </excludes>
         </global>
     </input>
@@ -37,10 +46,27 @@
 
         <reconcile>
             <plugins>
+                <plugin artifactId="maven-compiler-plugin" goal="compile">
+                    <reconciles>
+                        <reconcile propertyName="source"/>
+                        <reconcile propertyName="target"/>
+                        <reconcile propertyName="release"/>
+                    </reconciles>
+                </plugin>
+
                 <plugin artifactId="maven-surefire-plugin" goal="test">
                     <reconciles>
                         <reconcile propertyName="skip" skipValue="true"/>
                         <reconcile propertyName="skipExec" skipValue="true"/>
+                        <reconcile propertyName="skipTests" skipValue="true"/>
+                        <reconcile propertyName="testFailureIgnore" skipValue="true"/>
+                    </reconciles>
+                </plugin>
+
+                <plugin artifactId="maven-failsafe-plugin" goal="integration-test">
+                    <reconciles>
+                        <reconcile propertyName="skip" skipValue="true"/>
+                        <reconcile propertyName="skipITs" skipValue="true"/>
                         <reconcile propertyName="skipTests" skipValue="true"/>
                         <reconcile propertyName="testFailureIgnore" skipValue="true"/>
                     </reconciles>
