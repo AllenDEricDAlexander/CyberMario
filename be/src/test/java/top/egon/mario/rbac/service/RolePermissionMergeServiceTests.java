@@ -1,6 +1,7 @@
 package top.egon.mario.rbac.service;
 
 import org.junit.jupiter.api.Test;
+import top.egon.mario.rbac.service.impl.RolePermissionMergeServiceImpl;
 import top.egon.mario.rbac.service.model.ButtonApiLink;
 
 import java.util.List;
@@ -10,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class RolePermissionMergeServiceTests {
 
-    private final RolePermissionMergeService mergeService = new RolePermissionMergeService();
+    private final RolePermissionMergeService mergeService = new RolePermissionMergeServiceImpl();
 
     @Test
     void mergeButtonApisAddsMappedApisWhenSyncEnabled() {

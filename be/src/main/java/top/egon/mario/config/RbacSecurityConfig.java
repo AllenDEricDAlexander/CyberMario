@@ -34,6 +34,15 @@ public class RbacSecurityConfig {
     private static final String ARGON2ID = "argon2id";
     private static final String BCRYPT = "bcrypt";
     private static final int ARGON2_MEMORY_KIB = 19 * 1024;
+    private static final String[] PUBLIC_ENDPOINTS = {
+            "/api/auth/login",
+            "/api/auth/refresh",
+            "/actuator/health/**",
+            "/actuator/info",
+            "/actuator/metrics/**",
+            "/actuator/prometheus",
+            "/demo/chat/**"
+    };
 
     private final JwtAuthenticationWebFilter jwtAuthenticationWebFilter;
     private final DynamicAuthorizationManager dynamicAuthorizationManager;
@@ -45,7 +54,7 @@ public class RbacSecurityConfig {
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .authorizeExchange(exchange -> exchange
-                        .pathMatchers("/api/auth/login", "/api/auth/refresh", "/actuator/health", "/demo/chat/**").permitAll()
+                        .pathMatchers(PUBLIC_ENDPOINTS).permitAll()
                         .anyExchange().access(dynamicAuthorizationManager)
                 )
                 .addFilterAt(jwtAuthenticationWebFilter, SecurityWebFiltersOrder.AUTHENTICATION)

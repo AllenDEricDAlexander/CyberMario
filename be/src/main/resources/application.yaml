@@ -45,6 +45,25 @@ spring:
 server:
   port: ${SERVER_PORT:28080}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: ${spring.application.name:Mario}
+    description: Cyber Mario is a chat bot
+
 mario:
   security:
     jwt:
