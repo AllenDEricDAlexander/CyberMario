@@ -9,6 +9,7 @@ import reactor.core.publisher.Mono;
 import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.common.utils.LogUtil;
+import top.egon.mario.rag.service.RagException;
 import top.egon.mario.rbac.service.RbacException;
 
 import java.util.HashMap;
@@ -45,6 +46,17 @@ public class GlobalExceptionHandler {
             String traceId = TraceContext.traceId(contextView);
             return Mono.just(TraceContext.withMdc(traceId, () -> {
                 LogUtil.warn(log).log("rbac request rejected, code={}", ex.getCode());
+                return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getCode(), ex.getMessage(), traceId));
+            }));
+        });
+    }
+
+    @ExceptionHandler(RagException.class)
+    public Mono<ResponseEntity<ApiResponse<Void>>> handleRagException(RagException ex) {
+        return Mono.deferContextual(contextView -> {
+            String traceId = TraceContext.traceId(contextView);
+            return Mono.just(TraceContext.withMdc(traceId, () -> {
+                LogUtil.warn(log).log("rag request rejected, code={}", ex.getCode());
                 return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getCode(), ex.getMessage(), traceId));
             }));
         });

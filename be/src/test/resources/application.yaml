@@ -2,6 +2,8 @@ spring:
   ai:
     dashscope:
       api-key: test-api-key
+    vectorstore:
+      type: none
   lifecycle:
     timeout-per-shutdown-phase: 30s
   task:
@@ -81,6 +83,18 @@ info:
     description: Cyber Mario is a chat bot
 
 mario:
+  rag:
+    rbac-bootstrap:
+      enabled: false
+    storage:
+      local-root: ${java.io.tmpdir}/cyber-mario-rag-test
+    retrieval:
+      default-top-k: 6
+      default-similarity-threshold: 0.55
+    model:
+      chat-model: qwen-plus
+      embedding-model: text-embedding-v4
+      embedding-dimension: 1024
   rbac:
     cache:
       enabled: false

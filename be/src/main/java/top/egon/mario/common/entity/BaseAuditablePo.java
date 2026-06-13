@@ -1,4 +1,4 @@
-package top.egon.mario.rbac.po;
+package top.egon.mario.common.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;

@@ -4,8 +4,14 @@ import {
     BranchesOutlined,
     CommentOutlined,
     ControlOutlined,
+    DatabaseOutlined,
+    FileTextOutlined,
     MenuOutlined,
+    MessageOutlined,
     SafetyCertificateOutlined,
+    SearchOutlined,
+    SettingOutlined,
+    SyncOutlined,
     TeamOutlined,
 } from '@ant-design/icons'
 import type {MenuProps} from 'antd'
@@ -15,6 +21,12 @@ export type AdminMenuItem = Required<MenuProps>['items'][number]
 
 const menuPathByKey: Record<string, string> = {
     '/chat': '/chat',
+    '/rag/chat': '/rag/chat',
+    '/rag/knowledge-bases': '/rag/knowledge-bases',
+    '/rag/documents': '/rag/documents',
+    '/rag/ingestion-jobs': '/rag/ingestion-jobs',
+    '/rag/retrieval-lab': '/rag/retrieval-lab',
+    '/rag/settings': '/rag/settings',
     '/rbac/users': '/rbac/users',
     '/rbac/roles': '/rbac/roles',
     '/rbac/permissions': '/rbac/permissions',
@@ -28,6 +40,43 @@ export const adminMenuItems: AdminMenuItem[] = [
         key: '/chat',
         icon: <CommentOutlined/>,
         label: 'Agent Chat',
+    },
+    {
+        key: 'rag',
+        icon: <DatabaseOutlined/>,
+        label: 'RAG 管理',
+        children: [
+            {
+                key: '/rag/chat',
+                icon: <MessageOutlined/>,
+                label: 'RAG 问答',
+            },
+            {
+                key: '/rag/knowledge-bases',
+                icon: <DatabaseOutlined/>,
+                label: '知识库管理',
+            },
+            {
+                key: '/rag/documents',
+                icon: <FileTextOutlined/>,
+                label: '文档管理',
+            },
+            {
+                key: '/rag/ingestion-jobs',
+                icon: <SyncOutlined/>,
+                label: '入库任务',
+            },
+            {
+                key: '/rag/retrieval-lab',
+                icon: <SearchOutlined/>,
+                label: '检索调试',
+            },
+            {
+                key: '/rag/settings',
+                icon: <SettingOutlined/>,
+                label: 'RAG 设置',
+            },
+        ],
     },
     {
         key: 'rbac',

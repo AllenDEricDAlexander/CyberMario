@@ -25,6 +25,13 @@ export const router = createBrowserRouter([
                 children: [
                     {index: true, element: <DefaultAdminRoute/>},
                     {path: 'chat', element: <ChatPage/>},
+                    {path: 'rag/chat', lazy: () => import('../modules/rag/RagChatPage')},
+                    {path: 'rag/knowledge-bases', lazy: () => import('../modules/rag/KnowledgeBaseListPage')},
+                    {path: 'rag/documents', lazy: () => import('../modules/rag/DocumentListPage')},
+                    {path: 'rag/documents/:documentId', lazy: () => import('../modules/rag/DocumentDetailPage')},
+                    {path: 'rag/ingestion-jobs', lazy: () => import('../modules/rag/IngestionJobListPage')},
+                    {path: 'rag/retrieval-lab', lazy: () => import('../modules/rag/RetrievalLabPage')},
+                    {path: 'rag/settings', lazy: () => import('../modules/rag/RagSettingsPage')},
                     {path: 'rbac/users', lazy: () => import('../modules/rbac/users/UserListPage')},
                     {path: 'rbac/roles', lazy: () => import('../modules/rbac/roles/RoleListPage')},
                     {path: 'rbac/permissions', lazy: () => import('../modules/rbac/permissions/PermissionListPage')},

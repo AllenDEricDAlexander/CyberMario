@@ -11,6 +11,7 @@ type RequestOptions = {
 }
 
 type StreamChunkHandler = (chunk: ChatResponse) => void
+type JsonLineHandler<T> = (chunk: T) => void
 
 type ChatResponse = {
     threadId: string
@@ -27,6 +28,16 @@ let refreshPromise: Promise<boolean> | null = null
 
 export async function requestJson<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     return requestJsonInternal<T>(endpoint, options, true)
+}
+
+export async function requestFormData<T>(endpoint: string, formData: FormData, options: Omit<RequestOptions, 'body'> = {}): Promise<T> {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: options.method ?? 'POST',
+        headers: buildHeaders(options, false),
+        body: formData,
+    })
+
+    return unwrapJsonResponse<T>(response)
 }
 
 async function requestJsonInternal<T>(
@@ -106,6 +117,54 @@ export async function streamServerSentEvents(
     }
 }
 
+export async function streamJsonLines<T>(
+    endpoint: string,
+    request: {
+        body: unknown
+        signal: AbortSignal
+    },
+    onChunk: JsonLineHandler<T>,
+) {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers: buildHeaders({headers: {Accept: 'application/x-ndjson'}}),
+        body: JSON.stringify(request.body),
+        signal: request.signal,
+    })
+
+    if (!response.ok) {
+        throw new Error(`请求失败：HTTP ${response.status}`)
+    }
+    if (!response.body) {
+        throw new Error('后端没有返回可读取的响应流')
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+        const {done, value} = await reader.read()
+        if (done) {
+            break
+        }
+
+        buffer += decoder.decode(value, {stream: true})
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+
+        for (const line of lines) {
+            const trimmed = line.trim()
+            if (!trimmed) continue
+            onChunk(JSON.parse(trimmed) as T)
+        }
+    }
+
+    if (buffer.trim()) {
+        onChunk(JSON.parse(buffer.trim()) as T)
+    }
+}
+
 export function resolveErrorMessage(error: unknown) {
     if (error instanceof ApiRequestError) {
         return error.message
@@ -116,12 +175,12 @@ export function resolveErrorMessage(error: unknown) {
     return '请求失败，请稍后重试'
 }
 
-function buildHeaders(options: RequestOptions) {
+function buildHeaders(options: RequestOptions, includeJsonContentType = true) {
     const headers = new Headers(options.headers)
     if (!headers.has('Accept')) {
         headers.set('Accept', 'application/json')
     }
-    if (!headers.has('Content-Type')) {
+    if (includeJsonContentType && !headers.has('Content-Type')) {
         headers.set('Content-Type', 'application/json')
     }
     const accessToken = options.auth === false ? null : getAccessToken()

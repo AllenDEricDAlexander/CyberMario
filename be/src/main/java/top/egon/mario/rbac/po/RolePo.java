@@ -7,6 +7,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.Setter;
+import top.egon.mario.common.entity.BaseAuditablePo;
 import top.egon.mario.rbac.converter.jpa.RbacStatusConverter;
 import top.egon.mario.rbac.po.enums.RbacStatus;
 
