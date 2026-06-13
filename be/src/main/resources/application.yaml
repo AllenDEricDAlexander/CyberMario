@@ -106,6 +106,10 @@ management:
     env:
       enabled: true
 
+logging:
+  level:
+    org.hibernate.orm.connections.pooling: WARN
+
 info:
   app:
     name: ${spring.application.name:Mario}
