@@ -15,4 +15,5 @@ export type LoginResponse = {
     menus: MenuTreeResponse[]
     buttonCodes: string[]
     permissionCodes: string[]
+    permissionVersion?: string | null
 }

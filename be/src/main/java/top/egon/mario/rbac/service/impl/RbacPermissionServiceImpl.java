@@ -30,6 +30,7 @@ import top.egon.mario.rbac.repository.RolePermissionRepository;
 import top.egon.mario.rbac.service.RbacAuditService;
 import top.egon.mario.rbac.service.RbacException;
 import top.egon.mario.rbac.service.RbacPermissionService;
+import top.egon.mario.rbac.service.RbacPermissionVersionService;
 import top.egon.mario.rbac.service.model.ApiPermissionRule;
 import top.egon.mario.rbac.service.model.RbacPermissionChangedEvent;
 import top.egon.mario.rbac.service.security.RbacPublicApiPolicy;
@@ -63,6 +64,7 @@ public class RbacPermissionServiceImpl implements RbacPermissionService {
     private final RbacDtoConverter rbacDtoConverter;
     private final RbacAuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
+    private final RbacPermissionVersionService permissionVersionService;
 
     @Override
     @Transactional
@@ -159,6 +161,7 @@ public class RbacPermissionServiceImpl implements RbacPermissionService {
         clearDetail(permissionId);
         saveDetail(permission, request, actorUserId);
         auditService.log(actorUserId, "RBAC_PERMISSION_UPDATE", "PERMISSION", permissionId, null, permission.getPermCode(), null, null);
+        permissionVersionService.bumpRolesByPermissionIds(List.of(permissionId));
         publishPermissionChanged("update permission");
         LogUtil.info(log).log("rbac permission updated, permissionId={}, permCode={}, actorUserId={}",
                 permissionId, permission.getPermCode(), actorUserId);
@@ -173,6 +176,7 @@ public class RbacPermissionServiceImpl implements RbacPermissionService {
         permission.setStatus(permissionStatus);
         permissionRepository.save(permission);
         auditService.log(0L, "RBAC_PERMISSION_STATUS_UPDATE", "PERMISSION", permissionId, null, permissionStatus.name(), null, null);
+        permissionVersionService.bumpRolesByPermissionIds(List.of(permissionId));
         publishPermissionChanged("update permission status");
         LogUtil.info(log).log("rbac permission status updated, permissionId={}, statusCode={}",
                 permissionId, permissionStatus.getCode());
@@ -220,6 +224,9 @@ public class RbacPermissionServiceImpl implements RbacPermissionService {
         }
         saveButtonApiLinks(buttonPermissionId, addedApiIds, actorUserId);
         auditService.log(actorUserId, "RBAC_BUTTON_API_UPDATE", "PERMISSION", buttonPermissionId, oldApiIds.toString(), requestedApiIds.toString(), null, null);
+        if (!removedApiIds.isEmpty() || !addedApiIds.isEmpty()) {
+            permissionVersionService.bumpRolesByPermissionIds(Set.of(buttonPermissionId));
+        }
         publishPermissionChanged("update button api links");
         LogUtil.info(log).log("rbac button api links replaced, buttonPermissionId={}, apiPermissionCount={}, actorUserId={}",
                 buttonPermissionId, requestedApiIds.size(), actorUserId);

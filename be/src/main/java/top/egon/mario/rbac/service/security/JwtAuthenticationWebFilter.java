@@ -30,6 +30,7 @@ import top.egon.mario.rbac.service.RbacException;
 public class JwtAuthenticationWebFilter implements WebFilter {
 
     private static final String AUTH_TOKEN_EXPIRED = "AUTH_TOKEN_EXPIRED";
+    public static final String PERMISSION_VERSION_HEADER = "X-Rbac-Permission-Version";
     private final RbacAuthApplication authApplication;
     private final ObjectMapper objectMapper;
 
@@ -44,8 +45,11 @@ public class JwtAuthenticationWebFilter implements WebFilter {
             String traceId = TraceContext.traceId(contextView);
             return Mono.fromCallable(() -> TraceContext.withMdc(traceId, () -> authApplication.authenticateAccessToken(token)))
                     .subscribeOn(Schedulers.boundedElastic())
-                    .flatMap(authentication -> chain.filter(exchange)
-                            .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(new SecurityContextImpl(authentication)))))
+                    .flatMap(authentication -> {
+                        writePermissionVersionHeader(exchange, authentication.getPrincipal());
+                        return chain.filter(exchange)
+                                .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(new SecurityContextImpl(authentication))));
+                    })
                     .doOnError(error -> TraceContext.withMdc(traceId,
                             () -> LogUtil.warn(log).log("bearer token authentication failed, path={}",
                                     exchange.getRequest().getPath().value())))
@@ -64,6 +68,13 @@ public class JwtAuthenticationWebFilter implements WebFilter {
             return null;
         }
         return authorization.substring(7);
+    }
+
+    private void writePermissionVersionHeader(ServerWebExchange exchange, Object principal) {
+        if (principal instanceof RbacPrincipal rbacPrincipal && rbacPrincipal.permissionVersion() != null
+                && !rbacPrincipal.permissionVersion().isBlank()) {
+            exchange.getResponse().getHeaders().set(PERMISSION_VERSION_HEADER, rbacPrincipal.permissionVersion());
+        }
     }
 
     private Mono<Void> writeExpiredAccessTokenResponse(ServerWebExchange exchange, String traceId, RbacException error) {

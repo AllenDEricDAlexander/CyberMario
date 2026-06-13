@@ -22,6 +22,7 @@ import top.egon.mario.rbac.repository.UserRepository;
 import top.egon.mario.rbac.service.RbacAuditService;
 import top.egon.mario.rbac.service.RbacEffectivePermissionService;
 import top.egon.mario.rbac.service.RbacException;
+import top.egon.mario.rbac.service.RbacPermissionVersionService;
 import top.egon.mario.rbac.service.RbacUserService;
 import top.egon.mario.rbac.service.cache.RbacTokenCache;
 import top.egon.mario.rbac.service.security.JwtClaims;
@@ -51,6 +52,7 @@ public class RbacAuthApplication {
     private final RbacDtoConverter rbacDtoConverter;
     private final RbacAuditService auditService;
     private final RbacTokenCache tokenCache;
+    private final RbacPermissionVersionService permissionVersionService;
 
     @Transactional
     public LoginResponse login(LoginRequest request, String ip, String userAgent) {
@@ -131,7 +133,9 @@ public class RbacAuthApplication {
                 .orElseThrow(() -> new RbacException("RBAC_USER_NOT_FOUND", "user not found"));
         ensureUserCanLogin(user);
         EffectivePermissionResponse permissions = effectivePermissionService.getUserEffectivePermissions(user.getId());
-        RbacPrincipal principal = new RbacPrincipal(user.getId(), user.getUsername(), permissions.roleCodes(), permissions.apiCodes());
+        String permissionVersion = permissionVersionService.resolvePermissionVersion(permissions.roleIds());
+        RbacPrincipal principal = new RbacPrincipal(user.getId(), user.getUsername(), permissions.roleCodes(),
+                permissions.apiCodes(), permissionVersion);
         Set<SimpleGrantedAuthority> authorities = Stream.concat(permissions.roleCodes().stream(), permissions.apiCodes().stream())
                 .map(SimpleGrantedAuthority::new)
                 .collect(Collectors.toSet());
@@ -147,6 +151,7 @@ public class RbacAuthApplication {
 
     private LoginResponse buildLoginResponse(UserPo user, JwtTokenPair tokenPair) {
         EffectivePermissionResponse permissions = effectivePermissionService.getUserEffectivePermissions(user.getId());
+        String permissionVersion = permissionVersionService.resolvePermissionVersion(permissions.roleIds());
         UserResponse userResponse = rbacDtoConverter.toUserResponse(user);
         return LoginResponse.builder()
                 .accessToken(tokenPair == null ? null : tokenPair.accessToken())
@@ -158,6 +163,7 @@ public class RbacAuthApplication {
                 .menus(effectivePermissionService.getUserMenuTree(user.getId()))
                 .buttonCodes(permissions.buttonCodes())
                 .permissionCodes(permissions.apiCodes())
+                .permissionVersion(permissionVersion)
                 .build();
     }
 

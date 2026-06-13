@@ -6,12 +6,15 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.rbac.application.RbacAuthApplication;
 import top.egon.mario.rbac.service.RbacException;
 
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,6 +31,29 @@ class JwtAuthenticationWebFilterTests {
             authApplication,
             JsonMapper.builder().findAndAddModules().build()
     );
+
+    @Test
+    void writesPermissionVersionHeaderForAuthenticatedBearerToken() {
+        given(authApplication.authenticateAccessToken("valid-access"))
+                .willReturn(new UsernamePasswordAuthenticationToken(
+                        new RbacPrincipal(1L, "mario", Set.of("ROLE_ADMIN"), Set.of("api:demo"), "permission-v1"),
+                        "valid-access",
+                        List.of()
+                ));
+        MockServerWebExchange exchange = bearerExchange("valid-access");
+        AtomicBoolean chainCalled = new AtomicBoolean(false);
+
+        StepVerifier.create(filter.filter(exchange, chainExchange -> {
+                            chainCalled.set(true);
+                            return Mono.empty();
+                        })
+                        .contextWrite(context -> context.put(TraceContext.CONTEXT_KEY, "trace-1")))
+                .verifyComplete();
+
+        assertThat(chainCalled).isTrue();
+        assertThat(exchange.getResponse().getHeaders().getFirst(JwtAuthenticationWebFilter.PERMISSION_VERSION_HEADER))
+                .isEqualTo("permission-v1");
+    }
 
     @Test
     void writesUnauthorizedResponseOnlyWhenBearerAccessTokenExpired() {

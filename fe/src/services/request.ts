@@ -1,4 +1,5 @@
 import {ApiRequestError, type ApiResponse} from '../types/api'
+import {publishResponsePermissionVersion} from './permissionVersionEvents'
 import {clearTokens, getAccessToken, getRefreshToken, saveTokens, shouldRefreshAccessToken} from './tokenStorage'
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
@@ -241,11 +242,14 @@ async function fetchWithAuthRetry(
 
     const response = await fetcher()
     if (response.status !== 401 || options.auth === false || !allowRefresh) {
+        publishResponsePermissionVersion(response)
         return response
     }
 
     const refreshed = await refreshAccessToken()
-    return refreshed ? fetcher() : response
+    const retryResponse = refreshed ? await fetcher() : response
+    publishResponsePermissionVersion(retryResponse)
+    return retryResponse
 }
 
 async function refreshAccessToken() {

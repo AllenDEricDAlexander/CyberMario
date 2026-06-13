@@ -1,9 +1,10 @@
-import {LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined, ReloadOutlined, UserOutlined} from '@ant-design/icons'
+import {LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined, UserOutlined} from '@ant-design/icons'
 import {Avatar, Button, Dropdown, Layout, Menu, Result, Space, Typography} from 'antd'
-import {useMemo, useState} from 'react'
+import {useEffect, useMemo, useState} from 'react'
 import {Outlet, useLocation, useNavigate} from 'react-router'
 import {hasAdminPermissionBypass, useAuth} from '../../modules/auth/authStore'
 import {buildAuthorizedAdminMenuItems, canAccessAdminPath, findMenuPath, flattenMenuKeys} from './menu'
+import {isCurrentPathAffectedByLostButtons} from './permissionImpact'
 
 const {Header, Sider, Content} = Layout
 
@@ -12,6 +13,7 @@ export function AdminLayout() {
     const location = useLocation()
     const navigate = useNavigate()
     const [collapsed, setCollapsed] = useState(false)
+    const [contentVersion, setContentVersion] = useState(0)
     const canBypassMenuPermissions = hasAdminPermissionBypass(auth)
     const menuItems = useMemo(
         () => buildAuthorizedAdminMenuItems(auth.menus, canBypassMenuPermissions),
@@ -32,6 +34,15 @@ export function AdminLayout() {
         await auth.logout()
         navigate('/login', {replace: true})
     }
+
+    useEffect(() => {
+        if (!auth.permissionChange) {
+            return
+        }
+        if (isCurrentPathAffectedByLostButtons(location.pathname, auth.permissionChange.lostButtonCodes)) {
+            setContentVersion((value) => value + 1)
+        }
+    }, [auth.permissionChange, location.pathname])
 
     return (
         <Layout className="admin-layout">
@@ -70,9 +81,6 @@ export function AdminLayout() {
                         type="text"
                     />
                     <Space className="admin-header-actions">
-                        <Button icon={<ReloadOutlined/>} onClick={auth.reload}>
-                            刷新权限
-                        </Button>
                         <Dropdown
                             menu={{
                                 items: [
@@ -97,7 +105,7 @@ export function AdminLayout() {
                 </Header>
                 <Content className="admin-content">
                     {canAccessCurrentPath ? (
-                        <Outlet/>
+                        <Outlet key={contentVersion}/>
                     ) : (
                         <Result
                             status="403"

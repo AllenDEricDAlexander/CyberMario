@@ -1,4 +1,5 @@
-import {createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState} from 'react'
+import {createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
+import {subscribePermissionVersion} from '../../services/permissionVersionEvents'
 import {clearTokens, hasStoredToken, saveTokens} from '../../services/tokenStorage'
 import type {MenuTreeResponse, UserResponse} from '../rbac/rbacTypes'
 import {fetchCurrentUser, login as loginRequest, logout as logoutRequest} from './authService'
@@ -8,6 +9,8 @@ export type AuthState = {
     bootstrapping: boolean
     authenticated: boolean
     user?: UserResponse
+    permissionVersion?: string | null
+    permissionChange?: PermissionChangeSnapshot
     roleCodes: string[]
     menus: MenuTreeResponse[]
     buttonCodes: string[]
@@ -20,6 +23,11 @@ export type AuthState = {
     hasPermission: (permissionCode: string) => boolean
 }
 
+export type PermissionChangeSnapshot = {
+    revision: number
+    lostButtonCodes: string[]
+}
+
 const AuthContext = createContext<AuthState | null>(null)
 
 type AuthProviderProps = {
@@ -29,15 +37,42 @@ type AuthProviderProps = {
 export function AuthProvider({children}: AuthProviderProps) {
     const [bootstrapping, setBootstrapping] = useState(true)
     const [session, setSession] = useState<LoginResponse | null>(null)
+    const [permissionChange, setPermissionChange] = useState<PermissionChangeSnapshot>()
+    const sessionRef = useRef<LoginResponse | null>(null)
+    const permissionReloadRef = useRef<Promise<void> | null>(null)
 
     const applySession = useCallback((response: LoginResponse) => {
+        const previous = sessionRef.current
         saveTokens(response)
+        sessionRef.current = response
         setSession(response)
+        if (previous?.permissionVersion && response.permissionVersion
+            && previous.permissionVersion !== response.permissionVersion) {
+            const nextButtonCodes = new Set(response.buttonCodes ?? [])
+            const lostButtonCodes = (previous.buttonCodes ?? [])
+                .filter((buttonCode) => !nextButtonCodes.has(buttonCode))
+            setPermissionChange((current) => ({
+                revision: (current?.revision ?? 0) + 1,
+                lostButtonCodes,
+            }))
+        }
     }, [])
 
     const reload = useCallback(async () => {
         const response = await fetchCurrentUser()
         applySession(response)
+    }, [applySession])
+
+    const reloadPermissionsSilently = useCallback(() => {
+        if (permissionReloadRef.current) {
+            return permissionReloadRef.current
+        }
+        permissionReloadRef.current = fetchCurrentUser()
+            .then(applySession)
+            .finally(() => {
+                permissionReloadRef.current = null
+            })
+        return permissionReloadRef.current
     }, [applySession])
 
     useEffect(() => {
@@ -49,12 +84,21 @@ export function AuthProvider({children}: AuthProviderProps) {
         reload()
             .catch(() => {
                 clearTokens()
+                sessionRef.current = null
                 setSession(null)
             })
             .finally(() => {
                 setBootstrapping(false)
             })
     }, [reload])
+
+    useEffect(() => subscribePermissionVersion((permissionVersion) => {
+        const currentSession = sessionRef.current
+        if (!currentSession?.user || !permissionVersion || permissionVersion === currentSession.permissionVersion) {
+            return
+        }
+        void reloadPermissionsSilently()
+    }), [reloadPermissionsSilently])
 
     const login = useCallback(
         async (request: LoginRequest) => {
@@ -69,7 +113,9 @@ export function AuthProvider({children}: AuthProviderProps) {
             await logoutRequest()
         } finally {
             clearTokens()
+            sessionRef.current = null
             setSession(null)
+            setPermissionChange(undefined)
         }
     }, [])
 
@@ -81,6 +127,8 @@ export function AuthProvider({children}: AuthProviderProps) {
             bootstrapping,
             authenticated: Boolean(session?.user),
             user: session?.user,
+            permissionVersion: session?.permissionVersion,
+            permissionChange,
             roleCodes: session?.roleCodes ?? [],
             menus: session?.menus ?? [],
             buttonCodes: session?.buttonCodes ?? [],
@@ -92,7 +140,7 @@ export function AuthProvider({children}: AuthProviderProps) {
             hasAnyButton: (buttonCodes) => buttonCodes.some((buttonCode) => buttonCodeSet.has(buttonCode)),
             hasPermission: (permissionCode) => permissionCodeSet.has(permissionCode),
         }),
-        [bootstrapping, buttonCodeSet, login, logout, permissionCodeSet, reload, session],
+        [bootstrapping, buttonCodeSet, login, logout, permissionChange, permissionCodeSet, reload, session],
     )
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

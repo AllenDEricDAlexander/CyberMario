@@ -9,6 +9,7 @@ public record RbacPrincipal(
         Long userId,
         String username,
         Set<String> roleCodes,
-        Set<String> apiAuthorities
+        Set<String> apiAuthorities,
+        String permissionVersion
 ) {
 }

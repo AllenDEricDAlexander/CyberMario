@@ -38,6 +38,9 @@ public class RolePo extends BaseAuditablePo {
     @Column(name = "built_in", nullable = false)
     private boolean builtIn;
 
+    @Column(name = "permission_version", nullable = false)
+    private long permissionVersion;
+
     @Column(name = "description", length = 255)
     private String description;
 

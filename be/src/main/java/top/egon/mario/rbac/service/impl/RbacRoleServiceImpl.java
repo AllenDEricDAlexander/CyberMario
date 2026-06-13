@@ -27,6 +27,7 @@ import top.egon.mario.rbac.repository.RoleRepository;
 import top.egon.mario.rbac.repository.UserRoleRepository;
 import top.egon.mario.rbac.service.RbacAuditService;
 import top.egon.mario.rbac.service.RbacException;
+import top.egon.mario.rbac.service.RbacPermissionVersionService;
 import top.egon.mario.rbac.service.RbacRoleService;
 import top.egon.mario.rbac.service.RoleHierarchyResolver;
 import top.egon.mario.rbac.service.RolePermissionMergeService;
@@ -60,6 +61,7 @@ public class RbacRoleServiceImpl implements RbacRoleService {
     private final RbacDtoConverter rbacDtoConverter;
     private final RbacAuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
+    private final RbacPermissionVersionService permissionVersionService;
 
     @Override
     @Transactional
@@ -107,8 +109,11 @@ public class RbacRoleServiceImpl implements RbacRoleService {
         if (StringUtils.hasText(request.getRoleName())) {
             role.setRoleName(request.getRoleName());
         }
+        boolean statusChanged = false;
         if (request.getStatus() != null) {
-            role.setStatus(rbacDtoConverter.toPoRbacStatus(request.getStatus()));
+            RbacStatus status = rbacDtoConverter.toPoRbacStatus(request.getStatus());
+            statusChanged = role.getStatus() != status;
+            role.setStatus(status);
         }
         if (request.getSortNo() != null) {
             role.setSortNo(request.getSortNo());
@@ -118,6 +123,9 @@ public class RbacRoleServiceImpl implements RbacRoleService {
         }
         role.setDescription(request.getDescription());
         RolePo savedRole = roleRepository.save(role);
+        if (statusChanged) {
+            permissionVersionService.bumpRolePermissionVersion(roleId);
+        }
         publishPermissionChanged("update role");
         LogUtil.info(log).log("rbac role updated, roleId={}, roleCode={}", roleId, savedRole.getRoleCode());
         return rbacDtoConverter.toRoleResponse(savedRole);
@@ -177,6 +185,9 @@ public class RbacRoleServiceImpl implements RbacRoleService {
                 })
                 .toList());
         auditService.log(actorUserId, "RBAC_ROLE_INHERITANCE_UPDATE", "ROLE", roleId, oldRoleIds.toString(), requestedRoleIds.toString(), null, null);
+        if (!removedRoleIds.isEmpty() || !addedRoleIds.isEmpty()) {
+            permissionVersionService.bumpRolePermissionVersion(roleId);
+        }
         publishPermissionChanged("update role inheritance");
         LogUtil.info(log).log("rbac role inheritance replaced, roleId={}, inheritedRoleCount={}, actorUserId={}",
                 roleId, requestedRoleIds.size(), actorUserId);
@@ -218,6 +229,9 @@ public class RbacRoleServiceImpl implements RbacRoleService {
                 })
                 .toList());
         auditService.log(actorUserId, "RBAC_ROLE_PERMISSION_UPDATE", "ROLE", roleId, oldPermissionIds.toString(), mergedPermissionIds.toString(), null, null);
+        if (!removedPermissionIds.isEmpty() || !addedPermissionIds.isEmpty()) {
+            permissionVersionService.bumpRolePermissionVersion(roleId);
+        }
         publishPermissionChanged("update role permissions");
         LogUtil.info(log).log("rbac role permissions replaced, roleId={}, permissionCount={}, actorUserId={}",
                 roleId, mergedPermissionIds.size(), actorUserId);

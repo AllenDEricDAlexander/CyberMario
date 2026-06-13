@@ -143,6 +143,9 @@ mario:
         username: ${RBAC_BOOTSTRAP_ADMIN_USERNAME:admin}
         password: ${RBAC_BOOTSTRAP_ADMIN_PASSWORD:HomeLab666@2026}
         require-password-change: ${RBAC_BOOTSTRAP_ADMIN_REQUIRE_PASSWORD_CHANGE:false}
+    role-presets:
+      enabled: ${RBAC_ROLE_PRESETS_ENABLED:true}
+      sync-mode: ${RBAC_ROLE_PRESETS_SYNC_MODE:CREATE_ONLY}
     cache:
       enabled: ${RBAC_CACHE_ENABLED:true}
       api-rules-ttl: ${RBAC_API_RULES_CACHE_TTL:PT10M}

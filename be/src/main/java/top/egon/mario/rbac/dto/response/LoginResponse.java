@@ -18,6 +18,7 @@ public record LoginResponse(
         Set<String> roleCodes,
         List<MenuTreeResponse> menus,
         Set<String> buttonCodes,
-        Set<String> permissionCodes
+        Set<String> permissionCodes,
+        String permissionVersion
 ) {
 }

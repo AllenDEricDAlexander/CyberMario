@@ -7,6 +7,6 @@ import org.springframework.context.annotation.Configuration;
  * Enables RBAC administrator bootstrap configuration properties.
  */
 @Configuration
-@EnableConfigurationProperties(RbacAdminBootstrapProperties.class)
+@EnableConfigurationProperties({RbacAdminBootstrapProperties.class, RbacRolePresetBootstrapProperties.class})
 public class RbacAdminBootstrapConfiguration {
 }

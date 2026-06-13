@@ -29,6 +29,7 @@ import top.egon.mario.rbac.repository.RolePermissionRepository;
 import top.egon.mario.rbac.repository.RoleRepository;
 import top.egon.mario.rbac.repository.UserRepository;
 import top.egon.mario.rbac.repository.UserRoleRepository;
+import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.time.Instant;
 
@@ -122,19 +123,51 @@ class RbacAuthApplicationTests {
         assertThat(login.refreshToken()).isNotBlank();
         assertThat(login.roleCodes()).contains("ROLE_ADMIN");
         assertThat(login.permissionCodes()).contains("api:rbac:user:list");
+        assertThat(login.permissionVersion()).isNotBlank();
 
         Authentication authentication = authApplication.authenticateAccessToken(login.accessToken());
+        RbacPrincipal principal = (RbacPrincipal) authentication.getPrincipal();
+        assertThat(principal.permissionVersion()).isEqualTo(login.permissionVersion());
         assertThat(authentication.getAuthorities())
                 .extracting("authority")
                 .contains("ROLE_ADMIN", "api:rbac:user:list");
 
         LoginResponse refreshed = authApplication.refresh(login.refreshToken(), "127.0.0.1", "test");
         assertThat(refreshed.refreshToken()).isNotEqualTo(login.refreshToken());
+        assertThat(refreshed.permissionVersion()).isEqualTo(login.permissionVersion());
         RefreshTokenPo oldToken = refreshTokenRepository.findAll().stream()
                 .filter(token -> token.getReplacedByTokenId() != null)
                 .findFirst()
                 .orElseThrow();
         assertThat(oldToken.getRevokedAt()).isNotNull();
+    }
+
+    @Test
+    void permissionVersionChangesWhenUserRoleSnapshotChanges() {
+        UserPo user = new UserPo();
+        user.setUsername("luigi");
+        user.setNickname("Luigi");
+        user.setPasswordHash(passwordEncoder.encode("secret"));
+        user.setStatus(RbacStatus.ENABLED);
+        user = userRepository.save(user);
+
+        RolePo role = new RolePo();
+        role.setRoleCode("ROLE_VIEWER");
+        role.setRoleName("Viewer");
+        role.setStatus(RbacStatus.ENABLED);
+        role = roleRepository.save(role);
+
+        LoginResponse beforeGrant = authApplication.login(new LoginRequest("luigi", "secret"), "127.0.0.1", "test");
+
+        UserRolePo userRole = new UserRolePo();
+        userRole.setUserId(user.getId());
+        userRole.setRoleId(role.getId());
+        userRole.setGrantedAt(Instant.now());
+        userRoleRepository.save(userRole);
+
+        LoginResponse afterGrant = authApplication.currentUser(user.getId());
+
+        assertThat(afterGrant.permissionVersion()).isNotEqualTo(beforeGrant.permissionVersion());
     }
 
 }
