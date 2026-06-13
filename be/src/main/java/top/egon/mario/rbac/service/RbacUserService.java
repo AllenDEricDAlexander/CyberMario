@@ -9,6 +9,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.converter.RbacDtoConverter;
 import top.egon.mario.rbac.dto.request.CreateUserRequest;
 import top.egon.mario.rbac.dto.request.UpdateUserRequest;
@@ -62,7 +63,7 @@ public class RbacUserService {
         UserPo savedUser = userRepository.save(user);
         replaceUserRoles(savedUser.getId(), request.getRoleIds(), actorUserId);
         auditService.log(actorUserId, "RBAC_USER_CREATE", "USER", savedUser.getId(), null, savedUser.getUsername(), null, null);
-        log.info("rbac user created, userId={}, actorUserId={}", savedUser.getId(), actorUserId);
+        LogUtil.info(log).log("rbac user created, userId={}, actorUserId={}", savedUser.getId(), actorUserId);
         return rbacDtoConverter.toUserResponse(savedUser);
     }
 
@@ -109,7 +110,7 @@ public class RbacUserService {
             user.setPasswordExpired(request.getPasswordExpired());
         }
         UserPo savedUser = userRepository.save(user);
-        log.info("rbac user updated, userId={}", userId);
+        LogUtil.info(log).log("rbac user updated, userId={}", userId);
         return rbacDtoConverter.toUserResponse(savedUser);
     }
 
@@ -119,7 +120,7 @@ public class RbacUserService {
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setPasswordExpired(false);
         userRepository.save(user);
-        log.info("rbac user password reset, userId={}", userId);
+        LogUtil.info(log).log("rbac user password reset, userId={}", userId);
     }
 
     @Transactional
@@ -127,7 +128,7 @@ public class RbacUserService {
         UserPo user = getUserPo(userId);
         user.setStatus(rbacDtoConverter.toPoRbacStatus(status));
         userRepository.save(user);
-        log.info("rbac user status updated, userId={}, statusCode={}", userId, status.getCode());
+        LogUtil.info(log).log("rbac user status updated, userId={}, statusCode={}", userId, status.getCode());
     }
 
     @Transactional
@@ -142,7 +143,7 @@ public class RbacUserService {
         user.setDeleted(true);
         userRepository.save(user);
         auditService.log(actorUserId, "RBAC_USER_DELETE", "USER", userId, user.getUsername(), null, null, null);
-        log.info("rbac user deleted, userId={}, actorUserId={}", userId, actorUserId);
+        LogUtil.info(log).log("rbac user deleted, userId={}, actorUserId={}", userId, actorUserId);
     }
 
     @Transactional
@@ -182,7 +183,8 @@ public class RbacUserService {
                 .toList();
         userRoleRepository.saveAll(addedRelations);
         auditService.log(actorUserId, "RBAC_USER_ROLE_UPDATE", "USER", userId, oldRoleIds.toString(), requestedRoleIds.toString(), null, null);
-        log.info("rbac user roles replaced, userId={}, roleCount={}, actorUserId={}", userId, requestedRoleIds.size(), actorUserId);
+        LogUtil.info(log).log("rbac user roles replaced, userId={}, roleCount={}, actorUserId={}",
+                userId, requestedRoleIds.size(), actorUserId);
         publishPermissionChanged("update user roles");
     }
 

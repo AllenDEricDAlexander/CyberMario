@@ -9,6 +9,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.po.ApiPo;
 import top.egon.mario.rbac.po.PermissionPo;
 import top.egon.mario.rbac.po.RolePermissionPo;
@@ -62,7 +63,7 @@ public class RbacAdminBootstrap implements ApplicationRunner {
     @Transactional
     public void bootstrap() {
         if (!properties.enabled()) {
-            log.debug("rbac admin bootstrap skipped, enabled=false");
+            LogUtil.debug(log).log("rbac admin bootstrap skipped, enabled=false");
             return;
         }
 
@@ -73,7 +74,8 @@ public class RbacAdminBootstrap implements ApplicationRunner {
         ensureUserRole(admin, role);
         ensureRolePermission(role, permission);
         eventPublisher.publishEvent(new RbacPermissionChangedEvent("bootstrap super administrator"));
-        log.info("rbac admin bootstrap completed, username={}, roleCode={}", admin.getUsername(), role.getRoleCode());
+        LogUtil.info(log).log("rbac admin bootstrap completed, username={}, roleCode={}",
+                admin.getUsername(), role.getRoleCode());
     }
 
     private UserPo ensureAdminUser() {

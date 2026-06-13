@@ -4,6 +4,7 @@ import com.google.common.hash.BloomFilter;
 import com.google.common.hash.Funnels;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import top.egon.mario.common.utils.LogUtil;
 
 import java.nio.charset.StandardCharsets;
 
@@ -26,7 +27,7 @@ public class RbacBloomGuards {
                 expectedInsertions, falsePositiveProbability);
         this.permissionKeyBloom = BloomFilter.create(Funnels.stringFunnel(StandardCharsets.UTF_8),
                 expectedInsertions, falsePositiveProbability);
-        log.info("rbac bloom guards initialized, expectedInsertions={}, falsePositiveProbability={}",
+        LogUtil.info(log).log("rbac bloom guards initialized, expectedInsertions={}, falsePositiveProbability={}",
                 expectedInsertions, falsePositiveProbability);
     }
 

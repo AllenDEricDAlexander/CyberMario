@@ -8,6 +8,7 @@ import org.springframework.web.bind.support.WebExchangeBindException;
 import reactor.core.publisher.Mono;
 import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.common.api.TraceContext;
+import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.service.RbacException;
 
 import java.util.HashMap;
@@ -32,7 +33,7 @@ public class GlobalExceptionHandler {
         return Mono.deferContextual(contextView -> {
             String traceId = TraceContext.traceId(contextView);
             return Mono.just(TraceContext.withMdc(traceId, () -> {
-                log.warn("request validation failed, fieldCount={}", errors.size());
+                LogUtil.warn(log).log("request validation failed, fieldCount={}", errors.size());
                 return ResponseEntity.badRequest().body(response);
             }));
         });
@@ -43,7 +44,7 @@ public class GlobalExceptionHandler {
         return Mono.deferContextual(contextView -> {
             String traceId = TraceContext.traceId(contextView);
             return Mono.just(TraceContext.withMdc(traceId, () -> {
-                log.warn("rbac request rejected, code={}", ex.getCode());
+                LogUtil.warn(log).log("rbac request rejected, code={}", ex.getCode());
                 return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getCode(), ex.getMessage(), traceId));
             }));
         });

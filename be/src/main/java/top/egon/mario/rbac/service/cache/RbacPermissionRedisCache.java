@@ -12,6 +12,7 @@ import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
+import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.dto.response.EffectivePermissionResponse;
 import top.egon.mario.rbac.dto.response.MenuTreeResponse;
 import top.egon.mario.rbac.service.model.ApiPermissionRule;
@@ -62,10 +63,10 @@ public class RbacPermissionRedisCache {
             while (cursor.hasNext()) {
                 bloomGuards.rememberPermissionKey(cursor.next());
             }
-            log.info("rbac permission cache bloom warmed from redis");
+            LogUtil.info(log).log("rbac permission cache bloom warmed from redis");
         } catch (RuntimeException e) {
             // Redis may be unavailable during local startup; cache writes will warm the Bloom filter later.
-            log.warn("rbac permission cache bloom warm skipped, reason=redis_unavailable", e);
+            LogUtil.warn(log).log("rbac permission cache bloom warm skipped, reason=redis_unavailable", e);
         }
     }
 
@@ -75,9 +76,7 @@ public class RbacPermissionRedisCache {
         }
         List<ApiPermissionRule> cached = localApiRules.get();
         if (cached != null) {
-            if (log.isDebugEnabled()) {
-                log.debug("rbac permission cache local hit, key={}", API_RULES_KEY);
-            }
+            LogUtil.debug(log).log("rbac permission cache local hit, key={}", API_RULES_KEY);
             return cached;
         }
         List<ApiPermissionRule> loaded = getOrLoad(API_RULES_KEY, () -> read(API_RULES_KEY, API_RULE_LIST_TYPE),
@@ -105,12 +104,12 @@ public class RbacPermissionRedisCache {
     public void evictAllPermissions() {
         localApiRules.set(null);
         invalidator.doubleDeletePatterns(List.of(PERMISSION_SCAN_PATTERN));
-        log.info("rbac permission cache invalidated, scope=all");
+        LogUtil.info(log).log("rbac permission cache invalidated, scope=all");
     }
 
     public void evictUserPermissions(Long userId) {
         invalidator.doubleDeleteKeys(List.of(userEffectiveKey(userId), userMenuKey(userId)));
-        log.info("rbac permission cache invalidated, scope=user, userId={}", userId);
+        LogUtil.info(log).log("rbac permission cache invalidated, scope=user, userId={}", userId);
     }
 
     public void evictUserPermissions(Collection<Long> userIds) {
@@ -120,12 +119,12 @@ public class RbacPermissionRedisCache {
         invalidator.doubleDeleteKeys(userIds.stream()
                 .flatMap(userId -> List.of(userEffectiveKey(userId), userMenuKey(userId)).stream())
                 .toList());
-        log.info("rbac permission cache invalidated, scope=users, userCount={}", userIds.size());
+        LogUtil.info(log).log("rbac permission cache invalidated, scope=users, userCount={}", userIds.size());
     }
 
     @EventListener
     public void onPermissionChanged(RbacPermissionChangedEvent event) {
-        log.info("rbac permission change event received, reason={}", event.reason());
+        LogUtil.info(log).log("rbac permission change event received, reason={}", event.reason());
         evictAllPermissions();
     }
 
@@ -149,7 +148,7 @@ public class RbacPermissionRedisCache {
             return Optional.of(objectMapper.readValue(value, type));
         } catch (JsonProcessingException e) {
             invalidator.doubleDeleteKeys(List.of(key));
-            log.warn("rbac permission cache corrupted, key={}", key, e);
+            LogUtil.warn(log).log("rbac permission cache corrupted, key={}", key, e);
             return Optional.empty();
         }
     }
@@ -166,7 +165,7 @@ public class RbacPermissionRedisCache {
             return Optional.of(objectMapper.readValue(value, type));
         } catch (JsonProcessingException e) {
             invalidator.doubleDeleteKeys(List.of(key));
-            log.warn("rbac permission cache corrupted, key={}", key, e);
+            LogUtil.warn(log).log("rbac permission cache corrupted, key={}", key, e);
             return Optional.empty();
         }
     }
@@ -174,9 +173,7 @@ public class RbacPermissionRedisCache {
     private <T> T getOrLoad(String key, Supplier<Optional<T>> reader, Supplier<T> loader, Duration ttl) {
         Optional<T> cached = reader.get();
         if (cached.isPresent()) {
-            if (log.isDebugEnabled()) {
-                log.debug("rbac permission cache hit, key={}", key);
-            }
+            LogUtil.debug(log).log("rbac permission cache hit, key={}", key);
             return cached.get();
         }
         Lock lock = keyLocks.get(key);
@@ -184,14 +181,10 @@ public class RbacPermissionRedisCache {
         try {
             cached = reader.get();
             if (cached.isPresent()) {
-                if (log.isDebugEnabled()) {
-                    log.debug("rbac permission cache hit after lock, key={}", key);
-                }
+                LogUtil.debug(log).log("rbac permission cache hit after lock, key={}", key);
                 return cached.get();
             }
-            if (log.isDebugEnabled()) {
-                log.debug("rbac permission cache miss, key={}", key);
-            }
+            LogUtil.debug(log).log("rbac permission cache miss, key={}", key);
             T loaded = loader.get();
             write(key, loaded, ttl);
             return loaded;
@@ -208,7 +201,7 @@ public class RbacPermissionRedisCache {
             bloomGuards.rememberPermissionKey(key);
             redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(value), ttlWithJitter(ttl));
         } catch (JsonProcessingException e) {
-            log.error("serialize rbac permission cache failed, key={}", key, e);
+            LogUtil.error(log).log("serialize rbac permission cache failed, key={}", key, e);
             throw new IllegalStateException("serialize RBAC permission cache failed", e);
         }
     }

@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import top.egon.mario.agent.tools.arxiv.dto.ArxivSearchRequest;
 import top.egon.mario.agent.tools.arxiv.dto.ArxivSearchResponse;
+import top.egon.mario.common.utils.LogUtil;
 
 import java.util.List;
 import java.util.Map;
@@ -16,7 +17,8 @@ public class ArxivTools implements Function<ArxivSearchRequest, ArxivSearchRespo
     @Override
     public ArxivSearchResponse apply(ArxivSearchRequest request) {
         int limit = request.maxResults() == null ? 5 : Math.min(Math.max(request.maxResults(), 1), 10);
-        log.info("arxiv tool search started, queryLength={}, limit={}", request.query() == null ? 0 : request.query().length(), limit);
+        LogUtil.info(log).log("arxiv tool search started, queryLength={}, limit={}",
+                request.query() == null ? 0 : request.query().length(), limit);
 
         ArxivDocumentReader reader = new ArxivDocumentReader(request.query(), limit);
 
@@ -24,13 +26,13 @@ public class ArxivTools implements Function<ArxivSearchRequest, ArxivSearchRespo
         List<Document> documents = reader.getSummaries();
 
         if (documents.isEmpty()) {
-            log.info("arxiv tool search completed, resultCount=0");
+            LogUtil.info(log).log("arxiv tool search completed, resultCount=0");
             return new ArxivSearchResponse("未检索到相关 arXiv 论文。query = " + request.query());
         }
 
         String content = documents.stream().map(this::format).collect(Collectors.joining("\n\n---\n\n"));
 
-        log.info("arxiv tool search completed, resultCount={}", documents.size());
+        LogUtil.info(log).log("arxiv tool search completed, resultCount={}", documents.size());
         return new ArxivSearchResponse(content);
     }
 

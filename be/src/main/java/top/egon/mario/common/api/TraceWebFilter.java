@@ -8,6 +8,7 @@ import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
+import top.egon.mario.common.utils.LogUtil;
 
 /**
  * Ensures every WebFlux request has a trace identifier available to responses.
@@ -20,9 +21,8 @@ public class TraceWebFilter implements WebFilter {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         String traceId = TraceContext.resolve(exchange.getRequest().getHeaders());
-        if (log.isDebugEnabled()) {
-            log.debug("trace context resolved, path={}, traceId={}", exchange.getRequest().getPath().value(), traceId);
-        }
+        LogUtil.debug(log).log("trace context resolved, path={}, traceId={}",
+                exchange.getRequest().getPath().value(), traceId);
         ServerWebExchange tracedExchange = exchange.mutate()
                 .request(builder -> builder.headers(headers -> headers.set(TraceContext.TRACE_ID_HEADER, traceId)))
                 .build();

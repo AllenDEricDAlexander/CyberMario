@@ -13,6 +13,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import top.egon.mario.agent.service.ChatAgentService;
 import top.egon.mario.common.api.TraceContext;
+import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.pojo.response.ChatResponse;
 
 import java.util.UUID;
@@ -41,7 +42,7 @@ public class ReactAgentChatService implements ChatAgentService {
 
         return Flux.deferContextual(contextView -> {
             String traceId = TraceContext.traceId(contextView);
-            TraceContext.withMdc(traceId, () -> log.info("agent chat started, threadId={}, messageLength={}",
+            TraceContext.withMdc(traceId, () -> LogUtil.info(log).log("agent chat started, threadId={}, messageLength={}",
                     conversationThreadId, message == null ? 0 : message.length()));
             return Mono.just(config)
                     .flatMapMany(cfg -> {
@@ -52,9 +53,9 @@ public class ReactAgentChatService implements ChatAgentService {
                         }
                     })
                     .doOnComplete(() -> TraceContext.withMdc(traceId,
-                            () -> log.info("agent chat completed, threadId={}", conversationThreadId)))
+                            () -> LogUtil.info(log).log("agent chat completed, threadId={}", conversationThreadId)))
                     .doOnError(error -> TraceContext.withMdc(traceId,
-                            () -> log.error("agent chat failed, threadId={}", conversationThreadId, error)))
+                            () -> LogUtil.error(log).log("agent chat failed, threadId={}", conversationThreadId, error)))
                     .subscribeOn(Schedulers.boundedElastic())
                     .flatMap(output -> toChatResponse(output, conversationThreadId));
         });

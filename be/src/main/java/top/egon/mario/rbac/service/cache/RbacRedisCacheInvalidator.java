@@ -7,6 +7,7 @@ import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
+import top.egon.mario.common.utils.LogUtil;
 
 import java.time.Duration;
 import java.util.Collection;
@@ -41,9 +42,7 @@ public class RbacRedisCacheInvalidator {
         List<String> cacheKeys = List.copyOf(keys);
         deleteKeys(cacheKeys);
         executorService.schedule(() -> deleteKeys(cacheKeys), delayMillis(), TimeUnit.MILLISECONDS);
-        if (log.isDebugEnabled()) {
-            log.debug("rbac cache keys scheduled for double delete, keyCount={}", cacheKeys.size());
-        }
+        LogUtil.debug(log).log("rbac cache keys scheduled for double delete, keyCount={}", cacheKeys.size());
     }
 
     public void doubleDeletePatterns(Collection<String> patterns) {
@@ -56,9 +55,7 @@ public class RbacRedisCacheInvalidator {
         List<String> cachePatterns = List.copyOf(patterns);
         deletePatterns(cachePatterns);
         executorService.schedule(() -> deletePatterns(cachePatterns), delayMillis(), TimeUnit.MILLISECONDS);
-        if (log.isDebugEnabled()) {
-            log.debug("rbac cache patterns scheduled for double delete, patternCount={}", cachePatterns.size());
-        }
+        LogUtil.debug(log).log("rbac cache patterns scheduled for double delete, patternCount={}", cachePatterns.size());
     }
 
     @PreDestroy
@@ -68,9 +65,7 @@ public class RbacRedisCacheInvalidator {
 
     private void deleteKeys(Collection<String> keys) {
         redisTemplate.delete(keys);
-        if (log.isDebugEnabled()) {
-            log.debug("rbac cache keys deleted, keyCount={}", keys.size());
-        }
+        LogUtil.debug(log).log("rbac cache keys deleted, keyCount={}", keys.size());
     }
 
     private void deletePatterns(Collection<String> patterns) {

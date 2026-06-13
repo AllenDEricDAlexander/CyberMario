@@ -6,6 +6,7 @@ import com.alibaba.cloud.ai.graph.agent.hook.AgentHook;
 import com.alibaba.cloud.ai.graph.agent.hook.HookPosition;
 import com.alibaba.cloud.ai.graph.agent.hook.HookPositions;
 import lombok.extern.slf4j.Slf4j;
+import top.egon.mario.common.utils.LogUtil;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -20,13 +21,13 @@ public class LoggingHook extends AgentHook {
 
     @Override
     public CompletableFuture<Map<String, Object>> beforeAgent(OverAllState state, RunnableConfig config) {
-        log.info("agent execution started");
+        LogUtil.info(log).log("agent execution started");
         return CompletableFuture.completedFuture(Map.of());
     }
 
     @Override
     public CompletableFuture<Map<String, Object>> afterAgent(OverAllState state, RunnableConfig config) {
-        log.info("agent execution completed");
+        LogUtil.info(log).log("agent execution completed");
         return CompletableFuture.completedFuture(Map.of());
     }
 }

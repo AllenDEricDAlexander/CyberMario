@@ -7,6 +7,7 @@ import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
+import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.service.security.JwtClaims;
 import top.egon.mario.rbac.service.security.JwtTokenPair;
 
@@ -40,10 +41,10 @@ public class RbacTokenCache {
             while (cursor.hasNext()) {
                 bloomGuards.rememberTokenKey(cursor.next());
             }
-            log.info("rbac token cache bloom warmed from redis");
+            LogUtil.info(log).log("rbac token cache bloom warmed from redis");
         } catch (RuntimeException e) {
             // Redis may be unavailable during local startup; tokens created later still warm the Bloom filter.
-            log.warn("rbac token cache bloom warm skipped, reason=redis_unavailable", e);
+            LogUtil.warn(log).log("rbac token cache bloom warm skipped, reason=redis_unavailable", e);
         }
     }
 
@@ -75,9 +76,7 @@ public class RbacTokenCache {
         }
         String key = accessKey(claims.tokenId());
         if (!bloomGuards.mightContainTokenKey(key)) {
-            if (log.isDebugEnabled()) {
-                log.debug("rbac access token rejected by bloom guard, accessTokenId={}", claims.tokenId());
-            }
+            LogUtil.debug(log).log("rbac access token rejected by bloom guard, accessTokenId={}", claims.tokenId());
             return false;
         }
         return Boolean.TRUE.equals(redisTemplate.hasKey(key));
@@ -89,9 +88,7 @@ public class RbacTokenCache {
         }
         String key = refreshKey(claims.tokenId());
         if (!bloomGuards.mightContainTokenKey(key)) {
-            if (log.isDebugEnabled()) {
-                log.debug("rbac refresh token skipped by bloom guard, refreshTokenId={}", claims.tokenId());
-            }
+            LogUtil.debug(log).log("rbac refresh token skipped by bloom guard, refreshTokenId={}", claims.tokenId());
             return Optional.empty();
         }
         return Optional.ofNullable(redisTemplate.opsForValue().get(key));
@@ -102,7 +99,7 @@ public class RbacTokenCache {
             return;
         }
         invalidator.doubleDeleteKeys(List.of(refreshKey(tokenId)));
-        log.info("rbac refresh token cache invalidated, refreshTokenId={}", tokenId);
+        LogUtil.info(log).log("rbac refresh token cache invalidated, refreshTokenId={}", tokenId);
     }
 
     public void evictAccessToken(String tokenId) {
@@ -110,7 +107,7 @@ public class RbacTokenCache {
             return;
         }
         invalidator.doubleDeleteKeys(List.of(accessKey(tokenId)));
-        log.info("rbac access token cache invalidated, accessTokenId={}", tokenId);
+        LogUtil.info(log).log("rbac access token cache invalidated, accessTokenId={}", tokenId);
     }
 
     public String accessKey(String tokenId) {
@@ -127,9 +124,7 @@ public class RbacTokenCache {
         }
         bloomGuards.rememberTokenKey(key);
         redisTemplate.opsForValue().set(key, value, ttl);
-        if (log.isDebugEnabled()) {
-            log.debug("rbac token cache stored, key={}, ttlSeconds={}", key, ttl.toSeconds());
-        }
+        LogUtil.debug(log).log("rbac token cache stored, key={}, ttlSeconds={}", key, ttl.toSeconds());
     }
 
 }

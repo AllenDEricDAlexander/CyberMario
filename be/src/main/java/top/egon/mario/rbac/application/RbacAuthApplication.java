@@ -8,6 +8,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.converter.RbacDtoConverter;
 import top.egon.mario.rbac.dto.request.LoginRequest;
 import top.egon.mario.rbac.dto.response.EffectivePermissionResponse;
@@ -58,7 +59,7 @@ public class RbacAuthApplication {
         ensureUserCanLogin(user);
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             auditService.log(user.getId(), "AUTH_LOGIN_FAILED", "USER", user.getId(), null, null, ip, userAgent);
-            log.warn("login rejected, reason=bad_credentials, userId={}", user.getId());
+            LogUtil.warn(log).log("login rejected, reason=bad_credentials, userId={}", user.getId());
             throw new RbacException("AUTH_INVALID_CREDENTIALS", "username or password is invalid");
         }
         JwtTokenPair tokenPair = jwtTokenService.createTokenPair(user.getId(), user.getUsername());
@@ -67,7 +68,7 @@ public class RbacAuthApplication {
         tokenCache.storeTokenPair(user.getId(), tokenPair, refreshTokenHash);
         rbacUserService.markLoginSuccess(user.getId());
         auditService.log(user.getId(), "AUTH_LOGIN_SUCCESS", "USER", user.getId(), null, null, ip, userAgent);
-        log.info("login succeeded, userId={}, accessTokenId={}, refreshTokenId={}",
+        LogUtil.info(log).log("login succeeded, userId={}, accessTokenId={}, refreshTokenId={}",
                 user.getId(), tokenPair.accessTokenId(), tokenPair.refreshTokenId());
         return buildLoginResponse(user, tokenPair);
     }
@@ -86,7 +87,8 @@ public class RbacAuthApplication {
         if (oldToken.getRevokedAt() != null || oldToken.getExpiresAt().isBefore(Instant.now())
                 || !oldToken.getTokenHash().equals(refreshTokenHash)) {
             tokenCache.evictRefreshToken(claims.tokenId());
-            log.warn("refresh rejected, reason=token_state_invalid, userId={}, refreshTokenId={}", claims.userId(), claims.tokenId());
+            LogUtil.warn(log).log("refresh rejected, reason=token_state_invalid, userId={}, refreshTokenId={}",
+                    claims.userId(), claims.tokenId());
             throw new RbacException("AUTH_TOKEN_INVALID", "refresh token is invalid");
         }
         UserPo user = userRepository.findByIdAndDeletedFalse(claims.userId())
@@ -101,7 +103,7 @@ public class RbacAuthApplication {
         saveRefreshToken(user.getId(), tokenPair.refreshTokenId(), newRefreshTokenHash, tokenPair.refreshTokenExpiresInSeconds(), ip, userAgent);
         tokenCache.storeTokenPair(user.getId(), tokenPair, newRefreshTokenHash);
         auditService.log(user.getId(), "AUTH_REFRESH", "USER", user.getId(), null, null, ip, userAgent);
-        log.info("token refreshed, userId={}, oldRefreshTokenId={}, newRefreshTokenId={}",
+        LogUtil.info(log).log("token refreshed, userId={}, oldRefreshTokenId={}, newRefreshTokenId={}",
                 user.getId(), oldToken.getTokenId(), tokenPair.refreshTokenId());
         return buildLoginResponse(user, tokenPair);
     }
@@ -113,7 +115,7 @@ public class RbacAuthApplication {
             token.setRevokedAt(Instant.now());
             refreshTokenRepository.save(token);
             tokenCache.evictRefreshToken(claims.tokenId());
-            log.info("logout completed, userId={}, refreshTokenId={}", claims.userId(), claims.tokenId());
+            LogUtil.info(log).log("logout completed, userId={}, refreshTokenId={}", claims.userId(), claims.tokenId());
         });
     }
 
@@ -121,7 +123,8 @@ public class RbacAuthApplication {
     public Authentication authenticateAccessToken(String accessToken) {
         JwtClaims claims = jwtTokenService.validate(accessToken, "access");
         if (!tokenCache.isAccessTokenActive(claims)) {
-            log.warn("access token rejected, reason=inactive, userId={}, accessTokenId={}", claims.userId(), claims.tokenId());
+            LogUtil.warn(log).log("access token rejected, reason=inactive, userId={}, accessTokenId={}",
+                    claims.userId(), claims.tokenId());
             throw new RbacException("AUTH_TOKEN_INVALID", "access token is inactive");
         }
         UserPo user = userRepository.findByIdAndDeletedFalse(claims.userId())

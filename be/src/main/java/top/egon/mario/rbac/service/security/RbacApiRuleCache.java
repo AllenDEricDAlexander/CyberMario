@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.service.ApiRuleMatcher;
 import top.egon.mario.rbac.service.RbacPermissionService;
 import top.egon.mario.rbac.service.cache.RbacPermissionRedisCache;
@@ -34,13 +35,13 @@ public class RbacApiRuleCache {
     public void refresh() {
         List<ApiPermissionRule> rules = permissionRedisCache.getApiRules(permissionService::findEnabledApiRules);
         cachedRules.set(rules);
-        log.info("rbac api rule cache refreshed, ruleCount={}", rules.size());
+        LogUtil.info(log).log("rbac api rule cache refreshed, ruleCount={}", rules.size());
     }
 
     @EventListener
     public void onPermissionChanged(RbacPermissionChangedEvent event) {
         cachedRules.set(null);
-        log.info("rbac api rule local cache cleared, reason={}", event.reason());
+        LogUtil.info(log).log("rbac api rule local cache cleared, reason={}", event.reason());
     }
 
     private List<ApiPermissionRule> rules() {
@@ -48,9 +49,7 @@ public class RbacApiRuleCache {
         if (rules == null) {
             rules = permissionRedisCache.getApiRules(permissionService::findEnabledApiRules);
             cachedRules.compareAndSet(null, rules);
-            if (log.isDebugEnabled()) {
-                log.debug("rbac api rule local cache loaded, ruleCount={}", rules.size());
-            }
+            LogUtil.debug(log).log("rbac api rule local cache loaded, ruleCount={}", rules.size());
         }
         return rules;
     }

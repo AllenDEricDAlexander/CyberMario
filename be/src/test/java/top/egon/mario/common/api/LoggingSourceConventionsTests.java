@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -15,6 +16,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class LoggingSourceConventionsTests {
 
     private static final Path SOURCE_ROOT = Path.of("src/main/java");
+    private static final Pattern DIRECT_LOG_CALL_PATTERN =
+            Pattern.compile("\\blog\\.(trace|debug|info|warn|error)\\s*\\(");
     private static final List<String> LOGGED_BEHAVIOR_FILES = List.of(
             "top/egon/mario/MarioApplication.java",
             "top/egon/mario/agent/config/AgentConfiguration.java",
@@ -85,6 +88,22 @@ class LoggingSourceConventionsTests {
         }
     }
 
+    @Test
+    void productionCodeUsesLogUtilForLogEvents() throws IOException {
+        try (var files = Files.walk(SOURCE_ROOT)) {
+            List<String> offenders = files
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> !SOURCE_ROOT.relativize(path).toString()
+                            .equals("top/egon/mario/common/utils/LogUtil.java"))
+                    .filter(path -> containsDirectLogCall(path))
+                    .map(SOURCE_ROOT::relativize)
+                    .map(Path::toString)
+                    .toList();
+
+            assertThat(offenders).isEmpty();
+        }
+    }
+
     private static String source(String file) throws IOException {
         return Files.readString(SOURCE_ROOT.resolve(file));
     }
@@ -93,6 +112,15 @@ class LoggingSourceConventionsTests {
         try {
             String source = Files.readString(path);
             return source.contains("System.out.print") || source.contains("System.err.print");
+        } catch (IOException e) {
+            throw new IllegalStateException("read source failed: " + path, e);
+        }
+    }
+
+    private static boolean containsDirectLogCall(Path path) {
+        try {
+            String source = Files.readString(path);
+            return DIRECT_LOG_CALL_PATTERN.matcher(source).find();
         } catch (IOException e) {
             throw new IllegalStateException("read source failed: " + path, e);
         }

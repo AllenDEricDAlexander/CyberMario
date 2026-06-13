@@ -12,6 +12,7 @@ import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import top.egon.mario.common.api.TraceContext;
+import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.application.RbacAuthApplication;
 
 /**
@@ -30,15 +31,13 @@ public class JwtAuthenticationWebFilter implements WebFilter {
         if (token == null) {
             return chain.filter(exchange);
         }
-        if (log.isDebugEnabled()) {
-            log.debug("bearer token detected, path={}", exchange.getRequest().getPath().value());
-        }
+        LogUtil.debug(log).log("bearer token detected, path={}", exchange.getRequest().getPath().value());
         return Mono.deferContextual(contextView -> {
             String traceId = TraceContext.traceId(contextView);
             return Mono.fromCallable(() -> TraceContext.withMdc(traceId, () -> authApplication.authenticateAccessToken(token)))
                     .subscribeOn(Schedulers.boundedElastic())
                     .doOnError(error -> TraceContext.withMdc(traceId,
-                            () -> log.warn("bearer token authentication failed, path={}",
+                            () -> LogUtil.warn(log).log("bearer token authentication failed, path={}",
                                     exchange.getRequest().getPath().value())))
                     .flatMap(authentication -> chain.filter(exchange)
                             .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(new SecurityContextImpl(authentication)))));

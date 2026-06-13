@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.converter.RbacDtoConverter;
 import top.egon.mario.rbac.dto.request.PermissionRequest;
 import top.egon.mario.rbac.dto.response.MenuTreeResponse;
@@ -70,7 +71,7 @@ public class RbacPermissionService {
         saveDetail(savedPermission, request, actorUserId);
         auditService.log(actorUserId, "RBAC_PERMISSION_CREATE", "PERMISSION", savedPermission.getId(), null, savedPermission.getPermCode(), null, null);
         publishPermissionChanged("create permission");
-        log.info("rbac permission created, permissionId={}, permCode={}, actorUserId={}",
+        LogUtil.info(log).log("rbac permission created, permissionId={}, permCode={}, actorUserId={}",
                 savedPermission.getId(), savedPermission.getPermCode(), actorUserId);
         return getPermission(savedPermission.getId());
     }
@@ -136,7 +137,7 @@ public class RbacPermissionService {
         saveDetail(permission, request, actorUserId);
         auditService.log(actorUserId, "RBAC_PERMISSION_UPDATE", "PERMISSION", permissionId, null, permission.getPermCode(), null, null);
         publishPermissionChanged("update permission");
-        log.info("rbac permission updated, permissionId={}, permCode={}, actorUserId={}",
+        LogUtil.info(log).log("rbac permission updated, permissionId={}, permCode={}, actorUserId={}",
                 permissionId, permission.getPermCode(), actorUserId);
         return getPermission(permissionId);
     }
@@ -149,7 +150,8 @@ public class RbacPermissionService {
         permissionRepository.save(permission);
         auditService.log(0L, "RBAC_PERMISSION_STATUS_UPDATE", "PERMISSION", permissionId, null, permissionStatus.name(), null, null);
         publishPermissionChanged("update permission status");
-        log.info("rbac permission status updated, permissionId={}, statusCode={}", permissionId, permissionStatus.getCode());
+        LogUtil.info(log).log("rbac permission status updated, permissionId={}, statusCode={}",
+                permissionId, permissionStatus.getCode());
     }
 
     @Transactional
@@ -167,7 +169,8 @@ public class RbacPermissionService {
         permissionRepository.save(permission);
         auditService.log(0L, "RBAC_PERMISSION_DELETE", "PERMISSION", permissionId, permission.getPermCode(), null, null, null);
         publishPermissionChanged("delete permission");
-        log.info("rbac permission deleted, permissionId={}, permCode={}", permissionId, permission.getPermCode());
+        LogUtil.info(log).log("rbac permission deleted, permissionId={}, permCode={}",
+                permissionId, permission.getPermCode());
     }
 
     @Transactional
@@ -192,7 +195,7 @@ public class RbacPermissionService {
         saveButtonApiLinks(buttonPermissionId, addedApiIds, actorUserId);
         auditService.log(actorUserId, "RBAC_BUTTON_API_UPDATE", "PERMISSION", buttonPermissionId, oldApiIds.toString(), requestedApiIds.toString(), null, null);
         publishPermissionChanged("update button api links");
-        log.info("rbac button api links replaced, buttonPermissionId={}, apiPermissionCount={}, actorUserId={}",
+        LogUtil.info(log).log("rbac button api links replaced, buttonPermissionId={}, apiPermissionCount={}, actorUserId={}",
                 buttonPermissionId, requestedApiIds.size(), actorUserId);
     }
 

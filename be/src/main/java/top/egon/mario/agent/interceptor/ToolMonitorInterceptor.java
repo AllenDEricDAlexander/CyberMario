@@ -5,6 +5,7 @@ import com.alibaba.cloud.ai.graph.agent.interceptor.ToolCallRequest;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ToolCallResponse;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ToolInterceptor;
 import lombok.extern.slf4j.Slf4j;
+import top.egon.mario.common.utils.LogUtil;
 
 @Slf4j
 public class ToolMonitorInterceptor extends ToolInterceptor {
@@ -13,10 +14,12 @@ public class ToolMonitorInterceptor extends ToolInterceptor {
         long startTime = System.currentTimeMillis();
         try {
             ToolCallResponse response = handler.call(request);
-            log.info("tool call completed, toolName={}, costMs={}", request.getToolName(), System.currentTimeMillis() - startTime);
+            LogUtil.info(log).log("tool call completed, toolName={}, costMs={}",
+                    request.getToolName(), System.currentTimeMillis() - startTime);
             return response;
         } catch (Exception e) {
-            log.error("tool call failed, toolName={}, costMs={}", request.getToolName(), System.currentTimeMillis() - startTime, e);
+            LogUtil.error(log).log("tool call failed, toolName={}, costMs={}",
+                    request.getToolName(), System.currentTimeMillis() - startTime, e);
             return ToolCallResponse.error(request.getToolCallId(), request.getToolName(), e.getMessage());
         }
     }

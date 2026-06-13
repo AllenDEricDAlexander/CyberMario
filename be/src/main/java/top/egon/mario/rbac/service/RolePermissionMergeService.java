@@ -2,6 +2,7 @@ package top.egon.mario.rbac.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.service.model.ButtonApiLink;
 
 import java.util.Collection;
@@ -27,10 +28,8 @@ public class RolePermissionMergeService {
                 mergedPermissionIds.add(link.apiPermissionId());
             }
         }
-        if (log.isDebugEnabled()) {
-            log.debug("rbac role permissions merged, submittedCount={}, mergedCount={}",
-                    submittedPermissionIds.size(), mergedPermissionIds.size());
-        }
+        LogUtil.debug(log).log("rbac role permissions merged, submittedCount={}, mergedCount={}",
+                submittedPermissionIds.size(), mergedPermissionIds.size());
         return mergedPermissionIds;
     }
 

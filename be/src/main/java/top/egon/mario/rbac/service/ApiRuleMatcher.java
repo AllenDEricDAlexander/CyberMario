@@ -5,6 +5,7 @@ import org.springframework.http.server.PathContainer;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.util.pattern.PathPatternParser;
+import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.service.model.ApiPermissionRule;
 
 import java.util.Comparator;
@@ -33,9 +34,8 @@ public class ApiRuleMatcher {
                         .comparingInt((ApiPermissionRule rule) -> methodRank(httpMethod, rule.httpMethod()))
                         .thenComparingInt(rule -> matcherRank(rule.matcherType()))
                         .thenComparing((ApiPermissionRule rule) -> rule.urlPattern().length(), Comparator.reverseOrder()));
-        if (log.isDebugEnabled()) {
-            log.debug("rbac api rule matched, method={}, path={}, matched={}", httpMethod, requestPath, matchedRule.isPresent());
-        }
+        LogUtil.debug(log).log("rbac api rule matched, method={}, path={}, matched={}",
+                httpMethod, requestPath, matchedRule.isPresent());
         return matchedRule;
     }
 

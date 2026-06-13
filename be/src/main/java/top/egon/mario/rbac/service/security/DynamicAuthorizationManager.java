@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import top.egon.mario.common.api.TraceContext;
+import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.service.model.ApiPermissionRule;
 
 /**
@@ -31,9 +32,8 @@ public class DynamicAuthorizationManager implements ReactiveAuthorizationManager
             return Mono.fromCallable(() -> TraceContext.withMdc(traceId, () -> apiRuleCache.match(method, path)))
                     .subscribeOn(Schedulers.boundedElastic())
                     .doOnNext(rule -> TraceContext.withMdc(traceId, () -> {
-                        if (log.isDebugEnabled()) {
-                            log.debug("rbac api rule match evaluated, method={}, path={}, matched={}", method, path, rule.isPresent());
-                        }
+                        LogUtil.debug(log).log("rbac api rule match evaluated, method={}, path={}, matched={}",
+                                method, path, rule.isPresent());
                     }))
                     .flatMap(Mono::justOrEmpty)
                     .flatMap(rule -> decide(authentication, rule))

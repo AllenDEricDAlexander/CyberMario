@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.converter.RbacDtoConverter;
 import top.egon.mario.rbac.dto.request.CreateRoleRequest;
 import top.egon.mario.rbac.dto.request.UpdateRoleRequest;
@@ -66,7 +67,7 @@ public class RbacRoleService {
         role.setStatus(request.getStatus() == null ? RbacStatus.ENABLED : rbacDtoConverter.toPoRbacStatus(request.getStatus()));
         RolePo savedRole = roleRepository.save(role);
         auditService.log(0L, "RBAC_ROLE_CREATE", "ROLE", savedRole.getId(), null, savedRole.getRoleCode(), null, null);
-        log.info("rbac role created, roleId={}, roleCode={}", savedRole.getId(), savedRole.getRoleCode());
+        LogUtil.info(log).log("rbac role created, roleId={}, roleCode={}", savedRole.getId(), savedRole.getRoleCode());
         return rbacDtoConverter.toRoleResponse(savedRole);
     }
 
@@ -108,7 +109,7 @@ public class RbacRoleService {
         role.setDescription(request.getDescription());
         RolePo savedRole = roleRepository.save(role);
         publishPermissionChanged("update role");
-        log.info("rbac role updated, roleId={}, roleCode={}", roleId, savedRole.getRoleCode());
+        LogUtil.info(log).log("rbac role updated, roleId={}, roleCode={}", roleId, savedRole.getRoleCode());
         return rbacDtoConverter.toRoleResponse(savedRole);
     }
 
@@ -126,7 +127,7 @@ public class RbacRoleService {
         roleRepository.save(role);
         auditService.log(0L, "RBAC_ROLE_DELETE", "ROLE", roleId, role.getRoleCode(), null, null, null);
         publishPermissionChanged("delete role");
-        log.info("rbac role deleted, roleId={}, roleCode={}", roleId, role.getRoleCode());
+        LogUtil.info(log).log("rbac role deleted, roleId={}, roleCode={}", roleId, role.getRoleCode());
     }
 
     @Transactional
@@ -165,7 +166,7 @@ public class RbacRoleService {
                 .toList());
         auditService.log(actorUserId, "RBAC_ROLE_INHERITANCE_UPDATE", "ROLE", roleId, oldRoleIds.toString(), requestedRoleIds.toString(), null, null);
         publishPermissionChanged("update role inheritance");
-        log.info("rbac role inheritance replaced, roleId={}, inheritedRoleCount={}, actorUserId={}",
+        LogUtil.info(log).log("rbac role inheritance replaced, roleId={}, inheritedRoleCount={}, actorUserId={}",
                 roleId, requestedRoleIds.size(), actorUserId);
     }
 
@@ -205,7 +206,7 @@ public class RbacRoleService {
                 .toList());
         auditService.log(actorUserId, "RBAC_ROLE_PERMISSION_UPDATE", "ROLE", roleId, oldPermissionIds.toString(), mergedPermissionIds.toString(), null, null);
         publishPermissionChanged("update role permissions");
-        log.info("rbac role permissions replaced, roleId={}, permissionCount={}, actorUserId={}",
+        LogUtil.info(log).log("rbac role permissions replaced, roleId={}, permissionCount={}, actorUserId={}",
                 roleId, mergedPermissionIds.size(), actorUserId);
         return mergedPermissionIds;
     }

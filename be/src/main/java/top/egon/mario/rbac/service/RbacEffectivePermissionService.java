@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.dto.response.EffectivePermissionResponse;
 import top.egon.mario.rbac.dto.response.MenuTreeResponse;
 import top.egon.mario.rbac.po.MenuPo;
@@ -97,10 +98,8 @@ public class RbacEffectivePermissionService {
                 .buttonCodes(codesByType(permissions, PermissionType.BUTTON))
                 .apiCodes(codesByType(permissions, PermissionType.API))
                 .build();
-        if (log.isDebugEnabled()) {
-            log.debug("rbac effective permissions calculated, userId={}, roleCount={}, permissionCount={}",
-                    userId, effectiveRoleIds.size(), permissions.size());
-        }
+        LogUtil.debug(log).log("rbac effective permissions calculated, userId={}, roleCount={}, permissionCount={}",
+                userId, effectiveRoleIds.size(), permissions.size());
         return response;
     }
 
@@ -110,9 +109,8 @@ public class RbacEffectivePermissionService {
                 .filter(permission -> permission.getPermType() == PermissionType.MENU)
                 .sorted(Comparator.comparingInt(PermissionPo::getSortNo).thenComparing(PermissionPo::getId))
                 .toList();
-        if (log.isDebugEnabled()) {
-            log.debug("rbac user menu tree calculated, userId={}, menuPermissionCount={}", userId, menuPermissions.size());
-        }
+        LogUtil.debug(log).log("rbac user menu tree calculated, userId={}, menuPermissionCount={}",
+                userId, menuPermissions.size());
         return buildMenuTree(menuPermissions);
     }
 
