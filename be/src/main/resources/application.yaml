@@ -3,6 +3,20 @@ spring:
     name: Mario
   main:
     web-application-type: reactive
+  lifecycle:
+    # 停机时每个生命周期阶段最多等待 30 秒，避免请求或后台任务被强制中断。
+    timeout-per-shutdown-phase: ${SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE:30s}
+  task:
+    execution:
+      shutdown:
+        # 应用退出时等待 Spring 管理的任务执行器完成已接收任务。
+        await-termination: ${SPRING_TASK_EXECUTION_SHUTDOWN_AWAIT_TERMINATION:true}
+        await-termination-period: ${SPRING_TASK_EXECUTION_SHUTDOWN_AWAIT_TERMINATION_PERIOD:30s}
+    scheduling:
+      shutdown:
+        # 应用退出时等待 Spring 管理的调度任务完成当前执行。
+        await-termination: ${SPRING_TASK_SCHEDULING_SHUTDOWN_AWAIT_TERMINATION:true}
+        await-termination-period: ${SPRING_TASK_SCHEDULING_SHUTDOWN_AWAIT_TERMINATION_PERIOD:30s}
   datasource:
     type: com.zaxxer.hikari.HikariDataSource
     url: ${DB_URL:jdbc:postgresql://localhost:5432/cyber_mario}
@@ -19,11 +33,19 @@ spring:
       max-lifetime: ${DB_POOL_MAX_LIFETIME:1800000}
       auto-commit: ${DB_POOL_AUTO_COMMIT:true}
   jackson:
+    # 后端接口统一忽略空值并使用 UTC，避免与数据库时间语义不一致。
     default-property-inclusion: non_null
     time-zone: UTC
     date-format: yyyy-MM-dd HH:mm:ss
     serialization:
       write-dates-as-timestamps: false
+    deserialization:
+      # 兼容前端或第三方请求中新增的字段，避免 DTO 演进导致反序列化失败。
+      fail-on-unknown-properties: false
+    parser:
+      # 兼容部分调用方的宽松 JSON 输入；仅放宽解析，不改变响应结构。
+      allow-single-quotes: true
+      allow-unquoted-control-chars: true
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -67,6 +89,8 @@ spring:
 
 server:
   port: ${SERVER_PORT:28080}
+  # 收到 SIGTERM 时停止接收新请求，并等待已进入 WebFlux 的请求完成。
+  shutdown: graceful
 
 management:
   endpoints:
@@ -97,7 +121,7 @@ mario:
   rbac:
     bootstrap:
       admin:
-        enabled: ${RBAC_BOOTSTRAP_ADMIN_ENABLED:true}
+        enabled: ${RBAC_BOOTSTRAP_ADMIN_ENABLED:false}
         username: ${RBAC_BOOTSTRAP_ADMIN_USERNAME:admin}
         password: ${RBAC_BOOTSTRAP_ADMIN_PASSWORD:HomeLab666@2026}
         require-password-change: ${RBAC_BOOTSTRAP_ADMIN_REQUIRE_PASSWORD_CHANGE:false}

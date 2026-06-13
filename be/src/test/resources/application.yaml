@@ -2,6 +2,17 @@ spring:
   ai:
     dashscope:
       api-key: test-api-key
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  task:
+    execution:
+      shutdown:
+        await-termination: true
+        await-termination-period: 30s
+    scheduling:
+      shutdown:
+        await-termination: true
+        await-termination-period: 30s
   datasource:
     type: com.zaxxer.hikari.HikariDataSource
     url: jdbc:h2:mem:cyber_mario_test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
@@ -18,10 +29,17 @@ spring:
       max-lifetime: 1800000
       auto-commit: true
   jackson:
+    # 测试环境保持与主配置一致，覆盖接口 JSON 的序列化和反序列化约束。
     default-property-inclusion: non_null
     time-zone: UTC
+    date-format: yyyy-MM-dd HH:mm:ss
     serialization:
       write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+    parser:
+      allow-single-quotes: true
+      allow-unquoted-control-chars: true
   data:
     redis:
       repositories:
@@ -53,6 +71,9 @@ management:
   health:
     redis:
       enabled: false
+
+server:
+  shutdown: graceful
 
 info:
   app:

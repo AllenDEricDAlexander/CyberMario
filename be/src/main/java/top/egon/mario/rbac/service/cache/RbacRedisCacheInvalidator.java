@@ -24,6 +24,8 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class RbacRedisCacheInvalidator {
 
+    private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(30);
+
     private final StringRedisTemplate redisTemplate;
     private final RbacCacheProperties cacheProperties;
     private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor(runnable -> {
@@ -58,9 +60,24 @@ public class RbacRedisCacheInvalidator {
         LogUtil.debug(log).log("rbac cache patterns scheduled for double delete, patternCount={}", cachePatterns.size());
     }
 
+    /**
+     * Drains delayed double-delete tasks during Spring shutdown before forcing executor termination.
+     */
     @PreDestroy
     public void shutdown() {
-        executorService.shutdownNow();
+        executorService.shutdown();
+        try {
+            if (!executorService.awaitTermination(SHUTDOWN_TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
+                // Redis calls must not hold the Spring shutdown phase forever if the executor cannot drain.
+                executorService.shutdownNow();
+                LogUtil.warn(log).log("rbac cache double delete executor forced to shutdown, timeoutSeconds={}",
+                        SHUTDOWN_TIMEOUT.toSeconds());
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            executorService.shutdownNow();
+            LogUtil.warn(log).log("rbac cache double delete executor interrupted during shutdown", e);
+        }
     }
 
     private void deleteKeys(Collection<String> keys) {

@@ -7,9 +7,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.env.Environment;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import javax.sql.DataSource;
+import java.time.Duration;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,6 +27,9 @@ class SpringInfrastructureConfigurationTests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private Environment environment;
 
     @MockitoBean
     private ChatModel chatModel;
@@ -48,6 +53,38 @@ class SpringInfrastructureConfigurationTests {
         assertThat(jsonNode.get("name").asText()).isEqualTo("visible");
         assertThat(jsonNode.has("emptyValue")).isFalse();
         assertThat(jsonNode.get("createdAt").asText()).isEqualTo("2026-06-13T10:30:05");
+    }
+
+    @Test
+    void objectMapperUsesConfiguredJsonDeserialization() throws Exception {
+        JsonPayload payload = objectMapper.readValue(
+                "{\"name\":\"visible\",\"extra\":\"ignored\"}",
+                JsonPayload.class
+        );
+        JsonNode singleQuoteNode = objectMapper.readTree("{'name':'single-quote'}");
+        JsonPayload controlCharPayload = objectMapper.readValue(
+                "{\"name\":\"line\nbreak\"}",
+                JsonPayload.class
+        );
+
+        assertThat(payload.name()).isEqualTo("visible");
+        assertThat(singleQuoteNode.get("name").asText()).isEqualTo("single-quote");
+        assertThat(controlCharPayload.name()).isEqualTo("line\nbreak");
+    }
+
+    @Test
+    void shutdownSettingsEnableGracefulStopAndTaskDrain() {
+        assertThat(environment.getProperty("server.shutdown")).isEqualTo("graceful");
+        assertThat(environment.getProperty("spring.lifecycle.timeout-per-shutdown-phase", Duration.class))
+                .isEqualTo(Duration.ofSeconds(30));
+        assertThat(environment.getProperty("spring.task.execution.shutdown.await-termination", Boolean.class))
+                .isTrue();
+        assertThat(environment.getProperty("spring.task.execution.shutdown.await-termination-period", Duration.class))
+                .isEqualTo(Duration.ofSeconds(30));
+        assertThat(environment.getProperty("spring.task.scheduling.shutdown.await-termination", Boolean.class))
+                .isTrue();
+        assertThat(environment.getProperty("spring.task.scheduling.shutdown.await-termination-period", Duration.class))
+                .isEqualTo(Duration.ofSeconds(30));
     }
 
     private record JsonPayload(String name, String emptyValue, LocalDateTime createdAt) {
