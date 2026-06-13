@@ -1,4 +1,4 @@
-package top.egon.mario.config;
+package top.egon.mario.rbac.config;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +45,7 @@ public class RbacSecurityConfig {
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
+                .logout(ServerHttpSecurity.LogoutSpec::disable)
                 .authorizeExchange(exchange -> exchange
                         .pathMatchers(HttpMethod.POST, RbacPublicApiPolicy.PUBLIC_AUTH_ENDPOINTS).permitAll()
                         .pathMatchers(HttpMethod.GET, RbacPublicApiPolicy.PUBLIC_ACTUATOR_ENDPOINTS).permitAll()

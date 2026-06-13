@@ -20,7 +20,8 @@ spring:
       auto-commit: ${DB_POOL_AUTO_COMMIT:true}
   jackson:
     default-property-inclusion: non_null
-    time-zone: UTC+8
+    time-zone: UTC
+    date-format: yyyy-MM-dd HH:mm:ss
     serialization:
       write-dates-as-timestamps: false
   data:
