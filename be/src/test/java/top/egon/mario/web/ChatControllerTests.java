@@ -2,6 +2,8 @@ package top.egon.mario.web;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.security.reactive.ReactiveSecurityAutoConfiguration;
+import org.springframework.boot.autoconfigure.security.reactive.ReactiveUserDetailsServiceAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -10,10 +12,13 @@ import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 import top.egon.mario.agent.service.ChatAgentService;
 import top.egon.mario.pojo.response.ChatResponse;
+import top.egon.mario.rbac.application.RbacAuthApplication;
+import top.egon.mario.rbac.service.security.RbacApiRuleCache;
 
 import static org.mockito.BDDMockito.given;
 
-@WebFluxTest(ChatController.class)
+@WebFluxTest(controllers = ChatController.class,
+        excludeAutoConfiguration = {ReactiveSecurityAutoConfiguration.class, ReactiveUserDetailsServiceAutoConfiguration.class})
 class ChatControllerTests {
 
     @Autowired
@@ -21,6 +26,12 @@ class ChatControllerTests {
 
     @MockitoBean
     private ChatAgentService chatAgentService;
+
+    @MockitoBean
+    private RbacAuthApplication rbacAuthApplication;
+
+    @MockitoBean
+    private RbacApiRuleCache rbacApiRuleCache;
 
     @Test
     void chatReturnsAgentResponse() {

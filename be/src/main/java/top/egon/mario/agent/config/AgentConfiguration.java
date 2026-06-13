@@ -7,6 +7,7 @@ import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import top.egon.mario.agent.hooks.LoggingHook;
@@ -52,8 +53,8 @@ public class AgentConfiguration {
     }
 
     @Bean
-    public DashScopeApi dashScopeApi() {
-        return DashScopeApi.builder().apiKey(System.getenv("AI_DASHSCOPE_API_KEY")).build();
+    public DashScopeApi dashScopeApi(@Value("${spring.ai.dashscope.api-key:${AI_DASHSCOPE_API_KEY:}}") String apiKey) {
+        return DashScopeApi.builder().apiKey(apiKey).build();
     }
 
     /**
