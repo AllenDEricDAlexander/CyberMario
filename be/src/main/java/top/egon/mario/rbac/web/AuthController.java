@@ -2,6 +2,7 @@ package top.egon.mario.rbac.web;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +25,7 @@ import top.egon.mario.rbac.service.security.RbacPrincipal;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/auth")
+@Slf4j
 public class AuthController extends ReactiveRbacSupport {
 
     private final RbacAuthApplication authApplication;

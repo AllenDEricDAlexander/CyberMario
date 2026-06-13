@@ -1,5 +1,6 @@
 package top.egon.mario.rbac.web;
 
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import top.egon.mario.common.api.ApiResponse;
@@ -12,18 +13,25 @@ import java.util.function.Supplier;
 /**
  * Wraps blocking JPA service calls for WebFlux controllers.
  */
+@Slf4j
 abstract class ReactiveRbacSupport {
 
     protected <T> Mono<ApiResponse<T>> blocking(Supplier<T> supplier) {
-        return Mono.deferContextual(contextView -> Mono.fromCallable(() -> supplier.get())
-                .map(data -> ApiResponse.ok(data, TraceContext.traceId(contextView)))
-                .subscribeOn(Schedulers.boundedElastic()));
+        return Mono.deferContextual(contextView -> {
+            String traceId = TraceContext.traceId(contextView);
+            return Mono.fromCallable(() -> TraceContext.withMdc(traceId, supplier))
+                    .map(data -> ApiResponse.ok(data, traceId))
+                    .subscribeOn(Schedulers.boundedElastic());
+        });
     }
 
     protected Mono<ApiResponse<Void>> blockingVoid(Runnable runnable) {
-        return Mono.deferContextual(contextView -> Mono.fromRunnable(runnable)
-                .thenReturn(ApiResponse.<Void>ok(null, TraceContext.traceId(contextView)))
-                .subscribeOn(Schedulers.boundedElastic()));
+        return Mono.deferContextual(contextView -> {
+            String traceId = TraceContext.traceId(contextView);
+            return Mono.fromRunnable(() -> TraceContext.withMdc(traceId, runnable))
+                    .thenReturn(ApiResponse.<Void>ok(null, traceId))
+                    .subscribeOn(Schedulers.boundedElastic());
+        });
     }
 
     protected Long actorId(RbacPrincipal principal) {

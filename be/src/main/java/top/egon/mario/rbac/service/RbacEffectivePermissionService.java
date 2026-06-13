@@ -1,6 +1,7 @@
 package top.egon.mario.rbac.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import top.egon.mario.rbac.dto.response.EffectivePermissionResponse;
@@ -18,6 +19,7 @@ import top.egon.mario.rbac.repository.RoleInheritanceRepository;
 import top.egon.mario.rbac.repository.RolePermissionRepository;
 import top.egon.mario.rbac.repository.RoleRepository;
 import top.egon.mario.rbac.repository.UserRoleRepository;
+import top.egon.mario.rbac.service.cache.RbacPermissionRedisCache;
 import top.egon.mario.rbac.service.model.RoleInheritanceEdge;
 
 import java.util.ArrayList;
@@ -36,6 +38,7 @@ import java.util.stream.Collectors;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RbacEffectivePermissionService {
 
     private final UserRoleRepository userRoleRepository;
@@ -45,33 +48,16 @@ public class RbacEffectivePermissionService {
     private final PermissionRepository permissionRepository;
     private final MenuRepository menuRepository;
     private final RoleHierarchyResolver roleHierarchyResolver;
+    private final RbacPermissionRedisCache permissionRedisCache;
 
     @Transactional(readOnly = true)
     public EffectivePermissionResponse getUserEffectivePermissions(Long userId) {
-        Set<Long> effectiveRoleIds = resolveEffectiveRoleIds(userId);
-        List<RolePo> roles = roleRepository.findByIdInAndDeletedFalseAndStatus(effectiveRoleIds, RbacStatus.ENABLED);
-        Set<String> roleCodes = roles.stream()
-                .map(RolePo::getRoleCode)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-
-        List<PermissionPo> permissions = findEnabledPermissionsByRoleIds(effectiveRoleIds);
-        return EffectivePermissionResponse.builder()
-                .roleIds(effectiveRoleIds)
-                .roleCodes(roleCodes)
-                .menuCodes(codesByType(permissions, PermissionType.MENU))
-                .buttonCodes(codesByType(permissions, PermissionType.BUTTON))
-                .apiCodes(codesByType(permissions, PermissionType.API))
-                .build();
+        return permissionRedisCache.getUserEffectivePermissions(userId, () -> calculateUserEffectivePermissions(userId));
     }
 
     @Transactional(readOnly = true)
     public List<MenuTreeResponse> getUserMenuTree(Long userId) {
-        Set<Long> effectiveRoleIds = resolveEffectiveRoleIds(userId);
-        List<PermissionPo> menuPermissions = findEnabledPermissionsByRoleIds(effectiveRoleIds).stream()
-                .filter(permission -> permission.getPermType() == PermissionType.MENU)
-                .sorted(Comparator.comparingInt(PermissionPo::getSortNo).thenComparing(PermissionPo::getId))
-                .toList();
-        return buildMenuTree(menuPermissions);
+        return permissionRedisCache.getUserMenuTree(userId, () -> calculateUserMenuTree(userId));
     }
 
     @Transactional(readOnly = true)
@@ -94,6 +80,40 @@ public class RbacEffectivePermissionService {
     @Transactional(readOnly = true)
     public Set<String> getUserApiAuthorities(Long userId) {
         return getUserEffectivePermissions(userId).apiCodes();
+    }
+
+    private EffectivePermissionResponse calculateUserEffectivePermissions(Long userId) {
+        Set<Long> effectiveRoleIds = resolveEffectiveRoleIds(userId);
+        List<RolePo> roles = roleRepository.findByIdInAndDeletedFalseAndStatus(effectiveRoleIds, RbacStatus.ENABLED);
+        Set<String> roleCodes = roles.stream()
+                .map(RolePo::getRoleCode)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        List<PermissionPo> permissions = findEnabledPermissionsByRoleIds(effectiveRoleIds);
+        EffectivePermissionResponse response = EffectivePermissionResponse.builder()
+                .roleIds(effectiveRoleIds)
+                .roleCodes(roleCodes)
+                .menuCodes(codesByType(permissions, PermissionType.MENU))
+                .buttonCodes(codesByType(permissions, PermissionType.BUTTON))
+                .apiCodes(codesByType(permissions, PermissionType.API))
+                .build();
+        if (log.isDebugEnabled()) {
+            log.debug("rbac effective permissions calculated, userId={}, roleCount={}, permissionCount={}",
+                    userId, effectiveRoleIds.size(), permissions.size());
+        }
+        return response;
+    }
+
+    private List<MenuTreeResponse> calculateUserMenuTree(Long userId) {
+        Set<Long> effectiveRoleIds = resolveEffectiveRoleIds(userId);
+        List<PermissionPo> menuPermissions = findEnabledPermissionsByRoleIds(effectiveRoleIds).stream()
+                .filter(permission -> permission.getPermType() == PermissionType.MENU)
+                .sorted(Comparator.comparingInt(PermissionPo::getSortNo).thenComparing(PermissionPo::getId))
+                .toList();
+        if (log.isDebugEnabled()) {
+            log.debug("rbac user menu tree calculated, userId={}, menuPermissionCount={}", userId, menuPermissions.size());
+        }
+        return buildMenuTree(menuPermissions);
     }
 
     private List<PermissionPo> findEnabledPermissionsByRoleIds(Collection<Long> roleIds) {

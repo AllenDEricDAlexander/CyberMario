@@ -1,6 +1,7 @@
 package top.egon.mario.common.api;
 
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
 import org.springframework.web.server.ServerWebExchange;
@@ -30,6 +31,19 @@ class TraceWebFilterTests {
         assertThat(requestTraceId).hasValue("front-trace-1");
         assertThat(contextTraceId).hasValue("front-trace-1");
         assertThat(exchange.getResponse().getHeaders().getFirst(TraceContext.TRACE_ID_HEADER)).isEqualTo("front-trace-1");
+    }
+
+    @Test
+    void publishesTraceIdToMdcDuringRequestAndClearsItAfterCompletion() {
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/demo")
+                .header(TraceContext.TRACE_ID_HEADER, "front-trace-1")
+                .build());
+        AtomicReference<String> mdcTraceId = new AtomicReference<>();
+
+        traceWebFilter.filter(exchange, chainExchange -> Mono.fromRunnable(() -> mdcTraceId.set(MDC.get("traceId")))).block();
+
+        assertThat(mdcTraceId).hasValue("front-trace-1");
+        assertThat(MDC.get("traceId")).isNull();
     }
 
     @Test

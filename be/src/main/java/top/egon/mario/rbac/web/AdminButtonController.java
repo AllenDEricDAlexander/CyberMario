@@ -2,6 +2,7 @@ package top.egon.mario.rbac.web;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,6 +30,7 @@ import java.util.Set;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/admin/buttons")
+@Slf4j
 public class AdminButtonController extends ReactiveRbacSupport {
 
     private final RbacPermissionService permissionService;

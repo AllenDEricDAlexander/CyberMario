@@ -8,6 +8,14 @@ spring:
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:HomeLab666}
     driver-class-name: org.postgresql.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:HomeLab666}
+      timeout: ${REDIS_TIMEOUT:3s}
+      repositories:
+        enabled: false
   jpa:
     open-in-view: false
     hibernate:
@@ -44,3 +52,11 @@ mario:
       secret: ${JWT_SECRET:CyberMarioLocalJwtSecretForRbac1PermissionsAtLeast32Bytes}
       access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:PT30M}
       refresh-token-ttl: ${JWT_REFRESH_TOKEN_TTL:P14D}
+  rbac:
+    cache:
+      enabled: ${RBAC_CACHE_ENABLED:true}
+      api-rules-ttl: ${RBAC_API_RULES_CACHE_TTL:PT10M}
+      user-permissions-ttl: ${RBAC_USER_PERMISSIONS_CACHE_TTL:PT10M}
+      double-delete-delay: ${RBAC_CACHE_DOUBLE_DELETE_DELAY:PT0.8S}
+      bloom-expected-insertions: ${RBAC_CACHE_BLOOM_EXPECTED_INSERTIONS:100000}
+      bloom-false-positive-probability: ${RBAC_CACHE_BLOOM_FALSE_POSITIVE_PROBABILITY:0.01}

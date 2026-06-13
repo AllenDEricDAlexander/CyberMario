@@ -1,6 +1,8 @@
 package top.egon.mario.rbac.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -23,6 +25,7 @@ import top.egon.mario.rbac.repository.RolePermissionRepository;
 import top.egon.mario.rbac.repository.RoleRepository;
 import top.egon.mario.rbac.repository.UserRoleRepository;
 import top.egon.mario.rbac.service.model.ButtonApiLink;
+import top.egon.mario.rbac.service.model.RbacPermissionChangedEvent;
 import top.egon.mario.rbac.service.model.RoleInheritanceEdge;
 
 import java.time.Instant;
@@ -37,6 +40,7 @@ import java.util.stream.Collectors;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RbacRoleService {
 
     private final RoleRepository roleRepository;
@@ -49,6 +53,7 @@ public class RbacRoleService {
     private final RolePermissionMergeService rolePermissionMergeService;
     private final RbacDtoConverter rbacDtoConverter;
     private final RbacAuditService auditService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public RoleResponse createRole(CreateRoleRequest request) {
@@ -61,6 +66,7 @@ public class RbacRoleService {
         role.setStatus(request.getStatus() == null ? RbacStatus.ENABLED : rbacDtoConverter.toPoRbacStatus(request.getStatus()));
         RolePo savedRole = roleRepository.save(role);
         auditService.log(0L, "RBAC_ROLE_CREATE", "ROLE", savedRole.getId(), null, savedRole.getRoleCode(), null, null);
+        log.info("rbac role created, roleId={}, roleCode={}", savedRole.getId(), savedRole.getRoleCode());
         return rbacDtoConverter.toRoleResponse(savedRole);
     }
 
@@ -100,7 +106,10 @@ public class RbacRoleService {
             role.setBuiltIn(request.getBuiltIn());
         }
         role.setDescription(request.getDescription());
-        return rbacDtoConverter.toRoleResponse(roleRepository.save(role));
+        RolePo savedRole = roleRepository.save(role);
+        publishPermissionChanged("update role");
+        log.info("rbac role updated, roleId={}, roleCode={}", roleId, savedRole.getRoleCode());
+        return rbacDtoConverter.toRoleResponse(savedRole);
     }
 
     @Transactional
@@ -116,6 +125,8 @@ public class RbacRoleService {
         role.setDeleted(true);
         roleRepository.save(role);
         auditService.log(0L, "RBAC_ROLE_DELETE", "ROLE", roleId, role.getRoleCode(), null, null, null);
+        publishPermissionChanged("delete role");
+        log.info("rbac role deleted, roleId={}, roleCode={}", roleId, role.getRoleCode());
     }
 
     @Transactional
@@ -153,6 +164,9 @@ public class RbacRoleService {
                 })
                 .toList());
         auditService.log(actorUserId, "RBAC_ROLE_INHERITANCE_UPDATE", "ROLE", roleId, oldRoleIds.toString(), requestedRoleIds.toString(), null, null);
+        publishPermissionChanged("update role inheritance");
+        log.info("rbac role inheritance replaced, roleId={}, inheritedRoleCount={}, actorUserId={}",
+                roleId, requestedRoleIds.size(), actorUserId);
     }
 
     @Transactional
@@ -190,6 +204,9 @@ public class RbacRoleService {
                 })
                 .toList());
         auditService.log(actorUserId, "RBAC_ROLE_PERMISSION_UPDATE", "ROLE", roleId, oldPermissionIds.toString(), mergedPermissionIds.toString(), null, null);
+        publishPermissionChanged("update role permissions");
+        log.info("rbac role permissions replaced, roleId={}, permissionCount={}, actorUserId={}",
+                roleId, mergedPermissionIds.size(), actorUserId);
         return mergedPermissionIds;
     }
 
@@ -253,6 +270,10 @@ public class RbacRoleService {
             throw new RbacException("RBAC_ROLE_CODE_REQUIRED", "role code is required");
         }
         return roleCode.trim().toUpperCase();
+    }
+
+    private void publishPermissionChanged(String reason) {
+        eventPublisher.publishEvent(new RbacPermissionChangedEvent(reason));
     }
 
 }

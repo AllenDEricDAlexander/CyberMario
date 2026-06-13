@@ -1,9 +1,11 @@
 package top.egon.mario.common.api;
 
+import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
 import reactor.util.context.ContextView;
 
 import java.util.UUID;
+import java.util.function.Supplier;
 
 /**
  * Trace identifiers shared by WebFlux filters and standard API responses.
@@ -13,6 +15,8 @@ public final class TraceContext {
     public static final String TRACE_ID_HEADER = "X-Trace-Id";
     public static final String REQUEST_ID_HEADER = "X-Request-Id";
     public static final String CONTEXT_KEY = TraceContext.class.getName() + ".TRACE_ID";
+    public static final String TRACE_ID_MDC_KEY = "traceId";
+    public static final String REQUEST_ID_MDC_KEY = "requestId";
 
     private TraceContext() {
     }
@@ -32,6 +36,39 @@ public final class TraceContext {
 
     public static String newTraceId() {
         return UUID.randomUUID().toString();
+    }
+
+    public static void putMdc(String traceId) {
+        String cleanTraceId = firstText(traceId);
+        if (cleanTraceId == null) {
+            clearMdc();
+            return;
+        }
+        MDC.put(TRACE_ID_MDC_KEY, cleanTraceId);
+        MDC.put(REQUEST_ID_MDC_KEY, cleanTraceId);
+    }
+
+    public static void clearMdc() {
+        MDC.remove(TRACE_ID_MDC_KEY);
+        MDC.remove(REQUEST_ID_MDC_KEY);
+    }
+
+    public static <T> T withMdc(String traceId, Supplier<T> supplier) {
+        putMdc(traceId);
+        try {
+            return supplier.get();
+        } finally {
+            clearMdc();
+        }
+    }
+
+    public static void withMdc(String traceId, Runnable runnable) {
+        putMdc(traceId);
+        try {
+            runnable.run();
+        } finally {
+            clearMdc();
+        }
     }
 
     private static String firstText(String value) {

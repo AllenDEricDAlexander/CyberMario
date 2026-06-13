@@ -1,6 +1,7 @@
 package top.egon.mario.rbac.service.security;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextImpl;
@@ -10,6 +11,7 @@ import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
+import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.rbac.application.RbacAuthApplication;
 
 /**
@@ -17,6 +19,7 @@ import top.egon.mario.rbac.application.RbacAuthApplication;
  */
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class JwtAuthenticationWebFilter implements WebFilter {
 
     private final RbacAuthApplication authApplication;
@@ -27,10 +30,19 @@ public class JwtAuthenticationWebFilter implements WebFilter {
         if (token == null) {
             return chain.filter(exchange);
         }
-        return Mono.fromCallable(() -> authApplication.authenticateAccessToken(token))
-                .subscribeOn(Schedulers.boundedElastic())
-                .flatMap(authentication -> chain.filter(exchange)
-                        .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(new SecurityContextImpl(authentication)))));
+        if (log.isDebugEnabled()) {
+            log.debug("bearer token detected, path={}", exchange.getRequest().getPath().value());
+        }
+        return Mono.deferContextual(contextView -> {
+            String traceId = TraceContext.traceId(contextView);
+            return Mono.fromCallable(() -> TraceContext.withMdc(traceId, () -> authApplication.authenticateAccessToken(token)))
+                    .subscribeOn(Schedulers.boundedElastic())
+                    .doOnError(error -> TraceContext.withMdc(traceId,
+                            () -> log.warn("bearer token authentication failed, path={}",
+                                    exchange.getRequest().getPath().value())))
+                    .flatMap(authentication -> chain.filter(exchange)
+                            .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(new SecurityContextImpl(authentication)))));
+        });
     }
 
     private String bearerToken(ServerWebExchange exchange) {

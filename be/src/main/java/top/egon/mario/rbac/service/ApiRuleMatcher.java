@@ -1,5 +1,6 @@
 package top.egon.mario.rbac.service;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.server.PathContainer;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
@@ -15,6 +16,7 @@ import java.util.regex.Pattern;
  * Matches an HTTP method and request path to the most specific configured API rule.
  */
 @Component
+@Slf4j
 public class ApiRuleMatcher {
 
     private final AntPathMatcher antPathMatcher = new AntPathMatcher();
@@ -24,13 +26,17 @@ public class ApiRuleMatcher {
         if (rules == null || rules.isEmpty()) {
             return Optional.empty();
         }
-        return rules.stream()
+        Optional<ApiPermissionRule> matchedRule = rules.stream()
                 .filter(rule -> methodMatches(httpMethod, rule.httpMethod()))
                 .filter(rule -> pathMatches(requestPath, rule))
                 .min(Comparator
                         .comparingInt((ApiPermissionRule rule) -> methodRank(httpMethod, rule.httpMethod()))
                         .thenComparingInt(rule -> matcherRank(rule.matcherType()))
                         .thenComparing((ApiPermissionRule rule) -> rule.urlPattern().length(), Comparator.reverseOrder()));
+        if (log.isDebugEnabled()) {
+            log.debug("rbac api rule matched, method={}, path={}, matched={}", httpMethod, requestPath, matchedRule.isPresent());
+        }
+        return matchedRule;
     }
 
     private boolean methodMatches(String requestMethod, String ruleMethod) {

@@ -7,6 +7,7 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import top.egon.mario.rbac.service.RbacException;
 
@@ -25,6 +26,7 @@ import java.util.UUID;
  * Signs, verifies and hashes RBAC JWT tokens.
  */
 @Service
+@Slf4j
 public class JwtTokenService {
 
     private static final String TOKEN_TYPE_CLAIM = "typ";
@@ -41,6 +43,9 @@ public class JwtTokenService {
     public JwtTokenPair createTokenPair(Long userId, String username) {
         String accessTokenId = UUID.randomUUID().toString();
         String refreshTokenId = UUID.randomUUID().toString();
+        if (log.isDebugEnabled()) {
+            log.debug("jwt token pair created, userId={}, accessTokenId={}, refreshTokenId={}", userId, accessTokenId, refreshTokenId);
+        }
         return new JwtTokenPair(
                 createToken(userId, username, accessTokenId, "access", jwtProperties.accessTokenTtl()),
                 createToken(userId, username, refreshTokenId, "refresh", jwtProperties.refreshTokenTtl()),
@@ -55,15 +60,18 @@ public class JwtTokenService {
         try {
             SignedJWT signedJWT = SignedJWT.parse(token);
             if (!signedJWT.verify(new MACVerifier(secretKey))) {
+                log.warn("jwt validation failed, reason=bad_signature, expectedType={}", expectedType);
                 throw new RbacException("AUTH_TOKEN_INVALID", "token signature is invalid");
             }
             JWTClaimsSet claimsSet = signedJWT.getJWTClaimsSet();
             Date expirationTime = claimsSet.getExpirationTime();
             if (expirationTime == null || expirationTime.toInstant().isBefore(Instant.now())) {
+                log.warn("jwt validation failed, reason=expired, expectedType={}", expectedType);
                 throw new RbacException("AUTH_TOKEN_EXPIRED", "token expired");
             }
             String tokenType = claimsSet.getStringClaim(TOKEN_TYPE_CLAIM);
             if (!expectedType.equals(tokenType)) {
+                log.warn("jwt validation failed, reason=type_mismatch, expectedType={}, actualType={}", expectedType, tokenType);
                 throw new RbacException("AUTH_TOKEN_INVALID", "token type is invalid");
             }
             return new JwtClaims(
@@ -74,6 +82,7 @@ public class JwtTokenService {
                     expirationTime.toInstant()
             );
         } catch (ParseException | JOSEException | NumberFormatException e) {
+            log.warn("jwt validation failed, reason=parse_error, expectedType={}", expectedType);
             throw new RbacException("AUTH_TOKEN_INVALID", "token is invalid");
         }
     }
@@ -83,6 +92,7 @@ public class JwtTokenService {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             return HexFormat.of().formatHex(digest.digest(token.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException e) {
+            log.error("jwt token hash failed", e);
             throw new RbacException("AUTH_TOKEN_HASH_FAILED", "token hash failed");
         }
     }
@@ -103,6 +113,7 @@ public class JwtTokenService {
             signedJWT.sign(new MACSigner(secretKey));
             return signedJWT.serialize();
         } catch (JOSEException e) {
+            log.error("jwt token creation failed, userId={}, tokenType={}", userId, tokenType, e);
             throw new RbacException("AUTH_TOKEN_CREATE_FAILED", "token creation failed");
         }
     }

@@ -1,5 +1,6 @@
 package top.egon.mario.rbac.service;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import top.egon.mario.rbac.service.model.RoleInheritanceEdge;
 
@@ -15,6 +16,7 @@ import java.util.Set;
  * Resolves RBAC1 role inheritance and protects role graphs from cycles.
  */
 @Component
+@Slf4j
 public class RoleHierarchyResolver {
 
     public Set<Long> resolveEffectiveRoleIds(Set<Long> directRoleIds, Collection<RoleInheritanceEdge> edges) {
@@ -38,6 +40,7 @@ public class RoleHierarchyResolver {
             return;
         }
         if (inheritedRoleIds.contains(roleId)) {
+            log.warn("rbac role inheritance rejected, reason=self_cycle, roleId={}", roleId);
             throw new RbacException("RBAC_ROLE_INHERIT_CYCLE", "role cannot inherit itself");
         }
 
@@ -45,6 +48,7 @@ public class RoleHierarchyResolver {
         inheritedRoleIdsByRoleId.put(roleId, new HashSet<>(inheritedRoleIds));
         for (Long inheritedRoleId : inheritedRoleIds) {
             if (reachesRole(inheritedRoleId, roleId, inheritedRoleIdsByRoleId, new HashSet<>())) {
+                log.warn("rbac role inheritance rejected, reason=cycle_detected, roleId={}, inheritedRoleId={}", roleId, inheritedRoleId);
                 throw new RbacException("RBAC_ROLE_INHERIT_CYCLE", "role inheritance cycle detected");
             }
         }

@@ -4,6 +4,7 @@ import com.alibaba.cloud.ai.graph.NodeOutput;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.util.StringUtils;
@@ -11,6 +12,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import top.egon.mario.agent.service.ChatAgentService;
+import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.pojo.response.ChatResponse;
 
 import java.util.UUID;
@@ -21,6 +23,7 @@ import java.util.UUID;
  * Uses {@link ReactAgent#stream(String, RunnableConfig)} for token-level
  * streaming and exposes both reasoning (think) and final message chunks.
  */
+@Slf4j
 public class ReactAgentChatService implements ChatAgentService {
 
     private final ReactAgent agent;
@@ -36,16 +39,25 @@ public class ReactAgentChatService implements ChatAgentService {
                 .threadId(conversationThreadId)
                 .build();
 
-        return Mono.just(config)
-                .flatMapMany(cfg -> {
-                    try {
-                        return agent.stream(message, cfg);
-                    } catch (GraphRunnerException e) {
-                        return Flux.error(e);
-                    }
-                })
-                .subscribeOn(Schedulers.boundedElastic())
-                .flatMap(output -> toChatResponse(output, conversationThreadId));
+        return Flux.deferContextual(contextView -> {
+            String traceId = TraceContext.traceId(contextView);
+            TraceContext.withMdc(traceId, () -> log.info("agent chat started, threadId={}, messageLength={}",
+                    conversationThreadId, message == null ? 0 : message.length()));
+            return Mono.just(config)
+                    .flatMapMany(cfg -> {
+                        try {
+                            return agent.stream(message, cfg);
+                        } catch (GraphRunnerException e) {
+                            return Flux.error(e);
+                        }
+                    })
+                    .doOnComplete(() -> TraceContext.withMdc(traceId,
+                            () -> log.info("agent chat completed, threadId={}", conversationThreadId)))
+                    .doOnError(error -> TraceContext.withMdc(traceId,
+                            () -> log.error("agent chat failed, threadId={}", conversationThreadId, error)))
+                    .subscribeOn(Schedulers.boundedElastic())
+                    .flatMap(output -> toChatResponse(output, conversationThreadId));
+        });
     }
 
     private Flux<ChatResponse> toChatResponse(NodeOutput output, String threadId) {

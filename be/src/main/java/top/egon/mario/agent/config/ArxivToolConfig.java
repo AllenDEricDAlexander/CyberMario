@@ -1,5 +1,6 @@
 package top.egon.mario.agent.config;
 
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.function.FunctionToolCallback;
@@ -9,6 +10,7 @@ import top.egon.mario.agent.tools.arxiv.ArxivTools;
 import top.egon.mario.agent.tools.arxiv.dto.ArxivSearchRequest;
 
 @Configuration
+@Slf4j
 public class ArxivToolConfig {
     public static final String SEARCH_ARXIV_TOOL = "searchArxiv";
 

@@ -1,6 +1,7 @@
 package top.egon.mario.rbac.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import top.egon.mario.rbac.po.AuditLogPo;
@@ -13,6 +14,7 @@ import java.time.Instant;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RbacAuditService {
 
     private final AuditLogRepository auditLogRepository;
@@ -31,6 +33,10 @@ public class RbacAuditService {
         auditLog.setUserAgent(userAgent);
         auditLog.setCreatedAt(Instant.now());
         auditLogRepository.save(auditLog);
+        if (log.isDebugEnabled()) {
+            log.debug("rbac audit log saved, action={}, targetType={}, targetId={}, actorUserId={}",
+                    action, targetType, targetId, actorUserId);
+        }
     }
 
 }

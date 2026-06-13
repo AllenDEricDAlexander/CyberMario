@@ -13,10 +13,10 @@ public class ToolMonitorInterceptor extends ToolInterceptor {
         long startTime = System.currentTimeMillis();
         try {
             ToolCallResponse response = handler.call(request);
-            log.info("工具 [{}] 执行成功，耗时: {}ms", request.getToolName(), System.currentTimeMillis() - startTime);
+            log.info("tool call completed, toolName={}, costMs={}", request.getToolName(), System.currentTimeMillis() - startTime);
             return response;
         } catch (Exception e) {
-            log.error("工具 [{}] 执行失败，耗时: {}ms", request.getToolName(), System.currentTimeMillis() - startTime, e);
+            log.error("tool call failed, toolName={}, costMs={}", request.getToolName(), System.currentTimeMillis() - startTime, e);
             return ToolCallResponse.error(request.getToolCallId(), request.getToolName(), e.getMessage());
         }
     }

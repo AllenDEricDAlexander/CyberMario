@@ -7,6 +7,10 @@ spring:
     username: sa
     password:
     driver-class-name: org.h2.Driver
+  data:
+    redis:
+      repositories:
+        enabled: false
   jpa:
     open-in-view: false
     hibernate:
@@ -19,6 +23,9 @@ spring:
     locations: classpath:db/migration
 
 mario:
+  rbac:
+    cache:
+      enabled: false
   security:
     jwt:
       issuer: CyberMarioTest

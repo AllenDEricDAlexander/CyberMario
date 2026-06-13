@@ -1,5 +1,6 @@
 package top.egon.mario.rbac.service;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import top.egon.mario.rbac.service.model.ButtonApiLink;
 
@@ -11,6 +12,7 @@ import java.util.Set;
  * Applies RBAC authorization policies that derive API permissions from button mappings.
  */
 @Component
+@Slf4j
 public class RolePermissionMergeService {
 
     public Set<Long> mergeButtonApis(Set<Long> submittedPermissionIds, boolean syncButtonApis,
@@ -24,6 +26,10 @@ public class RolePermissionMergeService {
             if (submitted.contains(link.buttonPermissionId())) {
                 mergedPermissionIds.add(link.apiPermissionId());
             }
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("rbac role permissions merged, submittedCount={}, mergedCount={}",
+                    submittedPermissionIds.size(), mergedPermissionIds.size());
         }
         return mergedPermissionIds;
     }

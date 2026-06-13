@@ -1,6 +1,7 @@
 package top.egon.mario.web;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,6 +19,7 @@ import top.egon.mario.pojo.response.ChatResponse;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/demo/chat")
+@Slf4j
 public class ChatController {
 
     private final ChatAgentService chatAgentService;

@@ -2,6 +2,7 @@ package top.egon.mario.rbac.web;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -33,6 +34,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/admin/permissions")
+@Slf4j
 public class AdminPermissionController extends ReactiveRbacSupport {
 
     private final RbacPermissionService permissionService;

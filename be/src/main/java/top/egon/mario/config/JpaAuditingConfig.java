@@ -1,5 +1,6 @@
 package top.egon.mario.config;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.AuditorAware;
@@ -15,6 +16,7 @@ import java.util.Optional;
  */
 @Configuration
 @EnableJpaAuditing
+@Slf4j
 public class JpaAuditingConfig {
 
     @Bean
