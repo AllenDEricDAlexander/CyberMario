@@ -1,9 +1,12 @@
 import {EditOutlined, PlusOutlined} from '@ant-design/icons'
 import {App, Button, Popconfirm, Space, Tree} from 'antd'
 import type {DataNode} from 'antd/es/tree'
+import type {ReactNode} from 'react'
 import {useEffect, useMemo, useState} from 'react'
 import {PageToolbar} from '../../../components/PageToolbar'
 import {enumEquals} from '../../../utils/enum'
+import {canUseRbacButton, useAuth} from '../../auth/authStore'
+import {rbacButtonCodes} from '../rbacPermissionCodes'
 import {createMenu, deleteMenu, getMenuTree, getPermissions, updateMenu} from '../rbacService'
 import type {MenuTreeResponse, PermissionRequest, PermissionResponse} from '../rbacTypes'
 import {PermissionEditorDrawer} from '../permissions/PermissionEditorDrawer'
@@ -14,6 +17,7 @@ type MenuTreeNode = DataNode & {
 
 function MenuTreePage() {
     const {message} = App.useApp()
+    const auth = useAuth()
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
     const [menus, setMenus] = useState<MenuTreeResponse[]>([])
@@ -44,6 +48,9 @@ function MenuTreePage() {
         () => permissions.filter((permission) => enumEquals(permission.permType, 1) || enumEquals(permission.permType, 'MENU')),
         [permissions],
     )
+    const canCreate = canUseRbacButton(auth, rbacButtonCodes.menu.create)
+    const canEdit = canUseRbacButton(auth, rbacButtonCodes.menu.edit)
+    const canDelete = canUseRbacButton(auth, rbacButtonCodes.menu.delete)
 
     function openEditor(menu?: MenuTreeResponse) {
         const permission = menu ? menuPermissions.find((item) => item.id === menu.permissionId) ?? null : null
@@ -73,10 +80,32 @@ function MenuTreePage() {
         await load()
     }
 
+    function renderNodeTitle(node: MenuTreeNode) {
+        const actions: ReactNode[] = []
+        if (canEdit) {
+            actions.push(<Button icon={<EditOutlined/>} key="edit" size="small"
+                                 onClick={() => openEditor(node.raw)}>编辑</Button>)
+        }
+        if (canDelete) {
+            actions.push(
+                <Popconfirm key="delete" title="确认删除该菜单？" onConfirm={() => remove(Number(node.key))}>
+                    <Button danger size="small">删除</Button>
+                </Popconfirm>,
+            )
+        }
+        return (
+            <Space>
+                <span>{node.title as string}</span>
+                {actions}
+            </Space>
+        )
+    }
+
     return (
         <>
             <PageToolbar
-                actions={<Button icon={<PlusOutlined/>} onClick={() => openEditor()} type="primary">新建菜单</Button>}
+                actions={canCreate &&
+                    <Button icon={<PlusOutlined/>} onClick={() => openEditor()} type="primary">新建菜单</Button>}
                 description="以树形结构维护前端菜单权限。"
                 title="菜单管理"
             />
@@ -85,16 +114,7 @@ function MenuTreePage() {
                     blockNode
                     defaultExpandAll
                     disabled={loading}
-                    titleRender={(node) => (
-                        <Space>
-                            <span>{node.title as string}</span>
-                            <Button icon={<EditOutlined/>} size="small"
-                                    onClick={() => openEditor(node.raw)}>编辑</Button>
-                            <Popconfirm title="确认删除该菜单？" onConfirm={() => remove(Number(node.key))}>
-                                <Button danger size="small">删除</Button>
-                            </Popconfirm>
-                        </Space>
-                    )}
+                    titleRender={renderNodeTitle}
                     treeData={treeData}
                 />
             </div>

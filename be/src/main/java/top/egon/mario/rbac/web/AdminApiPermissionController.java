@@ -3,6 +3,8 @@ package top.egon.mario.rbac.web;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,9 +13,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 import top.egon.mario.common.api.ApiResponse;
+import top.egon.mario.common.api.PageResult;
 import top.egon.mario.rbac.dto.request.PermissionRequest;
 import top.egon.mario.rbac.dto.response.PermissionResponse;
 import top.egon.mario.rbac.service.RbacException;
@@ -35,6 +39,12 @@ public class AdminApiPermissionController extends ReactiveRbacSupport {
     private final RbacPermissionService permissionService;
 
     @GetMapping
+    public Mono<ApiResponse<PageResult<PermissionResponse>>> page(@RequestParam(defaultValue = "1") int page,
+                                                                  @RequestParam(defaultValue = "20") int size) {
+        return blocking(() -> pageResult(permissionService.getApiPermissionPage(PageRequest.of(Math.max(page - 1, 0), size, Sort.by("id").descending()))));
+    }
+
+    @GetMapping("/rules")
     public Mono<ApiResponse<List<ApiPermissionRule>>> listRules() {
         return blocking(permissionService::findEnabledApiRules);
     }

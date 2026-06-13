@@ -1,11 +1,13 @@
 import {ApiOutlined, EditOutlined, PlusOutlined} from '@ant-design/icons'
 import {App, Button, Empty, Popconfirm, Select, Space, Table} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
+import type {ReactNode} from 'react'
 import {useEffect, useMemo, useState} from 'react'
 import {PageToolbar} from '../../../components/PageToolbar'
 import {StatusTag} from '../../../components/StatusTag'
 import {enumEquals} from '../../../utils/enum'
 import {flattenTree} from '../../../utils/tree'
+import {canUseRbacButton, useAuth} from '../../auth/authStore'
 import {
     createButton,
     deleteButton,
@@ -16,12 +18,14 @@ import {
     replaceButtonApis,
     updateButton,
 } from '../rbacService'
+import {rbacButtonCodes} from '../rbacPermissionCodes'
 import type {MenuTreeResponse, PermissionRequest, PermissionResponse} from '../rbacTypes'
 import {PermissionEditorDrawer} from '../permissions/PermissionEditorDrawer'
 import {ButtonApiDrawer} from './ButtonApiDrawer'
 
 function ButtonListPage() {
     const {message} = App.useApp()
+    const auth = useAuth()
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
     const [menus, setMenus] = useState<MenuTreeResponse[]>([])
@@ -80,6 +84,10 @@ function ButtonListPage() {
         })),
         [menus],
     )
+    const canCreate = canUseRbacButton(auth, rbacButtonCodes.button.create)
+    const canEdit = canUseRbacButton(auth, rbacButtonCodes.button.edit)
+    const canBindApis = canUseRbacButton(auth, rbacButtonCodes.button.apis)
+    const canDelete = canUseRbacButton(auth, rbacButtonCodes.button.delete)
 
     const columns: ColumnsType<PermissionResponse> = [
         {title: '按钮编码', dataIndex: 'permCode', width: 220},
@@ -91,17 +99,29 @@ function ButtonListPage() {
             title: '操作',
             fixed: 'right',
             width: 240,
-            render: (_, record) => (
-                <Space>
-                    <Button icon={<EditOutlined/>} size="small" onClick={() => openEditor(record)}>编辑</Button>
-                    <Button icon={<ApiOutlined/>} size="small" onClick={() => openApis(record)}>绑定 API</Button>
-                    <Popconfirm title="确认删除该按钮？" onConfirm={() => remove(record.id)}>
-                        <Button danger size="small">删除</Button>
-                    </Popconfirm>
-                </Space>
-            ),
+            render: (_, record) => renderActions(record),
         },
     ]
+
+    function renderActions(record: PermissionResponse) {
+        const actions: ReactNode[] = []
+        if (canEdit) {
+            actions.push(<Button icon={<EditOutlined/>} key="edit" size="small"
+                                 onClick={() => openEditor(record)}>编辑</Button>)
+        }
+        if (canBindApis) {
+            actions.push(<Button icon={<ApiOutlined/>} key="apis" size="small" onClick={() => openApis(record)}>绑定
+                API</Button>)
+        }
+        if (canDelete) {
+            actions.push(
+                <Popconfirm key="delete" title="确认删除该按钮？" onConfirm={() => remove(record.id)}>
+                    <Button danger size="small">删除</Button>
+                </Popconfirm>,
+            )
+        }
+        return actions.length ? <Space>{actions}</Space> : '-'
+    }
 
     function openEditor(button?: PermissionResponse) {
         setEditingButton(button ?? null)
@@ -168,10 +188,12 @@ function ButtonListPage() {
                             value={selectedMenuId}
                             onChange={setSelectedMenuId}
                         />
-                        <Button disabled={!selectedMenuId} icon={<PlusOutlined/>} onClick={() => openEditor()}
-                                type="primary">
-                            新建按钮
-                        </Button>
+                        {canCreate && (
+                            <Button disabled={!selectedMenuId} icon={<PlusOutlined/>} onClick={() => openEditor()}
+                                    type="primary">
+                                新建按钮
+                            </Button>
+                        )}
                     </Space>
                 )}
                 description="按菜单维护按钮权限，并绑定按钮会调用的 API 权限。"

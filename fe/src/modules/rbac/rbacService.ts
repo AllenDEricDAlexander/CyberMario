@@ -213,7 +213,11 @@ export function replaceButtonApis(id: number, ids: number[]) {
 }
 
 export function getApiPermissionRules() {
-    return requestJson<ApiPermissionRule[]>('/api/admin/api-permissions')
+    return requestJson<ApiPermissionRule[]>('/api/admin/api-permissions/rules')
+}
+
+export function getApiPermissions(params: PageParams) {
+    return requestJson<PageResult<PermissionResponse>>(`/api/admin/api-permissions?page=${params.page ?? 1}&size=${params.size ?? 20}`)
 }
 
 export function createApiPermission(request: PermissionRequest) {

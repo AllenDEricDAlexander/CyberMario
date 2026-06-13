@@ -32,6 +32,7 @@ import top.egon.mario.rbac.service.RbacException;
 import top.egon.mario.rbac.service.RbacPermissionService;
 import top.egon.mario.rbac.service.model.ApiPermissionRule;
 import top.egon.mario.rbac.service.model.RbacPermissionChangedEvent;
+import top.egon.mario.rbac.service.security.RbacPublicApiPolicy;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -109,6 +110,16 @@ public class RbacPermissionServiceImpl implements RbacPermissionService {
 
     @Override
     @Transactional(readOnly = true)
+    public Page<PermissionResponse> getApiPermissionPage(Pageable pageable) {
+        return permissionRepository.findAll((root, query, cb) -> cb.and(
+                        cb.isFalse(root.get("deleted")),
+                        cb.equal(root.get("permType"), PermissionType.API)
+                ), pageable)
+                .map(permission -> getPermission(permission.getId()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<MenuTreeResponse> getMenuTree() {
         List<PermissionPo> menuPermissions = permissionRepository
                 .findByPermTypeAndDeletedFalseAndStatus(PermissionType.MENU, PermissionStatus.ENABLED)
@@ -142,6 +153,7 @@ public class RbacPermissionServiceImpl implements RbacPermissionService {
                 && permissionRepository.existsByPermCodeAndDeletedFalse(request.getPermCode())) {
             throw new RbacException("RBAC_PERMISSION_CODE_DUPLICATED", "permission code already exists");
         }
+        validatePermissionTypeChange(permission, rbacDtoConverter.toPoPermissionType(request.getPermType()));
         applyPermissionFields(permission, request);
         permissionRepository.save(permission);
         clearDetail(permissionId);
@@ -276,6 +288,9 @@ public class RbacPermissionServiceImpl implements RbacPermissionService {
         api.setPermissionId(permissionId);
         api.setHttpMethod(apiRequest.getHttpMethod().trim().toUpperCase());
         api.setUrlPattern(apiRequest.getUrlPattern().trim());
+        if (api.isPublicFlag() && !RbacPublicApiPolicy.isAllowedPublicRule(api.getHttpMethod(), api.getUrlPattern())) {
+            throw new RbacException("RBAC_PUBLIC_API_NOT_ALLOWED", "public API path is not allowed");
+        }
         apiRepository.save(api);
     }
 
@@ -306,6 +321,20 @@ public class RbacPermissionServiceImpl implements RbacPermissionService {
                 .toList();
         if (apiPermissions.size() != new HashSet<>(apiPermissionIds).size()) {
             throw new RbacException("RBAC_API_PERMISSION_NOT_FOUND", "api permission not found");
+        }
+    }
+
+    private void validatePermissionTypeChange(PermissionPo permission, PermissionType requestedType) {
+        if (permission.getPermType() == requestedType) {
+            return;
+        }
+        Long permissionId = permission.getId();
+        if (permissionRepository.existsByParentIdAndDeletedFalse(permissionId)
+                || rolePermissionRepository.existsByPermissionId(permissionId)
+                || buttonApiRepository.existsByButtonPermissionIdOrApiPermissionId(permissionId, permissionId)
+                || menuRepository.existsByParentMenuId(permissionId)
+                || buttonRepository.existsByMenuPermissionId(permissionId)) {
+            throw new RbacException("RBAC_PERMISSION_IN_USE", "permission is still referenced");
         }
     }
 

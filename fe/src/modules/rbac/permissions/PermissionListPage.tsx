@@ -1,11 +1,13 @@
 import {EditOutlined, PlusOutlined} from '@ant-design/icons'
 import {App, Button, Popconfirm, Space, Table} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
+import type {ReactNode} from 'react'
 import {useEffect, useMemo, useState} from 'react'
 import {PageToolbar} from '../../../components/PageToolbar'
 import {PermissionTypeTag} from '../../../components/PermissionTypeTag'
 import {StatusTag} from '../../../components/StatusTag'
 import {enumEquals} from '../../../utils/enum'
+import {canUseRbacButton, useAuth} from '../../auth/authStore'
 import {
     createPermission,
     deletePermission,
@@ -14,11 +16,13 @@ import {
     updatePermission,
     updatePermissionStatus,
 } from '../rbacService'
+import {rbacButtonCodes} from '../rbacPermissionCodes'
 import type {MenuTreeResponse, PermissionRequest, PermissionResponse} from '../rbacTypes'
 import {PermissionEditorDrawer} from './PermissionEditorDrawer'
 
 function PermissionListPage() {
     const {message} = App.useApp()
+    const auth = useAuth()
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
     const [permissions, setPermissions] = useState<PermissionResponse[]>([])
@@ -55,6 +59,10 @@ function PermissionListPage() {
         () => permissions.filter((permission) => enumEquals(permission.permType, 3) || enumEquals(permission.permType, 'API')),
         [permissions],
     )
+    const canCreate = canUseRbacButton(auth, rbacButtonCodes.permission.create)
+    const canEdit = canUseRbacButton(auth, rbacButtonCodes.permission.edit)
+    const canChangeStatus = canUseRbacButton(auth, rbacButtonCodes.permission.status)
+    const canDelete = canUseRbacButton(auth, rbacButtonCodes.permission.delete)
 
     const columns: ColumnsType<PermissionResponse> = [
         {title: '权限编码', dataIndex: 'permCode', width: 220},
@@ -68,19 +76,32 @@ function PermissionListPage() {
             title: '操作',
             fixed: 'right',
             width: 220,
-            render: (_, record) => (
-                <Space>
-                    <Button icon={<EditOutlined/>} size="small" onClick={() => openEditor(record)}>编辑</Button>
-                    <Popconfirm title="确认切换权限状态？" onConfirm={() => toggleStatus(record)}>
-                        <Button size="small">{isEnabled(record) ? '禁用' : '启用'}</Button>
-                    </Popconfirm>
-                    <Popconfirm title="确认删除该权限？" onConfirm={() => remove(record.id)}>
-                        <Button danger size="small">删除</Button>
-                    </Popconfirm>
-                </Space>
-            ),
+            render: (_, record) => renderActions(record),
         },
     ]
+
+    function renderActions(record: PermissionResponse) {
+        const actions: ReactNode[] = []
+        if (canEdit) {
+            actions.push(<Button icon={<EditOutlined/>} key="edit" size="small"
+                                 onClick={() => openEditor(record)}>编辑</Button>)
+        }
+        if (canChangeStatus) {
+            actions.push(
+                <Popconfirm key="status" title="确认切换权限状态？" onConfirm={() => toggleStatus(record)}>
+                    <Button size="small">{isEnabled(record) ? '禁用' : '启用'}</Button>
+                </Popconfirm>,
+            )
+        }
+        if (canDelete) {
+            actions.push(
+                <Popconfirm key="delete" title="确认删除该权限？" onConfirm={() => remove(record.id)}>
+                    <Button danger size="small">删除</Button>
+                </Popconfirm>,
+            )
+        }
+        return actions.length ? <Space>{actions}</Space> : '-'
+    }
 
     function openEditor(permission?: PermissionResponse) {
         setEditingPermission(permission ?? null)
@@ -118,7 +139,8 @@ function PermissionListPage() {
     return (
         <>
             <PageToolbar
-                actions={<Button icon={<PlusOutlined/>} onClick={() => openEditor()} type="primary">新建权限</Button>}
+                actions={canCreate &&
+                    <Button icon={<PlusOutlined/>} onClick={() => openEditor()} type="primary">新建权限</Button>}
                 description="统一维护菜单、按钮和 API 权限。"
                 title="权限管理"
             />

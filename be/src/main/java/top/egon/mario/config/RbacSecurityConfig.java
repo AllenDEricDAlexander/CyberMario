@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableReactiveMethodSecurity;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
@@ -17,6 +18,7 @@ import org.springframework.security.web.server.SecurityWebFilterChain;
 import top.egon.mario.rbac.service.security.DynamicAuthorizationManager;
 import top.egon.mario.rbac.service.security.JwtAuthenticationWebFilter;
 import top.egon.mario.rbac.service.security.JwtProperties;
+import top.egon.mario.rbac.service.security.RbacPublicApiPolicy;
 
 import java.util.Map;
 
@@ -34,16 +36,6 @@ public class RbacSecurityConfig {
     private static final String ARGON2ID = "argon2id";
     private static final String BCRYPT = "bcrypt";
     private static final int ARGON2_MEMORY_KIB = 19 * 1024;
-    private static final String[] PUBLIC_ENDPOINTS = {
-            "/api/auth/login",
-            "/api/auth/refresh",
-            "/actuator/health/**",
-            "/actuator/info",
-            "/actuator/metrics/**",
-            "/actuator/prometheus",
-            "/demo/chat/**"
-    };
-
     private final JwtAuthenticationWebFilter jwtAuthenticationWebFilter;
     private final DynamicAuthorizationManager dynamicAuthorizationManager;
 
@@ -54,7 +46,8 @@ public class RbacSecurityConfig {
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .authorizeExchange(exchange -> exchange
-                        .pathMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        .pathMatchers(HttpMethod.POST, RbacPublicApiPolicy.PUBLIC_AUTH_ENDPOINTS).permitAll()
+                        .pathMatchers(HttpMethod.GET, RbacPublicApiPolicy.PUBLIC_ACTUATOR_ENDPOINTS).permitAll()
                         .anyExchange().access(dynamicAuthorizationManager)
                 )
                 .addFilterAt(jwtAuthenticationWebFilter, SecurityWebFiltersOrder.AUTHENTICATION)

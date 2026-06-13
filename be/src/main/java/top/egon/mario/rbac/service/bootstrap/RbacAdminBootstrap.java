@@ -42,6 +42,8 @@ public class RbacAdminBootstrap implements ApplicationRunner {
     private static final String SUPER_ADMIN_ROLE_CODE = "SUPER_ADMIN";
     private static final String ADMIN_API_PERMISSION_CODE = "api:rbac:admin:*";
     private static final String ADMIN_API_PATTERN = "/api/admin/**";
+    private static final String CHAT_API_PERMISSION_CODE = "api:chat:stream";
+    private static final String CHAT_API_PATTERN = "/demo/chat/stream";
     private static final int MIN_ADMIN_PASSWORD_LENGTH = 12;
 
     private final RbacAdminBootstrapProperties properties;
@@ -70,9 +72,12 @@ public class RbacAdminBootstrap implements ApplicationRunner {
         UserPo admin = ensureAdminUser();
         RolePo role = ensureSuperAdminRole();
         PermissionPo permission = ensureAdminApiPermission();
+        PermissionPo chatPermission = ensureChatApiPermission();
         ensureAdminApi(permission);
+        ensureChatApi(chatPermission);
         ensureUserRole(admin, role);
         ensureRolePermission(role, permission);
+        ensureRolePermission(role, chatPermission);
         eventPublisher.publishEvent(new RbacPermissionChangedEvent("bootstrap super administrator"));
         LogUtil.info(log).log("rbac admin bootstrap completed, username={}, roleCode={}",
                 admin.getUsername(), role.getRoleCode());
@@ -123,6 +128,18 @@ public class RbacAdminBootstrap implements ApplicationRunner {
         return permissionRepository.save(permission);
     }
 
+    private PermissionPo ensureChatApiPermission() {
+        PermissionPo permission = permissionRepository.findByPermCodeAndDeletedFalse(CHAT_API_PERMISSION_CODE)
+                .orElseGet(PermissionPo::new);
+        permission.setPermCode(CHAT_API_PERMISSION_CODE);
+        permission.setPermName("Agent Chat Stream API");
+        permission.setPermType(PermissionType.API);
+        permission.setStatus(PermissionStatus.ENABLED);
+        permission.setSortNo(1);
+        permission.setDescription("Chat streaming endpoint for authenticated CyberMario users");
+        return permissionRepository.save(permission);
+    }
+
     private void ensureAdminApi(PermissionPo permission) {
         ApiPo api = apiRepository.findById(permission.getId()).orElseGet(ApiPo::new);
         api.setPermissionId(permission.getId());
@@ -133,6 +150,20 @@ public class RbacAdminBootstrap implements ApplicationRunner {
         api.setServiceTag("rbac");
         api.setOperationName("RBAC administration APIs");
         api.setRiskLevel(ApiRiskLevel.HIGH);
+        api.setLastScannedAt(Instant.now());
+        apiRepository.save(api);
+    }
+
+    private void ensureChatApi(PermissionPo permission) {
+        ApiPo api = apiRepository.findById(permission.getId()).orElseGet(ApiPo::new);
+        api.setPermissionId(permission.getId());
+        api.setHttpMethod("POST");
+        api.setUrlPattern(CHAT_API_PATTERN);
+        api.setMatcherType(ApiMatcherType.EXACT);
+        api.setPublicFlag(false);
+        api.setServiceTag("chat");
+        api.setOperationName("Agent chat stream");
+        api.setRiskLevel(ApiRiskLevel.MEDIUM);
         api.setLastScannedAt(Instant.now());
         apiRepository.save(api);
     }

@@ -1,8 +1,9 @@
 import {Spin} from 'antd'
 import {createBrowserRouter, Navigate, Outlet, useLocation} from 'react-router'
 import {AdminLayout} from '../layouts/AdminLayout'
+import {firstAuthorizedMenuPath} from '../layouts/AdminLayout/menu'
 import {AuthLayout} from '../layouts/AuthLayout'
-import {useAuth} from '../modules/auth/authStore'
+import {hasAdminPermissionBypass, useAuth} from '../modules/auth/authStore'
 import {LoginPage} from '../modules/auth/pages/LoginPage'
 import {ChatPage} from '../modules/chat/pages/ChatPage'
 
@@ -22,7 +23,7 @@ export const router = createBrowserRouter([
             {
                 element: <AdminLayout/>,
                 children: [
-                    {index: true, element: <Navigate replace to="/chat"/>},
+                    {index: true, element: <DefaultAdminRoute/>},
                     {path: 'chat', element: <ChatPage/>},
                     {path: 'rbac/users', lazy: () => import('../modules/rbac/users/UserListPage')},
                     {path: 'rbac/roles', lazy: () => import('../modules/rbac/roles/RoleListPage')},
@@ -36,7 +37,7 @@ export const router = createBrowserRouter([
     },
     {
         path: '/403',
-        element: <Navigate replace to="/chat"/>,
+        element: <ForbiddenRoute/>,
     },
     {
         path: '*',
@@ -61,4 +62,17 @@ function RequireAuth() {
     }
 
     return <Outlet/>
+}
+
+function DefaultAdminRoute() {
+    const auth = useAuth()
+    return <Navigate replace to={firstAuthorizedMenuPath(auth.menus, hasAdminPermissionBypass(auth)) ?? '/403'}/>
+}
+
+function ForbiddenRoute() {
+    const auth = useAuth()
+    if (!auth.authenticated) {
+        return <Navigate replace to="/login"/>
+    }
+    return <Navigate replace to={firstAuthorizedMenuPath(auth.menus, hasAdminPermissionBypass(auth)) ?? '/login'}/>
 }

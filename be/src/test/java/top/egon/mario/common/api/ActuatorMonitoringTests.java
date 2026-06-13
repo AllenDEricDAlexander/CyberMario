@@ -8,8 +8,12 @@ import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWeb
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import reactor.core.publisher.Flux;
+import top.egon.mario.agent.service.ChatAgentService;
+import top.egon.mario.pojo.response.ChatResponse;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
 
 /**
  * Verifies public monitoring endpoints used by deployment probes and metrics scrapers.
@@ -24,6 +28,8 @@ class ActuatorMonitoringTests {
 
     @MockitoBean
     private ChatModel chatModel;
+    @MockitoBean
+    private ChatAgentService chatAgentService;
 
     @Test
     void healthEndpointIsAvailableWithoutAuthentication() {
@@ -46,13 +52,28 @@ class ActuatorMonitoringTests {
     }
 
     @Test
-    void prometheusEndpointIsAvailableWithoutAuthentication() {
+    void prometheusEndpointRequiresRbacApiPermission() {
         webTestClient.get()
                 .uri("/actuator/prometheus")
                 .exchange()
-                .expectStatus().isOk()
-                .expectBody(String.class)
-                .value(body -> assertThat(body).contains("# HELP"));
+                .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    void chatEndpointRequiresRbacApiPermission() {
+        given(chatAgentService.chat(anyString(), anyString()))
+                .willReturn(Flux.just(new ChatResponse("thread-1", "blocked")));
+
+        webTestClient.post()
+                .uri("/demo/chat/stream")
+                .bodyValue("""
+                        {
+                          "message": "你好",
+                          "threadId": "thread-1"
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isUnauthorized();
     }
 
 }

@@ -1,9 +1,12 @@
 import {BranchesOutlined, EditOutlined, PlusOutlined, SafetyOutlined} from '@ant-design/icons'
 import {App, Button, Popconfirm, Space, Table, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
+import type {ReactNode} from 'react'
 import {useEffect, useState} from 'react'
 import {PageToolbar} from '../../../components/PageToolbar'
 import {StatusTag} from '../../../components/StatusTag'
+import {canUseRbacButton, useAuth} from '../../auth/authStore'
+import {rbacButtonCodes} from '../rbacPermissionCodes'
 import {
     createRole,
     deleteRole,
@@ -23,6 +26,7 @@ import {RolePermissionDrawer} from './RolePermissionDrawer'
 
 function RoleListPage() {
     const {message} = App.useApp()
+    const auth = useAuth()
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
     const [roles, setRoles] = useState<RoleResponse[]>([])
@@ -62,6 +66,12 @@ function RoleListPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
+    const canCreate = canUseRbacButton(auth, rbacButtonCodes.role.create)
+    const canEdit = canUseRbacButton(auth, rbacButtonCodes.role.edit)
+    const canAssignPermissions = canUseRbacButton(auth, rbacButtonCodes.role.permissions)
+    const canEditInheritance = canUseRbacButton(auth, rbacButtonCodes.role.inheritance)
+    const canDelete = canUseRbacButton(auth, rbacButtonCodes.role.delete)
+
     const columns: ColumnsType<RoleResponse> = [
         {title: '角色编码', dataIndex: 'roleCode', width: 180},
         {title: '角色名称', dataIndex: 'roleName', width: 160},
@@ -73,19 +83,37 @@ function RoleListPage() {
             title: '操作',
             fixed: 'right',
             width: 310,
-            render: (_, record) => (
-                <Space>
-                    <Button icon={<EditOutlined/>} size="small" onClick={() => openEditor(record)}>编辑</Button>
-                    <Button icon={<SafetyOutlined/>} size="small" onClick={() => openPermissions(record)}>权限</Button>
-                    <Button icon={<BranchesOutlined/>} size="small"
-                            onClick={() => openInheritance(record)}>继承</Button>
-                    <Popconfirm title="确认删除该角色？" onConfirm={() => removeRole(record.id)}>
-                        <Button danger size="small">删除</Button>
-                    </Popconfirm>
-                </Space>
-            ),
+            render: (_, record) => renderActions(record),
         },
     ]
+
+    function renderActions(record: RoleResponse) {
+        const actions: ReactNode[] = []
+        if (canEdit) {
+            actions.push(<Button icon={<EditOutlined/>} key="edit" size="small"
+                                 onClick={() => openEditor(record)}>编辑</Button>)
+        }
+        if (canAssignPermissions) {
+            actions.push(<Button icon={<SafetyOutlined/>} key="permissions" size="small"
+                                 onClick={() => openPermissions(record)}>权限</Button>)
+        }
+        if (canEditInheritance) {
+            actions.push(
+                <Button icon={<BranchesOutlined/>} key="inheritance" size="small"
+                        onClick={() => openInheritance(record)}>
+                    继承
+                </Button>,
+            )
+        }
+        if (canDelete) {
+            actions.push(
+                <Popconfirm key="delete" title="确认删除该角色？" onConfirm={() => removeRole(record.id)}>
+                    <Button danger size="small">删除</Button>
+                </Popconfirm>,
+            )
+        }
+        return actions.length ? <Space>{actions}</Space> : '-'
+    }
 
     function openEditor(role?: RoleResponse) {
         setEditingRole(role ?? null)
@@ -156,7 +184,8 @@ function RoleListPage() {
     return (
         <>
             <PageToolbar
-                actions={<Button icon={<PlusOutlined/>} onClick={() => openEditor()} type="primary">新建角色</Button>}
+                actions={canCreate &&
+                    <Button icon={<PlusOutlined/>} onClick={() => openEditor()} type="primary">新建角色</Button>}
                 description="维护角色、直接权限和 RBAC1 角色继承。"
                 title="角色管理"
             />

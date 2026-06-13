@@ -104,17 +104,26 @@ class RbacAdminBootstrapTests {
                 .contains(role.getId());
 
         PermissionPo permission = permissionRepository.findByPermCodeAndDeletedFalse("api:rbac:admin:*").orElseThrow();
+        PermissionPo chatPermission = permissionRepository.findByPermCodeAndDeletedFalse("api:chat:stream").orElseThrow();
         assertThat(permission.getPermType()).isEqualTo(PermissionType.API);
         assertThat(permission.getStatus()).isEqualTo(PermissionStatus.ENABLED);
+        assertThat(chatPermission.getPermType()).isEqualTo(PermissionType.API);
+        assertThat(chatPermission.getStatus()).isEqualTo(PermissionStatus.ENABLED);
         assertThat(rolePermissionRepository.findByRoleId(role.getId()))
                 .extracting("permissionId")
-                .contains(permission.getId());
+                .contains(permission.getId(), chatPermission.getId());
 
         ApiPo api = apiRepository.findById(permission.getId()).orElseThrow();
         assertThat(api.getHttpMethod()).isEqualTo("ANY");
         assertThat(api.getUrlPattern()).isEqualTo("/api/admin/**");
         assertThat(api.getMatcherType()).isEqualTo(ApiMatcherType.ANT);
         assertThat(api.getRiskLevel()).isEqualTo(ApiRiskLevel.HIGH);
+
+        ApiPo chatApi = apiRepository.findById(chatPermission.getId()).orElseThrow();
+        assertThat(chatApi.getHttpMethod()).isEqualTo("POST");
+        assertThat(chatApi.getUrlPattern()).isEqualTo("/demo/chat/stream");
+        assertThat(chatApi.getMatcherType()).isEqualTo(ApiMatcherType.EXACT);
+        assertThat(chatApi.getRiskLevel()).isEqualTo(ApiRiskLevel.MEDIUM);
     }
 
     @Test
@@ -127,10 +136,12 @@ class RbacAdminBootstrapTests {
         UserPo admin = userRepository.findByUsernameAndDeletedFalse("admin").orElseThrow();
         RolePo role = roleRepository.findByRoleCodeAndDeletedFalse("SUPER_ADMIN").orElseThrow();
         PermissionPo permission = permissionRepository.findByPermCodeAndDeletedFalse("api:rbac:admin:*").orElseThrow();
+        PermissionPo chatPermission = permissionRepository.findByPermCodeAndDeletedFalse("api:chat:stream").orElseThrow();
         assertThat(admin.getPasswordHash()).isEqualTo(passwordHash);
         assertThat(userRoleRepository.findByUserId(admin.getId())).hasSize(1);
-        assertThat(rolePermissionRepository.findByRoleId(role.getId())).hasSize(1);
+        assertThat(rolePermissionRepository.findByRoleId(role.getId())).hasSize(2);
         assertThat(apiRepository.findById(permission.getId())).isPresent();
+        assertThat(apiRepository.findById(chatPermission.getId())).isPresent();
     }
 
     @Test

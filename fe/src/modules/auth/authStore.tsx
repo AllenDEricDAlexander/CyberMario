@@ -4,7 +4,7 @@ import type {MenuTreeResponse, UserResponse} from '../rbac/rbacTypes'
 import {fetchCurrentUser, login as loginRequest, logout as logoutRequest} from './authService'
 import type {LoginRequest, LoginResponse} from './authTypes'
 
-type AuthState = {
+export type AuthState = {
     bootstrapping: boolean
     authenticated: boolean
     user?: UserResponse
@@ -16,6 +16,7 @@ type AuthState = {
     logout: () => Promise<void>
     reload: () => Promise<void>
     hasButton: (buttonCode: string) => boolean
+    hasAnyButton: (buttonCodes: string[]) => boolean
     hasPermission: (permissionCode: string) => boolean
 }
 
@@ -88,6 +89,7 @@ export function AuthProvider({children}: AuthProviderProps) {
             logout,
             reload,
             hasButton: (buttonCode) => buttonCodeSet.has(buttonCode),
+            hasAnyButton: (buttonCodes) => buttonCodes.some((buttonCode) => buttonCodeSet.has(buttonCode)),
             hasPermission: (permissionCode) => permissionCodeSet.has(permissionCode),
         }),
         [bootstrapping, buttonCodeSet, login, logout, permissionCodeSet, reload, session],
@@ -102,4 +104,15 @@ export function useAuth() {
         throw new Error('useAuth must be used inside AuthProvider')
     }
     return context
+}
+
+export function hasAdminPermissionBypass(auth: Pick<AuthState, 'hasPermission' | 'roleCodes'>) {
+    return auth.roleCodes.includes('SUPER_ADMIN') || auth.hasPermission('api:rbac:admin:*')
+}
+
+export function canUseRbacButton(
+    auth: Pick<AuthState, 'hasAnyButton' | 'hasPermission' | 'roleCodes'>,
+    buttonCodes: string | string[],
+) {
+    return hasAdminPermissionBypass(auth) || auth.hasAnyButton(Array.isArray(buttonCodes) ? buttonCodes : [buttonCodes])
 }

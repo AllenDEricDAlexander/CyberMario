@@ -25,6 +25,8 @@ public interface RbacPermissionService {
 
     Page<PermissionResponse> getPermissionPage(Pageable pageable);
 
+    Page<PermissionResponse> getApiPermissionPage(Pageable pageable);
+
     List<MenuTreeResponse> getMenuTree();
 
     List<PermissionResponse> getButtonsByMenuId(Long menuPermissionId);
