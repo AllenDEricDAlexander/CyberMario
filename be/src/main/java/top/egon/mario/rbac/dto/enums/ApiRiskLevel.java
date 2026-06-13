@@ -1,13 +1,16 @@
-package top.egon.mario.rbac.po;
+package top.egon.mario.rbac.dto.enums;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
+import lombok.Getter;
+import top.egon.mario.rbac.common.CodedEnum;
 
 import java.util.Map;
 
 /**
  * Risk level for audit and operator awareness.
  */
+@Getter
 public enum ApiRiskLevel implements CodedEnum {
     LOW(1, "低"),
     MEDIUM(2, "中"),
@@ -21,23 +24,13 @@ public enum ApiRiskLevel implements CodedEnum {
         this.desc = desc;
     }
 
-    @Override
-    public int getCode() {
-        return code;
-    }
-
-    @Override
-    public String getDesc() {
-        return desc;
-    }
-
     @JsonValue
     public Map<String, Object> toJson() {
-        return CodedEnum.toJson(this);
+        return EnumJsonSupport.toJson(this);
     }
 
     @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
     public static ApiRiskLevel fromJson(Object input) {
-        return CodedEnum.fromJson(ApiRiskLevel.class, input);
+        return EnumJsonSupport.fromJson(ApiRiskLevel.class, input);
     }
 }

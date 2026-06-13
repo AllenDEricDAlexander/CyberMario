@@ -1,7 +1,7 @@
-package top.egon.mario.rbac.po.converter;
+package top.egon.mario.rbac.converter.jpa;
 
 import jakarta.persistence.Converter;
-import top.egon.mario.rbac.po.ApiRiskLevel;
+import top.egon.mario.rbac.po.enums.ApiRiskLevel;
 
 /**
  * Persists API risk level as an integer code.

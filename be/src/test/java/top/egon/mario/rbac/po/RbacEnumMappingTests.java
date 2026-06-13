@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import top.egon.mario.rbac.dto.UserResponse;
+import top.egon.mario.rbac.dto.enums.RbacStatus;
 import top.egon.mario.rbac.repository.UserRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,7 +46,7 @@ class RbacEnumMappingTests {
         UserPo user = new UserPo();
         user.setUsername("enum-test");
         user.setPasswordHash("hash");
-        user.setStatus(RbacStatus.DISABLED);
+        user.setStatus(top.egon.mario.rbac.po.enums.RbacStatus.DISABLED);
 
         UserPo savedUser = userRepository.save(user);
 

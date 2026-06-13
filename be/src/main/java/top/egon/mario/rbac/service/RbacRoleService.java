@@ -11,11 +11,11 @@ import top.egon.mario.rbac.dto.CreateRoleRequest;
 import top.egon.mario.rbac.dto.RoleResponse;
 import top.egon.mario.rbac.dto.UpdateRoleRequest;
 import top.egon.mario.rbac.po.PermissionPo;
-import top.egon.mario.rbac.po.PermissionStatus;
-import top.egon.mario.rbac.po.RbacStatus;
 import top.egon.mario.rbac.po.RoleInheritancePo;
 import top.egon.mario.rbac.po.RolePermissionPo;
 import top.egon.mario.rbac.po.RolePo;
+import top.egon.mario.rbac.po.enums.PermissionStatus;
+import top.egon.mario.rbac.po.enums.RbacStatus;
 import top.egon.mario.rbac.repository.ButtonApiRepository;
 import top.egon.mario.rbac.repository.PermissionRepository;
 import top.egon.mario.rbac.repository.RoleInheritanceRepository;
@@ -56,13 +56,9 @@ public class RbacRoleService {
         if (roleRepository.existsByRoleCodeAndDeletedFalse(roleCode)) {
             throw new RbacException("RBAC_ROLE_CODE_DUPLICATED", "role code already exists");
         }
-        RolePo role = new RolePo();
+        RolePo role = rbacDtoConverter.toRolePo(request);
         role.setRoleCode(roleCode);
-        role.setRoleName(request.getRoleName());
-        role.setStatus(request.getStatus() == null ? RbacStatus.ENABLED : request.getStatus());
-        role.setSortNo(request.getSortNo());
-        role.setBuiltIn(request.isBuiltIn());
-        role.setDescription(request.getDescription());
+        role.setStatus(request.getStatus() == null ? RbacStatus.ENABLED : rbacDtoConverter.toPoRbacStatus(request.getStatus()));
         RolePo savedRole = roleRepository.save(role);
         auditService.log(0L, "RBAC_ROLE_CREATE", "ROLE", savedRole.getId(), null, savedRole.getRoleCode(), null, null);
         return rbacDtoConverter.toRoleResponse(savedRole);
@@ -95,7 +91,7 @@ public class RbacRoleService {
             role.setRoleName(request.getRoleName());
         }
         if (request.getStatus() != null) {
-            role.setStatus(request.getStatus());
+            role.setStatus(rbacDtoConverter.toPoRbacStatus(request.getStatus()));
         }
         if (request.getSortNo() != null) {
             role.setSortNo(request.getSortNo());

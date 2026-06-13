@@ -50,7 +50,7 @@ public class ApiRuleMatcher {
         };
     }
 
-    private int matcherRank(top.egon.mario.rbac.po.ApiMatcherType matcherType) {
+    private int matcherRank(top.egon.mario.rbac.po.enums.ApiMatcherType matcherType) {
         return switch (matcherType) {
             case EXACT -> 0;
             case MVC -> 1;

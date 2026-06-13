@@ -1,6 +1,5 @@
 package top.egon.mario.rbac.po;
 
-import io.github.linpeilie.annotations.AutoMapper;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -8,9 +7,10 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.Setter;
-import top.egon.mario.rbac.dto.PermissionResponse;
-import top.egon.mario.rbac.po.converter.PermissionStatusConverter;
-import top.egon.mario.rbac.po.converter.PermissionTypeConverter;
+import top.egon.mario.rbac.converter.jpa.PermissionStatusConverter;
+import top.egon.mario.rbac.converter.jpa.PermissionTypeConverter;
+import top.egon.mario.rbac.po.enums.PermissionStatus;
+import top.egon.mario.rbac.po.enums.PermissionType;
 
 /**
  * Unified permission metadata shared by menu, button and API resources.
@@ -18,7 +18,6 @@ import top.egon.mario.rbac.po.converter.PermissionTypeConverter;
 @Getter
 @Setter
 @Entity
-@AutoMapper(target = PermissionResponse.class)
 @Table(name = "sys_permission", uniqueConstraints = {
         @UniqueConstraint(name = "uk_permission_code_deleted", columnNames = {"perm_code", "deleted"})
 })

@@ -20,7 +20,7 @@ public interface ApiRepository extends JpaRepository<ApiPo, Long> {
                 p.permCode, a.httpMethod, a.urlPattern, a.matcherType, a.publicFlag)
             from ApiPo a
             join PermissionPo p on p.id = a.permissionId
-            where p.deleted = false and p.status = top.egon.mario.rbac.po.PermissionStatus.ENABLED
+            where p.deleted = false and p.status = top.egon.mario.rbac.po.enums.PermissionStatus.ENABLED
             """)
     List<ApiPermissionRule> findEnabledRules();
 

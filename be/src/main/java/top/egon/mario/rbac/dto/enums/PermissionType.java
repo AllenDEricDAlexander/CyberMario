@@ -1,13 +1,16 @@
-package top.egon.mario.rbac.po;
+package top.egon.mario.rbac.dto.enums;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
+import lombok.Getter;
+import top.egon.mario.rbac.common.CodedEnum;
 
 import java.util.Map;
 
 /**
  * Permission resource type used by RBAC authorization.
  */
+@Getter
 public enum PermissionType implements CodedEnum {
     MENU(1, "菜单"),
     BUTTON(2, "按钮"),
@@ -21,23 +24,13 @@ public enum PermissionType implements CodedEnum {
         this.desc = desc;
     }
 
-    @Override
-    public int getCode() {
-        return code;
-    }
-
-    @Override
-    public String getDesc() {
-        return desc;
-    }
-
     @JsonValue
     public Map<String, Object> toJson() {
-        return CodedEnum.toJson(this);
+        return EnumJsonSupport.toJson(this);
     }
 
     @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
     public static PermissionType fromJson(Object input) {
-        return CodedEnum.fromJson(PermissionType.class, input);
+        return EnumJsonSupport.fromJson(PermissionType.class, input);
     }
 }

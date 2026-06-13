@@ -3,7 +3,7 @@ package top.egon.mario.rbac.dto;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
-import top.egon.mario.rbac.po.RbacStatus;
+import top.egon.mario.rbac.dto.enums.RbacStatus;
 
 /**
  * Management request for creating a role.

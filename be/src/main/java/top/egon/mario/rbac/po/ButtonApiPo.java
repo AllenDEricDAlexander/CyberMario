@@ -10,7 +10,8 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.Setter;
-import top.egon.mario.rbac.po.converter.ButtonApiRelationTypeConverter;
+import top.egon.mario.rbac.converter.jpa.ButtonApiRelationTypeConverter;
+import top.egon.mario.rbac.po.enums.ButtonApiRelationType;
 
 import java.time.Instant;
 

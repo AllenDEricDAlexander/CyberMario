@@ -3,8 +3,8 @@ package top.egon.mario.rbac.repository;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import top.egon.mario.rbac.po.PermissionPo;
-import top.egon.mario.rbac.po.PermissionStatus;
-import top.egon.mario.rbac.po.PermissionType;
+import top.egon.mario.rbac.po.enums.PermissionStatus;
+import top.egon.mario.rbac.po.enums.PermissionType;
 
 import java.util.Collection;
 import java.util.List;

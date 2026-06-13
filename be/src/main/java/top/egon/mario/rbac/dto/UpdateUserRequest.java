@@ -2,7 +2,7 @@ package top.egon.mario.rbac.dto;
 
 import lombok.Getter;
 import lombok.Setter;
-import top.egon.mario.rbac.po.RbacStatus;
+import top.egon.mario.rbac.dto.enums.RbacStatus;
 
 /**
  * Management request for updating a user's profile fields.

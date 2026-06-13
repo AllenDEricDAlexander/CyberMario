@@ -3,6 +3,9 @@ package top.egon.mario.rbac.converter;
 import io.github.linpeilie.Converter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import top.egon.mario.rbac.dto.CreateRoleRequest;
+import top.egon.mario.rbac.dto.CreateUserRequest;
+import top.egon.mario.rbac.dto.PermissionRequest;
 import top.egon.mario.rbac.dto.PermissionResponse;
 import top.egon.mario.rbac.dto.RoleResponse;
 import top.egon.mario.rbac.dto.UserResponse;
@@ -23,6 +26,7 @@ import java.util.Set;
 public class RbacDtoConverter {
 
     private final Converter converter;
+    private final RbacLayerEnumMapper enumMapper;
 
     public UserResponse toUserResponse(UserPo userPo) {
         return converter.convert(userPo, UserResponse.class);
@@ -32,42 +36,63 @@ public class RbacDtoConverter {
         return converter.convert(rolePo, RoleResponse.class);
     }
 
+    public UserPo toUserPo(CreateUserRequest request) {
+        return converter.convert(request, UserPo.class);
+    }
+
+    public RolePo toRolePo(CreateRoleRequest request) {
+        return converter.convert(request, RolePo.class);
+    }
+
+    public PermissionPo toPermissionPo(PermissionRequest request) {
+        return converter.convert(request, PermissionPo.class);
+    }
+
+    public MenuPo toMenuPo(PermissionRequest.Menu request) {
+        return converter.convert(request, MenuPo.class);
+    }
+
+    public ButtonPo toButtonPo(PermissionRequest.Button request) {
+        return converter.convert(request, ButtonPo.class);
+    }
+
+    public ApiPo toApiPo(PermissionRequest.Api request) {
+        return converter.convert(request, ApiPo.class);
+    }
+
+    public top.egon.mario.rbac.po.enums.RbacStatus toPoRbacStatus(top.egon.mario.rbac.dto.enums.RbacStatus status) {
+        return enumMapper.toPo(status);
+    }
+
+    public top.egon.mario.rbac.po.enums.PermissionType toPoPermissionType(top.egon.mario.rbac.dto.enums.PermissionType permissionType) {
+        return enumMapper.toPo(permissionType);
+    }
+
+    public top.egon.mario.rbac.po.enums.PermissionStatus toPoPermissionStatus(top.egon.mario.rbac.dto.enums.PermissionStatus status) {
+        return enumMapper.toPo(status);
+    }
+
+    public top.egon.mario.rbac.po.enums.ApiMatcherType toPoApiMatcherType(top.egon.mario.rbac.dto.enums.ApiMatcherType matcherType) {
+        return enumMapper.toPo(matcherType);
+    }
+
+    public top.egon.mario.rbac.po.enums.ApiRiskLevel toPoApiRiskLevel(top.egon.mario.rbac.dto.enums.ApiRiskLevel riskLevel) {
+        return enumMapper.toPo(riskLevel);
+    }
+
     public PermissionResponse toPermissionResponse(PermissionPo permissionPo, MenuPo menuPo, ButtonPo buttonPo,
                                                    ApiPo apiPo, Set<Long> apiPermissionIds) {
         PermissionResponse response = converter.convert(permissionPo, PermissionResponse.class);
         if (menuPo != null) {
-            PermissionResponse.MenuDetail detail = new PermissionResponse.MenuDetail();
-            detail.setParentMenuId(menuPo.getParentMenuId());
-            detail.setRouteName(menuPo.getRouteName());
-            detail.setRoutePath(menuPo.getRoutePath());
-            detail.setComponent(menuPo.getComponent());
-            detail.setRedirect(menuPo.getRedirect());
-            detail.setIcon(menuPo.getIcon());
-            detail.setHidden(menuPo.isHidden());
-            detail.setCacheable(menuPo.isCacheable());
-            detail.setExternalLink(menuPo.getExternalLink());
-            response.setMenu(detail);
+            response.setMenu(converter.convert(menuPo, PermissionResponse.MenuDetail.class));
         }
         if (buttonPo != null) {
-            PermissionResponse.ButtonDetail detail = new PermissionResponse.ButtonDetail();
-            detail.setMenuPermissionId(buttonPo.getMenuPermissionId());
-            detail.setButtonKey(buttonPo.getButtonKey());
-            detail.setFrontendAction(buttonPo.getFrontendAction());
-            detail.setStyleHint(buttonPo.getStyleHint());
-            detail.setDescription(buttonPo.getDescription());
+            PermissionResponse.ButtonDetail detail = converter.convert(buttonPo, PermissionResponse.ButtonDetail.class);
             detail.setApiPermissionIds(apiPermissionIds);
             response.setButton(detail);
         }
         if (apiPo != null) {
-            PermissionResponse.ApiDetail detail = new PermissionResponse.ApiDetail();
-            detail.setHttpMethod(apiPo.getHttpMethod());
-            detail.setUrlPattern(apiPo.getUrlPattern());
-            detail.setMatcherType(apiPo.getMatcherType());
-            detail.setPublicFlag(apiPo.isPublicFlag());
-            detail.setServiceTag(apiPo.getServiceTag());
-            detail.setOperationName(apiPo.getOperationName());
-            detail.setRiskLevel(apiPo.getRiskLevel());
-            response.setApi(detail);
+            response.setApi(converter.convert(apiPo, PermissionResponse.ApiDetail.class));
         }
         return response;
     }

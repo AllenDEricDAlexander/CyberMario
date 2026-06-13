@@ -1,31 +1,20 @@
-package top.egon.mario.rbac.po;
+package top.egon.mario.rbac.dto.enums;
+
+import top.egon.mario.rbac.common.CodedEnum;
 
 import java.util.Map;
 import java.util.Objects;
 
 /**
- * Enum contract for values stored as integer codes and displayed by descriptions.
+ * JSON helper for API-layer coded enums.
  */
-public interface CodedEnum {
+final class EnumJsonSupport {
 
-    int getCode();
-
-    String getDesc();
+    private EnumJsonSupport() {
+    }
 
     static Map<String, Object> toJson(CodedEnum value) {
         return Map.of("code", value.getCode(), "desc", value.getDesc());
-    }
-
-    static <E extends Enum<E> & CodedEnum> E fromCode(Class<E> enumType, Integer code) {
-        if (code == null) {
-            return null;
-        }
-        for (E value : enumType.getEnumConstants()) {
-            if (value.getCode() == code) {
-                return value;
-            }
-        }
-        throw new IllegalArgumentException("Unknown " + enumType.getSimpleName() + " code: " + code);
     }
 
     static <E extends Enum<E> & CodedEnum> E fromJson(Class<E> enumType, Object input) {
@@ -33,10 +22,10 @@ public interface CodedEnum {
             return null;
         }
         if (input instanceof Number number) {
-            return fromCode(enumType, number.intValue());
+            return CodedEnum.fromCode(enumType, number.intValue());
         }
         if (input instanceof Map<?, ?> map && map.get("code") instanceof Number number) {
-            return fromCode(enumType, number.intValue());
+            return CodedEnum.fromCode(enumType, number.intValue());
         }
         String text = String.valueOf(input).trim();
         for (E value : enumType.getEnumConstants()) {

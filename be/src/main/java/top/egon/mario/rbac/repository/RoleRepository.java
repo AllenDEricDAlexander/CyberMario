@@ -2,8 +2,8 @@ package top.egon.mario.rbac.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
-import top.egon.mario.rbac.po.RbacStatus;
 import top.egon.mario.rbac.po.RolePo;
+import top.egon.mario.rbac.po.enums.RbacStatus;
 
 import java.util.Collection;
 import java.util.List;

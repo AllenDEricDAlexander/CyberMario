@@ -1,7 +1,7 @@
-package top.egon.mario.rbac.po.converter;
+package top.egon.mario.rbac.converter.jpa;
 
 import jakarta.persistence.Converter;
-import top.egon.mario.rbac.po.ApiMatcherType;
+import top.egon.mario.rbac.po.enums.ApiMatcherType;
 
 /**
  * Persists API matcher type as an integer code.

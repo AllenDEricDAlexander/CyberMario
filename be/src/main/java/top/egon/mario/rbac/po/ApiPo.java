@@ -8,8 +8,10 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.Setter;
-import top.egon.mario.rbac.po.converter.ApiMatcherTypeConverter;
-import top.egon.mario.rbac.po.converter.ApiRiskLevelConverter;
+import top.egon.mario.rbac.converter.jpa.ApiMatcherTypeConverter;
+import top.egon.mario.rbac.converter.jpa.ApiRiskLevelConverter;
+import top.egon.mario.rbac.po.enums.ApiMatcherType;
+import top.egon.mario.rbac.po.enums.ApiRiskLevel;
 
 import java.time.Instant;
 

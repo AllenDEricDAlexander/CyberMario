@@ -11,10 +11,10 @@ import top.egon.mario.rbac.converter.RbacDtoConverter;
 import top.egon.mario.rbac.dto.CreateUserRequest;
 import top.egon.mario.rbac.dto.UpdateUserRequest;
 import top.egon.mario.rbac.dto.UserResponse;
-import top.egon.mario.rbac.po.RbacStatus;
 import top.egon.mario.rbac.po.RolePo;
 import top.egon.mario.rbac.po.UserPo;
 import top.egon.mario.rbac.po.UserRolePo;
+import top.egon.mario.rbac.po.enums.RbacStatus;
 import top.egon.mario.rbac.repository.RoleRepository;
 import top.egon.mario.rbac.repository.UserRepository;
 import top.egon.mario.rbac.repository.UserRoleRepository;
@@ -48,15 +48,12 @@ public class RbacUserService {
         }
         checkUniqueContact(request.getEmail(), request.getMobile());
 
-        UserPo user = new UserPo();
+        UserPo user = rbacDtoConverter.toUserPo(request);
         user.setUsername(username);
-        user.setNickname(request.getNickname());
         user.setEmail(trimToNull(request.getEmail()));
         user.setMobile(trimToNull(request.getMobile()));
-        user.setAvatarUrl(request.getAvatarUrl());
         user.setPasswordHash(passwordEncoder.encode(request.getInitialPassword()));
-        user.setStatus(request.getStatus() == null ? RbacStatus.ENABLED : request.getStatus());
-        user.setRemark(request.getRemark());
+        user.setStatus(request.getStatus() == null ? RbacStatus.ENABLED : rbacDtoConverter.toPoRbacStatus(request.getStatus()));
         UserPo savedUser = userRepository.save(user);
         replaceUserRoles(savedUser.getId(), request.getRoleIds(), actorUserId);
         auditService.log(actorUserId, "RBAC_USER_CREATE", "USER", savedUser.getId(), null, savedUser.getUsername(), null, null);
@@ -97,7 +94,7 @@ public class RbacUserService {
         user.setAvatarUrl(request.getAvatarUrl());
         user.setRemark(request.getRemark());
         if (request.getStatus() != null) {
-            user.setStatus(request.getStatus());
+            user.setStatus(rbacDtoConverter.toPoRbacStatus(request.getStatus()));
         }
         if (request.getLocked() != null) {
             user.setLocked(request.getLocked());
@@ -117,9 +114,9 @@ public class RbacUserService {
     }
 
     @Transactional
-    public void updateStatus(Long userId, RbacStatus status) {
+    public void updateStatus(Long userId, top.egon.mario.rbac.dto.enums.RbacStatus status) {
         UserPo user = getUserPo(userId);
-        user.setStatus(status);
+        user.setStatus(rbacDtoConverter.toPoRbacStatus(status));
         userRepository.save(user);
     }
 

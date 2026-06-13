@@ -1,6 +1,5 @@
 package top.egon.mario.rbac.po;
 
-import io.github.linpeilie.annotations.AutoMapper;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -8,8 +7,8 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.Setter;
-import top.egon.mario.rbac.dto.UserResponse;
-import top.egon.mario.rbac.po.converter.RbacStatusConverter;
+import top.egon.mario.rbac.converter.jpa.RbacStatusConverter;
+import top.egon.mario.rbac.po.enums.RbacStatus;
 
 import java.time.Instant;
 
@@ -19,7 +18,6 @@ import java.time.Instant;
 @Getter
 @Setter
 @Entity
-@AutoMapper(target = UserResponse.class)
 @Table(name = "sys_user", uniqueConstraints = {
         @UniqueConstraint(name = "uk_user_username_deleted", columnNames = {"username", "deleted"}),
         @UniqueConstraint(name = "uk_user_email_deleted", columnNames = {"email", "deleted"}),

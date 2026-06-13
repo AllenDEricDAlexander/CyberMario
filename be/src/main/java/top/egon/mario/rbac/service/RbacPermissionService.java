@@ -13,12 +13,12 @@ import top.egon.mario.rbac.dto.PermissionRequest;
 import top.egon.mario.rbac.dto.PermissionResponse;
 import top.egon.mario.rbac.po.ApiPo;
 import top.egon.mario.rbac.po.ButtonApiPo;
-import top.egon.mario.rbac.po.ButtonApiRelationType;
 import top.egon.mario.rbac.po.ButtonPo;
 import top.egon.mario.rbac.po.MenuPo;
 import top.egon.mario.rbac.po.PermissionPo;
-import top.egon.mario.rbac.po.PermissionStatus;
-import top.egon.mario.rbac.po.PermissionType;
+import top.egon.mario.rbac.po.enums.ButtonApiRelationType;
+import top.egon.mario.rbac.po.enums.PermissionStatus;
+import top.egon.mario.rbac.po.enums.PermissionType;
 import top.egon.mario.rbac.repository.ApiRepository;
 import top.egon.mario.rbac.repository.ButtonApiRepository;
 import top.egon.mario.rbac.repository.ButtonRepository;
@@ -136,11 +136,12 @@ public class RbacPermissionService {
     }
 
     @Transactional
-    public void updateStatus(Long permissionId, PermissionStatus status) {
+    public void updateStatus(Long permissionId, top.egon.mario.rbac.dto.enums.PermissionStatus status) {
         PermissionPo permission = getPermissionPo(permissionId);
-        permission.setStatus(status);
+        PermissionStatus permissionStatus = rbacDtoConverter.toPoPermissionStatus(status);
+        permission.setStatus(permissionStatus);
         permissionRepository.save(permission);
-        auditService.log(0L, "RBAC_PERMISSION_STATUS_UPDATE", "PERMISSION", permissionId, null, status.name(), null, null);
+        auditService.log(0L, "RBAC_PERMISSION_STATUS_UPDATE", "PERMISSION", permissionId, null, permissionStatus.name(), null, null);
         publishPermissionChanged("update permission status");
     }
 
@@ -196,13 +197,14 @@ public class RbacPermissionService {
         if (!StringUtils.hasText(request.getPermName())) {
             throw new RbacException("RBAC_PERMISSION_NAME_REQUIRED", "permission name is required");
         }
+        PermissionPo mappedPermission = rbacDtoConverter.toPermissionPo(request);
         permission.setPermCode(request.getPermCode().trim());
         permission.setPermName(request.getPermName().trim());
-        permission.setPermType(request.getPermType());
-        permission.setParentId(request.getParentId());
-        permission.setStatus(request.getStatus() == null ? PermissionStatus.ENABLED : request.getStatus());
-        permission.setSortNo(request.getSortNo());
-        permission.setDescription(request.getDescription());
+        permission.setPermType(mappedPermission.getPermType());
+        permission.setParentId(mappedPermission.getParentId());
+        permission.setStatus(request.getStatus() == null ? PermissionStatus.ENABLED : mappedPermission.getStatus());
+        permission.setSortNo(mappedPermission.getSortNo());
+        permission.setDescription(mappedPermission.getDescription());
     }
 
     private void saveDetail(PermissionPo permission, PermissionRequest request, Long actorUserId) {
@@ -217,17 +219,8 @@ public class RbacPermissionService {
         if (menuRequest == null) {
             throw new RbacException("RBAC_MENU_DETAIL_REQUIRED", "menu detail is required");
         }
-        MenuPo menu = new MenuPo();
+        MenuPo menu = rbacDtoConverter.toMenuPo(menuRequest);
         menu.setPermissionId(permissionId);
-        menu.setParentMenuId(menuRequest.getParentMenuId());
-        menu.setRouteName(menuRequest.getRouteName());
-        menu.setRoutePath(menuRequest.getRoutePath());
-        menu.setComponent(menuRequest.getComponent());
-        menu.setRedirect(menuRequest.getRedirect());
-        menu.setIcon(menuRequest.getIcon());
-        menu.setHidden(menuRequest.isHidden());
-        menu.setCacheable(menuRequest.isCacheable());
-        menu.setExternalLink(menuRequest.getExternalLink());
         menuRepository.save(menu);
     }
 
@@ -239,13 +232,8 @@ public class RbacPermissionService {
         if (menuPermission.getPermType() != PermissionType.MENU) {
             throw new RbacException("RBAC_BUTTON_MENU_INVALID", "button must belong to a menu permission");
         }
-        ButtonPo button = new ButtonPo();
+        ButtonPo button = rbacDtoConverter.toButtonPo(buttonRequest);
         button.setPermissionId(permissionId);
-        button.setMenuPermissionId(buttonRequest.getMenuPermissionId());
-        button.setButtonKey(buttonRequest.getButtonKey());
-        button.setFrontendAction(buttonRequest.getFrontendAction());
-        button.setStyleHint(buttonRequest.getStyleHint());
-        button.setDescription(buttonRequest.getDescription());
         buttonRepository.save(button);
         validateApiPermissions(buttonRequest.getApiPermissionIds());
         saveButtonApiLinks(permissionId, buttonRequest.getApiPermissionIds(), actorUserId);
@@ -255,15 +243,10 @@ public class RbacPermissionService {
         if (apiRequest == null || !StringUtils.hasText(apiRequest.getHttpMethod()) || !StringUtils.hasText(apiRequest.getUrlPattern())) {
             throw new RbacException("RBAC_API_DETAIL_REQUIRED", "api detail is required");
         }
-        ApiPo api = new ApiPo();
+        ApiPo api = rbacDtoConverter.toApiPo(apiRequest);
         api.setPermissionId(permissionId);
         api.setHttpMethod(apiRequest.getHttpMethod().trim().toUpperCase());
         api.setUrlPattern(apiRequest.getUrlPattern().trim());
-        api.setMatcherType(apiRequest.getMatcherType());
-        api.setPublicFlag(apiRequest.isPublicFlag());
-        api.setServiceTag(apiRequest.getServiceTag());
-        api.setOperationName(apiRequest.getOperationName());
-        api.setRiskLevel(apiRequest.getRiskLevel());
         apiRepository.save(api);
     }
 

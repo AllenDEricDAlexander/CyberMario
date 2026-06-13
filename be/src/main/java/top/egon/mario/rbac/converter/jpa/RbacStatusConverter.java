@@ -1,7 +1,7 @@
-package top.egon.mario.rbac.po.converter;
+package top.egon.mario.rbac.converter.jpa;
 
 import jakarta.persistence.Converter;
-import top.egon.mario.rbac.po.RbacStatus;
+import top.egon.mario.rbac.po.enums.RbacStatus;
 
 /**
  * Persists RBAC status as an integer code.

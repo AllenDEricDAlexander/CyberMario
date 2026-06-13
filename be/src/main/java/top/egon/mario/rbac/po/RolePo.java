@@ -1,6 +1,5 @@
 package top.egon.mario.rbac.po;
 
-import io.github.linpeilie.annotations.AutoMapper;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -8,8 +7,8 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.Setter;
-import top.egon.mario.rbac.dto.RoleResponse;
-import top.egon.mario.rbac.po.converter.RbacStatusConverter;
+import top.egon.mario.rbac.converter.jpa.RbacStatusConverter;
+import top.egon.mario.rbac.po.enums.RbacStatus;
 
 /**
  * Role that groups permissions and can inherit other roles.
@@ -17,7 +16,6 @@ import top.egon.mario.rbac.po.converter.RbacStatusConverter;
 @Getter
 @Setter
 @Entity
-@AutoMapper(target = RoleResponse.class)
 @Table(name = "sys_role", uniqueConstraints = {
         @UniqueConstraint(name = "uk_role_code_deleted", columnNames = {"role_code", "deleted"})
 })

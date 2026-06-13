@@ -1,13 +1,16 @@
-package top.egon.mario.rbac.po;
+package top.egon.mario.rbac.dto.enums;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
+import lombok.Getter;
+import top.egon.mario.rbac.common.CodedEnum;
 
 import java.util.Map;
 
 /**
  * Lifecycle status for permissions.
  */
+@Getter
 public enum PermissionStatus implements CodedEnum {
     DISABLED(0, "禁用"),
     ENABLED(1, "启用"),
@@ -21,23 +24,13 @@ public enum PermissionStatus implements CodedEnum {
         this.desc = desc;
     }
 
-    @Override
-    public int getCode() {
-        return code;
-    }
-
-    @Override
-    public String getDesc() {
-        return desc;
-    }
-
     @JsonValue
     public Map<String, Object> toJson() {
-        return CodedEnum.toJson(this);
+        return EnumJsonSupport.toJson(this);
     }
 
     @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
     public static PermissionStatus fromJson(Object input) {
-        return CodedEnum.fromJson(PermissionStatus.class, input);
+        return EnumJsonSupport.fromJson(PermissionStatus.class, input);
     }
 }

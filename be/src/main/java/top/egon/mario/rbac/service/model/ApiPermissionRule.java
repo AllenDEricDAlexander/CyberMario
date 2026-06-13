@@ -1,6 +1,6 @@
 package top.egon.mario.rbac.service.model;
 
-import top.egon.mario.rbac.po.ApiMatcherType;
+import top.egon.mario.rbac.po.enums.ApiMatcherType;
 
 /**
  * Runtime API authorization rule loaded from RBAC API permissions.

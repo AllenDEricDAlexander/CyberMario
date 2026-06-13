@@ -4,10 +4,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
-import top.egon.mario.rbac.po.ApiMatcherType;
-import top.egon.mario.rbac.po.ApiRiskLevel;
-import top.egon.mario.rbac.po.PermissionStatus;
-import top.egon.mario.rbac.po.PermissionType;
+import top.egon.mario.rbac.dto.enums.ApiMatcherType;
+import top.egon.mario.rbac.dto.enums.ApiRiskLevel;
+import top.egon.mario.rbac.dto.enums.PermissionStatus;
+import top.egon.mario.rbac.dto.enums.PermissionType;
 
 import java.util.Set;
 
