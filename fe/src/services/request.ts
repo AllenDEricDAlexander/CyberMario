@@ -1,7 +1,9 @@
 import {ApiRequestError, type ApiResponse} from '../types/api'
-import {clearTokens, getAccessToken, getRefreshToken, saveTokens} from './tokenStorage'
+import {clearTokens, getAccessToken, getRefreshToken, saveTokens, shouldRefreshAccessToken} from './tokenStorage'
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
+const TRACE_ID_HEADER = 'X-Trace-Id'
+const ACCESS_TOKEN_REFRESH_SKEW_MILLISECONDS = 60_000
 
 type RequestOptions = {
     method?: string
@@ -22,6 +24,8 @@ type ChatResponse = {
 type RefreshLoginResponse = {
     accessToken?: string | null
     refreshToken?: string | null
+    accessTokenExpiresInSeconds?: number | null
+    refreshTokenExpiresInSeconds?: number | null
 }
 
 let refreshPromise: Promise<boolean> | null = null
@@ -31,11 +35,14 @@ export async function requestJson<T>(endpoint: string, options: RequestOptions =
 }
 
 export async function requestFormData<T>(endpoint: string, formData: FormData, options: Omit<RequestOptions, 'body'> = {}): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: options.method ?? 'POST',
-        headers: buildHeaders(options, false),
-        body: formData,
-    })
+    const response = await fetchWithAuthRetry(
+        () => fetch(`${API_BASE_URL}${endpoint}`, {
+            method: options.method ?? 'POST',
+            headers: buildHeaders(options, false),
+            body: formData,
+        }),
+        options,
+    )
 
     return unwrapJsonResponse<T>(response)
 }
@@ -45,18 +52,15 @@ async function requestJsonInternal<T>(
     options: RequestOptions,
     allowRefresh: boolean,
 ): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: options.method ?? 'GET',
-        headers: buildHeaders(options),
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    })
-
-    if (response.status === 401 && options.auth !== false && allowRefresh) {
-        const refreshed = await refreshAccessToken()
-        if (refreshed) {
-            return requestJsonInternal<T>(endpoint, options, false)
-        }
-    }
+    const response = await fetchWithAuthRetry(
+        () => fetch(`${API_BASE_URL}${endpoint}`, {
+            method: options.method ?? 'GET',
+            headers: buildHeaders(options),
+            body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        }),
+        options,
+        allowRefresh,
+    )
 
     return unwrapJsonResponse<T>(response)
 }
@@ -69,12 +73,15 @@ export async function streamServerSentEvents(
     },
     onChunk: StreamChunkHandler,
 ) {
-    const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: buildHeaders({headers: {Accept: 'application/x-ndjson'}}),
-        body: JSON.stringify(request.body),
-        signal: request.signal,
-    })
+    const response = await fetchWithAuthRetry(
+        () => fetch(endpoint, {
+            method: 'POST',
+            headers: buildHeaders({headers: {Accept: 'application/x-ndjson'}}),
+            body: JSON.stringify(request.body),
+            signal: request.signal,
+        }),
+        {},
+    )
 
     if (!response.ok) {
         throw new Error(`请求失败：HTTP ${response.status}`)
@@ -125,12 +132,15 @@ export async function streamJsonLines<T>(
     },
     onChunk: JsonLineHandler<T>,
 ) {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'POST',
-        headers: buildHeaders({headers: {Accept: 'application/x-ndjson'}}),
-        body: JSON.stringify(request.body),
-        signal: request.signal,
-    })
+    const response = await fetchWithAuthRetry(
+        () => fetch(`${API_BASE_URL}${endpoint}`, {
+            method: 'POST',
+            headers: buildHeaders({headers: {Accept: 'application/x-ndjson'}}),
+            body: JSON.stringify(request.body),
+            signal: request.signal,
+        }),
+        {},
+    )
 
     if (!response.ok) {
         throw new Error(`请求失败：HTTP ${response.status}`)
@@ -180,6 +190,9 @@ function buildHeaders(options: RequestOptions, includeJsonContentType = true) {
     if (!headers.has('Accept')) {
         headers.set('Accept', 'application/json')
     }
+    if (!headers.has(TRACE_ID_HEADER)) {
+        headers.set(TRACE_ID_HEADER, createUuidV7())
+    }
     if (includeJsonContentType && !headers.has('Content-Type')) {
         headers.set('Content-Type', 'application/json')
     }
@@ -217,6 +230,24 @@ async function unwrapJsonResponse<T>(response: Response): Promise<T> {
     return payload.data
 }
 
+async function fetchWithAuthRetry(
+    fetcher: () => Promise<Response>,
+    options: Pick<RequestOptions, 'auth'>,
+    allowRefresh = true,
+) {
+    if (options.auth !== false && shouldRefreshAccessToken(ACCESS_TOKEN_REFRESH_SKEW_MILLISECONDS)) {
+        await refreshAccessToken()
+    }
+
+    const response = await fetcher()
+    if (response.status !== 401 || options.auth === false || !allowRefresh) {
+        return response
+    }
+
+    const refreshed = await refreshAccessToken()
+    return refreshed ? fetcher() : response
+}
+
 async function refreshAccessToken() {
     const refreshToken = getRefreshToken()
     if (!refreshToken) {
@@ -227,10 +258,7 @@ async function refreshAccessToken() {
     if (!refreshPromise) {
         refreshPromise = fetch(`${API_BASE_URL}/api/auth/refresh`, {
             method: 'POST',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-            },
+            headers: buildHeaders({auth: false}),
             body: JSON.stringify({refreshToken}),
         })
             .then(async (response) => {
@@ -248,4 +276,22 @@ async function refreshAccessToken() {
     }
 
     return refreshPromise
+}
+
+function createUuidV7() {
+    const bytes = new Uint8Array(16)
+    crypto.getRandomValues(bytes)
+
+    const timestamp = Date.now()
+    bytes[0] = Math.floor(timestamp / 0x10000000000) & 0xff
+    bytes[1] = Math.floor(timestamp / 0x100000000) & 0xff
+    bytes[2] = Math.floor(timestamp / 0x1000000) & 0xff
+    bytes[3] = Math.floor(timestamp / 0x10000) & 0xff
+    bytes[4] = Math.floor(timestamp / 0x100) & 0xff
+    bytes[5] = timestamp & 0xff
+    bytes[6] = (bytes[6] & 0x0f) | 0x70
+    bytes[8] = (bytes[8] & 0x3f) | 0x80
+
+    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0'))
+    return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10, 16).join('')}`
 }
