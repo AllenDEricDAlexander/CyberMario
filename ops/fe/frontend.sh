@@ -23,27 +23,82 @@ FRONTEND_DIR="${PROJECT_ROOT}/fe"
 VITE_BIN="${FRONTEND_DIR}/node_modules/.bin/vite"
 LOG_DIR="${SCRIPT_DIR}/logs"
 LOG_FILE="${LOG_DIR}/frontend.log"
-PID_FILE="${LOG_DIR}/frontend.pid"
+FE_ENV_FILE="${FE_ENV_FILE:-${PROJECT_ROOT}/.env}"
 
 # Frontend defaults.
-FE_PORT="${FE_PORT:-5173}"
-FE_HOST="${FE_HOST:-0.0.0.0}"
+FE_PORT="${FE_PORT:-}"
+FE_HOST="${FE_HOST:-}"
+
+load_frontend_env() {
+    if [[ ! -f "${FE_ENV_FILE}" ]]; then
+        return 0
+    fi
+
+    if [[ ! -r "${FE_ENV_FILE}" ]]; then
+        echo "Cannot read env file: ${FE_ENV_FILE}"
+        exit 1
+    fi
+
+    local raw_line trimmed key value delimiter
+    while IFS= read -r raw_line || [[ -n "${raw_line}" ]]; do
+        trimmed="${raw_line%%$'\r'}"
+        trimmed="${trimmed#"${trimmed%%[![:space:]]*}"}"
+        trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+
+        [[ -z "${trimmed}" || "${trimmed:0:1}" == "#" ]] && continue
+
+        if [[ "${trimmed}" == export*' ' ]]; then
+            trimmed="${trimmed#export }"
+            trimmed="${trimmed#"${trimmed%%[![:space:]]*}"}"
+        fi
+
+        if [[ "${trimmed}" == *"="* ]]; then
+            delimiter="="
+        elif [[ "${trimmed}" == *":"* ]]; then
+            delimiter=":"
+        else
+            continue
+        fi
+
+        key="${trimmed%%${delimiter}*}"
+        value="${trimmed#*${delimiter}}"
+
+        key="${key#"${key%%[![:space:]]*}"}"
+        key="${key%"${key##*[![:space:]]}"}"
+        value="${value#"${value%%[![:space:]]*}"}"
+        value="${value%"${value##*[![:space:]]}"}"
+
+        if [[ ! "${key}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+            continue
+        fi
+
+        if [[ "${value}" == "\"${value}" && "${value}" == *"\"" ]]; then
+            value="${value:1:${#value}-2}"
+        elif [[ "${value}" == "'${value}" && "${value}" == *"'" ]]; then
+            value="${value:1:${#value}-2}"
+        fi
+
+        export "${key}=${value}"
+    done < "${FE_ENV_FILE}"
+}
+
+normalize_frontend_env() {
+    FE_PORT="${FE_PORT:-${VITE_PORT:-5173}}"
+    FE_HOST="${FE_HOST:-${VITE_HOST:-0.0.0.0}}"
+    if [[ -z "${VITE_BACKEND_PORT:-}" && -n "${BACKEND_PORT:-}" ]]; then
+        VITE_BACKEND_PORT="${BACKEND_PORT}"
+    elif [[ -z "${VITE_BACKEND_PORT:-}" && -n "${SERVER_PORT:-}" ]]; then
+        VITE_BACKEND_PORT="${SERVER_PORT}"
+    fi
+    export FE_PORT FE_HOST VITE_BACKEND_PORT
+}
 
 usage() {
     echo "Usage: $0 {start|stop|restart|status}"
 }
 
-# If pid file exists and process is alive, print pid.
+# Locate the running frontend by configured port or process command.
 get_running_pid() {
-    if [[ -f "${PID_FILE}" ]]; then
-        local file_pid
-        file_pid="$(tr -d ' \n\r' < "${PID_FILE}")"
-        if [[ -n "${file_pid}" ]] && kill -0 "${file_pid}" 2>/dev/null; then
-            echo "${file_pid}"
-            return 0
-        fi
-    fi
-
     local running
     running="$(lsof -tiTCP:"${FE_PORT}" -sTCP:LISTEN 2>/dev/null || true)"
     if [[ -n "${running}" ]]; then
@@ -82,7 +137,6 @@ start_frontend() {
             running_pid="${pid}"
         fi
         if [[ -n "${running_pid}" ]]; then
-            echo "${running_pid}" > "${PID_FILE}"
             echo "frontend started, pid=${running_pid}, log=${LOG_FILE}"
             return 0
         fi
@@ -93,7 +147,7 @@ start_frontend() {
     exit 1
 }
 
-# Stop frontend by PID or matching process.
+# Stop frontend by matching process.
 stop_frontend() {
     local pid
     pid="$(get_running_pid || true)"
@@ -114,7 +168,6 @@ stop_frontend() {
         kill -9 "${pid}" || true
     fi
 
-    rm -f "${PID_FILE}"
     echo "frontend stopped"
 }
 
@@ -129,7 +182,15 @@ status_frontend() {
     fi
 }
 
-case "${1:-}" in
+ACTION="${1:-}"
+case "${ACTION}" in
+    start | stop | restart | status)
+        load_frontend_env
+        normalize_frontend_env
+        ;;
+esac
+
+case "${ACTION}" in
     start)
         if get_running_pid >/dev/null 2>&1; then
             echo "frontend already running"

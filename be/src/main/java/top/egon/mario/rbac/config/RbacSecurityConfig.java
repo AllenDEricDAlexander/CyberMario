@@ -10,11 +10,13 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
+import org.springframework.security.core.userdetails.ReactiveUserDetailsService;
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import reactor.core.publisher.Mono;
 import top.egon.mario.rbac.service.security.DynamicAuthorizationManager;
 import top.egon.mario.rbac.service.security.JwtAuthenticationWebFilter;
 import top.egon.mario.rbac.service.security.JwtProperties;
@@ -53,6 +55,14 @@ public class RbacSecurityConfig {
                 )
                 .addFilterAt(jwtAuthenticationWebFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                 .build();
+    }
+
+    /**
+     * Disables Spring Boot's generated reactive user while RBAC keeps authentication in the JWT filter.
+     */
+    @Bean
+    public ReactiveUserDetailsService reactiveUserDetailsService() {
+        return username -> Mono.empty();
     }
 
     @Bean

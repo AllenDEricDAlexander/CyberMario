@@ -22,11 +22,10 @@ PROJECT_ROOT="$(find_project_root)"
 BACKEND_DIR="${PROJECT_ROOT}/be"
 LOG_DIR="${SCRIPT_DIR}/logs"
 LOG_FILE="${LOG_DIR}/backend.log"
-PID_FILE="${LOG_DIR}/backend.pid"
 BACKEND_ENV_FILE="${BACKEND_ENV_FILE:-${PROJECT_ROOT}/.env}"
 
 # Backend defaults and extension points.
-BACKEND_PORT="${BACKEND_PORT:-28080}"
+BACKEND_PORT="${BACKEND_PORT:-}"
 BACKEND_AUTO_BUILD="${BACKEND_AUTO_BUILD:-1}"
 
 load_backend_env() {
@@ -80,6 +79,12 @@ load_backend_env() {
 
         export "${key}=${value}"
     done < "${BACKEND_ENV_FILE}"
+}
+
+normalize_backend_env() {
+    BACKEND_PORT="${BACKEND_PORT:-${SERVER_PORT:-28080}}"
+    SERVER_PORT="${SERVER_PORT:-${BACKEND_PORT}}"
+    export BACKEND_PORT SERVER_PORT
 }
 
 validate_dashscope_api_key() {
@@ -142,17 +147,8 @@ build_backend() {
     (cd "${BACKEND_DIR}" && ./mvnw -q -DskipTests package spring-boot:repackage)
 }
 
-# If pid file exists and process is alive, print pid.
+# Locate the running backend by configured port or process command.
 get_running_pid() {
-    if [[ -f "${PID_FILE}" ]]; then
-        local file_pid
-        file_pid="$(tr -d ' \n\r' < "${PID_FILE}")"
-        if [[ -n "${file_pid}" ]] && kill -0 "${file_pid}" 2>/dev/null; then
-            echo "${file_pid}"
-            return 0
-        fi
-    fi
-
     local running
     running="$(lsof -tiTCP:"${BACKEND_PORT}" -sTCP:LISTEN 2>/dev/null || true)"
     if [[ -n "${running}" ]]; then
@@ -202,11 +198,15 @@ start_backend() {
     fi
     local pid=$!
     disown "${pid}" 2>/dev/null || true
-    echo "${pid}" > "${PID_FILE}"
 
+    local running_pid
     for _ in {1..20}; do
-        if get_running_pid >/dev/null 2>&1 || ps -p "${pid}" >/dev/null 2>&1; then
-            echo "backend started, pid=${pid}, log=${LOG_FILE}"
+        running_pid="$(get_running_pid || true)"
+        if [[ -z "${running_pid}" ]] && ps -p "${pid}" >/dev/null 2>&1; then
+            running_pid="${pid}"
+        fi
+        if [[ -n "${running_pid}" ]]; then
+            echo "backend started, pid=${running_pid}, log=${LOG_FILE}"
             return 0
         fi
         sleep 1
@@ -216,7 +216,7 @@ start_backend() {
     exit 1
 }
 
-# Stop backend by PID or matching process.
+# Stop backend by matching process.
 stop_backend() {
     local pid
     pid="$(get_running_pid || true)"
@@ -237,7 +237,6 @@ stop_backend() {
         kill -9 "${pid}" || true
     fi
 
-    rm -f "${PID_FILE}"
     echo "backend stopped"
 }
 
@@ -252,13 +251,20 @@ status_backend() {
     fi
 }
 
-case "${1:-}" in
+ACTION="${1:-}"
+case "${ACTION}" in
+    start | stop | restart | status)
+        load_backend_env
+        normalize_backend_env
+        ;;
+esac
+
+case "${ACTION}" in
     start)
         if get_running_pid >/dev/null 2>&1; then
             echo "backend already running"
             exit 0
         fi
-        load_backend_env
         validate_dashscope_api_key
         start_backend
         ;;
@@ -267,6 +273,7 @@ case "${1:-}" in
         ;;
     restart)
         stop_backend
+        validate_dashscope_api_key
         start_backend
         ;;
     status)
