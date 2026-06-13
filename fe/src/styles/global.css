@@ -1,10 +1,23 @@
 :root {
-    --page: #f3f6f5;
+    --page: #eef7f3;
+    --page-soft: #f7fbf8;
+    --page-cool: #eaf4fb;
     --surface: #ffffff;
-    --text: #162326;
-    --muted: #647275;
-    --line: #d9e2df;
-    --accent: #095e5c;
+    --surface-soft: #f8fcfa;
+    --surface-tinted: #effaf5;
+    --text: #163032;
+    --muted: #607477;
+    --line: #c8ddd6;
+    --line-strong: #9fc8bf;
+    --accent: #0f766e;
+    --accent-strong: #0b5f59;
+    --accent-soft: #d9f5ed;
+    --accent-bright: #2dd4bf;
+    --coral: #e76f61;
+    --amber: #d9822b;
+    --sky: #2574d8;
+    --shadow-soft: 0 16px 42px rgba(24, 72, 67, 0.11);
+    --shadow-strong: 0 22px 58px rgba(20, 55, 58, 0.16);
     color: var(--text);
     background: var(--page);
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -18,7 +31,7 @@ body {
     min-width: 320px;
     min-height: 100svh;
     margin: 0;
-    background: var(--page);
+    background: linear-gradient(135deg, var(--page-soft) 0%, var(--page) 44%, var(--page-cool) 100%);
 }
 
 button,
@@ -41,13 +54,25 @@ textarea {
     display: grid;
     place-items: center;
     padding: 24px;
-    background: radial-gradient(circle at 20% 20%, rgba(9, 94, 92, 0.12), transparent 30%),
-    linear-gradient(145deg, #e8f0ed, #f8fbfa);
+    background: linear-gradient(135deg, rgba(15, 118, 110, 0.12), rgba(15, 118, 110, 0) 38%),
+    linear-gradient(225deg, rgba(231, 111, 97, 0.1), rgba(231, 111, 97, 0) 36%),
+    linear-gradient(145deg, #edf9f3 0%, #f9fcf8 48%, #eaf4fb 100%);
 }
 
 .auth-card {
+    position: relative;
     width: min(420px, 100%);
-    box-shadow: 0 24px 70px rgba(28, 48, 54, 0.16);
+    overflow: hidden;
+    border: 1px solid rgba(159, 200, 191, 0.65);
+    box-shadow: var(--shadow-strong);
+}
+
+.auth-card::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    height: 4px;
+    background: linear-gradient(90deg, var(--accent-bright), var(--coral), var(--amber));
 }
 
 .auth-brand {
@@ -63,42 +88,84 @@ textarea {
 
 .admin-layout {
     min-height: 100svh;
+    background: transparent;
 }
 
 .admin-sider {
     min-height: 100svh;
+    background: linear-gradient(180deg, #143f3e 0%, #102f35 58%, #17253d 100%) !important;
+    box-shadow: 14px 0 34px rgba(18, 50, 54, 0.16);
+}
+
+.admin-sider .ant-layout-sider-children {
+    display: flex;
+    flex-direction: column;
+}
+
+.admin-sider .ant-menu {
+    border-inline-end: 0;
+    background: transparent;
+}
+
+.admin-sider .ant-menu-dark .ant-menu-sub,
+.admin-sider .ant-menu-dark.ant-menu-inline {
+    background: transparent;
+}
+
+.admin-sider .ant-menu-dark .ant-menu-item,
+.admin-sider .ant-menu-dark .ant-menu-submenu-title {
+    width: calc(100% - 18px);
+    margin-inline: 9px;
+    border-radius: 8px;
+}
+
+.admin-sider .ant-menu-dark .ant-menu-item-selected {
+    background: linear-gradient(135deg, rgba(45, 212, 191, 0.92), rgba(15, 118, 110, 0.94));
+    box-shadow: 0 10px 24px rgba(22, 160, 111, 0.28);
+}
+
+.admin-sider .ant-menu-dark .ant-menu-item:not(.ant-menu-item-selected):hover,
+.admin-sider .ant-menu-dark .ant-menu-submenu-title:hover {
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .admin-logo {
-    height: 56px;
+    height: 64px;
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 0 18px;
+    padding: 0 20px;
     color: #ffffff;
     font-size: 16px;
-    font-weight: 760;
+    font-weight: 780;
+    letter-spacing: 0;
 }
 
 .admin-logo-mark {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     border-radius: 6px;
-    color: #092f30;
-    background: #88f0d2;
+    color: #09302f;
+    background: linear-gradient(135deg, #8ef7d4, #f9c66f);
+    box-shadow: 0 8px 22px rgba(45, 212, 191, 0.3);
 }
 
 .admin-header {
-    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    height: 60px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 18px;
-    border-bottom: 1px solid var(--line);
-    background: var(--surface);
+    padding: 0 20px;
+    border-bottom: 1px solid rgba(200, 221, 214, 0.82);
+    background: rgba(255, 255, 255, 0.86);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 8px 26px rgba(30, 69, 69, 0.06);
 }
 
 .admin-header-actions {
@@ -107,22 +174,48 @@ textarea {
 
 .admin-content {
     min-width: 0;
-    padding: 20px;
-    background: var(--page);
+    min-height: calc(100svh - 60px);
+    padding: 22px;
+    background: linear-gradient(160deg, rgba(15, 118, 110, 0.08), rgba(15, 118, 110, 0) 32%),
+    linear-gradient(25deg, rgba(37, 116, 216, 0.08), rgba(37, 116, 216, 0) 34%),
+    transparent;
 }
 
 .page-toolbar {
-    min-height: 64px;
+    position: relative;
+    min-height: 68px;
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 16px;
-    margin-bottom: 16px;
+    margin-bottom: 18px;
+    padding: 2px 0 0 14px;
+}
+
+.page-toolbar::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    bottom: 8px;
+    left: 0;
+    width: 4px;
+    border-radius: 4px;
+    background: linear-gradient(180deg, var(--accent-bright), var(--coral));
 }
 
 .page-toolbar .ant-typography {
     margin-top: 0;
     margin-bottom: 4px;
+}
+
+.page-toolbar h3.ant-typography {
+    color: var(--text);
+    font-weight: 780;
+    letter-spacing: 0;
+}
+
+.page-toolbar .ant-typography-secondary {
+    color: var(--muted);
 }
 
 .page-alert {
@@ -131,13 +224,143 @@ textarea {
 
 .split-panel {
     min-height: 520px;
-    padding: 16px;
-    border-radius: 6px;
-    background: var(--surface);
+    padding: 18px;
+    border: 1px solid rgba(200, 221, 214, 0.78);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: var(--shadow-soft);
 }
 
 .drawer-inline-toolbar {
     margin-bottom: 16px;
+}
+
+.admin-content > .ant-card,
+.admin-content > .ant-table-wrapper,
+.admin-content > .split-panel {
+    border-radius: 8px;
+}
+
+.admin-content > .ant-card,
+.chat-card,
+.ant-drawer .ant-card {
+    border: 1px solid rgba(200, 221, 214, 0.78);
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: var(--shadow-soft);
+}
+
+.ant-card-head {
+    border-bottom-color: rgba(200, 221, 214, 0.72);
+}
+
+.ant-card-head-title {
+    color: var(--text);
+    font-weight: 720;
+}
+
+.ant-table-wrapper {
+    overflow: hidden;
+    border: 1px solid rgba(200, 221, 214, 0.78);
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: var(--shadow-soft);
+}
+
+.ant-table {
+    background: transparent;
+}
+
+.ant-table-thead > tr > th {
+    color: #234549;
+    border-bottom-color: rgba(159, 200, 191, 0.72) !important;
+    background: linear-gradient(180deg, #f7fcf9 0%, #edf8f2 100%) !important;
+    font-weight: 720;
+}
+
+.ant-table-tbody > tr > td {
+    border-bottom-color: rgba(200, 221, 214, 0.58);
+}
+
+.ant-table-tbody > tr:hover > td {
+    background: rgba(217, 245, 237, 0.52) !important;
+}
+
+.ant-table-cell-fix-left,
+.ant-table-cell-fix-right {
+    background: inherit;
+}
+
+.ant-pagination .ant-pagination-item-active {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.ant-btn {
+    font-weight: 620;
+    box-shadow: none;
+}
+
+.ant-btn-primary {
+    background: linear-gradient(135deg, var(--accent), #16a06f);
+    box-shadow: 0 9px 20px rgba(15, 118, 110, 0.2);
+}
+
+.ant-btn-primary:not(:disabled):hover {
+    background: linear-gradient(135deg, var(--accent-strong), #0f8d70);
+    box-shadow: 0 12px 24px rgba(15, 118, 110, 0.28);
+}
+
+.ant-btn-dangerous:not(.ant-btn-primary) {
+    color: var(--coral);
+}
+
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-input-number,
+.ant-select-selector,
+.ant-picker,
+.ant-upload-wrapper .ant-upload {
+    border-color: rgba(159, 200, 191, 0.82) !important;
+}
+
+.ant-input:hover,
+.ant-input-affix-wrapper:hover,
+.ant-input-number:hover,
+.ant-select-selector:hover,
+.ant-picker:hover {
+    border-color: var(--accent) !important;
+}
+
+.ant-input:focus,
+.ant-input-focused,
+.ant-input-affix-wrapper-focused,
+.ant-input-number-focused,
+.ant-select-focused .ant-select-selector,
+.ant-picker-focused {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.16) !important;
+}
+
+.ant-tag {
+    border-radius: 6px;
+    font-weight: 620;
+}
+
+.ant-drawer-content,
+.ant-modal-content {
+    background: linear-gradient(180deg, rgba(239, 250, 245, 0.82), rgba(255, 255, 255, 0.96) 28%),
+    #ffffff;
+}
+
+.ant-drawer-header,
+.ant-modal-header {
+    border-bottom-color: rgba(200, 221, 214, 0.72);
+    background: transparent;
+}
+
+.ant-drawer-title,
+.ant-modal-title {
+    color: var(--text);
+    font-weight: 760;
 }
 
 .chat-workspace {
@@ -150,12 +373,14 @@ textarea {
 }
 
 .antd-message-list {
-    min-height: 360px;
-    max-height: calc(100svh - 310px);
+    min-height: 380px;
+    max-height: calc(100svh - 320px);
     display: flex;
     flex-direction: column;
     gap: 16px;
     overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-color: var(--line-strong) transparent;
 }
 
 .antd-message-row {
@@ -171,7 +396,7 @@ textarea {
 
 .antd-message-row.user .antd-message-avatar {
     grid-column: 2;
-    background: var(--accent);
+    background: linear-gradient(135deg, var(--accent), #16a06f);
 }
 
 .antd-message-row.user .antd-message-bubble {
@@ -179,21 +404,24 @@ textarea {
     grid-row: 1;
     justify-self: end;
     color: #ffffff;
-    background: var(--accent);
+    border-color: rgba(15, 118, 110, 0.1);
+    background: linear-gradient(135deg, var(--accent), #16a06f);
+    box-shadow: 0 12px 28px rgba(15, 118, 110, 0.22);
 }
 
 .antd-message-avatar {
-    background: #c95f2e;
+    background: linear-gradient(135deg, var(--coral), var(--amber));
+    box-shadow: 0 8px 18px rgba(231, 111, 97, 0.22);
 }
 
 .antd-message-bubble {
     width: fit-content;
     max-width: min(760px, 100%);
-    padding: 12px 14px;
-    border: 1px solid var(--line);
+    padding: 13px 15px;
+    border: 1px solid rgba(200, 221, 214, 0.82);
     border-radius: 8px;
-    background: #ffffff;
-    box-shadow: 0 7px 20px rgba(34, 49, 57, 0.06);
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 10px 24px rgba(34, 73, 68, 0.08);
 }
 
 .antd-message-bubble p {
@@ -231,7 +459,7 @@ textarea {
 .message-content code {
     border-radius: 5px;
     padding: 2px 5px;
-    background: #edf4f2;
+    background: #e9f6f2;
     font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
     font-size: 0.92em;
 }
@@ -241,7 +469,7 @@ textarea {
     overflow-x: auto;
     border-radius: 7px;
     padding: 12px;
-    background: #122127;
+    background: #132b30;
 }
 
 .message-content pre code {
@@ -272,15 +500,15 @@ textarea {
 }
 
 .message-content th {
-    background: #edf4f2;
+    background: #e9f6f2;
     font-weight: 760;
 }
 
 .think-block {
     margin-bottom: 12px;
-    border: 1px solid var(--line);
+    border: 1px solid rgba(200, 221, 214, 0.88);
     border-radius: 8px;
-    background: #fafdfb;
+    background: var(--surface-soft);
     overflow: hidden;
 }
 
@@ -319,6 +547,10 @@ textarea {
 .antd-composer {
     display: grid;
     gap: 12px;
+    padding: 14px;
+    border: 1px solid rgba(200, 221, 214, 0.78);
+    border-radius: 8px;
+    background: linear-gradient(180deg, rgba(248, 252, 250, 0.9), rgba(239, 250, 245, 0.72));
 }
 
 .composer-actions {
@@ -333,6 +565,7 @@ textarea {
 
     .page-toolbar {
         flex-direction: column;
+        padding-left: 12px;
     }
 
     .admin-header {
@@ -341,5 +574,16 @@ textarea {
 
     .admin-header-actions .ant-btn:not(:last-child) {
         display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
     }
 }

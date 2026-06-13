@@ -13,8 +13,20 @@ export function AppProviders({children}: AppProvidersProps) {
             locale={zhCN}
             theme={{
                 token: {
-                    borderRadius: 6,
-                    colorPrimary: '#095e5c',
+                    borderRadius: 8,
+                    colorBgContainer: '#ffffff',
+                    colorBgElevated: '#ffffff',
+                    colorBgLayout: '#eef7f3',
+                    colorBorder: '#c8ddd6',
+                    colorError: '#de496c',
+                    colorInfo: '#2574d8',
+                    colorPrimary: '#0f766e',
+                    colorSuccess: '#16a06f',
+                    colorText: '#163032',
+                    colorTextSecondary: '#607477',
+                    colorWarning: '#d9822b',
+                    controlHeight: 36,
+                    fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
                 },
             }}
         >
