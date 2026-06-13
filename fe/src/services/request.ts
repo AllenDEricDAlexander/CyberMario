@@ -1,8 +1,54 @@
-import type {ChatResponse} from '../types/chat'
+import {ApiRequestError, type ApiResponse} from '../types/api'
+import {clearTokens, getAccessToken, getRefreshToken, saveTokens} from './tokenStorage'
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 
+type RequestOptions = {
+    method?: string
+    body?: unknown
+    auth?: boolean
+    headers?: HeadersInit
+}
+
 type StreamChunkHandler = (chunk: ChatResponse) => void
+
+type ChatResponse = {
+    threadId: string
+    message: string
+    type: 'think' | 'message'
+}
+
+type RefreshLoginResponse = {
+    accessToken?: string | null
+    refreshToken?: string | null
+}
+
+let refreshPromise: Promise<boolean> | null = null
+
+export async function requestJson<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+    return requestJsonInternal<T>(endpoint, options, true)
+}
+
+async function requestJsonInternal<T>(
+    endpoint: string,
+    options: RequestOptions,
+    allowRefresh: boolean,
+): Promise<T> {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: options.method ?? 'GET',
+        headers: buildHeaders(options),
+        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    })
+
+    if (response.status === 401 && options.auth !== false && allowRefresh) {
+        const refreshed = await refreshAccessToken()
+        if (refreshed) {
+            return requestJsonInternal<T>(endpoint, options, false)
+        }
+    }
+
+    return unwrapJsonResponse<T>(response)
+}
 
 export async function streamServerSentEvents(
     endpoint: string,
@@ -14,10 +60,7 @@ export async function streamServerSentEvents(
 ) {
     const response = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-            Accept: 'application/x-ndjson',
-            'Content-Type': 'application/json',
-        },
+        headers: buildHeaders({headers: {Accept: 'application/x-ndjson'}}),
         body: JSON.stringify(request.body),
         signal: request.signal,
     })
@@ -64,9 +107,86 @@ export async function streamServerSentEvents(
 }
 
 export function resolveErrorMessage(error: unknown) {
+    if (error instanceof ApiRequestError) {
+        return error.message
+    }
     if (error instanceof Error) {
         return error.message
     }
     return '请求失败，请稍后重试'
 }
 
+function buildHeaders(options: RequestOptions) {
+    const headers = new Headers(options.headers)
+    if (!headers.has('Accept')) {
+        headers.set('Accept', 'application/json')
+    }
+    if (!headers.has('Content-Type')) {
+        headers.set('Content-Type', 'application/json')
+    }
+    const accessToken = options.auth === false ? null : getAccessToken()
+    if (accessToken) {
+        headers.set('Authorization', `Bearer ${accessToken}`)
+    }
+    return headers
+}
+
+async function unwrapJsonResponse<T>(response: Response): Promise<T> {
+    const text = await response.text()
+    const payload = text ? (JSON.parse(text) as ApiResponse<T>) : null
+
+    if (!response.ok) {
+        throw new ApiRequestError(payload?.message ?? `请求失败：HTTP ${response.status}`, {
+            code: payload?.code ?? `HTTP_${response.status}`,
+            status: response.status,
+            traceId: payload?.traceId,
+        })
+    }
+
+    if (!payload) {
+        return undefined as T
+    }
+
+    if (payload.code !== '0') {
+        throw new ApiRequestError(payload.message || '请求失败', {
+            code: payload.code,
+            status: response.status,
+            traceId: payload.traceId,
+        })
+    }
+
+    return payload.data
+}
+
+async function refreshAccessToken() {
+    const refreshToken = getRefreshToken()
+    if (!refreshToken) {
+        clearTokens()
+        return false
+    }
+
+    if (!refreshPromise) {
+        refreshPromise = fetch(`${API_BASE_URL}/api/auth/refresh`, {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({refreshToken}),
+        })
+            .then(async (response) => {
+                const data = await unwrapJsonResponse<RefreshLoginResponse>(response)
+                saveTokens(data)
+                return Boolean(data.accessToken)
+            })
+            .catch(() => {
+                clearTokens()
+                return false
+            })
+            .finally(() => {
+                refreshPromise = null
+            })
+    }
+
+    return refreshPromise
+}

@@ -1,10 +1,12 @@
+import {ReloadOutlined, SendOutlined, StopOutlined} from '@ant-design/icons'
+import {Avatar, Button, Card, Input, Space, Tag, Typography} from 'antd'
 import {type ComponentProps, useMemo, useRef, useState} from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import {Button} from '../../components/Button'
-import {resolveErrorMessage} from '../../services/request'
-import {streamChatResponse} from '../../services/userService'
-import type {ChatMessage} from '../../types/chat'
+import {PageToolbar} from '../../../components/PageToolbar'
+import {resolveErrorMessage} from '../../../services/request'
+import {streamChatResponse} from '../chatService'
+import type {ChatMessage} from '../chatTypes'
 
 const markdownPlugins = [remarkGfm]
 
@@ -12,11 +14,11 @@ const initialMessages: ChatMessage[] = [
     {
         id: 'welcome',
         role: 'assistant',
-        content: 'Hello，I\'m CyberMario.This session is connecting Cyber Mario Agent.',
+        content: 'Hello, I am CyberMario. This session is connecting Cyber Mario Agent.',
     },
 ]
 
-export function Home() {
+export function ChatPage() {
     const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
     const [input, setInput] = useState('')
     const [threadId, setThreadId] = useState('')
@@ -89,7 +91,7 @@ export function Home() {
                         chatMessage.id === assistantMessageId && !chatMessage.content
                             ? {
                                 ...chatMessage,
-                                content: 'Stopped。',
+                                content: 'Stopped.',
                             }
                             : chatMessage,
                     ),
@@ -127,69 +129,42 @@ export function Home() {
     }
 
     return (
-        <>
-            <aside className="conversation-panel" aria-label="Conversation status">
-                <div>
-                    <p className="product-name">CyberMario</p>
-                    <h1>Agent Chat</h1>
-                    <p className="product-copy">
-                        面向当前 Java agent 的对话工作台。
-                    </p>
-                </div>
+        <div className="chat-workspace">
+            <PageToolbar
+                actions={(
+                    <Button icon={<ReloadOutlined/>} onClick={handleNewConversation}>
+                        新会话
+                    </Button>
+                )}
+                description="面向当前 Java agent 的对话工作台。"
+                title="Agent Chat"
+            />
 
-                <dl className="status-list">
-                    <div>
-                        <dt>Backend</dt>
-                        <dd>/demo/chat/stream</dd>
-                    </div>
-                    <div>
-                        <dt>Mode</dt>
-                        <dd>text/event-stream</dd>
-                    </div>
-                    <div>
-                        <dt>Thread</dt>
-                        <dd title={threadLabel}>{threadLabel}</dd>
-                    </div>
-                </dl>
-
-                <Button
-                    icon={<RestartIcon/>}
-                    onClick={handleNewConversation}
-                    variant="secondary"
-                >
-                    新会话
-                </Button>
-            </aside>
-
-            <section className="chat-panel" aria-label="Agent conversation">
-                <div className="chat-header">
-                    <div>
-                        <p>Spring AI Alibaba</p>
-                        <h2>Reactive conversation</h2>
-                    </div>
-                    <span className={isSending ? 'live-status live' : 'live-status'}>
-                        {isSending ? '响应中' : '就绪'}
-                    </span>
-                </div>
-
-                <div className="message-list" aria-live="polite">
+            <Card
+                className="chat-card"
+                extra={(
+                    <Space>
+                        <Tag color={isSending ? 'processing' : 'success'}>{isSending ? '响应中' : '就绪'}</Tag>
+                        <Tag>{threadLabel}</Tag>
+                    </Space>
+                )}
+                title="Reactive conversation"
+            >
+                <div className="antd-message-list" aria-live="polite">
                     {messages.map((message, index) => {
                         const isLastMessage = index === messages.length - 1
                         const isStreaming = isLastMessage && message.role === 'assistant' && isSending
                         const hasContent = message.content && message.content.length > 0
                         return (
-                            <article
-                                className={`message-row ${message.role}`}
-                                key={message.id}
-                            >
-                                <div className="message-avatar" aria-hidden="true">
+                            <article className={`antd-message-row ${message.role}`} key={message.id}>
+                                <Avatar className="antd-message-avatar">
                                     {message.role === 'assistant' ? 'C' : '你'}
-                                </div>
-                                <div className="message-bubble">
+                                </Avatar>
+                                <div className="antd-message-bubble">
                                     {message.thinkContent && (
                                         <details className="think-block" open={isStreaming && !hasContent}>
                                             <summary className="think-summary">
-                                                {isStreaming && !hasContent ? '🤔 Thinking...' : '💭 思考过程'}
+                                                {isStreaming && !hasContent ? 'Thinking...' : '思考过程'}
                                             </summary>
                                             <div className="think-content">
                                                 <ReactMarkdown remarkPlugins={markdownPlugins}>
@@ -205,7 +180,7 @@ export function Home() {
                                             </ReactMarkdown>
                                         </div>
                                     ) : isStreaming ? (
-                                        <p>正在生成...</p>
+                                        <Typography.Text type="secondary">正在生成...</Typography.Text>
                                     ) : null}
                                 </div>
                             </article>
@@ -213,15 +188,10 @@ export function Home() {
                     })}
                 </div>
 
+                {error && <Typography.Text type="danger">{error}</Typography.Text>}
 
-                {error && <p className="error-message">{error}</p>}
-
-                <form className="composer" onSubmit={handleSubmit}>
-                    <label className="sr-only" htmlFor="chat-message">
-                        输入消息
-                    </label>
-                    <textarea
-                        id="chat-message"
+                <form className="antd-composer" onSubmit={handleSubmit}>
+                    <Input.TextArea
                         placeholder="问 CyberMario 一个问题..."
                         rows={3}
                         value={input}
@@ -239,43 +209,17 @@ export function Home() {
                     />
                     <div className="composer-actions">
                         {isSending ? (
-                            <Button icon={<StopIcon/>} onClick={handleStop}>
+                            <Button icon={<StopOutlined/>} onClick={handleStop} type="primary">
                                 停止
                             </Button>
                         ) : (
-                            <Button disabled={!canSend} icon={<SendIcon/>} type="submit" variant="primary">
+                            <Button disabled={!canSend} htmlType="submit" icon={<SendOutlined/>} type="primary">
                                 发送
                             </Button>
                         )}
                     </div>
                 </form>
-            </section>
-        </>
-    )
-}
-
-function SendIcon() {
-    return (
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4 12 20 4l-5 16-3-7-8-1Z"/>
-            <path d="m12 13 8-9"/>
-        </svg>
-    )
-}
-
-function StopIcon() {
-    return (
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M8 8h8v8H8z"/>
-        </svg>
-    )
-}
-
-function RestartIcon() {
-    return (
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M20 12a8 8 0 1 1-2.34-5.66"/>
-            <path d="M20 4v6h-6"/>
-        </svg>
+            </Card>
+        </div>
     )
 }

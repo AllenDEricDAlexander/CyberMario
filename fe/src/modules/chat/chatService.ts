@@ -1,5 +1,5 @@
-import {API_BASE_URL, streamServerSentEvents} from './request'
-import type {ChatResponse} from '../types/chat'
+import {API_BASE_URL, streamServerSentEvents} from '../../services/request'
+import type {ChatResponse} from './chatTypes'
 
 const CHAT_ENDPOINT = `${API_BASE_URL}/demo/chat/stream`
 
