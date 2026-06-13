@@ -1,22 +1,22 @@
-package top.egon.mario.rbac.dto;
+package top.egon.mario.rbac.dto.request;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
 import top.egon.mario.rbac.dto.enums.RbacStatus;
 
 /**
- * Role payload returned by role management APIs.
+ * Management request for creating a role.
  */
 @Getter
 @Setter
-public class RoleResponse {
-
-    private Long id;
+public class CreateRoleRequest {
+    @NotBlank
     private String roleCode;
+    @NotBlank
     private String roleName;
-    private RbacStatus status;
+    private RbacStatus status = RbacStatus.ENABLED;
     private int sortNo;
     private boolean builtIn;
     private String description;
-
 }

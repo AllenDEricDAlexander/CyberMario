@@ -1,4 +1,4 @@
-package top.egon.mario.rbac.dto;
+package top.egon.mario.rbac.dto.response;
 
 import lombok.Getter;
 import lombok.Setter;

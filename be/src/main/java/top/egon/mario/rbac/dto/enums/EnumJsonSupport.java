@@ -1,6 +1,6 @@
 package top.egon.mario.rbac.dto.enums;
 
-import top.egon.mario.rbac.common.CodedEnum;
+import top.egon.mario.common.enums.CodedEnum;
 
 import java.util.Map;
 import java.util.Objects;

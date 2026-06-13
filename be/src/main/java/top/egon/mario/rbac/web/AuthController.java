@@ -13,9 +13,9 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.rbac.application.RbacAuthApplication;
-import top.egon.mario.rbac.dto.LoginRequest;
-import top.egon.mario.rbac.dto.LoginResponse;
-import top.egon.mario.rbac.dto.RefreshTokenRequest;
+import top.egon.mario.rbac.dto.request.LoginRequest;
+import top.egon.mario.rbac.dto.request.RefreshTokenRequest;
+import top.egon.mario.rbac.dto.response.LoginResponse;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 /**

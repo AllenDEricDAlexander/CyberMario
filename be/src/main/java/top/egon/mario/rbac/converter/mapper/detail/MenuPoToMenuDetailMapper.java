@@ -3,7 +3,7 @@ package top.egon.mario.rbac.converter.mapper.detail;
 import io.github.linpeilie.BaseMapper;
 import org.mapstruct.Mapper;
 import org.mapstruct.ReportingPolicy;
-import top.egon.mario.rbac.dto.PermissionResponse;
+import top.egon.mario.rbac.dto.response.PermissionResponse;
 import top.egon.mario.rbac.po.MenuPo;
 
 /**

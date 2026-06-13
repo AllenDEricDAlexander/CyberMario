@@ -1,7 +1,7 @@
 package top.egon.mario.rbac.po.enums;
 
 import lombok.Getter;
-import top.egon.mario.rbac.common.CodedEnum;
+import top.egon.mario.common.enums.CodedEnum;
 
 /**
  * Lifecycle status for permissions.

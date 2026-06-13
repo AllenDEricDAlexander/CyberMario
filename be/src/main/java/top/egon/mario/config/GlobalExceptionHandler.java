@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.support.WebExchangeBindException;
 import reactor.core.publisher.Mono;
 import top.egon.mario.common.api.ApiResponse;
+import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.rbac.service.RbacException;
 
 import java.util.HashMap;
@@ -31,6 +32,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RbacException.class)
     public Mono<ResponseEntity<ApiResponse<Void>>> handleRbacException(RbacException ex) {
-        return Mono.just(ResponseEntity.badRequest().body(ApiResponse.fail(ex.getCode(), ex.getMessage())));
+        return Mono.deferContextual(contextView -> Mono.just(ResponseEntity.badRequest()
+                .body(ApiResponse.fail(ex.getCode(), ex.getMessage(), TraceContext.traceId(contextView)))));
     }
 }

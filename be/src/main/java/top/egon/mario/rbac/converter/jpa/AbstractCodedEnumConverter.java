@@ -1,7 +1,7 @@
 package top.egon.mario.rbac.converter.jpa;
 
 import jakarta.persistence.AttributeConverter;
-import top.egon.mario.rbac.common.CodedEnum;
+import top.egon.mario.common.enums.CodedEnum;
 
 /**
  * Base JPA converter that persists coded enums as integer codes.

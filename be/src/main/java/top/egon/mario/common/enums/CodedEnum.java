@@ -1,4 +1,4 @@
-package top.egon.mario.rbac.common;
+package top.egon.mario.common.enums;
 
 /**
  * Enum contract for values stored as integer codes and displayed by descriptions.

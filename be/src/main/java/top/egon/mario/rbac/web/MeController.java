@@ -7,8 +7,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 import top.egon.mario.common.api.ApiResponse;
-import top.egon.mario.rbac.dto.EffectivePermissionResponse;
-import top.egon.mario.rbac.dto.MenuTreeResponse;
+import top.egon.mario.rbac.dto.response.EffectivePermissionResponse;
+import top.egon.mario.rbac.dto.response.MenuTreeResponse;
 import top.egon.mario.rbac.service.RbacEffectivePermissionService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 

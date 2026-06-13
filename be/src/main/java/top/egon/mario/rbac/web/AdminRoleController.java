@@ -17,10 +17,10 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.common.api.PageResult;
-import top.egon.mario.rbac.dto.CreateRoleRequest;
-import top.egon.mario.rbac.dto.ReplaceIdsRequest;
-import top.egon.mario.rbac.dto.RoleResponse;
-import top.egon.mario.rbac.dto.UpdateRoleRequest;
+import top.egon.mario.rbac.dto.request.CreateRoleRequest;
+import top.egon.mario.rbac.dto.request.ReplaceIdsRequest;
+import top.egon.mario.rbac.dto.request.UpdateRoleRequest;
+import top.egon.mario.rbac.dto.response.RoleResponse;
 import top.egon.mario.rbac.service.RbacRoleService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 

@@ -3,7 +3,7 @@ package top.egon.mario.rbac.dto.enums;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.Getter;
-import top.egon.mario.rbac.common.CodedEnum;
+import top.egon.mario.common.enums.CodedEnum;
 
 import java.util.Map;
 

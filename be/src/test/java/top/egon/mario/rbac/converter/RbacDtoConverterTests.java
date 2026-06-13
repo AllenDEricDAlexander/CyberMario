@@ -4,7 +4,7 @@ import io.github.linpeilie.Converter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import top.egon.mario.rbac.dto.PermissionResponse;
+import top.egon.mario.rbac.dto.response.PermissionResponse;
 import top.egon.mario.rbac.po.ApiPo;
 import top.egon.mario.rbac.po.ButtonPo;
 import top.egon.mario.rbac.po.MenuPo;

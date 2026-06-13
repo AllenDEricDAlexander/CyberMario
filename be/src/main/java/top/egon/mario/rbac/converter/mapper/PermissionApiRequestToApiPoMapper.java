@@ -4,7 +4,7 @@ import io.github.linpeilie.BaseMapper;
 import org.mapstruct.Mapper;
 import org.mapstruct.ReportingPolicy;
 import top.egon.mario.rbac.converter.RbacLayerEnumMapper;
-import top.egon.mario.rbac.dto.PermissionRequest;
+import top.egon.mario.rbac.dto.request.PermissionRequest;
 import top.egon.mario.rbac.po.ApiPo;
 
 /**

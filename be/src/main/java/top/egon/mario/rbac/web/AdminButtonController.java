@@ -14,9 +14,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 import top.egon.mario.common.api.ApiResponse;
-import top.egon.mario.rbac.dto.PermissionRequest;
-import top.egon.mario.rbac.dto.PermissionResponse;
-import top.egon.mario.rbac.dto.ReplaceIdsRequest;
+import top.egon.mario.rbac.dto.request.PermissionRequest;
+import top.egon.mario.rbac.dto.request.ReplaceIdsRequest;
+import top.egon.mario.rbac.dto.response.PermissionResponse;
 import top.egon.mario.rbac.service.RbacPermissionService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 

@@ -1,7 +1,7 @@
 package top.egon.mario.rbac.converter;
 
 import org.mapstruct.Mapper;
-import top.egon.mario.rbac.common.CodedEnum;
+import top.egon.mario.common.enums.CodedEnum;
 
 /**
  * Maps enum values across API DTO and persistence layers.

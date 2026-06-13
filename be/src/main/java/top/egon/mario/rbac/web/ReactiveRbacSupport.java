@@ -4,6 +4,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.common.api.PageResult;
+import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.util.function.Supplier;
@@ -14,14 +15,15 @@ import java.util.function.Supplier;
 abstract class ReactiveRbacSupport {
 
     protected <T> Mono<ApiResponse<T>> blocking(Supplier<T> supplier) {
-        return Mono.fromCallable(() -> ApiResponse.ok(supplier.get()))
-                .subscribeOn(Schedulers.boundedElastic());
+        return Mono.deferContextual(contextView -> Mono.fromCallable(() -> supplier.get())
+                .map(data -> ApiResponse.ok(data, TraceContext.traceId(contextView)))
+                .subscribeOn(Schedulers.boundedElastic()));
     }
 
     protected Mono<ApiResponse<Void>> blockingVoid(Runnable runnable) {
-        return Mono.fromRunnable(runnable)
-                .thenReturn(ApiResponse.<Void>ok(null))
-                .subscribeOn(Schedulers.boundedElastic());
+        return Mono.deferContextual(contextView -> Mono.fromRunnable(runnable)
+                .thenReturn(ApiResponse.<Void>ok(null, TraceContext.traceId(contextView)))
+                .subscribeOn(Schedulers.boundedElastic()));
     }
 
     protected Long actorId(RbacPrincipal principal) {
