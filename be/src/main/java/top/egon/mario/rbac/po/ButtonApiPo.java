@@ -1,9 +1,8 @@
 package top.egon.mario.rbac.po;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -11,6 +10,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.Setter;
+import top.egon.mario.rbac.po.converter.ButtonApiRelationTypeConverter;
 
 import java.time.Instant;
 
@@ -35,8 +35,8 @@ public class ButtonApiPo {
     @Column(name = "api_permission_id", nullable = false)
     private Long apiPermissionId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "relation_type", nullable = false, length = 32)
+    @Convert(converter = ButtonApiRelationTypeConverter.class)
+    @Column(name = "relation_type", nullable = false)
     private ButtonApiRelationType relationType = ButtonApiRelationType.CALLS;
 
     @Column(name = "created_at", nullable = false)

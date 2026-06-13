@@ -1,14 +1,15 @@
 package top.egon.mario.rbac.po;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.Setter;
+import top.egon.mario.rbac.po.converter.ApiMatcherTypeConverter;
+import top.egon.mario.rbac.po.converter.ApiRiskLevelConverter;
 
 import java.time.Instant;
 
@@ -33,8 +34,8 @@ public class ApiPo {
     @Column(name = "url_pattern", nullable = false, length = 512)
     private String urlPattern;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "matcher_type", nullable = false, length = 20)
+    @Convert(converter = ApiMatcherTypeConverter.class)
+    @Column(name = "matcher_type", nullable = false)
     private ApiMatcherType matcherType = ApiMatcherType.EXACT;
 
     @Column(name = "public_flag", nullable = false)
@@ -46,8 +47,8 @@ public class ApiPo {
     @Column(name = "operation_name", length = 128)
     private String operationName;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "risk_level", nullable = false, length = 20)
+    @Convert(converter = ApiRiskLevelConverter.class)
+    @Column(name = "risk_level", nullable = false)
     private ApiRiskLevel riskLevel = ApiRiskLevel.LOW;
 
     @Column(name = "last_scanned_at")

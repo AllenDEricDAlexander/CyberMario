@@ -2,14 +2,14 @@ package top.egon.mario.rbac.po;
 
 import io.github.linpeilie.annotations.AutoMapper;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.Setter;
 import top.egon.mario.rbac.dto.UserResponse;
+import top.egon.mario.rbac.po.converter.RbacStatusConverter;
 
 import java.time.Instant;
 
@@ -45,8 +45,8 @@ public class UserPo extends BaseAuditablePo {
     @Column(name = "avatar_url", length = 512)
     private String avatarUrl;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 20)
+    @Convert(converter = RbacStatusConverter.class)
+    @Column(name = "status", nullable = false)
     private RbacStatus status = RbacStatus.ENABLED;
 
     @Column(name = "locked", nullable = false)

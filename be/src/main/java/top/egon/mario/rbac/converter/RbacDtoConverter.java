@@ -62,11 +62,11 @@ public class RbacDtoConverter {
             PermissionResponse.ApiDetail detail = new PermissionResponse.ApiDetail();
             detail.setHttpMethod(apiPo.getHttpMethod());
             detail.setUrlPattern(apiPo.getUrlPattern());
-            detail.setMatcherType(apiPo.getMatcherType().name());
+            detail.setMatcherType(apiPo.getMatcherType());
             detail.setPublicFlag(apiPo.isPublicFlag());
             detail.setServiceTag(apiPo.getServiceTag());
             detail.setOperationName(apiPo.getOperationName());
-            detail.setRiskLevel(apiPo.getRiskLevel().name());
+            detail.setRiskLevel(apiPo.getRiskLevel());
             response.setApi(detail);
         }
         return response;

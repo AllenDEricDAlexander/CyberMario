@@ -2,14 +2,14 @@ package top.egon.mario.rbac.po;
 
 import io.github.linpeilie.annotations.AutoMapper;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.Setter;
 import top.egon.mario.rbac.dto.RoleResponse;
+import top.egon.mario.rbac.po.converter.RbacStatusConverter;
 
 /**
  * Role that groups permissions and can inherit other roles.
@@ -29,8 +29,8 @@ public class RolePo extends BaseAuditablePo {
     @Column(name = "role_name", nullable = false, length = 64)
     private String roleName;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 20)
+    @Convert(converter = RbacStatusConverter.class)
+    @Column(name = "status", nullable = false)
     private RbacStatus status = RbacStatus.ENABLED;
 
     @Column(name = "sort_no", nullable = false)

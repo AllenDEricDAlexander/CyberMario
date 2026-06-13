@@ -42,22 +42,20 @@ public class ApiRuleMatcher {
     }
 
     private boolean pathMatches(String requestPath, ApiPermissionRule rule) {
-        return switch (rule.matcherType().toUpperCase()) {
-            case "EXACT" -> requestPath.equals(rule.urlPattern());
-            case "MVC" -> pathPatternParser.parse(rule.urlPattern()).matches(PathContainer.parsePath(requestPath));
-            case "ANT" -> antPathMatcher.match(rule.urlPattern(), requestPath);
-            case "REGEX" -> Pattern.matches(rule.urlPattern(), requestPath);
-            default -> false;
+        return switch (rule.matcherType()) {
+            case EXACT -> requestPath.equals(rule.urlPattern());
+            case MVC -> pathPatternParser.parse(rule.urlPattern()).matches(PathContainer.parsePath(requestPath));
+            case ANT -> antPathMatcher.match(rule.urlPattern(), requestPath);
+            case REGEX -> Pattern.matches(rule.urlPattern(), requestPath);
         };
     }
 
-    private int matcherRank(String matcherType) {
-        return switch (matcherType.toUpperCase()) {
-            case "EXACT" -> 0;
-            case "MVC" -> 1;
-            case "ANT" -> 2;
-            case "REGEX" -> 3;
-            default -> 4;
+    private int matcherRank(top.egon.mario.rbac.po.ApiMatcherType matcherType) {
+        return switch (matcherType) {
+            case EXACT -> 0;
+            case MVC -> 1;
+            case ANT -> 2;
+            case REGEX -> 3;
         };
     }
 

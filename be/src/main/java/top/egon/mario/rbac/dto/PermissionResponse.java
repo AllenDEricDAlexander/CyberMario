@@ -2,6 +2,8 @@ package top.egon.mario.rbac.dto;
 
 import lombok.Getter;
 import lombok.Setter;
+import top.egon.mario.rbac.po.ApiMatcherType;
+import top.egon.mario.rbac.po.ApiRiskLevel;
 import top.egon.mario.rbac.po.PermissionStatus;
 import top.egon.mario.rbac.po.PermissionType;
 
@@ -54,11 +56,11 @@ public class PermissionResponse {
     public static class ApiDetail {
         private String httpMethod;
         private String urlPattern;
-        private String matcherType;
+        private ApiMatcherType matcherType;
         private boolean publicFlag;
         private String serviceTag;
         private String operationName;
-        private String riskLevel;
+        private ApiRiskLevel riskLevel;
     }
 
 }
