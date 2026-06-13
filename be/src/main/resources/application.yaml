@@ -130,5 +130,9 @@ mario:
       api-rules-ttl: ${RBAC_API_RULES_CACHE_TTL:PT10M}
       user-permissions-ttl: ${RBAC_USER_PERMISSIONS_CACHE_TTL:PT10M}
       double-delete-delay: ${RBAC_CACHE_DOUBLE_DELETE_DELAY:PT0.8S}
+      local-ttl: ${RBAC_CACHE_LOCAL_TTL:PT30S}
+      local-maximum-size: ${RBAC_CACHE_LOCAL_MAXIMUM_SIZE:10000}
       bloom-expected-insertions: ${RBAC_CACHE_BLOOM_EXPECTED_INSERTIONS:100000}
       bloom-false-positive-probability: ${RBAC_CACHE_BLOOM_FALSE_POSITIVE_PROBABILITY:0.01}
+      broadcast-enabled: ${RBAC_CACHE_BROADCAST_ENABLED:true}
+      broadcast-topic: ${RBAC_CACHE_BROADCAST_TOPIC:rbac:cache:evict}

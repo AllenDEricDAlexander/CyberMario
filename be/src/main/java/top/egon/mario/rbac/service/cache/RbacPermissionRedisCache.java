@@ -1,30 +1,22 @@
 package top.egon.mario.rbac.service.cache;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.util.concurrent.Striped;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.dto.response.EffectivePermissionResponse;
 import top.egon.mario.rbac.dto.response.MenuTreeResponse;
 import top.egon.mario.rbac.service.model.ApiPermissionRule;
 import top.egon.mario.rbac.service.model.RbacPermissionChangedEvent;
 
-import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.Lock;
 import java.util.function.Supplier;
 
 /**
@@ -40,18 +32,13 @@ public class RbacPermissionRedisCache {
     private static final String USER_EFFECTIVE_PREFIX = "rbac:permission:user:";
     private static final String EFFECTIVE_SUFFIX = ":effective";
     private static final String MENUS_SUFFIX = ":menus";
-    private static final TypeReference<List<ApiPermissionRule>> API_RULE_LIST_TYPE = new TypeReference<>() {
-    };
-    private static final TypeReference<List<MenuTreeResponse>> MENU_TREE_LIST_TYPE = new TypeReference<>() {
-    };
 
     private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper;
     private final RbacBloomGuards bloomGuards;
     private final RbacCacheProperties cacheProperties;
     private final RbacRedisCacheInvalidator invalidator;
-    private final AtomicReference<List<ApiPermissionRule>> localApiRules = new AtomicReference<>();
-    private final Striped<Lock> keyLocks = Striped.lazyWeakLock(64);
+    private final RbacTwoLevelCacheManager cacheManager;
+    private final RbacCacheEvictionBroadcaster broadcaster;
 
     @PostConstruct
     public void warmBloomFromRedis() {
@@ -74,41 +61,35 @@ public class RbacPermissionRedisCache {
         if (!cacheProperties.enabled()) {
             return loader.get();
         }
-        List<ApiPermissionRule> cached = localApiRules.get();
-        if (cached != null) {
-            LogUtil.debug(log).log("rbac permission cache local hit, key={}", API_RULES_KEY);
-            return cached;
-        }
-        List<ApiPermissionRule> loaded = getOrLoad(API_RULES_KEY, () -> read(API_RULES_KEY, API_RULE_LIST_TYPE),
-                loader, cacheProperties.apiRulesTtl());
-        localApiRules.set(loaded);
-        return loaded;
+        return cacheManager.getRequiredCache(RbacTwoLevelCacheManager.API_RULES_CACHE)
+                .get(API_RULES_KEY, loader::get);
     }
 
     public EffectivePermissionResponse getUserEffectivePermissions(Long userId, Supplier<EffectivePermissionResponse> loader) {
         if (!cacheProperties.enabled()) {
             return loader.get();
         }
-        String key = userEffectiveKey(userId);
-        return getOrLoad(key, () -> read(key, EffectivePermissionResponse.class), loader, cacheProperties.userPermissionsTtl());
+        return cacheManager.getRequiredCache(RbacTwoLevelCacheManager.USER_EFFECTIVE_CACHE)
+                .get(userId, loader::get);
     }
 
     public List<MenuTreeResponse> getUserMenuTree(Long userId, Supplier<List<MenuTreeResponse>> loader) {
         if (!cacheProperties.enabled()) {
             return loader.get();
         }
-        String key = userMenuKey(userId);
-        return getOrLoad(key, () -> read(key, MENU_TREE_LIST_TYPE), loader, cacheProperties.userPermissionsTtl());
+        return cacheManager.getRequiredCache(RbacTwoLevelCacheManager.USER_MENUS_CACHE)
+                .get(userId, loader::get);
     }
 
     public void evictAllPermissions() {
-        localApiRules.set(null);
-        invalidator.doubleDeletePatterns(List.of(PERMISSION_SCAN_PATTERN));
-        LogUtil.info(log).log("rbac permission cache invalidated, scope=all");
+        evictAllPermissions("manual");
     }
 
     public void evictUserPermissions(Long userId) {
-        invalidator.doubleDeleteKeys(List.of(userEffectiveKey(userId), userMenuKey(userId)));
+        invalidator.doubleDeleteKeys(List.of(userEffectiveKey(userId), userMenuKey(userId)), () -> {
+            cacheManager.clearLocalUserPermissions(List.of(userId));
+            broadcaster.publishUserPermissions(List.of(userId), "manual");
+        });
         LogUtil.info(log).log("rbac permission cache invalidated, scope=user, userId={}", userId);
     }
 
@@ -116,16 +97,20 @@ public class RbacPermissionRedisCache {
         if (userIds == null || userIds.isEmpty()) {
             return;
         }
-        invalidator.doubleDeleteKeys(userIds.stream()
+        List<Long> cacheUserIds = List.copyOf(userIds);
+        invalidator.doubleDeleteKeys(cacheUserIds.stream()
                 .flatMap(userId -> List.of(userEffectiveKey(userId), userMenuKey(userId)).stream())
-                .toList());
-        LogUtil.info(log).log("rbac permission cache invalidated, scope=users, userCount={}", userIds.size());
+                .toList(), () -> {
+            cacheManager.clearLocalUserPermissions(cacheUserIds);
+            broadcaster.publishUserPermissions(cacheUserIds, "manual");
+        });
+        LogUtil.info(log).log("rbac permission cache invalidated, scope=users, userCount={}", cacheUserIds.size());
     }
 
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onPermissionChanged(RbacPermissionChangedEvent event) {
         LogUtil.info(log).log("rbac permission change event received, reason={}", event.reason());
-        evictAllPermissions();
+        evictAllPermissions(event.reason());
     }
 
     private String userEffectiveKey(Long userId) {
@@ -136,80 +121,12 @@ public class RbacPermissionRedisCache {
         return USER_EFFECTIVE_PREFIX + userId + MENUS_SUFFIX;
     }
 
-    private <T> Optional<T> read(String key, Class<T> type) {
-        if (!bloomGuards.mightContainPermissionKey(key)) {
-            return Optional.empty();
-        }
-        String value = redisTemplate.opsForValue().get(key);
-        if (value == null) {
-            return Optional.empty();
-        }
-        try {
-            return Optional.of(objectMapper.readValue(value, type));
-        } catch (JsonProcessingException e) {
-            invalidator.doubleDeleteKeys(List.of(key));
-            LogUtil.warn(log).log("rbac permission cache corrupted, key={}", key, e);
-            return Optional.empty();
-        }
-    }
-
-    private <T> Optional<T> read(String key, TypeReference<T> type) {
-        if (!bloomGuards.mightContainPermissionKey(key)) {
-            return Optional.empty();
-        }
-        String value = redisTemplate.opsForValue().get(key);
-        if (value == null) {
-            return Optional.empty();
-        }
-        try {
-            return Optional.of(objectMapper.readValue(value, type));
-        } catch (JsonProcessingException e) {
-            invalidator.doubleDeleteKeys(List.of(key));
-            LogUtil.warn(log).log("rbac permission cache corrupted, key={}", key, e);
-            return Optional.empty();
-        }
-    }
-
-    private <T> T getOrLoad(String key, Supplier<Optional<T>> reader, Supplier<T> loader, Duration ttl) {
-        Optional<T> cached = reader.get();
-        if (cached.isPresent()) {
-            LogUtil.debug(log).log("rbac permission cache hit, key={}", key);
-            return cached.get();
-        }
-        Lock lock = keyLocks.get(key);
-        lock.lock();
-        try {
-            cached = reader.get();
-            if (cached.isPresent()) {
-                LogUtil.debug(log).log("rbac permission cache hit after lock, key={}", key);
-                return cached.get();
-            }
-            LogUtil.debug(log).log("rbac permission cache miss, key={}", key);
-            T loaded = loader.get();
-            write(key, loaded, ttl);
-            return loaded;
-        } finally {
-            lock.unlock();
-        }
-    }
-
-    private void write(String key, Object value, Duration ttl) {
-        if (ttl == null || ttl.isZero() || ttl.isNegative()) {
-            return;
-        }
-        try {
-            bloomGuards.rememberPermissionKey(key);
-            redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(value), ttlWithJitter(ttl));
-        } catch (JsonProcessingException e) {
-            LogUtil.error(log).log("serialize rbac permission cache failed, key={}", key, e);
-            throw new IllegalStateException("serialize RBAC permission cache failed", e);
-        }
-    }
-
-    private Duration ttlWithJitter(Duration ttl) {
-        long baseMillis = ttl.toMillis();
-        long jitterMillis = Math.max(1, baseMillis / 10);
-        return Duration.ofMillis(baseMillis + ThreadLocalRandom.current().nextLong(jitterMillis));
+    private void evictAllPermissions(String reason) {
+        invalidator.doubleDeletePatterns(List.of(PERMISSION_SCAN_PATTERN), () -> {
+            cacheManager.clearLocalAllPermissions();
+            broadcaster.publishAllPermissions(reason);
+        });
+        LogUtil.info(log).log("rbac permission cache invalidated, scope=all");
     }
 
 }

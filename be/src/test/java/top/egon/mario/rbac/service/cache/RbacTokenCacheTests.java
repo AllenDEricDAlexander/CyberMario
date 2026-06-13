@@ -79,7 +79,8 @@ class RbacTokenCacheTests {
     }
 
     private RbacCacheProperties cacheProperties() {
-        return new RbacCacheProperties(true, Duration.ofMinutes(10), Duration.ofMinutes(10), Duration.ofMillis(10), 1000, 0.01);
+        return new RbacCacheProperties(true, Duration.ofMinutes(10), Duration.ofMinutes(10),
+                Duration.ofMillis(10), Duration.ofSeconds(30), 1000, 100, 0.01, true, "rbac:cache:evict");
     }
 
 }

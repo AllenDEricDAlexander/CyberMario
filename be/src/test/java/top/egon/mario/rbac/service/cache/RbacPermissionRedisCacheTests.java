@@ -23,6 +23,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -38,6 +39,7 @@ class RbacPermissionRedisCacheTests {
     private StringRedisTemplate redisTemplate;
     private ValueOperations<String, String> valueOperations;
     private RbacRedisCacheInvalidator invalidator;
+    private RbacCacheEvictionBroadcaster broadcaster;
     private RbacPermissionRedisCache permissionCache;
 
     @BeforeEach
@@ -45,8 +47,15 @@ class RbacPermissionRedisCacheTests {
         redisTemplate = mock(StringRedisTemplate.class);
         valueOperations = mock(ValueOperations.class);
         invalidator = mock(RbacRedisCacheInvalidator.class);
+        broadcaster = mock(RbacCacheEvictionBroadcaster.class);
+        ObjectMapper objectMapper = new ObjectMapper();
+        RbacCacheProperties cacheProperties = cacheProperties();
+        RbacBloomGuards bloomGuards = new RbacBloomGuards(cacheProperties);
+        RbacTwoLevelCacheManager cacheManager = new RbacTwoLevelCacheManager(redisTemplate,
+                objectMapper, bloomGuards, invalidator, cacheProperties);
         given(redisTemplate.opsForValue()).willReturn(valueOperations);
-        permissionCache = new RbacPermissionRedisCache(redisTemplate, new ObjectMapper(), bloomGuards(), cacheProperties(), invalidator);
+        permissionCache = new RbacPermissionRedisCache(redisTemplate, bloomGuards,
+                cacheProperties, invalidator, cacheManager, broadcaster);
     }
 
     @Test
@@ -115,22 +124,30 @@ class RbacPermissionRedisCacheTests {
     void evictsPermissionKeysWithDelayedDoubleDelete() {
         permissionCache.evictAllPermissions();
 
-        verify(invalidator).doubleDeletePatterns(List.of("rbac:permission:*"));
+        verify(invalidator).doubleDeletePatterns(eq(List.of("rbac:permission:*")), any(Runnable.class));
     }
 
     @Test
     void evictsPermissionKeysWhenPermissionChangedEventArrives() {
         permissionCache.onPermissionChanged(new RbacPermissionChangedEvent("unit-test"));
 
-        verify(invalidator).doubleDeletePatterns(List.of("rbac:permission:*"));
+        verify(invalidator).doubleDeletePatterns(eq(List.of("rbac:permission:*")), any(Runnable.class));
     }
 
-    private RbacBloomGuards bloomGuards() {
-        return new RbacBloomGuards(cacheProperties());
+    @Test
+    void publishesLocalEvictionBroadcastWhenPermissionChangedEventArrives() {
+        var callbackCaptor = forClass(Runnable.class);
+        permissionCache.onPermissionChanged(new RbacPermissionChangedEvent("unit-test"));
+        verify(invalidator).doubleDeletePatterns(eq(List.of("rbac:permission:*")), callbackCaptor.capture());
+
+        callbackCaptor.getValue().run();
+
+        verify(broadcaster).publishAllPermissions("unit-test");
     }
 
     private RbacCacheProperties cacheProperties() {
-        return new RbacCacheProperties(true, Duration.ofMinutes(10), Duration.ofMinutes(10), Duration.ofMillis(10), 1000, 0.01);
+        return new RbacCacheProperties(true, Duration.ofMinutes(10), Duration.ofMinutes(10),
+                Duration.ofMillis(10), Duration.ofSeconds(30), 1000, 100, 0.01, true, "rbac:cache:evict");
     }
 
     private void sleepQuietly() {

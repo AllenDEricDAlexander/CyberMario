@@ -35,6 +35,10 @@ public class RbacRedisCacheInvalidator {
     });
 
     public void doubleDeleteKeys(Collection<String> keys) {
+        doubleDeleteKeys(keys, null);
+    }
+
+    public void doubleDeleteKeys(Collection<String> keys, Runnable afterDelete) {
         if (!cacheProperties.enabled()) {
             return;
         }
@@ -43,11 +47,19 @@ public class RbacRedisCacheInvalidator {
         }
         List<String> cacheKeys = List.copyOf(keys);
         deleteKeys(cacheKeys);
-        executorService.schedule(() -> deleteKeys(cacheKeys), delayMillis(), TimeUnit.MILLISECONDS);
+        runAfterDelete(afterDelete);
+        executorService.schedule(() -> {
+            deleteKeys(cacheKeys);
+            runAfterDelete(afterDelete);
+        }, delayMillis(), TimeUnit.MILLISECONDS);
         LogUtil.debug(log).log("rbac cache keys scheduled for double delete, keyCount={}", cacheKeys.size());
     }
 
     public void doubleDeletePatterns(Collection<String> patterns) {
+        doubleDeletePatterns(patterns, null);
+    }
+
+    public void doubleDeletePatterns(Collection<String> patterns, Runnable afterDelete) {
         if (!cacheProperties.enabled()) {
             return;
         }
@@ -56,7 +68,11 @@ public class RbacRedisCacheInvalidator {
         }
         List<String> cachePatterns = List.copyOf(patterns);
         deletePatterns(cachePatterns);
-        executorService.schedule(() -> deletePatterns(cachePatterns), delayMillis(), TimeUnit.MILLISECONDS);
+        runAfterDelete(afterDelete);
+        executorService.schedule(() -> {
+            deletePatterns(cachePatterns);
+            runAfterDelete(afterDelete);
+        }, delayMillis(), TimeUnit.MILLISECONDS);
         LogUtil.debug(log).log("rbac cache patterns scheduled for double delete, patternCount={}", cachePatterns.size());
     }
 
@@ -98,6 +114,17 @@ public class RbacRedisCacheInvalidator {
     private long delayMillis() {
         Duration delay = cacheProperties.doubleDeleteDelay();
         return delay == null ? 800 : Math.max(delay.toMillis(), 1);
+    }
+
+    private void runAfterDelete(Runnable afterDelete) {
+        if (afterDelete == null) {
+            return;
+        }
+        try {
+            afterDelete.run();
+        } catch (RuntimeException e) {
+            LogUtil.warn(log).log("rbac cache double delete callback failed", e);
+        }
     }
 
 }
