@@ -28,7 +28,7 @@ class LoggingSourceConventionsTests {
             "top/egon/mario/agent/service/impl/ArxivServiceImpl.java",
             "top/egon/mario/agent/service/impl/ReactAgentChatService.java",
             "top/egon/mario/agent/tools/arxiv/ArxivTools.java",
-            "top/egon/mario/common/api/TraceWebFilter.java",
+            "top/egon/mario/common/filter/TraceWebFilter.java",
             "top/egon/mario/config/GlobalExceptionHandler.java",
             "top/egon/mario/config/JpaAuditingConfig.java",
             "top/egon/mario/rbac/config/RbacSecurityConfig.java",

@@ -15,6 +15,9 @@ import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.common.api.PageResult;
 import top.egon.mario.rag.dto.response.RagIngestionJobResponse;
 import top.egon.mario.rag.service.RagIngestionJobService;
+import top.egon.mario.rbac.po.enums.ApiMatcherType;
+import top.egon.mario.rbac.po.enums.ApiRiskLevel;
+import top.egon.mario.rbac.service.resource.annotation.RbacApi;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 /**
@@ -27,6 +30,8 @@ public class RagIngestionJobController extends ReactiveRagSupport {
 
     private final RagIngestionJobService ingestionJobService;
 
+    @RbacApi(appCode = "rag", code = "api:rag:ingestion-job:collection", name = "RAG 入库任务集合",
+            method = "ANY", pattern = "/api/rag/ingestion-jobs", risk = ApiRiskLevel.MEDIUM)
     @GetMapping
     public Mono<ApiResponse<PageResult<RagIngestionJobResponse>>> page(@RequestParam(required = false) Long knowledgeBaseId,
                                                                        @RequestParam(defaultValue = "1") int page,
@@ -35,6 +40,8 @@ public class RagIngestionJobController extends ReactiveRagSupport {
         return blocking(() -> pageResult(ingestionJobService.page(knowledgeBaseId, PageRequest.of(Math.max(page - 1, 0), size, Sort.by("id").descending()), principal)));
     }
 
+    @RbacApi(appCode = "rag", code = "api:rag:ingestion-job:*", name = "RAG 入库任务管理",
+            method = "ANY", pattern = "/api/rag/ingestion-jobs/**", matcher = ApiMatcherType.ANT, risk = ApiRiskLevel.MEDIUM)
     @PostMapping("/{id}/retry")
     public Mono<ApiResponse<RagIngestionJobResponse>> retry(@PathVariable Long id,
                                                             @AuthenticationPrincipal RbacPrincipal principal) {

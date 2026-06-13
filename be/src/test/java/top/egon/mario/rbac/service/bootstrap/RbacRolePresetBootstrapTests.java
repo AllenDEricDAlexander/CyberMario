@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationEventPublisher;
 import top.egon.mario.rbac.po.PermissionPo;
 import top.egon.mario.rbac.po.RolePo;
 import top.egon.mario.rbac.po.enums.PermissionStatus;
@@ -21,6 +22,9 @@ import top.egon.mario.rbac.repository.RolePermissionRepository;
 import top.egon.mario.rbac.repository.RoleRepository;
 import top.egon.mario.rbac.repository.UserRepository;
 import top.egon.mario.rbac.repository.UserRoleRepository;
+import top.egon.mario.rbac.service.RbacPermissionVersionService;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -29,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest(properties = {
         "spring.ai.dashscope.api-key=test-api-key",
+        "mario.rbac.resource-sync.enabled=false",
         "mario.rbac.role-presets.enabled=true",
         "mario.rbac.role-presets.sync-mode=CREATE_ONLY"
 })
@@ -60,6 +65,10 @@ class RbacRolePresetBootstrapTests {
     private AuditLogRepository auditLogRepository;
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private RbacPermissionVersionService permissionVersionService;
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     @BeforeEach
     void setUp() {
@@ -72,6 +81,10 @@ class RbacRolePresetBootstrapTests {
         apiRepository.deleteAll();
         buttonRepository.deleteAll();
         menuRepository.deleteAll();
+        List<PermissionPo> permissions = permissionRepository.findAll();
+        permissions.forEach(permission -> permission.setParentId(null));
+        permissionRepository.saveAll(permissions);
+        permissionRepository.flush();
         permissionRepository.deleteAll();
         roleRepository.deleteAll();
         userRepository.deleteAll();
@@ -81,19 +94,22 @@ class RbacRolePresetBootstrapTests {
     void bootstrapCreatesPresetRolesAndGrantsExistingPermissions() {
         PermissionPo chatPermission = permissionRepository.save(permission("api:chat:stream"));
         PermissionPo rbacPermission = permissionRepository.save(permission("api:rbac:admin:*"));
+        PermissionPo authSelfPermission = permissionRepository.save(permission("api:rbac:auth:self"));
 
         rolePresetBootstrap.bootstrap();
 
         RolePo chatRole = roleRepository.findByRoleCodeAndDeletedFalse("CHAT_USER").orElseThrow();
         RolePo rbacRole = roleRepository.findByRoleCodeAndDeletedFalse("RBAC_ADMIN").orElseThrow();
         assertThat(chatRole.isBuiltIn()).isFalse();
+        assertThat(chatRole.isManaged()).isTrue();
+        assertThat(chatRole.getOwnerApp()).isEqualTo("rbac");
         assertThat(chatRole.getStatus()).isEqualTo(RbacStatus.ENABLED);
         assertThat(rolePermissionRepository.findByRoleId(chatRole.getId()))
                 .extracting("permissionId")
-                .contains(chatPermission.getId());
+                .contains(chatPermission.getId(), authSelfPermission.getId());
         assertThat(rolePermissionRepository.findByRoleId(rbacRole.getId()))
                 .extracting("permissionId")
-                .contains(rbacPermission.getId());
+                .contains(rbacPermission.getId(), authSelfPermission.getId());
         assertThat(chatRole.getPermissionVersion()).isGreaterThan(0);
     }
 
@@ -104,6 +120,26 @@ class RbacRolePresetBootstrapTests {
 
         rolePresetBootstrap.bootstrap();
 
+        assertThat(rolePermissionRepository.findByRoleId(existingRole.getId())).isEmpty();
+    }
+
+    @Test
+    void forceSyncDoesNotGrantExistingOrdinaryRoleWithPresetCode() {
+        permissionRepository.save(permission("api:chat:stream"));
+        RolePo existingRole = roleRepository.save(role("CHAT_USER"));
+        RbacRolePresetBootstrap forceSyncBootstrap = new RbacRolePresetBootstrap(
+                new RbacRolePresetBootstrapProperties(true, RbacRolePresetBootstrapProperties.SyncMode.FORCE_SYNC),
+                roleRepository,
+                permissionRepository,
+                rolePermissionRepository,
+                permissionVersionService,
+                eventPublisher
+        );
+
+        forceSyncBootstrap.bootstrap();
+
+        RolePo unchangedRole = roleRepository.findById(existingRole.getId()).orElseThrow();
+        assertThat(unchangedRole.isManaged()).isFalse();
         assertThat(rolePermissionRepository.findByRoleId(existingRole.getId())).isEmpty();
     }
 

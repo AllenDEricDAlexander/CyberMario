@@ -13,6 +13,8 @@ import reactor.core.publisher.Mono;
 import top.egon.mario.rag.dto.request.RagChatRequest;
 import top.egon.mario.rag.dto.response.RagStreamEvent;
 import top.egon.mario.rag.service.RagChatService;
+import top.egon.mario.rbac.po.enums.ApiRiskLevel;
+import top.egon.mario.rbac.service.resource.annotation.RbacApi;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 /**
@@ -25,6 +27,7 @@ public class RagChatController {
 
     private final RagChatService chatService;
 
+    @RbacApi(appCode = "rag", code = "api:rag:chat:stream", name = "RAG 流式问答", risk = ApiRiskLevel.MEDIUM)
     @PostMapping(path = "/stream", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_NDJSON_VALUE)
     public Flux<RagStreamEvent> stream(@Valid @RequestBody Mono<RagChatRequest> request,
                                        @AuthenticationPrincipal RbacPrincipal principal) {

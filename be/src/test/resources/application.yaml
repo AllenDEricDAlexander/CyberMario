@@ -84,8 +84,6 @@ info:
 
 mario:
   rag:
-    rbac-bootstrap:
-      enabled: false
     storage:
       local-root: ${java.io.tmpdir}/cyber-mario-rag-test
     retrieval:
@@ -96,6 +94,8 @@ mario:
       embedding-model: text-embedding-v4
       embedding-dimension: 1024
   rbac:
+    resource-sync:
+      enabled: false
     cache:
       enabled: false
   security:

@@ -20,8 +20,13 @@ import top.egon.mario.rbac.repository.RoleRepository;
 import top.egon.mario.rbac.service.RbacPermissionVersionService;
 import top.egon.mario.rbac.service.bootstrap.RbacRolePresetBootstrapProperties.SyncMode;
 import top.egon.mario.rbac.service.model.RbacPermissionChangedEvent;
+import top.egon.mario.rbac.service.resource.model.RbacResourceSource;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -34,6 +39,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class RbacRolePresetBootstrap implements ApplicationRunner {
+
+    private static final String OWNER_APP = "rbac";
+    private static final String DIGEST_ALGORITHM = "SHA-256";
 
     private final RbacRolePresetBootstrapProperties properties;
     private final RoleRepository roleRepository;
@@ -72,13 +80,21 @@ public class RbacRolePresetBootstrap implements ApplicationRunner {
         if (created) {
             role = new RolePo();
             role.setRoleCode(seed.roleCode());
-            role.setRoleName(seed.roleName());
             role.setStatus(RbacStatus.ENABLED);
-            role.setSortNo(seed.sortNo());
             role.setBuiltIn(false);
-            role.setDescription(seed.description());
-            role = roleRepository.save(role);
+            role.setManaged(true);
+        } else if (!role.isManaged()) {
+            return false;
         }
+        role.setRoleName(seed.roleName());
+        role.setSortNo(seed.sortNo());
+        role.setDescription(seed.description());
+        role.setOwnerApp(OWNER_APP);
+        role.setSourceType(RbacResourceSource.CATALOG.name());
+        role.setSourceKey(OWNER_APP + ":" + seed.roleCode());
+        role.setSyncHash(digest(seed));
+        role.setLastSyncedAt(Instant.now());
+        role = roleRepository.save(role);
         boolean grantsChanged = false;
         if (created || properties.syncMode() == SyncMode.FORCE_SYNC) {
             grantsChanged = grantPermissions(role, seed);
@@ -106,6 +122,21 @@ public class RbacRolePresetBootstrap implements ApplicationRunner {
             changed = true;
         }
         return changed;
+    }
+
+    private String digest(RbacRolePresetCatalog.RolePresetSeed seed) {
+        String source = String.join("|",
+                seed.roleCode(),
+                seed.roleName(),
+                seed.description(),
+                Integer.toString(seed.sortNo()),
+                String.join(",", seed.permissionCodes()));
+        try {
+            MessageDigest digest = MessageDigest.getInstance(DIGEST_ALGORITHM);
+            return HexFormat.of().formatHex(digest.digest(source.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("rbac role preset digest algorithm is unavailable", e);
+        }
     }
 
 }

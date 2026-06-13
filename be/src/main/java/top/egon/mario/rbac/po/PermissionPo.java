@@ -13,6 +13,8 @@ import top.egon.mario.rbac.converter.jpa.PermissionTypeConverter;
 import top.egon.mario.rbac.po.enums.PermissionStatus;
 import top.egon.mario.rbac.po.enums.PermissionType;
 
+import java.time.Instant;
+
 /**
  * Unified permission metadata shared by menu, button and API resources.
  */
@@ -46,5 +48,26 @@ public class PermissionPo extends BaseAuditablePo {
 
     @Column(name = "description", length = 255)
     private String description;
+
+    @Column(name = "managed", nullable = false)
+    private boolean managed;
+
+    @Column(name = "owner_app", length = 64)
+    private String ownerApp;
+
+    @Column(name = "source_type", length = 32)
+    private String sourceType;
+
+    @Column(name = "source_key", length = 256)
+    private String sourceKey;
+
+    @Column(name = "sync_hash", length = 64)
+    private String syncHash;
+
+    @Column(name = "last_synced_at")
+    private Instant lastSyncedAt;
+
+    @Column(name = "last_seen_at")
+    private Instant lastSeenAt;
 
 }

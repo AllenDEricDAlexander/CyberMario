@@ -137,6 +137,8 @@ mario:
       access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:PT30M}
       refresh-token-ttl: ${JWT_REFRESH_TOKEN_TTL:P14D}
   rbac:
+    resource-sync:
+      enabled: ${RBAC_RESOURCE_SYNC_ENABLED:true}
     bootstrap:
       admin:
         enabled: ${RBAC_BOOTSTRAP_ADMIN_ENABLED:false}
@@ -158,8 +160,6 @@ mario:
       broadcast-enabled: ${RBAC_CACHE_BROADCAST_ENABLED:true}
       broadcast-topic: ${RBAC_CACHE_BROADCAST_TOPIC:rbac:cache:evict}
   rag:
-    rbac-bootstrap:
-      enabled: ${RAG_RBAC_BOOTSTRAP_ENABLED:true}
     storage:
       type: ${RAG_STORAGE_TYPE:LOCAL}
       local-root: ${RAG_LOCAL_STORAGE_ROOT:${user.home}/.cyber-mario/rag-files}

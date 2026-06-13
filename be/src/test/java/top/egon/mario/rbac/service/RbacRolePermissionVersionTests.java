@@ -22,6 +22,7 @@ import top.egon.mario.rbac.repository.RoleRepository;
 import top.egon.mario.rbac.repository.UserRepository;
 import top.egon.mario.rbac.repository.UserRoleRepository;
 
+import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -70,6 +71,10 @@ class RbacRolePermissionVersionTests {
         apiRepository.deleteAll();
         buttonRepository.deleteAll();
         menuRepository.deleteAll();
+        List<PermissionPo> permissions = permissionRepository.findAll();
+        permissions.forEach(permission -> permission.setParentId(null));
+        permissionRepository.saveAll(permissions);
+        permissionRepository.flush();
         permissionRepository.deleteAll();
         roleRepository.deleteAll();
         userRepository.deleteAll();

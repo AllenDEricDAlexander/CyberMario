@@ -27,6 +27,9 @@ import top.egon.mario.rag.dto.response.RagChunkResponse;
 import top.egon.mario.rag.dto.response.RagDocumentResponse;
 import top.egon.mario.rag.dto.response.UploadDocumentResponse;
 import top.egon.mario.rag.service.RagDocumentService;
+import top.egon.mario.rbac.po.enums.ApiMatcherType;
+import top.egon.mario.rbac.po.enums.ApiRiskLevel;
+import top.egon.mario.rbac.service.resource.annotation.RbacApi;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 /**
@@ -39,6 +42,8 @@ public class RagDocumentController extends ReactiveRagSupport {
 
     private final RagDocumentService documentService;
 
+    @RbacApi(appCode = "rag", code = "api:rag:document:collection", name = "RAG 文档集合",
+            method = "ANY", pattern = "/api/rag/documents", risk = ApiRiskLevel.HIGH)
     @GetMapping("/documents")
     public Mono<ApiResponse<PageResult<RagDocumentResponse>>> page(@RequestParam(required = false) Long knowledgeBaseId,
                                                                    @RequestParam(defaultValue = "1") int page,
@@ -47,6 +52,8 @@ public class RagDocumentController extends ReactiveRagSupport {
         return blocking(() -> pageResult(documentService.page(knowledgeBaseId, PageRequest.of(Math.max(page - 1, 0), size, Sort.by("id").descending()), principal)));
     }
 
+    @RbacApi(appCode = "rag", code = "api:rag:document:*", name = "RAG 文档管理",
+            method = "ANY", pattern = "/api/rag/documents/**", matcher = ApiMatcherType.ANT, risk = ApiRiskLevel.HIGH)
     @PostMapping(path = "/documents/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Mono<ApiResponse<UploadDocumentResponse>> upload(@RequestParam Long knowledgeBaseId,
                                                             @RequestParam(defaultValue = "true") boolean parseImmediately,
@@ -88,6 +95,8 @@ public class RagDocumentController extends ReactiveRagSupport {
         return blocking(() -> pageResult(documentService.chunks(id, PageRequest.of(Math.max(page - 1, 0), size, Sort.by("chunkIndex").ascending()), principal)));
     }
 
+    @RbacApi(appCode = "rag", code = "api:rag:chunk:*", name = "RAG 切片管理",
+            method = "ANY", pattern = "/api/rag/chunks/**", matcher = ApiMatcherType.ANT, risk = ApiRiskLevel.HIGH)
     @PatchMapping("/chunks/{id}/enabled")
     public Mono<ApiResponse<Void>> updateChunkEnabled(@PathVariable Long id,
                                                       @Valid @RequestBody UpdateChunkEnabledRequest request,

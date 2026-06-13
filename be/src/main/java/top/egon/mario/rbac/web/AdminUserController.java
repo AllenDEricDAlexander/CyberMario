@@ -26,8 +26,11 @@ import top.egon.mario.rbac.dto.request.StatusRequest;
 import top.egon.mario.rbac.dto.request.UpdateUserRequest;
 import top.egon.mario.rbac.dto.response.EffectivePermissionResponse;
 import top.egon.mario.rbac.dto.response.UserResponse;
+import top.egon.mario.rbac.po.enums.ApiMatcherType;
+import top.egon.mario.rbac.po.enums.ApiRiskLevel;
 import top.egon.mario.rbac.service.RbacEffectivePermissionService;
 import top.egon.mario.rbac.service.RbacUserService;
+import top.egon.mario.rbac.service.resource.annotation.RbacApi;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.util.Set;
@@ -44,6 +47,8 @@ public class AdminUserController extends ReactiveRbacSupport {
     private final RbacUserService userService;
     private final RbacEffectivePermissionService effectivePermissionService;
 
+    @RbacApi(appCode = "rbac", code = "api:rbac:admin:*", name = "RBAC Administration APIs",
+            method = "ANY", pattern = "/api/admin/**", matcher = ApiMatcherType.ANT, risk = ApiRiskLevel.HIGH)
     @GetMapping
     public Mono<ApiResponse<PageResult<UserResponse>>> page(@RequestParam(defaultValue = "1") int page,
                                                             @RequestParam(defaultValue = "20") int size) {

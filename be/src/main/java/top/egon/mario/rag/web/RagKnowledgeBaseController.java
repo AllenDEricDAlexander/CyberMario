@@ -23,6 +23,9 @@ import top.egon.mario.rag.dto.request.UpdateKnowledgeBaseRequest;
 import top.egon.mario.rag.dto.response.KnowledgeBaseResponse;
 import top.egon.mario.rag.dto.response.KnowledgeBaseUserResponse;
 import top.egon.mario.rag.service.RagKnowledgeBaseService;
+import top.egon.mario.rbac.po.enums.ApiMatcherType;
+import top.egon.mario.rbac.po.enums.ApiRiskLevel;
+import top.egon.mario.rbac.service.resource.annotation.RbacApi;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.util.List;
@@ -37,12 +40,16 @@ public class RagKnowledgeBaseController extends ReactiveRagSupport {
 
     private final RagKnowledgeBaseService knowledgeBaseService;
 
+    @RbacApi(appCode = "rag", code = "api:rag:knowledge-base:collection", name = "RAG 知识库集合",
+            method = "ANY", pattern = "/api/rag/knowledge-bases", risk = ApiRiskLevel.HIGH)
     @GetMapping
     public Mono<ApiResponse<PageResult<KnowledgeBaseResponse>>> page(@RequestParam(defaultValue = "1") int page,
                                                                      @RequestParam(defaultValue = "20") int size) {
         return blocking(() -> pageResult(knowledgeBaseService.page(PageRequest.of(Math.max(page - 1, 0), size, Sort.by("id").descending()))));
     }
 
+    @RbacApi(appCode = "rag", code = "api:rag:knowledge-base:*", name = "RAG 知识库管理",
+            method = "ANY", pattern = "/api/rag/knowledge-bases/**", matcher = ApiMatcherType.ANT, risk = ApiRiskLevel.HIGH)
     @PostMapping
     public Mono<ApiResponse<KnowledgeBaseResponse>> create(@Valid @RequestBody CreateKnowledgeBaseRequest request,
                                                            @AuthenticationPrincipal RbacPrincipal principal) {

@@ -8,6 +8,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import top.egon.mario.rbac.po.ApiPo;
 import top.egon.mario.rbac.po.PermissionPo;
+import top.egon.mario.rbac.po.RolePermissionPo;
 import top.egon.mario.rbac.po.RolePo;
 import top.egon.mario.rbac.po.UserPo;
 import top.egon.mario.rbac.po.enums.ApiMatcherType;
@@ -27,6 +28,10 @@ import top.egon.mario.rbac.repository.RolePermissionRepository;
 import top.egon.mario.rbac.repository.RoleRepository;
 import top.egon.mario.rbac.repository.UserRepository;
 import top.egon.mario.rbac.repository.UserRoleRepository;
+import top.egon.mario.rbac.service.resource.model.RbacResourceSource;
+
+import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -81,6 +86,10 @@ class RbacAdminBootstrapTests {
         apiRepository.deleteAll();
         buttonRepository.deleteAll();
         menuRepository.deleteAll();
+        List<PermissionPo> permissions = permissionRepository.findAll();
+        permissions.forEach(permission -> permission.setParentId(null));
+        permissionRepository.saveAll(permissions);
+        permissionRepository.flush();
         permissionRepository.deleteAll();
         roleRepository.deleteAll();
         userRepository.deleteAll();
@@ -105,13 +114,16 @@ class RbacAdminBootstrapTests {
 
         PermissionPo permission = permissionRepository.findByPermCodeAndDeletedFalse("api:rbac:admin:*").orElseThrow();
         PermissionPo chatPermission = permissionRepository.findByPermCodeAndDeletedFalse("api:chat:stream").orElseThrow();
+        PermissionPo authSelfPermission = permissionRepository.findByPermCodeAndDeletedFalse("api:rbac:auth:self").orElseThrow();
         assertThat(permission.getPermType()).isEqualTo(PermissionType.API);
         assertThat(permission.getStatus()).isEqualTo(PermissionStatus.ENABLED);
         assertThat(chatPermission.getPermType()).isEqualTo(PermissionType.API);
         assertThat(chatPermission.getStatus()).isEqualTo(PermissionStatus.ENABLED);
+        assertThat(authSelfPermission.getPermType()).isEqualTo(PermissionType.API);
+        assertThat(authSelfPermission.getStatus()).isEqualTo(PermissionStatus.ENABLED);
         assertThat(rolePermissionRepository.findByRoleId(role.getId()))
                 .extracting("permissionId")
-                .contains(permission.getId(), chatPermission.getId());
+                .contains(permission.getId(), chatPermission.getId(), authSelfPermission.getId());
 
         ApiPo api = apiRepository.findById(permission.getId()).orElseThrow();
         assertThat(api.getHttpMethod()).isEqualTo("ANY");
@@ -124,6 +136,12 @@ class RbacAdminBootstrapTests {
         assertThat(chatApi.getUrlPattern()).isEqualTo("/demo/chat/stream");
         assertThat(chatApi.getMatcherType()).isEqualTo(ApiMatcherType.EXACT);
         assertThat(chatApi.getRiskLevel()).isEqualTo(ApiRiskLevel.MEDIUM);
+
+        ApiPo authSelfApi = apiRepository.findById(authSelfPermission.getId()).orElseThrow();
+        assertThat(authSelfApi.getHttpMethod()).isEqualTo("ANY");
+        assertThat(authSelfApi.getUrlPattern()).isEqualTo("/api/auth/**");
+        assertThat(authSelfApi.getMatcherType()).isEqualTo(ApiMatcherType.ANT);
+        assertThat(authSelfApi.getRiskLevel()).isEqualTo(ApiRiskLevel.MEDIUM);
     }
 
     @Test
@@ -139,9 +157,48 @@ class RbacAdminBootstrapTests {
         PermissionPo chatPermission = permissionRepository.findByPermCodeAndDeletedFalse("api:chat:stream").orElseThrow();
         assertThat(admin.getPasswordHash()).isEqualTo(passwordHash);
         assertThat(userRoleRepository.findByUserId(admin.getId())).hasSize(1);
-        assertThat(rolePermissionRepository.findByRoleId(role.getId())).hasSize(2);
+        assertThat(rolePermissionRepository.findByRoleId(role.getId())).hasSize(3);
         assertThat(apiRepository.findById(permission.getId())).isPresent();
         assertThat(apiRepository.findById(chatPermission.getId())).isPresent();
+    }
+
+    @Test
+    void bootstrapGrantsSuperAdminAllExistingPermissions() {
+        PermissionPo ragPermission = permissionRepository.save(permission("api:rag:document:*", PermissionType.API));
+        PermissionPo menuPermission = permissionRepository.save(permission("menu:rag", PermissionType.MENU));
+        RolePo unrelatedRole = roleRepository.save(role("RAG_OPERATOR"));
+        RolePermissionPo unrelatedGrant = new RolePermissionPo();
+        unrelatedGrant.setRoleId(unrelatedRole.getId());
+        unrelatedGrant.setPermissionId(ragPermission.getId());
+        unrelatedGrant.setGrantedAt(Instant.now());
+        rolePermissionRepository.save(unrelatedGrant);
+
+        adminBootstrap.bootstrap();
+
+        RolePo superAdmin = roleRepository.findByRoleCodeAndDeletedFalse("SUPER_ADMIN").orElseThrow();
+        assertThat(rolePermissionRepository.findByRoleId(superAdmin.getId()))
+                .extracting(RolePermissionPo::getPermissionId)
+                .contains(ragPermission.getId(), menuPermission.getId());
+        assertThat(rolePermissionRepository.findByRoleId(unrelatedRole.getId()))
+                .extracting(RolePermissionPo::getPermissionId)
+                .containsExactly(ragPermission.getId());
+    }
+
+    @Test
+    void bootstrapDoesNotOverwriteAnnotationManagedPermissionMetadata() {
+        PermissionPo authSelfPermission = permission("api:rbac:auth:self", PermissionType.API);
+        authSelfPermission.setManaged(true);
+        authSelfPermission.setOwnerApp("rbac");
+        authSelfPermission.setSourceType(RbacResourceSource.ANNOTATION.name());
+        authSelfPermission.setSourceKey("rbac:api:rbac:auth:self");
+        authSelfPermission.setSyncHash("annotation-sync-hash");
+        permissionRepository.save(authSelfPermission);
+
+        adminBootstrap.bootstrap();
+
+        PermissionPo permission = permissionRepository.findByPermCodeAndDeletedFalse("api:rbac:auth:self").orElseThrow();
+        assertThat(permission.getSourceType()).isEqualTo(RbacResourceSource.ANNOTATION.name());
+        assertThat(permission.getSyncHash()).isEqualTo("annotation-sync-hash");
     }
 
     @Test
@@ -172,6 +229,23 @@ class RbacAdminBootstrapTests {
         assertThat(userRoleRepository.findByUserId(admin.getId()))
                 .extracting("roleId")
                 .contains(role.getId());
+    }
+
+    private PermissionPo permission(String code, PermissionType type) {
+        PermissionPo permission = new PermissionPo();
+        permission.setPermCode(code);
+        permission.setPermName(code);
+        permission.setPermType(type);
+        permission.setStatus(PermissionStatus.ENABLED);
+        return permission;
+    }
+
+    private RolePo role(String code) {
+        RolePo role = new RolePo();
+        role.setRoleCode(code);
+        role.setRoleName(code);
+        role.setStatus(RbacStatus.ENABLED);
+        return role;
     }
 
 }

@@ -12,6 +12,8 @@ import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.rag.dto.request.RetrievalSearchRequest;
 import top.egon.mario.rag.dto.response.RetrievalSearchResponse;
 import top.egon.mario.rag.service.RagRetrievalService;
+import top.egon.mario.rbac.po.enums.ApiRiskLevel;
+import top.egon.mario.rbac.service.resource.annotation.RbacApi;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 /**
@@ -24,6 +26,7 @@ public class RagRetrievalController extends ReactiveRagSupport {
 
     private final RagRetrievalService retrievalService;
 
+    @RbacApi(appCode = "rag", code = "api:rag:retrieval:search", name = "RAG 检索调试", risk = ApiRiskLevel.MEDIUM)
     @PostMapping("/search")
     public Mono<ApiResponse<RetrievalSearchResponse>> search(@Valid @RequestBody RetrievalSearchRequest request,
                                                              @AuthenticationPrincipal RbacPrincipal principal) {
