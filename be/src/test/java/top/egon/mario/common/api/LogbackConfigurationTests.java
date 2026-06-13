@@ -13,15 +13,35 @@ import static org.assertj.core.api.Assertions.assertThat;
 class LogbackConfigurationTests {
 
     @Test
-    void logbackPatternIncludesTraceMdcFields() throws IOException {
+    void logbackPatternIncludesTraceAndBusinessMdcFields() throws IOException {
         try (var stream = getClass().getClassLoader().getResourceAsStream("logback-spring.xml")) {
             assertThat(stream).isNotNull();
             String logback = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
 
             assertThat(logback)
-                    .contains("%X{appName")
                     .contains("%X{traceId")
-                    .contains("%X{requestId");
+                    .contains("%X{requestId")
+                    .contains("%X{module")
+                    .contains("%X{scene")
+                    .contains("%X{step")
+                    .contains("%X{result")
+                    .contains("%X{errorMsg")
+                    .contains("%X{costMs");
+        }
+    }
+
+    @Test
+    void logbackWritesOneRollingApplicationLog() throws IOException {
+        try (var stream = getClass().getClassLoader().getResourceAsStream("logback-spring.xml")) {
+            assertThat(stream).isNotNull();
+            String logback = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+
+            assertThat(logback)
+                    .contains("CYBER_MARIO_LOG_PATH")
+                    .contains("APP_FILE")
+                    .contains("ASYNC_APP_FILE")
+                    .contains("SizeAndTimeBasedRollingPolicy")
+                    .contains("totalSizeCap");
         }
     }
 

@@ -9,10 +9,16 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
+import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import top.egon.mario.rbac.service.security.DynamicAuthorizationManager;
 import top.egon.mario.rbac.service.security.JwtAuthenticationWebFilter;
 import top.egon.mario.rbac.service.security.JwtProperties;
+
+import java.util.Map;
 
 /**
  * WebFlux security configuration for RBAC JWT authentication and dynamic API authorization.
@@ -24,6 +30,10 @@ import top.egon.mario.rbac.service.security.JwtProperties;
 @EnableConfigurationProperties(JwtProperties.class)
 @Slf4j
 public class RbacSecurityConfig {
+
+    private static final String ARGON2ID = "argon2id";
+    private static final String BCRYPT = "bcrypt";
+    private static final int ARGON2_MEMORY_KIB = 19 * 1024;
 
     private final JwtAuthenticationWebFilter jwtAuthenticationWebFilter;
     private final DynamicAuthorizationManager dynamicAuthorizationManager;
@@ -40,6 +50,16 @@ public class RbacSecurityConfig {
                 )
                 .addFilterAt(jwtAuthenticationWebFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                 .build();
+    }
+
+    @Bean
+    public static PasswordEncoder passwordEncoder() {
+        DelegatingPasswordEncoder passwordEncoder = new DelegatingPasswordEncoder(ARGON2ID, Map.of(
+                ARGON2ID, new Argon2PasswordEncoder(16, 32, 1, ARGON2_MEMORY_KIB, 2),
+                BCRYPT, new BCryptPasswordEncoder(12)
+        ));
+        passwordEncoder.setDefaultPasswordEncoderForMatches(new BCryptPasswordEncoder());
+        return passwordEncoder;
     }
 
 }

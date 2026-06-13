@@ -53,6 +53,12 @@ mario:
       access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:PT30M}
       refresh-token-ttl: ${JWT_REFRESH_TOKEN_TTL:P14D}
   rbac:
+    bootstrap:
+      admin:
+        enabled: ${RBAC_BOOTSTRAP_ADMIN_ENABLED:false}
+        username: ${RBAC_BOOTSTRAP_ADMIN_USERNAME:admin}
+        password: ${RBAC_BOOTSTRAP_ADMIN_PASSWORD:}
+        require-password-change: ${RBAC_BOOTSTRAP_ADMIN_REQUIRE_PASSWORD_CHANGE:true}
     cache:
       enabled: ${RBAC_CACHE_ENABLED:true}
       api-rules-ttl: ${RBAC_API_RULES_CACHE_TTL:PT10M}

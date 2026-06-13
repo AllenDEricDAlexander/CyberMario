@@ -31,7 +31,7 @@ public class UserPo extends BaseAuditablePo {
     @Column(name = "nickname", length = 64)
     private String nickname;
 
-    @Column(name = "password_hash", nullable = false, length = 128)
+    @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 
     @Column(name = "email", length = 128)
