@@ -1,6 +1,7 @@
 import type {TransferProps} from 'antd'
 import {Drawer, Transfer} from 'antd'
 import {useEffect, useState} from 'react'
+import {voidify} from '../../../utils/async'
 import type {RoleResponse} from '../rbacTypes'
 
 type RoleInheritanceDrawerProps = {
@@ -46,7 +47,7 @@ export function RoleInheritanceDrawer({
         <Drawer
             destroyOnHidden
             extra={<button className="drawer-submit" disabled={saving}
-                           onClick={() => onSubmit(targetKeys.map(Number))}>保存</button>}
+                           onClick={voidify(() => onSubmit(targetKeys.map(Number)))}>保存</button>}
             onClose={onClose}
             open={open}
             title={`角色继承：${role?.roleName ?? ''}`}

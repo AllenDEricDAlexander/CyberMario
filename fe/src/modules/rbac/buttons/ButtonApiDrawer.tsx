@@ -1,5 +1,6 @@
 import {Drawer, Select} from 'antd'
 import {useEffect, useState} from 'react'
+import {voidify} from '../../../utils/async'
 import type {PermissionResponse} from '../rbacTypes'
 
 type ButtonApiDrawerProps = {
@@ -32,7 +33,8 @@ export function ButtonApiDrawer({
     return (
         <Drawer
             destroyOnHidden
-            extra={<button className="drawer-submit" disabled={saving} onClick={() => onSubmit(ids)}>保存</button>}
+            extra={<button className="drawer-submit" disabled={saving}
+                           onClick={voidify(() => onSubmit(ids))}>保存</button>}
             onClose={onClose}
             open={open}
             title={`绑定 API：${button?.permName ?? ''}`}

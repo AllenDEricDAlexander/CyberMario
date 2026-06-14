@@ -3,6 +3,7 @@ import {Alert, Button, Card, Form, Input, Typography} from 'antd'
 import {useState} from 'react'
 import {Navigate, useLocation, useNavigate} from 'react-router'
 import {resolveErrorMessage} from '../../../services/request'
+import {voidify} from '../../../utils/async'
 import {useAuth} from '../authStore'
 import type {LoginRequest} from '../authTypes'
 
@@ -29,7 +30,7 @@ export function LoginPage() {
         setError('')
         try {
             await auth.login(values)
-            navigate(redirectTo, {replace: true})
+            void navigate(redirectTo, {replace: true})
         } catch (requestError) {
             setError(resolveErrorMessage(requestError))
         }
@@ -46,7 +47,7 @@ export function LoginPage() {
 
                 {error && <Alert showIcon className="auth-alert" message={error} type="error"/>}
 
-                <Form<LoginRequest> layout="vertical" onFinish={handleFinish} requiredMark={false}>
+                <Form<LoginRequest> layout="vertical" onFinish={voidify(handleFinish)} requiredMark={false}>
                     <Form.Item
                         label="用户名"
                         name="username"

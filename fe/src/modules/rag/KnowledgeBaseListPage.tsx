@@ -1,8 +1,10 @@
 import {DatabaseOutlined, EditOutlined, PlusOutlined, TeamOutlined} from '@ant-design/icons'
 import {App, Button, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
-import {useEffect, useState} from 'react'
+import {useCallback, useState} from 'react'
 import {PageToolbar} from '../../components/PageToolbar'
+import {usePageData} from '../../hooks/usePageData'
+import {voidify} from '../../utils/async'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {ragButtonCodes} from './ragPermissionCodes'
 import {
@@ -15,44 +17,32 @@ import {
 } from './ragService'
 import type {KnowledgeBaseResponse, KnowledgeBaseUserResponse} from './ragTypes'
 
+type KnowledgeBaseFormValues = Partial<KnowledgeBaseResponse>
+
+type KnowledgeBaseGrantFormValues = {
+    users?: Array<{ userId: number; accessLevel: string }>
+}
+
 function KnowledgeBaseListPage() {
     const auth = useAuth()
     const {message} = App.useApp()
-    const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
-    const [records, setRecords] = useState<KnowledgeBaseResponse[]>([])
-    const [page, setPage] = useState(1)
-    const [size, setSize] = useState(20)
-    const [total, setTotal] = useState(0)
     const [editing, setEditing] = useState<KnowledgeBaseResponse | null>(null)
     const [editorOpen, setEditorOpen] = useState(false)
     const [granting, setGranting] = useState<KnowledgeBaseResponse | null>(null)
     const [grants, setGrants] = useState<KnowledgeBaseUserResponse[]>([])
-    const [form] = Form.useForm()
-    const [grantForm] = Form.useForm()
+    const [form] = Form.useForm<KnowledgeBaseFormValues>()
+    const [grantForm] = Form.useForm<KnowledgeBaseGrantFormValues>()
 
     const canCreate = canUseRbacButton(auth, ragButtonCodes.kb.create)
     const canEdit = canUseRbacButton(auth, ragButtonCodes.kb.edit)
     const canDelete = canUseRbacButton(auth, ragButtonCodes.kb.delete)
     const canGrantUsers = canUseRbacButton(auth, ragButtonCodes.kb.users)
-
-    async function load(nextPage = page, nextSize = size) {
-        setLoading(true)
-        try {
-            const result = await getRagKnowledgeBases({page: nextPage, size: nextSize})
-            setRecords(result.records)
-            setPage(result.page)
-            setSize(result.size)
-            setTotal(result.total)
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    useEffect(() => {
-        void load(1, size)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    const loadKnowledgeBases = useCallback(
+        (request: { page: number; size: number }) => getRagKnowledgeBases(request),
+        [],
+    )
+    const {loading, records, page, size, total, load} = usePageData<KnowledgeBaseResponse>(loadKnowledgeBases)
 
     function openEditor(record?: KnowledgeBaseResponse) {
         setEditing(record ?? null)
@@ -118,7 +108,7 @@ function KnowledgeBaseListPage() {
             width: 100,
             render: (value) => <Tag color={value === 'ENABLED' ? 'success' : 'default'}>{value}</Tag>,
         },
-        {title: '描述', dataIndex: 'description', render: (value) => value || '-'},
+        {title: '描述', dataIndex: 'description', render: (_, record) => record.description || '-'},
         {
             title: '操作',
             fixed: 'right',
@@ -128,9 +118,10 @@ function KnowledgeBaseListPage() {
                     {canEdit &&
                         <Button icon={<EditOutlined/>} size="small" onClick={() => openEditor(record)}>编辑</Button>}
                     {canGrantUsers &&
-                        <Button icon={<TeamOutlined/>} size="small" onClick={() => openGrants(record)}>用户</Button>}
+                        <Button icon={<TeamOutlined/>} size="small"
+                                onClick={() => void openGrants(record)}>用户</Button>}
                     {canDelete && (
-                        <Popconfirm title="确认删除该知识库？" onConfirm={() => remove(record.id)}>
+                        <Popconfirm title="确认删除该知识库？" onConfirm={() => void remove(record.id)}>
                             <Button danger size="small">删除</Button>
                         </Popconfirm>
                     )}
@@ -151,14 +142,14 @@ function KnowledgeBaseListPage() {
                 columns={columns}
                 dataSource={records}
                 loading={loading}
-                pagination={{current: page, pageSize: size, total, showSizeChanger: true, onChange: load}}
+                pagination={{current: page, pageSize: size, total, showSizeChanger: true, onChange: voidify(load)}}
                 rowKey="id"
                 scroll={{x: 1100}}
             />
             <Modal
                 confirmLoading={saving}
                 onCancel={() => setEditorOpen(false)}
-                onOk={saveEditor}
+                onOk={voidify(saveEditor)}
                 open={editorOpen}
                 title={editing ? '编辑知识库' : '新建知识库'}
             >
@@ -191,7 +182,7 @@ function KnowledgeBaseListPage() {
             <Modal
                 confirmLoading={saving}
                 onCancel={() => setGranting(null)}
-                onOk={saveGrants}
+                onOk={voidify(saveGrants)}
                 open={Boolean(granting)}
                 title={`用户授权：${granting?.name ?? ''}`}
             >

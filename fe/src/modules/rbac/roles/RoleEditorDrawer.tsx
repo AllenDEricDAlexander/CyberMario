@@ -1,5 +1,6 @@
 import {Button, Drawer, Form, Input, InputNumber, Select, Switch} from 'antd'
 import {useEffect} from 'react'
+import {voidify} from '../../../utils/async'
 import {RBAC_STATUS_OPTIONS} from '../rbacEnums'
 import type {CreateRoleRequest, RoleResponse, UpdateRoleRequest} from '../rbacTypes'
 
@@ -41,7 +42,8 @@ export function RoleEditorDrawer({open, loading, value, onClose, onSubmit}: Role
             title={editing ? '编辑角色' : '新建角色'}
             width={520}
         >
-            <Form form={form} id="role-editor-form" layout="vertical" onFinish={handleFinish} requiredMark={false}>
+            <Form form={form} id="role-editor-form" layout="vertical" onFinish={voidify(handleFinish)}
+                  requiredMark={false}>
                 <Form.Item label="角色编码" name="roleCode" rules={[{required: true, message: '请输入角色编码'}]}>
                     <Input disabled={editing}/>
                 </Form.Item>

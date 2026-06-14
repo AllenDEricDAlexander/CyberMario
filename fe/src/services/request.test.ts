@@ -48,7 +48,7 @@ describe('requestJson', () => {
     })
 
     test('unwraps normal JSON responses including backend Mono responses', async () => {
-        const fetchMock = vi.fn(async () => jsonResponse(apiResponse({name: 'CyberMario'})))
+        const fetchMock = vi.fn(() => jsonResponse(apiResponse({name: 'CyberMario'})))
         vi.stubGlobal('fetch', fetchMock)
 
         await expect(requestJson<{ name: string }>('/api/profile', {auth: false})).resolves.toEqual({
@@ -60,7 +60,7 @@ describe('requestJson', () => {
     })
 
     test('rejects business errors with ApiRequestError details', async () => {
-        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(
+        vi.stubGlobal('fetch', vi.fn(() => jsonResponse(
             apiResponse(null, {code: 'RBAC_DENIED', message: '无权访问', traceId: 'trace-1'}),
         )))
 
@@ -84,7 +84,7 @@ describe('streamJsonLines', () => {
     })
 
     test('reads fragmented NDJSON chunks from streaming responses', async () => {
-        vi.stubGlobal('fetch', vi.fn(async () => ndjsonResponse([
+        vi.stubGlobal('fetch', vi.fn(() => ndjsonResponse([
             '{"type":"delta","data":{"content":"Hel',
             'lo"}}\n{"type":"done","data":{"finishReason":"stop"}}\n',
         ])))
@@ -102,7 +102,7 @@ describe('streamJsonLines', () => {
     })
 
     test('uses backend ApiResponse details for failed streaming responses', async () => {
-        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(
+        vi.stubGlobal('fetch', vi.fn(() => jsonResponse(
             apiResponse(null, {code: 'RAG_STREAM_FAILED', message: '流式请求失败', traceId: 'trace-stream'}),
             {status: 503},
         )))

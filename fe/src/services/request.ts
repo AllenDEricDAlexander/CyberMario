@@ -2,7 +2,7 @@ import {ApiRequestError, type ApiResponse} from '../types/api'
 import {publishResponsePermissionVersion} from './permissionVersionEvents'
 import {clearTokens, getAccessToken, getRefreshToken, saveTokens, shouldRefreshAccessToken} from './tokenStorage'
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
+export const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL ?? '')
 const TRACE_ID_HEADER = 'X-Trace-Id'
 const ACCESS_TOKEN_REFRESH_SKEW_MILLISECONDS = 60_000
 

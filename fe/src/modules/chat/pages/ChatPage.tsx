@@ -1,6 +1,6 @@
 import {ReloadOutlined, SendOutlined, StopOutlined} from '@ant-design/icons'
 import {Avatar, Button, Card, Input, Space, Tag, Typography} from 'antd'
-import {type ComponentProps, useMemo, useRef, useState} from 'react'
+import {type FormEvent, useMemo, useRef, useState} from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {PageToolbar} from '../../../components/PageToolbar'
@@ -29,7 +29,7 @@ export function ChatPage() {
     const canSend = input.trim().length > 0 && !isSending
     const threadLabel = useMemo(() => threadId || 'New Session', [threadId])
 
-    const handleSubmit: ComponentProps<'form'>['onSubmit'] = async (event) => {
+    async function submitMessage(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
 
         const message = input.trim()
@@ -190,7 +190,7 @@ export function ChatPage() {
 
                 {error && <Typography.Text type="danger">{error}</Typography.Text>}
 
-                <form className="antd-composer" onSubmit={handleSubmit}>
+                <form className="antd-composer" onSubmit={(event) => void submitMessage(event)}>
                     <Input.TextArea
                         placeholder="问 CyberMario 一个问题..."
                         rows={3}

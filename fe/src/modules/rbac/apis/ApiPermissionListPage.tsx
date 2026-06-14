@@ -2,10 +2,12 @@ import {EditOutlined, PlusOutlined} from '@ant-design/icons'
 import {Alert, App, Button, Popconfirm, Space, Table, Tooltip} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import type {ReactNode} from 'react'
-import {useEffect, useMemo, useState} from 'react'
+import {useCallback, useEffect, useMemo, useState} from 'react'
 import {ApiRiskTag} from '../../../components/ApiRiskTag'
 import {PageToolbar} from '../../../components/PageToolbar'
 import {StatusTag} from '../../../components/StatusTag'
+import {usePageData} from '../../../hooks/usePageData'
+import {voidify} from '../../../utils/async'
 import {enumDesc} from '../../../utils/enum'
 import {canUseRbacButton, useAuth} from '../../auth/authStore'
 import {
@@ -22,36 +24,18 @@ import {PermissionEditorDrawer} from '../permissions/PermissionEditorDrawer'
 function ApiPermissionListPage() {
     const {message} = App.useApp()
     const auth = useAuth()
-    const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
-    const [permissions, setPermissions] = useState<PermissionResponse[]>([])
     const [menus, setMenus] = useState<MenuTreeResponse[]>([])
-    const [page, setPage] = useState(1)
-    const [size, setSize] = useState(20)
-    const [total, setTotal] = useState(0)
     const [editingApi, setEditingApi] = useState<PermissionResponse | null>(null)
     const [editorOpen, setEditorOpen] = useState(false)
-
-    async function load(nextPage = page, nextSize = size) {
-        setLoading(true)
-        try {
-            const [pageResult, menuTree] = await Promise.all([
-                getApiPermissions({page: nextPage, size: nextSize}),
-                getMenuTree(),
-            ])
-            setPermissions(pageResult.records)
-            setMenus(menuTree)
-            setPage(pageResult.page)
-            setSize(pageResult.size)
-            setTotal(pageResult.total)
-        } finally {
-            setLoading(false)
-        }
-    }
+    const loadApiPermissions = useCallback(
+        (request: { page: number; size: number }) => getApiPermissions(request),
+        [],
+    )
+    const {loading, records: permissions, page, size, total, load} = usePageData<PermissionResponse>(loadApiPermissions)
 
     useEffect(() => {
-        void load(1, size)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        void getMenuTree().then(setMenus)
     }, [])
 
     const apiPermissions = useMemo(() => permissions, [permissions])
@@ -67,7 +51,7 @@ function ApiPermissionListPage() {
         {title: '匹配', width: 110, render: (_, record) => enumDesc(record.api?.matcherType)},
         {title: '公开', width: 80, render: (_, record) => record.api?.publicFlag ? '是' : '否'},
         {title: '风险', width: 90, render: (_, record) => <ApiRiskTag value={record.api?.riskLevel}/>},
-        {title: '状态', dataIndex: 'status', width: 100, render: (value) => <StatusTag value={value}/>},
+        {title: '状态', dataIndex: 'status', width: 100, render: (_, record) => <StatusTag value={record.status}/>},
         {
             title: '操作',
             fixed: 'right',
@@ -84,7 +68,7 @@ function ApiPermissionListPage() {
         }
         if (canDelete) {
             actions.push(
-                <Popconfirm key="delete" title="确认删除该 API 权限？" onConfirm={() => remove(record.id)}>
+                <Popconfirm key="delete" title="确认删除该 API 权限？" onConfirm={() => void remove(record.id)}>
                     <Button danger size="small">删除</Button>
                 </Popconfirm>,
             )
@@ -147,7 +131,7 @@ function ApiPermissionListPage() {
                 columns={columns}
                 dataSource={apiPermissions}
                 loading={loading}
-                pagination={{current: page, pageSize: size, total, showSizeChanger: true, onChange: load}}
+                pagination={{current: page, pageSize: size, total, showSizeChanger: true, onChange: voidify(load)}}
                 rowKey="id"
                 scroll={{x: 1200}}
             />

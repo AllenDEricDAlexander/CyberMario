@@ -15,9 +15,9 @@ describe('ragService', () => {
     test('builds encoded page query strings for normal JSON APIs', async () => {
         const {requestJson} = await import('../../services/request')
 
-        getRagKnowledgeBases({})
-        getRagDocuments({page: 2, size: 30, knowledgeBaseId: 10})
-        getRagIngestionJobs({page: 3, size: 40, knowledgeBaseId: 20})
+        void getRagKnowledgeBases({})
+        void getRagDocuments({page: 2, size: 30, knowledgeBaseId: 10})
+        void getRagIngestionJobs({page: 3, size: 40, knowledgeBaseId: 20})
 
         expect(requestJson).toHaveBeenNthCalledWith(1, '/api/rag/knowledge-bases?page=1&size=20')
         expect(requestJson).toHaveBeenNthCalledWith(2, '/api/rag/documents?page=2&size=30&knowledgeBaseId=10')
@@ -29,7 +29,7 @@ describe('ragService', () => {
         const signal = new AbortController().signal
         const onChunk = vi.fn()
 
-        streamRagChat({
+        void streamRagChat({
             question: 'hello',
             knowledgeBaseIds: [1],
         }, signal, onChunk)

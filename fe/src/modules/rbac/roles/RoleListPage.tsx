@@ -2,9 +2,11 @@ import {BranchesOutlined, EditOutlined, PlusOutlined, SafetyOutlined} from '@ant
 import {App, Button, Popconfirm, Space, Table, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import type {ReactNode} from 'react'
-import {useEffect, useState} from 'react'
+import {useCallback, useEffect, useState} from 'react'
 import {PageToolbar} from '../../../components/PageToolbar'
 import {StatusTag} from '../../../components/StatusTag'
+import {usePageData} from '../../../hooks/usePageData'
+import {voidify} from '../../../utils/async'
 import {canUseRbacButton, useAuth} from '../../auth/authStore'
 import {rbacButtonCodes} from '../rbacPermissionCodes'
 import {
@@ -27,13 +29,8 @@ import {RolePermissionDrawer} from './RolePermissionDrawer'
 function RoleListPage() {
     const {message} = App.useApp()
     const auth = useAuth()
-    const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
-    const [roles, setRoles] = useState<RoleResponse[]>([])
     const [permissions, setPermissions] = useState<PermissionResponse[]>([])
-    const [page, setPage] = useState(1)
-    const [size, setSize] = useState(20)
-    const [total, setTotal] = useState(0)
     const [editingRole, setEditingRole] = useState<RoleResponse | null>(null)
     const [editorOpen, setEditorOpen] = useState(false)
     const [permissionRole, setPermissionRole] = useState<RoleResponse | null>(null)
@@ -41,19 +38,11 @@ function RoleListPage() {
     const [inheritanceRole, setInheritanceRole] = useState<RoleResponse | null>(null)
     const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([])
     const [effectiveIds, setEffectiveIds] = useState<number[]>([])
-
-    async function loadRoles(nextPage = page, nextSize = size) {
-        setLoading(true)
-        try {
-            const result = await getRoles({page: nextPage, size: nextSize})
-            setRoles(result.records)
-            setPage(result.page)
-            setSize(result.size)
-            setTotal(result.total)
-        } finally {
-            setLoading(false)
-        }
-    }
+    const loadRolesPage = useCallback(
+        (request: { page: number; size: number }) => getRoles(request),
+        [],
+    )
+    const {loading, records: roles, page, size, total, load: loadRoles} = usePageData<RoleResponse>(loadRolesPage)
 
     async function loadPermissions() {
         const result = await getPermissions({page: 1, size: 500})
@@ -61,9 +50,7 @@ function RoleListPage() {
     }
 
     useEffect(() => {
-        void loadRoles(1, size)
         void loadPermissions()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     const canCreate = canUseRbacButton(auth, rbacButtonCodes.role.create)
@@ -75,10 +62,15 @@ function RoleListPage() {
     const columns: ColumnsType<RoleResponse> = [
         {title: '角色编码', dataIndex: 'roleCode', width: 180},
         {title: '角色名称', dataIndex: 'roleName', width: 160},
-        {title: '状态', dataIndex: 'status', width: 100, render: (value) => <StatusTag value={value}/>},
+        {title: '状态', dataIndex: 'status', width: 100, render: (_, record) => <StatusTag value={record.status}/>},
         {title: '排序', dataIndex: 'sortNo', width: 90},
-        {title: '内置', dataIndex: 'builtIn', width: 90, render: (value) => value ? <Tag color="blue">内置</Tag> : '-'},
-        {title: '描述', dataIndex: 'description', render: (value) => value || '-'},
+        {
+            title: '内置',
+            dataIndex: 'builtIn',
+            width: 90,
+            render: (_, record) => record.builtIn ? <Tag color="blue">内置</Tag> : '-'
+        },
+        {title: '描述', dataIndex: 'description', render: (_, record) => record.description || '-'},
         {
             title: '操作',
             fixed: 'right',
@@ -95,19 +87,19 @@ function RoleListPage() {
         }
         if (canAssignPermissions) {
             actions.push(<Button icon={<SafetyOutlined/>} key="permissions" size="small"
-                                 onClick={() => openPermissions(record)}>权限</Button>)
+                                 onClick={() => void openPermissions(record)}>权限</Button>)
         }
         if (canEditInheritance) {
             actions.push(
                 <Button icon={<BranchesOutlined/>} key="inheritance" size="small"
-                        onClick={() => openInheritance(record)}>
+                        onClick={() => void openInheritance(record)}>
                     继承
                 </Button>,
             )
         }
         if (canDelete) {
             actions.push(
-                <Popconfirm key="delete" title="确认删除该角色？" onConfirm={() => removeRole(record.id)}>
+                <Popconfirm key="delete" title="确认删除该角色？" onConfirm={() => void removeRole(record.id)}>
                     <Button danger size="small">删除</Button>
                 </Popconfirm>,
             )
@@ -124,7 +116,7 @@ function RoleListPage() {
         setSaving(true)
         try {
             if (editingRole) {
-                await updateRole(editingRole.id, request as UpdateRoleRequest)
+                await updateRole(editingRole.id, request)
             } else {
                 await createRole(request as CreateRoleRequest)
             }
@@ -201,7 +193,7 @@ function RoleListPage() {
                     pageSize: size,
                     total,
                     showSizeChanger: true,
-                    onChange: loadRoles,
+                    onChange: voidify(loadRoles),
                 }}
                 rowKey="id"
                 scroll={{x: 1160}}

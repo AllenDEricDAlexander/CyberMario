@@ -2,9 +2,11 @@ import {FileAddOutlined, ReloadOutlined} from '@ant-design/icons'
 import {App, Button, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Upload} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import type {UploadFile} from 'antd/es/upload/interface'
-import {useEffect, useState} from 'react'
+import {useCallback, useEffect, useState} from 'react'
 import {useNavigate} from 'react-router'
 import {PageToolbar} from '../../components/PageToolbar'
+import {usePageData} from '../../hooks/usePageData'
+import {voidify} from '../../utils/async'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {ragButtonCodes} from './ragPermissionCodes'
 import {
@@ -17,47 +19,43 @@ import {
 } from './ragService'
 import type {KnowledgeBaseResponse, RagDocumentResponse} from './ragTypes'
 
+type DocumentUploadFormValues = {
+    knowledgeBaseId: number
+    parseImmediately: boolean
+}
+
+type TextImportFormValues = {
+    knowledgeBaseId: number
+    title: string
+    content: string
+    parseImmediately: boolean
+}
+
 function DocumentListPage() {
     const auth = useAuth()
     const {message} = App.useApp()
     const navigate = useNavigate()
-    const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
-    const [records, setRecords] = useState<RagDocumentResponse[]>([])
     const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseResponse[]>([])
-    const [page, setPage] = useState(1)
-    const [size, setSize] = useState(20)
-    const [total, setTotal] = useState(0)
     const [uploadOpen, setUploadOpen] = useState(false)
     const [textOpen, setTextOpen] = useState(false)
     const [fileList, setFileList] = useState<UploadFile[]>([])
-    const [uploadForm] = Form.useForm()
-    const [textForm] = Form.useForm()
+    const [uploadForm] = Form.useForm<DocumentUploadFormValues>()
+    const [textForm] = Form.useForm<TextImportFormValues>()
 
     const canUpload = canUseRbacButton(auth, ragButtonCodes.doc.upload)
     const canDelete = canUseRbacButton(auth, ragButtonCodes.doc.delete)
     const canReindex = canUseRbacButton(auth, ragButtonCodes.doc.reindex)
-
-    async function load(nextPage = page, nextSize = size) {
-        setLoading(true)
-        try {
-            const [documentPage, kbPage] = await Promise.all([
-                getRagDocuments({page: nextPage, size: nextSize}),
-                getRagKnowledgeBases({page: 1, size: 200}),
-            ])
-            setRecords(documentPage.records)
-            setKnowledgeBases(kbPage.records)
-            setPage(documentPage.page)
-            setSize(documentPage.size)
-            setTotal(documentPage.total)
-        } finally {
-            setLoading(false)
-        }
-    }
+    const loadDocuments = useCallback(
+        (request: { page: number; size: number }) => getRagDocuments(request),
+        [],
+    )
+    const {loading, records, page, size, total, load} = usePageData<RagDocumentResponse>(loadDocuments)
 
     useEffect(() => {
-        void load(1, size)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        void getRagKnowledgeBases({page: 1, size: 200}).then((result) => {
+            setKnowledgeBases(result.records)
+        })
     }, [])
 
     async function submitUpload() {
@@ -114,7 +112,7 @@ function DocumentListPage() {
             dataIndex: 'displayName',
             width: 260,
             render: (value, record) => <Button type="link"
-                                               onClick={() => navigate(`/rag/documents/${record.id}`)}>{value}</Button>
+                                               onClick={() => void navigate(`/rag/documents/${record.id}`)}>{value}</Button>
         },
         {title: '知识库', dataIndex: 'knowledgeBaseId', width: 100},
         {title: '类型', dataIndex: 'fileType', width: 90, render: (value) => <Tag>{value}</Tag>},
@@ -128,7 +126,7 @@ function DocumentListPage() {
         },
         {title: '切片', dataIndex: 'chunkCount', width: 90},
         {title: '已入库', dataIndex: 'indexedChunkCount', width: 90},
-        {title: '错误', dataIndex: 'errorMessage', render: (value) => value || '-'},
+        {title: '错误', dataIndex: 'errorMessage', render: (_, record) => record.errorMessage || '-'},
         {
             title: '操作',
             fixed: 'right',
@@ -136,9 +134,10 @@ function DocumentListPage() {
             render: (_, record) => (
                 <Space>
                     {canReindex &&
-                        <Button icon={<ReloadOutlined/>} size="small" onClick={() => reindex(record.id)}>重建</Button>}
+                        <Button icon={<ReloadOutlined/>} size="small"
+                                onClick={() => void reindex(record.id)}>重建</Button>}
                     {canDelete && (
-                        <Popconfirm title="确认删除该文档和切片？" onConfirm={() => remove(record.id)}>
+                        <Popconfirm title="确认删除该文档和切片？" onConfirm={() => void remove(record.id)}>
                             <Button danger size="small">删除</Button>
                         </Popconfirm>
                     )}
@@ -166,11 +165,12 @@ function DocumentListPage() {
                 columns={columns}
                 dataSource={records}
                 loading={loading}
-                pagination={{current: page, pageSize: size, total, showSizeChanger: true, onChange: load}}
+                pagination={{current: page, pageSize: size, total, showSizeChanger: true, onChange: voidify(load)}}
                 rowKey="id"
                 scroll={{x: 1280}}
             />
-            <Modal confirmLoading={saving} onCancel={() => setUploadOpen(false)} onOk={submitUpload} open={uploadOpen}
+            <Modal confirmLoading={saving} onCancel={() => setUploadOpen(false)} onOk={voidify(submitUpload)}
+                   open={uploadOpen}
                    title="上传文档">
                 <Form form={uploadForm} initialValues={{parseImmediately: true}} layout="vertical">
                     <Form.Item label="知识库" name="knowledgeBaseId"
@@ -192,7 +192,8 @@ function DocumentListPage() {
                     </Upload.Dragger>
                 </Form>
             </Modal>
-            <Modal confirmLoading={saving} onCancel={() => setTextOpen(false)} onOk={submitText} open={textOpen}
+            <Modal confirmLoading={saving} onCancel={() => setTextOpen(false)} onOk={voidify(submitText)}
+                   open={textOpen}
                    title="导入纯文本">
                 <Form form={textForm} initialValues={{parseImmediately: true}} layout="vertical">
                     <Form.Item label="知识库" name="knowledgeBaseId"

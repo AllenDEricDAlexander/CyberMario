@@ -13,10 +13,10 @@ describe('rbacService', () => {
     test('builds encoded page query strings for RBAC list APIs', async () => {
         const {requestJson} = await import('../../services/request')
 
-        getUsers({page: 2, size: 30})
-        getRoles({page: 3, size: 40})
-        getPermissions({})
-        getApiPermissions({})
+        void getUsers({page: 2, size: 30})
+        void getRoles({page: 3, size: 40})
+        void getPermissions({})
+        void getApiPermissions({})
 
         expect(requestJson).toHaveBeenNthCalledWith(1, '/api/admin/users?page=2&size=30')
         expect(requestJson).toHaveBeenNthCalledWith(2, '/api/admin/roles?page=3&size=40')

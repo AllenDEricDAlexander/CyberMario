@@ -2,18 +2,27 @@ import {SearchOutlined} from '@ant-design/icons'
 import {App, Button, Card, Form, Input, InputNumber, List, Select, Space, Tag, Typography} from 'antd'
 import {useEffect, useState} from 'react'
 import {PageToolbar} from '../../components/PageToolbar'
+import {voidify} from '../../utils/async'
 import {getRagKnowledgeBases, searchRagRetrieval} from './ragService'
 import type {KnowledgeBaseResponse, RetrievalSearchResponse} from './ragTypes'
 
+type RetrievalLabFormValues = {
+    query: string
+    knowledgeBaseIds: number[]
+    topK: number
+    similarityThreshold: number
+    searchMode: string
+}
+
 function RetrievalLabPage() {
     const {message} = App.useApp()
-    const [form] = Form.useForm()
+    const [form] = Form.useForm<RetrievalLabFormValues>()
     const [loading, setLoading] = useState(false)
     const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseResponse[]>([])
     const [result, setResult] = useState<RetrievalSearchResponse | null>(null)
 
     useEffect(() => {
-        getRagKnowledgeBases({page: 1, size: 200}).then((page) => setKnowledgeBases(page.records))
+        void getRagKnowledgeBases({page: 1, size: 200}).then((page) => setKnowledgeBases(page.records))
     }, [])
 
     async function search() {
@@ -68,7 +77,8 @@ function RetrievalLabPage() {
                             ]}/>
                         </Form.Item>
                     </Space>
-                    <Button icon={<SearchOutlined/>} loading={loading} onClick={search} type="primary">开始检索</Button>
+                    <Button icon={<SearchOutlined/>} loading={loading} onClick={voidify(search)}
+                            type="primary">开始检索</Button>
                 </Form>
             </Card>
             <Card style={{marginTop: 16}}

@@ -138,7 +138,7 @@ export function flattenMenuKeys(items: AdminMenuItem[]) {
     for (const item of items) {
         if (!item) continue
         if ('children' in item && item.children) {
-            keys.push(...flattenMenuKeys(item.children as AdminMenuItem[]))
+            keys.push(...flattenMenuKeys(item.children))
             continue
         }
         const key = String(item.key)
@@ -163,7 +163,7 @@ function filterMenuItems(items: AdminMenuItem[], allowedPaths: Set<string>): Adm
             return []
         }
         if ('children' in item && item.children) {
-            const children = filterMenuItems(item.children as AdminMenuItem[], allowedPaths)
+            const children = filterMenuItems(item.children, allowedPaths)
             return children.length ? [{...item, children}] : []
         }
         const key = String(item.key)

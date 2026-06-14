@@ -1,5 +1,6 @@
 import {Button, Drawer, Form, Input, InputNumber, Select, Switch, TreeSelect} from 'antd'
 import {useEffect, useMemo} from 'react'
+import {voidify} from '../../../utils/async'
 import {toTreeSelectOptions} from '../../../utils/tree'
 import {
     API_MATCHER_TYPE_OPTIONS,
@@ -102,7 +103,7 @@ export function PermissionEditorDrawer({
                 form={form}
                 id="permission-editor-form"
                 layout="vertical"
-                onFinish={handleFinish}
+                onFinish={voidify(handleFinish)}
                 requiredMark={false}
             >
                 <Form.Item label="权限编码" name="permCode" rules={[{required: true, message: '请输入权限编码'}]}>

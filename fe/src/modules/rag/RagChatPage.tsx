@@ -16,11 +16,17 @@ type ChatMessage = {
     traceId?: string
 }
 
+type RagChatFormValues = {
+    knowledgeBaseIds: number[]
+    topK: number
+    similarityThreshold: number
+}
+
 const markdownPlugins = [remarkGfm]
 
 function RagChatPage() {
     const {message} = App.useApp()
-    const [form] = Form.useForm()
+    const [form] = Form.useForm<RagChatFormValues>()
     const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseResponse[]>([])
     const [messages, setMessages] = useState<ChatMessage[]>([
         {id: 'welcome', role: 'assistant', content: '我是 CyberMario RAG 问答助手，请先选择知识库再提问。'},
@@ -32,7 +38,7 @@ function RagChatPage() {
     const abortRef = useRef<AbortController | null>(null)
 
     useEffect(() => {
-        getRagKnowledgeBases({page: 1, size: 200}).then((page) => setKnowledgeBases(page.records))
+        void getRagKnowledgeBases({page: 1, size: 200}).then((page) => setKnowledgeBases(page.records))
     }, [])
 
     async function send() {
@@ -193,7 +199,7 @@ function RagChatPage() {
                     {loading ? (
                         <Button icon={<StopOutlined/>} onClick={stop} type="primary">停止</Button>
                     ) : (
-                        <Button icon={<SendOutlined/>} onClick={send} type="primary">发送</Button>
+                        <Button icon={<SendOutlined/>} onClick={() => void send()} type="primary">发送</Button>
                     )}
                 </Space.Compact>
             </Card>

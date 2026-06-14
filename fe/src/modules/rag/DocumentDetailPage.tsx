@@ -1,8 +1,10 @@
 import {Button, Card, Popconfirm, Table, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
-import {useEffect, useState} from 'react'
+import {useCallback} from 'react'
 import {useNavigate, useParams} from 'react-router'
 import {PageToolbar} from '../../components/PageToolbar'
+import {usePageData} from '../../hooks/usePageData'
+import {voidify} from '../../utils/async'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {ragButtonCodes} from './ragPermissionCodes'
 import {getRagChunks, updateRagChunkEnabled} from './ragService'
@@ -13,32 +15,14 @@ function DocumentDetailPage() {
     const navigate = useNavigate()
     const params = useParams()
     const documentId = Number(params.documentId)
-    const [loading, setLoading] = useState(false)
-    const [records, setRecords] = useState<RagChunkResponse[]>([])
-    const [page, setPage] = useState(1)
-    const [size, setSize] = useState(20)
-    const [total, setTotal] = useState(0)
     const canToggle = canUseRbacButton(auth, ragButtonCodes.chunk.toggle)
-
-    async function load(nextPage = page, nextSize = size) {
-        setLoading(true)
-        try {
-            const result = await getRagChunks(documentId, {page: nextPage, size: nextSize})
-            setRecords(result.records)
-            setPage(result.page)
-            setSize(result.size)
-            setTotal(result.total)
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    useEffect(() => {
-        if (documentId) {
-            void load(1, size)
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [documentId])
+    const loadChunks = useCallback(
+        (request: { page: number; size: number }) => getRagChunks(documentId, request),
+        [documentId],
+    )
+    const {loading, records, page, size, total, load} = usePageData<RagChunkResponse>(loadChunks, {
+        enabled: Boolean(documentId),
+    })
 
     async function toggle(record: RagChunkResponse) {
         await updateRagChunkEnabled(record.id, !record.enabled)
@@ -67,7 +51,8 @@ function DocumentDetailPage() {
             title: '操作',
             width: 100,
             render: (_, record) => canToggle ? (
-                <Popconfirm title={`确认${record.enabled ? '禁用' : '启用'}该切片？`} onConfirm={() => toggle(record)}>
+                <Popconfirm title={`确认${record.enabled ? '禁用' : '启用'}该切片？`}
+                            onConfirm={() => void toggle(record)}>
                     <Button size="small">{record.enabled ? '禁用' : '启用'}</Button>
                 </Popconfirm>
             ) : '-',
@@ -77,7 +62,7 @@ function DocumentDetailPage() {
     return (
         <>
             <PageToolbar
-                actions={<Button onClick={() => navigate('/rag/documents')}>返回</Button>}
+                actions={<Button onClick={() => void navigate('/rag/documents')}>返回</Button>}
                 description="查看文档切片、元数据和检索启用状态。"
                 title={`文档切片 #${documentId || '-'}`}
             />
@@ -86,7 +71,7 @@ function DocumentDetailPage() {
                     columns={columns}
                     dataSource={records}
                     loading={loading}
-                    pagination={{current: page, pageSize: size, total, showSizeChanger: true, onChange: load}}
+                    pagination={{current: page, pageSize: size, total, showSizeChanger: true, onChange: voidify(load)}}
                     rowKey="id"
                 />
             </Card>

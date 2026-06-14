@@ -3,6 +3,7 @@ import {Avatar, Button, Dropdown, Layout, Menu, Result, Space, Typography} from 
 import {useEffect, useMemo, useState} from 'react'
 import {Outlet, useLocation, useNavigate} from 'react-router'
 import {hasAdminPermissionBypass, useAuth} from '../../modules/auth/authStore'
+import {voidify} from '../../utils/async'
 import {buildAuthorizedAdminMenuItems, canAccessAdminPath, findMenuPath, flattenMenuKeys} from './menu'
 import {isCurrentPathAffectedByLostButtons} from './permissionImpact'
 
@@ -32,7 +33,7 @@ export function AdminLayout() {
 
     async function handleLogout() {
         await auth.logout()
-        navigate('/login', {replace: true})
+        void navigate('/login', {replace: true})
     }
 
     useEffect(() => {
@@ -64,7 +65,7 @@ export function AdminLayout() {
                     onClick={({key}) => {
                         const path = findMenuPath(String(key))
                         if (path) {
-                            navigate(path)
+                            void navigate(path)
                         }
                     }}
                     selectedKeys={selectedKeys}
@@ -88,7 +89,7 @@ export function AdminLayout() {
                                         key: 'logout',
                                         icon: <LogoutOutlined/>,
                                         label: '退出登录',
-                                        onClick: handleLogout,
+                                        onClick: voidify(handleLogout),
                                     },
                                 ],
                             }}

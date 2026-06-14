@@ -1,5 +1,6 @@
 import {Button, Drawer, Form, Input, Select, Switch} from 'antd'
 import {useEffect} from 'react'
+import {voidify} from '../../../utils/async'
 import {RBAC_STATUS_OPTIONS} from '../rbacEnums'
 import type {CreateUserRequest, UpdateUserRequest, UserResponse} from '../rbacTypes'
 
@@ -49,7 +50,8 @@ export function UserEditorDrawer({open, loading, value, onClose, onSubmit}: User
             title={editing ? '编辑用户' : '新建用户'}
             width={520}
         >
-            <Form form={form} id="user-editor-form" layout="vertical" onFinish={handleFinish} requiredMark={false}>
+            <Form form={form} id="user-editor-form" layout="vertical" onFinish={voidify(handleFinish)}
+                  requiredMark={false}>
                 <Form.Item label="用户名" name="username" rules={[{required: true, message: '请输入用户名'}]}>
                     <Input disabled={editing}/>
                 </Form.Item>

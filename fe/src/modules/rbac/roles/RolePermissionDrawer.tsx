@@ -2,6 +2,7 @@ import {Checkbox, Drawer, Space, Switch, Tree} from 'antd'
 import type {DataNode} from 'antd/es/tree'
 import type {Key} from 'react'
 import {useEffect, useMemo, useState} from 'react'
+import {voidify} from '../../../utils/async'
 import {enumDesc} from '../../../utils/enum'
 import type {PermissionResponse, RoleResponse} from '../rbacTypes'
 
@@ -46,7 +47,7 @@ export function RolePermissionDrawer({
         <Drawer
             destroyOnHidden
             extra={<button className="drawer-submit" disabled={saving}
-                           onClick={() => onSubmit(checkedKeys.map(Number), syncButtonApis)}>保存</button>}
+                           onClick={voidify(() => onSubmit(checkedKeys.map(Number), syncButtonApis))}>保存</button>}
             onClose={onClose}
             open={open}
             title={`分配权限：${role?.roleName ?? ''}`}

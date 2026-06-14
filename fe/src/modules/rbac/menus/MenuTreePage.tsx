@@ -88,7 +88,7 @@ function MenuTreePage() {
         }
         if (canDelete) {
             actions.push(
-                <Popconfirm key="delete" title="确认删除该菜单？" onConfirm={() => remove(Number(node.key))}>
+                <Popconfirm key="delete" title="确认删除该菜单？" onConfirm={() => void remove(Number(node.key))}>
                     <Button danger size="small">删除</Button>
                 </Popconfirm>,
             )

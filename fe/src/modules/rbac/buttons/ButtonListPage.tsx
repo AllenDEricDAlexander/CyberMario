@@ -2,7 +2,7 @@ import {ApiOutlined, EditOutlined, PlusOutlined} from '@ant-design/icons'
 import {App, Button, Empty, Popconfirm, Select, Space, Table} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import type {ReactNode} from 'react'
-import {useEffect, useMemo, useState} from 'react'
+import {useCallback, useEffect, useMemo, useState} from 'react'
 import {PageToolbar} from '../../../components/PageToolbar'
 import {StatusTag} from '../../../components/StatusTag'
 import {enumEquals} from '../../../utils/enum'
@@ -37,7 +37,7 @@ function ButtonListPage() {
     const [apiButton, setApiButton] = useState<PermissionResponse | null>(null)
     const [selectedApiIds, setSelectedApiIds] = useState<number[]>([])
 
-    async function loadBase() {
+    const loadBase = useCallback(async () => {
         const [menuTree, pageResult] = await Promise.all([
             getMenuTree(),
             getPermissions({page: 1, size: 500}),
@@ -45,12 +45,12 @@ function ButtonListPage() {
         setMenus(menuTree)
         setPermissions(pageResult.records)
         const firstMenu = flattenTree(menuTree)[0]
-        if (firstMenu && !selectedMenuId) {
-            setSelectedMenuId(firstMenu.permissionId)
+        if (firstMenu) {
+            setSelectedMenuId((current) => current ?? firstMenu.permissionId)
         }
-    }
+    }, [])
 
-    async function loadButtons(menuId = selectedMenuId) {
+    const loadButtons = useCallback(async (menuId = selectedMenuId) => {
         if (!menuId) {
             setButtons([])
             return
@@ -61,17 +61,15 @@ function ButtonListPage() {
         } finally {
             setLoading(false)
         }
-    }
+    }, [selectedMenuId])
 
     useEffect(() => {
         void loadBase()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [loadBase])
 
     useEffect(() => {
         void loadButtons(selectedMenuId)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedMenuId])
+    }, [loadButtons, selectedMenuId])
 
     const apiPermissions = useMemo(
         () => permissions.filter((permission) => enumEquals(permission.permType, 3) || enumEquals(permission.permType, 'API')),
@@ -94,7 +92,7 @@ function ButtonListPage() {
         {title: '按钮名称', dataIndex: 'permName', width: 160},
         {title: '按钮 Key', width: 120, render: (_, record) => record.button?.buttonKey || '-'},
         {title: '前端动作', width: 180, render: (_, record) => record.button?.frontendAction || '-'},
-        {title: '状态', dataIndex: 'status', width: 100, render: (value) => <StatusTag value={value}/>},
+        {title: '状态', dataIndex: 'status', width: 100, render: (_, record) => <StatusTag value={record.status}/>},
         {
             title: '操作',
             fixed: 'right',
@@ -110,12 +108,12 @@ function ButtonListPage() {
                                  onClick={() => openEditor(record)}>编辑</Button>)
         }
         if (canBindApis) {
-            actions.push(<Button icon={<ApiOutlined/>} key="apis" size="small" onClick={() => openApis(record)}>绑定
+            actions.push(<Button icon={<ApiOutlined/>} key="apis" size="small" onClick={() => void openApis(record)}>绑定
                 API</Button>)
         }
         if (canDelete) {
             actions.push(
-                <Popconfirm key="delete" title="确认删除该按钮？" onConfirm={() => remove(record.id)}>
+                <Popconfirm key="delete" title="确认删除该按钮？" onConfirm={() => void remove(record.id)}>
                     <Button danger size="small">删除</Button>
                 </Popconfirm>,
             )

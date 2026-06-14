@@ -2,10 +2,12 @@ import {EditOutlined, PlusOutlined} from '@ant-design/icons'
 import {App, Button, Popconfirm, Space, Table} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import type {ReactNode} from 'react'
-import {useEffect, useMemo, useState} from 'react'
+import {useCallback, useEffect, useMemo, useState} from 'react'
 import {PageToolbar} from '../../../components/PageToolbar'
 import {PermissionTypeTag} from '../../../components/PermissionTypeTag'
 import {StatusTag} from '../../../components/StatusTag'
+import {usePageData} from '../../../hooks/usePageData'
+import {voidify} from '../../../utils/async'
 import {enumEquals} from '../../../utils/enum'
 import {canUseRbacButton, useAuth} from '../../auth/authStore'
 import {
@@ -23,36 +25,21 @@ import {PermissionEditorDrawer} from './PermissionEditorDrawer'
 function PermissionListPage() {
     const {message} = App.useApp()
     const auth = useAuth()
-    const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
-    const [permissions, setPermissions] = useState<PermissionResponse[]>([])
     const [menus, setMenus] = useState<MenuTreeResponse[]>([])
-    const [page, setPage] = useState(1)
-    const [size, setSize] = useState(50)
-    const [total, setTotal] = useState(0)
     const [editingPermission, setEditingPermission] = useState<PermissionResponse | null>(null)
     const [editorOpen, setEditorOpen] = useState(false)
-
-    async function load(nextPage = page, nextSize = size) {
-        setLoading(true)
-        try {
-            const [pageResult, menuTree] = await Promise.all([
-                getPermissions({page: nextPage, size: nextSize}),
-                getMenuTree(),
-            ])
-            setPermissions(pageResult.records)
-            setMenus(menuTree)
-            setPage(pageResult.page)
-            setSize(pageResult.size)
-            setTotal(pageResult.total)
-        } finally {
-            setLoading(false)
-        }
-    }
+    const loadPermissionsPage = useCallback(
+        (request: { page: number; size: number }) => getPermissions(request),
+        [],
+    )
+    const {loading, records: permissions, page, size, total, load} = usePageData<PermissionResponse>(
+        loadPermissionsPage,
+        {initialSize: 50},
+    )
 
     useEffect(() => {
-        void load(1, size)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        void getMenuTree().then(setMenus)
     }, [])
 
     const apiPermissions = useMemo(
@@ -67,11 +54,16 @@ function PermissionListPage() {
     const columns: ColumnsType<PermissionResponse> = [
         {title: '权限编码', dataIndex: 'permCode', width: 220},
         {title: '权限名称', dataIndex: 'permName', width: 180},
-        {title: '类型', dataIndex: 'permType', width: 100, render: (value) => <PermissionTypeTag value={value}/>},
-        {title: '状态', dataIndex: 'status', width: 100, render: (value) => <StatusTag value={value}/>},
-        {title: '父权限', dataIndex: 'parentId', width: 100, render: (value) => value || '-'},
+        {
+            title: '类型',
+            dataIndex: 'permType',
+            width: 100,
+            render: (_, record) => <PermissionTypeTag value={record.permType}/>
+        },
+        {title: '状态', dataIndex: 'status', width: 100, render: (_, record) => <StatusTag value={record.status}/>},
+        {title: '父权限', dataIndex: 'parentId', width: 100, render: (_, record) => record.parentId || '-'},
         {title: '排序', dataIndex: 'sortNo', width: 80},
-        {title: '描述', dataIndex: 'description', render: (value) => value || '-'},
+        {title: '描述', dataIndex: 'description', render: (_, record) => record.description || '-'},
         {
             title: '操作',
             fixed: 'right',
@@ -88,14 +80,14 @@ function PermissionListPage() {
         }
         if (canChangeStatus) {
             actions.push(
-                <Popconfirm key="status" title="确认切换权限状态？" onConfirm={() => toggleStatus(record)}>
+                <Popconfirm key="status" title="确认切换权限状态？" onConfirm={() => void toggleStatus(record)}>
                     <Button size="small">{isEnabled(record) ? '禁用' : '启用'}</Button>
                 </Popconfirm>,
             )
         }
         if (canDelete) {
             actions.push(
-                <Popconfirm key="delete" title="确认删除该权限？" onConfirm={() => remove(record.id)}>
+                <Popconfirm key="delete" title="确认删除该权限？" onConfirm={() => void remove(record.id)}>
                     <Button danger size="small">删除</Button>
                 </Popconfirm>,
             )
@@ -148,7 +140,7 @@ function PermissionListPage() {
                 columns={columns}
                 dataSource={permissions}
                 loading={loading}
-                pagination={{current: page, pageSize: size, total, showSizeChanger: true, onChange: load}}
+                pagination={{current: page, pageSize: size, total, showSizeChanger: true, onChange: voidify(load)}}
                 rowKey="id"
                 scroll={{x: 1180}}
             />
