@@ -165,6 +165,10 @@
         </dependency>
         <dependency>
             <groupId>com.alibaba.cloud.ai</groupId>
+            <artifactId>spring-ai-alibaba-starter-tool-calling-bravesearch</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.cloud.ai</groupId>
             <artifactId>spring-ai-alibaba-starter-tool-calling-wikipedia</artifactId>
         </dependency>
         <dependency>
