@@ -9,10 +9,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.env.Environment;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import reactor.core.scheduler.Scheduler;
 
 import javax.sql.DataSource;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -30,6 +34,9 @@ class SpringInfrastructureConfigurationTests {
 
     @Autowired
     private Environment environment;
+
+    @Autowired
+    private Scheduler blockingScheduler;
 
     @MockitoBean
     private ChatModel chatModel;
@@ -85,6 +92,24 @@ class SpringInfrastructureConfigurationTests {
                 .isTrue();
         assertThat(environment.getProperty("spring.task.scheduling.shutdown.await-termination-period", Duration.class))
                 .isEqualTo(Duration.ofSeconds(30));
+    }
+
+    @Test
+    void blockingSchedulerUsesVirtualThreads() throws InterruptedException {
+        AtomicReference<String> workerThreadName = new AtomicReference<>();
+        AtomicReference<Boolean> workerThreadVirtual = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+
+        blockingScheduler.schedule(() -> {
+            workerThreadName.set(Thread.currentThread().getName());
+            workerThreadVirtual.set(Thread.currentThread().isVirtual());
+            latch.countDown();
+        });
+
+        assertThat(latch.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(workerThreadVirtual).hasValue(true);
+        assertThat(workerThreadName).hasValueSatisfying(threadName ->
+                assertThat(threadName).contains("blocking-virtual"));
     }
 
     private record JsonPayload(String name, String emptyValue, LocalDateTime createdAt) {

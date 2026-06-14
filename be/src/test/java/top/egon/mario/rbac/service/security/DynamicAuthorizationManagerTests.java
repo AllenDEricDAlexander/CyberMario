@@ -9,6 +9,7 @@ import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.server.authorization.AuthorizationContext;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 import top.egon.mario.rbac.service.model.ApiPermissionRule;
 
@@ -21,7 +22,7 @@ import static org.mockito.Mockito.mock;
 class DynamicAuthorizationManagerTests {
 
     private final RbacApiRuleCache apiRuleCache = mock(RbacApiRuleCache.class);
-    private final DynamicAuthorizationManager authorizationManager = new DynamicAuthorizationManager(apiRuleCache);
+    private final DynamicAuthorizationManager authorizationManager = new DynamicAuthorizationManager(apiRuleCache, Schedulers.immediate());
 
     @Test
     void checkDeniesWhenApiRuleIsMissing() {

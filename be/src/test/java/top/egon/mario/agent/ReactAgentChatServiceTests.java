@@ -4,6 +4,7 @@ import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 import top.egon.mario.agent.service.impl.ReactAgentChatService;
 
@@ -24,7 +25,7 @@ class ReactAgentChatServiceTests {
                     assertThat(config.threadId()).contains("thread-1");
                     return Flux.empty();
                 });
-        ReactAgentChatService chatService = new ReactAgentChatService(agent);
+        ReactAgentChatService chatService = new ReactAgentChatService(agent, Schedulers.immediate());
 
         StepVerifier.create(chatService.chat("你好", "thread-1"))
                 .verifyComplete();
@@ -39,7 +40,7 @@ class ReactAgentChatServiceTests {
                     assertThat(config.threadId()).isPresent();
                     return Flux.empty();
                 });
-        ReactAgentChatService chatService = new ReactAgentChatService(agent);
+        ReactAgentChatService chatService = new ReactAgentChatService(agent, Schedulers.immediate());
 
         StepVerifier.create(chatService.chat("你好", " "))
                 .verifyComplete();

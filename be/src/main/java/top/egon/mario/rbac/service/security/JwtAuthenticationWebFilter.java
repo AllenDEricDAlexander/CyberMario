@@ -14,7 +14,7 @@ import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
+import reactor.core.scheduler.Scheduler;
 import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.common.utils.LogUtil;
@@ -33,6 +33,7 @@ public class JwtAuthenticationWebFilter implements WebFilter {
     public static final String PERMISSION_VERSION_HEADER = "X-Rbac-Permission-Version";
     private final RbacAuthApplication authApplication;
     private final ObjectMapper objectMapper;
+    private final Scheduler blockingScheduler;
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
@@ -44,7 +45,7 @@ public class JwtAuthenticationWebFilter implements WebFilter {
         return Mono.deferContextual(contextView -> {
             String traceId = TraceContext.traceId(contextView);
             return Mono.fromCallable(() -> TraceContext.withMdc(traceId, () -> authApplication.authenticateAccessToken(token)))
-                    .subscribeOn(Schedulers.boundedElastic())
+                    .subscribeOn(blockingScheduler)
                     .flatMap(authentication -> {
                         writePermissionVersionHeader(exchange, authentication.getPrincipal());
                         return chain.filter(exchange)

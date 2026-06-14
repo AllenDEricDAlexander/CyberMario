@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
+import reactor.core.scheduler.Scheduler;
 import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rag.converter.RagDtoConverter;
 import top.egon.mario.rag.dto.request.ImportTextDocumentRequest;
@@ -63,6 +63,7 @@ public class RagDocumentServiceImpl implements RagDocumentService {
     private final RagIngestionService ingestionService;
     private final RagVectorService vectorService;
     private final RagDtoConverter dtoConverter;
+    private final Scheduler blockingScheduler;
 
     @Override
     public Mono<UploadDocumentResponse> upload(Long knowledgeBaseId, Flux<FilePart> files, boolean parseImmediately, RbacPrincipal principal) {
@@ -175,10 +176,10 @@ public class RagDocumentServiceImpl implements RagDocumentService {
                                         RagDocumentSourceType.UPLOAD,
                                         parseImmediately,
                                         principal
-                                )).subscribeOn(Schedulers.boundedElastic())),
+                                )).subscribeOn(blockingScheduler)),
                         tempFile -> Mono.fromRunnable(() -> deleteTemporaryFile(tempFile))
                 )
-                .subscribeOn(Schedulers.boundedElastic());
+                .subscribeOn(blockingScheduler);
     }
 
     @Transactional

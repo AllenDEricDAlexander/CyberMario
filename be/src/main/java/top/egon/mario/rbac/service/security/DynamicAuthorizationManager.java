@@ -8,7 +8,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.web.server.authorization.AuthorizationContext;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
+import reactor.core.scheduler.Scheduler;
 import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.service.model.ApiPermissionRule;
@@ -22,6 +22,7 @@ import top.egon.mario.rbac.service.model.ApiPermissionRule;
 public class DynamicAuthorizationManager implements ReactiveAuthorizationManager<AuthorizationContext> {
 
     private final RbacApiRuleCache apiRuleCache;
+    private final Scheduler blockingScheduler;
 
     @Override
     public Mono<AuthorizationDecision> check(Mono<Authentication> authentication, AuthorizationContext context) {
@@ -30,7 +31,7 @@ public class DynamicAuthorizationManager implements ReactiveAuthorizationManager
         return Mono.deferContextual(contextView -> {
             String traceId = TraceContext.traceId(contextView);
             return Mono.fromCallable(() -> TraceContext.withMdc(traceId, () -> apiRuleCache.match(method, path)))
-                    .subscribeOn(Schedulers.boundedElastic())
+                    .subscribeOn(blockingScheduler)
                     .doOnNext(rule -> TraceContext.withMdc(traceId, () -> {
                         LogUtil.debug(log).log("rbac api rule match evaluated, method={}, path={}, matched={}",
                                 method, path, rule.isPresent());

@@ -4,6 +4,7 @@ import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
 import reactor.util.context.ContextView;
 
+import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -54,20 +55,22 @@ public final class TraceContext {
     }
 
     public static <T> T withMdc(String traceId, Supplier<T> supplier) {
+        Map<String, String> previousContext = MDC.getCopyOfContextMap();
         putMdc(traceId);
         try {
             return supplier.get();
         } finally {
-            clearMdc();
+            restoreMdc(previousContext);
         }
     }
 
     public static void withMdc(String traceId, Runnable runnable) {
+        Map<String, String> previousContext = MDC.getCopyOfContextMap();
         putMdc(traceId);
         try {
             runnable.run();
         } finally {
-            clearMdc();
+            restoreMdc(previousContext);
         }
     }
 
@@ -76,6 +79,14 @@ public final class TraceContext {
             return null;
         }
         return value.trim();
+    }
+
+    private static void restoreMdc(Map<String, String> previousContext) {
+        if (previousContext == null) {
+            MDC.clear();
+            return;
+        }
+        MDC.setContextMap(previousContext);
     }
 
 }

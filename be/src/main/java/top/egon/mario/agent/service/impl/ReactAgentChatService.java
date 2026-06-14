@@ -10,7 +10,7 @@ import org.springframework.ai.chat.messages.Message;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
+import reactor.core.scheduler.Scheduler;
 import top.egon.mario.agent.service.ChatAgentService;
 import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.common.utils.LogUtil;
@@ -28,9 +28,11 @@ import java.util.UUID;
 public class ReactAgentChatService implements ChatAgentService {
 
     private final ReactAgent agent;
+    private final Scheduler blockingScheduler;
 
-    public ReactAgentChatService(ReactAgent agent) {
+    public ReactAgentChatService(ReactAgent agent, Scheduler blockingScheduler) {
         this.agent = agent;
+        this.blockingScheduler = blockingScheduler;
     }
 
     @Override
@@ -56,7 +58,7 @@ public class ReactAgentChatService implements ChatAgentService {
                             () -> LogUtil.info(log).log("agent chat completed, threadId={}", conversationThreadId)))
                     .doOnError(error -> TraceContext.withMdc(traceId,
                             () -> LogUtil.error(log).log("agent chat failed, threadId={}", conversationThreadId, error)))
-                    .subscribeOn(Schedulers.boundedElastic())
+                    .subscribeOn(blockingScheduler)
                     .flatMap(output -> toChatResponse(output, conversationThreadId));
         });
     }

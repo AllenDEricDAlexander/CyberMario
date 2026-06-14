@@ -8,6 +8,7 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 import top.egon.mario.common.filter.TraceWebFilter;
 
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,6 +46,42 @@ class TraceWebFilterTests {
 
         assertThat(mdcTraceId).hasValue("front-trace-1");
         assertThat(MDC.get("traceId")).isNull();
+    }
+
+    @Test
+    void withMdcRestoresPreviousContextAfterSupplierCompletes() {
+        MDC.setContextMap(Map.of(
+                TraceContext.TRACE_ID_MDC_KEY, "outer-trace",
+                "customKey", "custom-value"
+        ));
+
+        String result = TraceContext.withMdc("inner-trace", () -> {
+            assertThat(MDC.get(TraceContext.TRACE_ID_MDC_KEY)).isEqualTo("inner-trace");
+            assertThat(MDC.get("customKey")).isEqualTo("custom-value");
+            return "ok";
+        });
+
+        assertThat(result).isEqualTo("ok");
+        assertThat(MDC.get(TraceContext.TRACE_ID_MDC_KEY)).isEqualTo("outer-trace");
+        assertThat(MDC.get("customKey")).isEqualTo("custom-value");
+        MDC.clear();
+    }
+
+    @Test
+    void withMdcRestoresPreviousContextAfterRunnableCompletes() {
+        MDC.setContextMap(Map.of(
+                TraceContext.TRACE_ID_MDC_KEY, "outer-trace",
+                "customKey", "custom-value"
+        ));
+
+        TraceContext.withMdc("inner-trace", () -> {
+            assertThat(MDC.get(TraceContext.TRACE_ID_MDC_KEY)).isEqualTo("inner-trace");
+            assertThat(MDC.get("customKey")).isEqualTo("custom-value");
+        });
+
+        assertThat(MDC.get(TraceContext.TRACE_ID_MDC_KEY)).isEqualTo("outer-trace");
+        assertThat(MDC.get("customKey")).isEqualTo("custom-value");
+        MDC.clear();
     }
 
     @Test

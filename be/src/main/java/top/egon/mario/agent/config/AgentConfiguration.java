@@ -11,6 +11,7 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import reactor.core.scheduler.Scheduler;
 import top.egon.mario.agent.hooks.LoggingHook;
 import top.egon.mario.agent.interceptor.ToolMonitorInterceptor;
 import top.egon.mario.agent.service.ChatAgentService;
@@ -63,8 +64,8 @@ public class AgentConfiguration {
      * Adapts the blocking agent API to the reactive HTTP layer.
      */
     @Bean
-    public ChatAgentService chatAgentService(ReactAgent cyberMarioAgent) {
-        return new ReactAgentChatService(cyberMarioAgent);
+    public ChatAgentService chatAgentService(ReactAgent cyberMarioAgent, Scheduler blockingScheduler) {
+        return new ReactAgentChatService(cyberMarioAgent, blockingScheduler);
     }
 
 }

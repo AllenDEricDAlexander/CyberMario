@@ -159,6 +159,7 @@ public class RbacPermissionServiceImpl implements RbacPermissionService {
         applyPermissionFields(permission, request);
         permissionRepository.save(permission);
         clearDetail(permissionId);
+        flushDetailRepositories();
         saveDetail(permission, request, actorUserId);
         auditService.log(actorUserId, "RBAC_PERMISSION_UPDATE", "PERMISSION", permissionId, null, permission.getPermCode(), null, null);
         permissionVersionService.bumpRolesByPermissionIds(List.of(permissionId));
@@ -403,6 +404,13 @@ public class RbacPermissionServiceImpl implements RbacPermissionService {
         if (apiRepository.existsById(permissionId)) {
             apiRepository.deleteById(permissionId);
         }
+    }
+
+    private void flushDetailRepositories() {
+        buttonApiRepository.flush();
+        menuRepository.flush();
+        buttonRepository.flush();
+        apiRepository.flush();
     }
 
     private void publishPermissionChanged(String reason) {

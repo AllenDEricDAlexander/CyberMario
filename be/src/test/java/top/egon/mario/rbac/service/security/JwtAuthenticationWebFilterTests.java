@@ -8,6 +8,7 @@ import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.rbac.application.RbacAuthApplication;
@@ -29,7 +30,8 @@ class JwtAuthenticationWebFilterTests {
     private final RbacAuthApplication authApplication = mock(RbacAuthApplication.class);
     private final JwtAuthenticationWebFilter filter = new JwtAuthenticationWebFilter(
             authApplication,
-            JsonMapper.builder().findAndAddModules().build()
+            JsonMapper.builder().findAndAddModules().build(),
+            Schedulers.immediate()
     );
 
     @Test
