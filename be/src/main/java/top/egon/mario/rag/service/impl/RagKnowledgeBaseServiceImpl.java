@@ -77,6 +77,18 @@ public class RagKnowledgeBaseServiceImpl implements RagKnowledgeBaseService {
         knowledgeBase.setDefaultSimilarityThreshold(request.defaultSimilarityThreshold() == null
                 ? properties.retrieval().defaultSimilarityThreshold()
                 : request.defaultSimilarityThreshold());
+        knowledgeBase.setDefaultSearchMode(request.defaultSearchMode() == null
+                ? properties.retrieval().defaultSearchMode()
+                : request.defaultSearchMode());
+        knowledgeBase.setRerankEnabled(request.rerankEnabled() == null
+                ? properties.retrieval().rerankEnabled()
+                : request.rerankEnabled());
+        knowledgeBase.setVectorWeight(request.vectorWeight() == null ? properties.retrieval().vectorWeight() : request.vectorWeight());
+        knowledgeBase.setKeywordWeight(request.keywordWeight() == null ? properties.retrieval().keywordWeight() : request.keywordWeight());
+        knowledgeBase.setCandidateTopK(request.candidateTopK() == null ? properties.retrieval().candidateTopK() : request.candidateTopK());
+        knowledgeBase.setContextTopK(request.contextTopK() == null ? properties.retrieval().contextTopK() : request.contextTopK());
+        knowledgeBase.setChunkSize(request.chunkSize() == null ? properties.retrieval().chunkSize() : request.chunkSize());
+        knowledgeBase.setChunkOverlap(request.chunkOverlap() == null ? properties.retrieval().chunkOverlap() : request.chunkOverlap());
         knowledgeBase.setStatus(RagKnowledgeBaseStatus.ENABLED);
         RagKnowledgeBasePo saved = knowledgeBaseRepository.save(knowledgeBase);
         grantCreatorManage(saved.getId(), principal);
@@ -94,6 +106,18 @@ public class RagKnowledgeBaseServiceImpl implements RagKnowledgeBaseService {
         knowledgeBase.setDefaultSimilarityThreshold(request.defaultSimilarityThreshold() == null
                 ? knowledgeBase.getDefaultSimilarityThreshold()
                 : request.defaultSimilarityThreshold());
+        knowledgeBase.setDefaultSearchMode(request.defaultSearchMode() == null
+                ? knowledgeBase.getDefaultSearchMode()
+                : request.defaultSearchMode());
+        knowledgeBase.setRerankEnabled(request.rerankEnabled() == null
+                ? knowledgeBase.isRerankEnabled()
+                : request.rerankEnabled());
+        knowledgeBase.setVectorWeight(request.vectorWeight() == null ? knowledgeBase.getVectorWeight() : request.vectorWeight());
+        knowledgeBase.setKeywordWeight(request.keywordWeight() == null ? knowledgeBase.getKeywordWeight() : request.keywordWeight());
+        knowledgeBase.setCandidateTopK(request.candidateTopK() == null ? knowledgeBase.getCandidateTopK() : request.candidateTopK());
+        knowledgeBase.setContextTopK(request.contextTopK() == null ? knowledgeBase.getContextTopK() : request.contextTopK());
+        knowledgeBase.setChunkSize(request.chunkSize() == null ? knowledgeBase.getChunkSize() : request.chunkSize());
+        knowledgeBase.setChunkOverlap(request.chunkOverlap() == null ? knowledgeBase.getChunkOverlap() : request.chunkOverlap());
         knowledgeBase.setStatus(request.status() == null ? knowledgeBase.getStatus() : request.status());
         return dtoConverter.toKnowledgeBaseResponse(knowledgeBaseRepository.save(knowledgeBase));
     }

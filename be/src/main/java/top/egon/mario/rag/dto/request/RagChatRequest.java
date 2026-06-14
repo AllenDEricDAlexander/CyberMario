@@ -25,8 +25,10 @@ public record RagChatRequest(
 
     public record RetrievalOptions(
             @Min(1) @Max(20) Integer topK,
+            @Min(1) @Max(100) Integer candidateTopK,
             @DecimalMin("0.0") @DecimalMax("1.0") BigDecimal similarityThreshold,
-            RagSearchMode searchMode
+            RagSearchMode searchMode,
+            Boolean rerankEnabled
     ) {
     }
 

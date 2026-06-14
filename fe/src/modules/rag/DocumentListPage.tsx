@@ -44,6 +44,7 @@ function DocumentListPage() {
     const [textForm] = Form.useForm<TextImportFormValues>()
 
     const canUpload = canUseRbacButton(auth, ragButtonCodes.doc.upload)
+    const canImportText = canUseRbacButton(auth, ragButtonCodes.doc.importText)
     const canDelete = canUseRbacButton(auth, ragButtonCodes.doc.delete)
     const canReindex = canUseRbacButton(auth, ragButtonCodes.doc.reindex)
     const loadDocuments = useCallback(
@@ -126,6 +127,8 @@ function DocumentListPage() {
         },
         {title: '切片', dataIndex: 'chunkCount', width: 90},
         {title: '已入库', dataIndex: 'indexedChunkCount', width: 90},
+        {title: '解析器', dataIndex: 'parserType', width: 100, render: (value) => value || '-'},
+        {title: 'Embedding', dataIndex: 'embeddingDimension', width: 110, render: (value) => value || '-'},
         {title: '错误', dataIndex: 'errorMessage', render: (_, record) => record.errorMessage || '-'},
         {
             title: '操作',
@@ -151,11 +154,11 @@ function DocumentListPage() {
     return (
         <>
             <PageToolbar
-                actions={canUpload && (
+                actions={(canUpload || canImportText) && (
                     <>
-                        <Button icon={<FileAddOutlined/>} onClick={() => setTextOpen(true)}>导入文本</Button>
-                        <Button icon={<FileAddOutlined/>} onClick={() => setUploadOpen(true)}
-                                type="primary">上传文档</Button>
+                        {canImportText && <Button icon={<FileAddOutlined/>} onClick={() => setTextOpen(true)}>导入文本</Button>}
+                        {canUpload && <Button icon={<FileAddOutlined/>} onClick={() => setUploadOpen(true)}
+                                type="primary">上传文档</Button>}
                     </>
                 )}
                 description="上传 md、txt、pdf、docx，或导入纯文本。相同内容只保存一份物理文件。"

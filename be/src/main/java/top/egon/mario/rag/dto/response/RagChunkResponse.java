@@ -15,6 +15,10 @@ public record RagChunkResponse(
         int tokenCount,
         boolean enabled,
         String metadataJson,
+        String contentHash,
+        String headingPath,
+        Integer startOffset,
+        Integer endOffset,
         Instant createdAt
 ) {
 }

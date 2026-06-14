@@ -7,8 +7,12 @@ import type {
     RagChatRequest,
     RagChunkResponse,
     RagDocumentResponse,
+    RagFeedbackRequest,
     RagIngestionJobResponse,
     RagPage,
+    RagRetrievalTraceResponse,
+    RagSearchMode,
+    RagSettingsResponse,
     RagStreamEvent,
     RetrievalSearchResponse,
 } from './ragTypes'
@@ -139,8 +143,11 @@ export function searchRagRetrieval(request: {
     query: string
     knowledgeBaseIds: number[]
     topK: number
+    candidateTopK?: number
     similarityThreshold: number
-    searchMode: string
+    searchMode: RagSearchMode
+    rerankEnabled?: boolean
+    debug?: boolean
 }) {
     return requestJson<RetrievalSearchResponse>('/api/rag/retrieval/search', {
         method: 'POST',
@@ -148,6 +155,21 @@ export function searchRagRetrieval(request: {
     })
 }
 
+export function getRagRetrievalTrace(traceId: string) {
+    return requestJson<RagRetrievalTraceResponse>(`/api/rag/retrieval/traces/${traceId}`)
+}
+
 export function streamRagChat(request: RagChatRequest, signal: AbortSignal, onChunk: (event: RagStreamEvent) => void) {
     return streamJsonLines<RagStreamEvent>('/api/rag/chat/stream', {body: request, signal}, onChunk)
+}
+
+export function createRagFeedback(request: RagFeedbackRequest) {
+    return requestJson<void>('/api/rag/feedback', {
+        method: 'POST',
+        body: request,
+    })
+}
+
+export function getRagSettings() {
+    return requestJson<RagSettingsResponse>('/api/rag/settings')
 }

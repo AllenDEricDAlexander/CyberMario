@@ -1,5 +1,5 @@
 import {DatabaseOutlined, EditOutlined, PlusOutlined, TeamOutlined} from '@ant-design/icons'
-import {App, Button, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tag} from 'antd'
+import {App, Button, Checkbox, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useState} from 'react'
 import {PageToolbar} from '../../components/PageToolbar'
@@ -38,6 +38,7 @@ function KnowledgeBaseListPage() {
     const canEdit = canUseRbacButton(auth, ragButtonCodes.kb.edit)
     const canDelete = canUseRbacButton(auth, ragButtonCodes.kb.delete)
     const canGrantUsers = canUseRbacButton(auth, ragButtonCodes.kb.users)
+    const canEditRetrievalConfig = canUseRbacButton(auth, ragButtonCodes.kb.retrievalConfig)
     const loadKnowledgeBases = useCallback(
         (request: { page: number; size: number }) => getRagKnowledgeBases(request),
         [],
@@ -49,6 +50,14 @@ function KnowledgeBaseListPage() {
         form.setFieldsValue(record ?? {
             defaultTopK: 6,
             defaultSimilarityThreshold: 0.55,
+            defaultSearchMode: 'HYBRID',
+            rerankEnabled: false,
+            vectorWeight: 0.65,
+            keywordWeight: 0.35,
+            candidateTopK: 50,
+            contextTopK: 6,
+            chunkSize: 800,
+            chunkOverlap: 120,
             status: 'ENABLED',
         })
         setEditorOpen(true)
@@ -101,6 +110,13 @@ function KnowledgeBaseListPage() {
         {title: '名称', dataIndex: 'name', width: 180},
         {title: '编码', dataIndex: 'code', width: 180},
         {title: 'TopK', dataIndex: 'defaultTopK', width: 90},
+        {title: '模式', dataIndex: 'defaultSearchMode', width: 120, render: (value) => <Tag color="blue">{value}</Tag>},
+        {
+            title: 'Rerank',
+            dataIndex: 'rerankEnabled',
+            width: 90,
+            render: (value) => <Tag color={value ? 'purple' : 'default'}>{value ? '开启' : '关闭'}</Tag>,
+        },
         {title: '阈值', dataIndex: 'defaultSimilarityThreshold', width: 100},
         {
             title: '状态',
@@ -177,6 +193,43 @@ function KnowledgeBaseListPage() {
                             ]}/>
                         </Form.Item>
                     </Space>
+                    {canEditRetrievalConfig && (
+                        <>
+                            <Space wrap>
+                                <Form.Item label="检索模式" name="defaultSearchMode">
+                                    <Select style={{width: 160}} options={[
+                                        {label: '向量检索', value: 'VECTOR'},
+                                        {label: '关键词检索', value: 'KEYWORD'},
+                                        {label: '混合检索', value: 'HYBRID'},
+                                        {label: '混合重排', value: 'HYBRID_RERANK'},
+                                    ]}/>
+                                </Form.Item>
+                                <Form.Item label="候选 TopK" name="candidateTopK">
+                                    <InputNumber min={1} max={100}/>
+                                </Form.Item>
+                                <Form.Item label="上下文 TopK" name="contextTopK">
+                                    <InputNumber min={1} max={20}/>
+                                </Form.Item>
+                                <Form.Item label="Rerank" name="rerankEnabled" valuePropName="checked">
+                                    <Checkbox>默认开启</Checkbox>
+                                </Form.Item>
+                            </Space>
+                            <Space wrap>
+                                <Form.Item label="向量权重" name="vectorWeight">
+                                    <InputNumber min={0} max={1} step={0.05}/>
+                                </Form.Item>
+                                <Form.Item label="关键词权重" name="keywordWeight">
+                                    <InputNumber min={0} max={1} step={0.05}/>
+                                </Form.Item>
+                                <Form.Item label="切片长度" name="chunkSize">
+                                    <InputNumber min={100} max={4000}/>
+                                </Form.Item>
+                                <Form.Item label="重叠长度" name="chunkOverlap">
+                                    <InputNumber min={0} max={1000}/>
+                                </Form.Item>
+                            </Space>
+                        </>
+                    )}
                 </Form>
             </Modal>
             <Modal

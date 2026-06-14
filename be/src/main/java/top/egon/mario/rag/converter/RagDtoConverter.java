@@ -26,6 +26,14 @@ public class RagDtoConverter {
                 po.getDescription(),
                 po.getDefaultTopK(),
                 po.getDefaultSimilarityThreshold(),
+                po.getDefaultSearchMode(),
+                po.isRerankEnabled(),
+                po.getVectorWeight(),
+                po.getKeywordWeight(),
+                po.getCandidateTopK(),
+                po.getContextTopK(),
+                po.getChunkSize(),
+                po.getChunkOverlap(),
                 po.getStatus(),
                 po.getCreatedAt(),
                 po.getUpdatedAt()
@@ -50,6 +58,12 @@ public class RagDtoConverter {
                 po.getChunkCount(),
                 po.getIndexedChunkCount(),
                 po.getErrorMessage(),
+                po.getSourceUri(),
+                po.getParserType(),
+                po.getChunkStrategy(),
+                po.getEmbeddingModel(),
+                po.getEmbeddingDimension(),
+                po.getIndexedAt(),
                 po.getCreatedAt(),
                 po.getUpdatedAt()
         );
@@ -66,6 +80,10 @@ public class RagDtoConverter {
                 po.getTokenCount(),
                 po.isEnabled(),
                 po.getMetadataJson(),
+                po.getContentHash(),
+                po.getHeadingPath(),
+                po.getStartOffset(),
+                po.getEndOffset(),
                 po.getCreatedAt()
         );
     }

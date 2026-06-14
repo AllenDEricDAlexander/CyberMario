@@ -22,6 +22,12 @@ public record RagDocumentResponse(
         int chunkCount,
         int indexedChunkCount,
         String errorMessage,
+        String sourceUri,
+        String parserType,
+        String chunkStrategy,
+        String embeddingModel,
+        Integer embeddingDimension,
+        Instant indexedAt,
         Instant createdAt,
         Instant updatedAt
 ) {

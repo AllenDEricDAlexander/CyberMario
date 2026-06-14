@@ -23,6 +23,14 @@ export type KnowledgeBaseResponse = {
     description?: string
     defaultTopK: number
     defaultSimilarityThreshold: number
+    defaultSearchMode: RagSearchMode
+    rerankEnabled: boolean
+    vectorWeight: number
+    keywordWeight: number
+    candidateTopK: number
+    contextTopK: number
+    chunkSize: number
+    chunkOverlap: number
     status: RagKnowledgeBaseStatus
     createdAt?: string
     updatedAt?: string
@@ -48,6 +56,12 @@ export type RagDocumentResponse = {
     chunkCount: number
     indexedChunkCount: number
     errorMessage?: string
+    sourceUri?: string
+    parserType?: string
+    chunkStrategy?: string
+    embeddingModel?: string
+    embeddingDimension?: number
+    indexedAt?: string
     createdAt?: string
     updatedAt?: string
 }
@@ -62,6 +76,10 @@ export type RagChunkResponse = {
     tokenCount: number
     enabled: boolean
     metadataJson?: string
+    contentHash?: string
+    headingPath?: string
+    startOffset?: number
+    endOffset?: number
     createdAt?: string
 }
 
@@ -112,13 +130,26 @@ export type SourceReferenceResponse = {
     chunkId: number
     chunkIndex: number
     score: number
+    vectorScore?: number
+    keywordScore?: number
+    fusionScore?: number
+    rerankScore?: number
+    matchedBy?: string
     content: string
     metadata: Record<string, unknown>
 }
 
 export type RetrievalSearchResponse = {
     query: string
+    searchMode: RagSearchMode
+    traceId: string
     results: SourceReferenceResponse[]
+    stages: {
+        vector: SourceReferenceResponse[]
+        keyword: SourceReferenceResponse[]
+        fused: SourceReferenceResponse[]
+        reranked: SourceReferenceResponse[]
+    }
     costMs: number
 }
 
@@ -128,17 +159,60 @@ export type RagChatRequest = {
     knowledgeBaseIds: number[]
     retrievalOptions?: {
         topK?: number
+        candidateTopK?: number
         similarityThreshold?: number
         searchMode?: RagSearchMode
+        rerankEnabled?: boolean
     }
     withSources?: boolean
 }
 
 export type RagStreamEvent =
-    | { type: 'metadata'; data: { messageId: string; traceId: string } }
+    | { type: 'metadata'; data: { messageId: string; traceId: string; searchMode?: RagSearchMode } }
     | { type: 'retrieval'; data: { sources: SourceReferenceResponse[]; topK: number } }
     | { type: 'delta'; data: { content: string } }
     | { type: 'done'; data: { finishReason: string } }
     | { type: 'error'; data: { code: string; message: string; traceId?: string } }
 
 export type RagPage<T> = PageResult<T>
+
+export type RagRetrievalTraceResponse = {
+    traceId: string
+    userId?: number
+    query: string
+    searchMode: RagSearchMode
+    rerankEnabled: boolean
+    degraded: boolean
+    degradeReason?: string
+    costMs: number
+    vector: SourceReferenceResponse[]
+    keyword: SourceReferenceResponse[]
+    fused: SourceReferenceResponse[]
+    reranked: SourceReferenceResponse[]
+    createdAt?: string
+}
+
+export type RagFeedbackType = 'HELPFUL' | 'NOT_HELPFUL' | 'BAD_SOURCE' | 'NO_ANSWER'
+
+export type RagFeedbackRequest = {
+    traceId?: string
+    messageId?: string
+    feedbackType: RagFeedbackType
+    question?: string
+    answer?: string
+    sourceChunkIds?: number[]
+    comment?: string
+}
+
+export type RagSettingsResponse = {
+    chatModel: string
+    embeddingModel: string
+    embeddingDimension: number
+    defaultSearchMode: RagSearchMode
+    defaultTopK: number
+    candidateTopK: number
+    contextTopK: number
+    defaultSimilarityThreshold: number
+    rerankEnabled: boolean
+    rerankModel: string
+}

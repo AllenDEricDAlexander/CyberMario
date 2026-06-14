@@ -1,12 +1,14 @@
-import {ReloadOutlined, SendOutlined, StopOutlined} from '@ant-design/icons'
-import {App, Avatar, Button, Card, Drawer, Form, Input, InputNumber, Select, Space, Tag, Typography} from 'antd'
+import {DislikeOutlined, LikeOutlined, ReloadOutlined, SendOutlined, StopOutlined, WarningOutlined} from '@ant-design/icons'
+import {App, Avatar, Button, Card, Checkbox, Drawer, Form, Input, InputNumber, Select, Space, Tag, Typography} from 'antd'
 import {useEffect, useRef, useState} from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {PageToolbar} from '../../components/PageToolbar'
 import {resolveErrorMessage} from '../../services/request'
-import {getRagKnowledgeBases, streamRagChat} from './ragService'
-import type {KnowledgeBaseResponse, RagStreamEvent, SourceReferenceResponse} from './ragTypes'
+import {canUseRbacButton, useAuth} from '../auth/authStore'
+import {ragButtonCodes} from './ragPermissionCodes'
+import {createRagFeedback, getRagKnowledgeBases, streamRagChat} from './ragService'
+import type {KnowledgeBaseResponse, RagSearchMode, RagStreamEvent, SourceReferenceResponse} from './ragTypes'
 
 type ChatMessage = {
     id: string
@@ -14,17 +16,23 @@ type ChatMessage = {
     content: string
     sources?: SourceReferenceResponse[]
     traceId?: string
+    messageId?: string
+    question?: string
 }
 
 type RagChatFormValues = {
     knowledgeBaseIds: number[]
     topK: number
+    candidateTopK: number
     similarityThreshold: number
+    searchMode: RagSearchMode
+    rerankEnabled: boolean
 }
 
 const markdownPlugins = [remarkGfm]
 
 function RagChatPage() {
+    const auth = useAuth()
     const {message} = App.useApp()
     const [form] = Form.useForm<RagChatFormValues>()
     const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseResponse[]>([])
@@ -36,6 +44,7 @@ function RagChatPage() {
     const [sources, setSources] = useState<SourceReferenceResponse[]>([])
     const [sourceOpen, setSourceOpen] = useState(false)
     const abortRef = useRef<AbortController | null>(null)
+    const canCreateFeedback = canUseRbacButton(auth, ragButtonCodes.feedback.create)
 
     useEffect(() => {
         void getRagKnowledgeBases({page: 1, size: 200}).then((page) => setKnowledgeBases(page.records))
@@ -51,7 +60,7 @@ function RagChatPage() {
 
         const userMessage: ChatMessage = {id: crypto.randomUUID(), role: 'user', content: question}
         const assistantId = crypto.randomUUID()
-        const assistantMessage: ChatMessage = {id: assistantId, role: 'assistant', content: '', sources: []}
+        const assistantMessage: ChatMessage = {id: assistantId, role: 'assistant', content: '', sources: [], question}
         setMessages((current) => [...current, userMessage, assistantMessage])
         setInput('')
         setLoading(true)
@@ -65,8 +74,10 @@ function RagChatPage() {
                     knowledgeBaseIds: values.knowledgeBaseIds,
                     retrievalOptions: {
                         topK: values.topK,
+                        candidateTopK: values.candidateTopK,
                         similarityThreshold: values.similarityThreshold,
-                        searchMode: 'VECTOR',
+                        searchMode: values.searchMode,
+                        rerankEnabled: values.rerankEnabled,
                     },
                     withSources: true,
                 },
@@ -92,6 +103,7 @@ function RagChatPage() {
             setMessages((current) => current.map((item) => item.id === assistantId ? {
                 ...item,
                 traceId: event.data.traceId
+                , messageId: event.data.messageId
             } : item))
         }
         if (event.type === 'retrieval') {
@@ -127,6 +139,18 @@ function RagChatPage() {
         setLoading(false)
     }
 
+    async function submitFeedback(item: ChatMessage, feedbackType: 'HELPFUL' | 'NOT_HELPFUL' | 'BAD_SOURCE' | 'NO_ANSWER') {
+        await createRagFeedback({
+            traceId: item.traceId,
+            messageId: item.messageId,
+            feedbackType,
+            question: item.question,
+            answer: item.content,
+            sourceChunkIds: item.sources?.map((source) => source.chunkId),
+        })
+        message.success('反馈已提交')
+    }
+
     return (
         <>
             <PageToolbar
@@ -135,7 +159,13 @@ function RagChatPage() {
                 title="RAG 问答"
             />
             <Card size="small">
-                <Form form={form} initialValues={{topK: 6, similarityThreshold: 0.55}} layout="inline">
+                <Form form={form} initialValues={{
+                    topK: 6,
+                    candidateTopK: 50,
+                    similarityThreshold: 0.55,
+                    searchMode: 'HYBRID',
+                    rerankEnabled: false,
+                }} layout="inline">
                     <Form.Item name="knowledgeBaseIds" rules={[{required: true, message: '请选择知识库'}]}>
                         <Select
                             mode="multiple"
@@ -147,8 +177,22 @@ function RagChatPage() {
                     <Form.Item name="topK">
                         <InputNumber min={1} max={20} addonBefore="TopK"/>
                     </Form.Item>
+                    <Form.Item name="candidateTopK">
+                        <InputNumber min={1} max={100} addonBefore="候选"/>
+                    </Form.Item>
                     <Form.Item name="similarityThreshold">
                         <InputNumber min={0} max={1} step={0.01} addonBefore="阈值"/>
+                    </Form.Item>
+                    <Form.Item name="searchMode">
+                        <Select style={{width: 140}} options={[
+                            {label: '向量', value: 'VECTOR'},
+                            {label: '关键词', value: 'KEYWORD'},
+                            {label: '混合', value: 'HYBRID'},
+                            {label: '混合重排', value: 'HYBRID_RERANK'},
+                        ]}/>
+                    </Form.Item>
+                    <Form.Item name="rerankEnabled" valuePropName="checked">
+                        <Checkbox>Rerank</Checkbox>
                     </Form.Item>
                 </Form>
             </Card>
@@ -176,6 +220,18 @@ function RagChatPage() {
                                     >
                                         查看引用来源（{item.sources.length}）
                                     </Button>
+                                )}
+                                {canCreateFeedback && item.role === 'assistant' && item.id !== 'welcome' && item.content && (
+                                    <Space wrap>
+                                        <Button icon={<LikeOutlined/>} size="small" type="text"
+                                                onClick={() => void submitFeedback(item, 'HELPFUL')}>有帮助</Button>
+                                        <Button icon={<DislikeOutlined/>} size="small" type="text"
+                                                onClick={() => void submitFeedback(item, 'NOT_HELPFUL')}>没帮助</Button>
+                                        <Button icon={<WarningOutlined/>} size="small" type="text"
+                                                onClick={() => void submitFeedback(item, 'BAD_SOURCE')}>引用不准</Button>
+                                        <Button size="small" type="text"
+                                                onClick={() => void submitFeedback(item, 'NO_ANSWER')}>没找到答案</Button>
+                                    </Space>
                                 )}
                                 {item.traceId && <Tag>traceId={item.traceId}</Tag>}
                             </div>
@@ -209,6 +265,8 @@ function RagChatPage() {
                         <Card key={source.sourceId} size="small" title={`来源 ${index + 1}`}>
                             <Space wrap>
                                 <Tag color="blue">score={source.score.toFixed(4)}</Tag>
+                                {source.rerankScore !== undefined && <Tag color="purple">rerank={source.rerankScore.toFixed(4)}</Tag>}
+                                {source.matchedBy && <Tag>{source.matchedBy}</Tag>}
                                 <Tag>chunk={source.chunkIndex}</Tag>
                                 <Typography.Text
                                     strong>{source.documentName || `文档 ${source.documentId}`}</Typography.Text>

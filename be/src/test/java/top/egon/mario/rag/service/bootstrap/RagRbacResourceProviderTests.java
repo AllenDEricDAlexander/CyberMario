@@ -10,16 +10,35 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RagRbacResourceProviderTests {
 
     @Test
-    void ragViewerCanUseRagAndCurrentUserSelfServiceApis() {
+    void ragUserCanUseRagAndCurrentUserSelfServiceApis() {
         RagRbacResourceProvider provider = new RagRbacResourceProvider();
 
         assertThat(provider.rolePresets())
-                .filteredOn(seed -> "RAG_VIEWER".equals(seed.roleCode()))
+                .filteredOn(seed -> "RAG_USER".equals(seed.roleCode()))
                 .singleElement()
                 .satisfies(seed -> assertThat(seed.permissionCodes())
                         .contains("api:rag:chat:stream", "api:rag:retrieval:search",
+                                "api:rag:feedback:create", "btn:rag:doc:upload",
                                 "api:rbac:auth:self", "api:rbac:me:self")
                         .doesNotContain("api:rbac:admin:*", "menu:rag:arxiv-logs"));
+    }
+
+    @Test
+    void resourcesContainHybridRagButtonsAndTraceApis() {
+        RagRbacResourceProvider provider = new RagRbacResourceProvider();
+
+        assertThat(provider.resources())
+                .extracting("code")
+                .contains(
+                        "btn:rag:kb:retrieval-config",
+                        "btn:rag:doc:import-arxiv",
+                        "btn:rag:retrieval:debug",
+                        "btn:rag:retrieval:trace",
+                        "btn:rag:feedback:create",
+                        "api:rag:retrieval:trace",
+                        "api:rag:feedback:create",
+                        "api:rag:settings:read"
+                );
     }
 
     @Test

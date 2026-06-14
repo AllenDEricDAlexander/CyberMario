@@ -36,12 +36,18 @@ public class RagPermissionCatalog {
                 new ButtonPermissionSeed("btn:rag:kb:edit", "编辑知识库", "menu:rag:knowledge-bases", "edit", "api:rag:knowledge-base:*", 2),
                 new ButtonPermissionSeed("btn:rag:kb:delete", "删除知识库", "menu:rag:knowledge-bases", "delete", "api:rag:knowledge-base:*", 3),
                 new ButtonPermissionSeed("btn:rag:kb:users", "知识库用户授权", "menu:rag:knowledge-bases", "users", "api:rag:knowledge-base:*", 4),
+                new ButtonPermissionSeed("btn:rag:kb:retrieval-config", "修改检索配置", "menu:rag:knowledge-bases", "retrievalConfig", "api:rag:knowledge-base:*", 5),
                 new ButtonPermissionSeed("btn:rag:doc:upload", "上传文档", "menu:rag:documents", "upload", "api:rag:document:*", 1),
-                new ButtonPermissionSeed("btn:rag:doc:delete", "删除文档", "menu:rag:documents", "delete", "api:rag:document:*", 2),
-                new ButtonPermissionSeed("btn:rag:doc:reindex", "重建索引", "menu:rag:documents", "reindex", "api:rag:document:*", 3),
-                new ButtonPermissionSeed("btn:rag:chunk:toggle", "启用禁用切片", "menu:rag:documents", "toggleChunk", "api:rag:chunk:*", 4),
+                new ButtonPermissionSeed("btn:rag:doc:import-text", "导入文本", "menu:rag:documents", "importText", "api:rag:document:*", 2),
+                new ButtonPermissionSeed("btn:rag:doc:import-arxiv", "导入 arXiv", "menu:rag:documents", "importArxiv", "api:rag:document:*", 3),
+                new ButtonPermissionSeed("btn:rag:doc:delete", "删除文档", "menu:rag:documents", "delete", "api:rag:document:*", 4),
+                new ButtonPermissionSeed("btn:rag:doc:reindex", "重建索引", "menu:rag:documents", "reindex", "api:rag:document:*", 5),
+                new ButtonPermissionSeed("btn:rag:chunk:toggle", "启用禁用切片", "menu:rag:documents", "toggleChunk", "api:rag:chunk:*", 6),
                 new ButtonPermissionSeed("btn:rag:job:retry", "重试入库任务", "menu:rag:ingestion-jobs", "retry", "api:rag:ingestion-job:*", 1),
-                new ButtonPermissionSeed("btn:rag:job:cancel", "取消入库任务", "menu:rag:ingestion-jobs", "cancel", "api:rag:ingestion-job:*", 2)
+                new ButtonPermissionSeed("btn:rag:job:cancel", "取消入库任务", "menu:rag:ingestion-jobs", "cancel", "api:rag:ingestion-job:*", 2),
+                new ButtonPermissionSeed("btn:rag:retrieval:debug", "执行检索调试", "menu:rag:retrieval-lab", "debug", "api:rag:retrieval:search", 1),
+                new ButtonPermissionSeed("btn:rag:retrieval:trace", "查看检索 Trace", "menu:rag:retrieval-lab", "trace", "api:rag:retrieval:trace", 2),
+                new ButtonPermissionSeed("btn:rag:feedback:create", "提交反馈", "menu:rag:chat", "feedback", "api:rag:feedback:create", 1)
         );
     }
 
@@ -52,6 +58,9 @@ public class RagPermissionCatalog {
         return List.of(
                 new ApiPermissionSeed("api:rag:chat:stream", "RAG 流式问答", HttpMethod.POST.name(), "/api/rag/chat/stream", ApiMatcherType.EXACT, ApiRiskLevel.MEDIUM),
                 new ApiPermissionSeed("api:rag:retrieval:search", "RAG 检索调试", HttpMethod.POST.name(), "/api/rag/retrieval/search", ApiMatcherType.EXACT, ApiRiskLevel.MEDIUM),
+                new ApiPermissionSeed("api:rag:retrieval:trace", "RAG 检索追踪详情", "ANY", "/api/rag/retrieval/traces/**", ApiMatcherType.ANT, ApiRiskLevel.MEDIUM),
+                new ApiPermissionSeed("api:rag:feedback:create", "RAG 反馈提交", HttpMethod.POST.name(), "/api/rag/feedback", ApiMatcherType.EXACT, ApiRiskLevel.LOW),
+                new ApiPermissionSeed("api:rag:settings:read", "RAG 设置查看", HttpMethod.GET.name(), "/api/rag/settings", ApiMatcherType.EXACT, ApiRiskLevel.LOW),
                 new ApiPermissionSeed("api:rag:knowledge-base:collection", "RAG 知识库集合", "ANY", "/api/rag/knowledge-bases", ApiMatcherType.EXACT, ApiRiskLevel.HIGH),
                 new ApiPermissionSeed("api:rag:knowledge-base:*", "RAG 知识库管理", "ANY", "/api/rag/knowledge-bases/**", ApiMatcherType.ANT, ApiRiskLevel.HIGH),
                 new ApiPermissionSeed("api:rag:document:collection", "RAG 文档集合", "ANY", "/api/rag/documents", ApiMatcherType.EXACT, ApiRiskLevel.HIGH),

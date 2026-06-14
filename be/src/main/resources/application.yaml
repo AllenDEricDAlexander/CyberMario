@@ -169,6 +169,16 @@ mario:
     retrieval:
       default-top-k: ${RAG_DEFAULT_TOP_K:6}
       default-similarity-threshold: ${RAG_DEFAULT_SIMILARITY_THRESHOLD:0.55}
+      default-search-mode: ${RAG_DEFAULT_SEARCH_MODE:HYBRID}
+      candidate-top-k: ${RAG_CANDIDATE_TOP_K:50}
+      context-top-k: ${RAG_CONTEXT_TOP_K:6}
+      vector-weight: ${RAG_VECTOR_WEIGHT:0.65}
+      keyword-weight: ${RAG_KEYWORD_WEIGHT:0.35}
+      chunk-size: ${RAG_CHUNK_SIZE:800}
+      chunk-overlap: ${RAG_CHUNK_OVERLAP:120}
+      rerank-enabled: ${RAG_RERANK_ENABLED:false}
+      rerank-model: ${RAG_RERANK_MODEL:qwen3-rerank}
+      rerank-base-url: ${RAG_RERANK_BASE_URL:https://dashscope.aliyuncs.com/compatible-api/v1}
     model:
       chat-model: ${AI_CHAT_MODEL:qwen3.7-plus}
       embedding-model: ${AI_EMBEDDING_MODEL:text-embedding-v4}

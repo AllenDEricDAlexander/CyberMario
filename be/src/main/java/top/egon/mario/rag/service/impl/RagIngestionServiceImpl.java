@@ -31,6 +31,10 @@ import top.egon.mario.rag.service.RagVectorService;
 import top.egon.mario.rag.service.model.RagChunkCandidate;
 
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 
@@ -155,6 +159,10 @@ public class RagIngestionServiceImpl implements RagIngestionService {
         chunk.setTokenCount(candidate.tokenCount());
         chunk.setEnabled(true);
         chunk.setMetadataJson(metadataJson(document, candidate));
+        chunk.setMetadataJsonb(chunk.getMetadataJson());
+        chunk.setContentHash(sha256(candidate.content()));
+        chunk.setStartOffset(null);
+        chunk.setEndOffset(null);
         return chunk;
     }
 
@@ -171,6 +179,15 @@ public class RagIngestionServiceImpl implements RagIngestionService {
             ));
         } catch (JsonProcessingException e) {
             return "{}";
+        }
+    }
+
+    private String sha256(String content) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(content.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            return null;
         }
     }
 

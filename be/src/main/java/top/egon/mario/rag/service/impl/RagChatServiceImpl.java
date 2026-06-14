@@ -68,7 +68,10 @@ public class RagChatServiceImpl implements RagChatService {
                 request.question(),
                 request.knowledgeBaseIds(),
                 options == null ? null : options.topK(),
+                options == null ? null : options.candidateTopK(),
                 options == null ? null : options.similarityThreshold(),
+                options == null ? null : options.searchMode(),
+                options == null ? null : options.rerankEnabled(),
                 principal
         );
     }

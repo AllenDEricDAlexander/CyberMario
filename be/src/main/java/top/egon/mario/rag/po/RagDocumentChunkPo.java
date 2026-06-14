@@ -49,4 +49,22 @@ public class RagDocumentChunkPo extends BaseAuditablePo {
     @Column(name = "metadata_json")
     private String metadataJson;
 
+    @Column(name = "content_hash", length = 64)
+    private String contentHash;
+
+    @Column(name = "heading_path", length = 512)
+    private String headingPath;
+
+    @Column(name = "start_offset")
+    private Integer startOffset;
+
+    @Column(name = "end_offset")
+    private Integer endOffset;
+
+    @Column(name = "metadata_jsonb")
+    private String metadataJsonb;
+
+    @Column(name = "search_vector")
+    private String searchVector;
+
 }

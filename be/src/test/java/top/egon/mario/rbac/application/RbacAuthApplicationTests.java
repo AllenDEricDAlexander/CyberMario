@@ -92,7 +92,7 @@ class RbacAuthApplicationTests {
     @Test
     void registerCreatesEnabledUserWithDefaultBusinessRolesAndNoRbacAdminPermission() {
         RolePo chatRole = roleRepository.save(role("CHAT_BASIC"));
-        RolePo ragRole = roleRepository.save(role("RAG_ADMIN"));
+        RolePo ragRole = roleRepository.save(role("RAG_USER"));
         RolePo dashboardRole = roleRepository.save(role("AGENT_DASHBOARD_USER"));
         grant(chatRole, menuPermission("menu:chat", "chat", "/chat"));
         grant(chatRole, permission("api:chat:stream", PermissionType.API));
@@ -122,7 +122,7 @@ class RbacAuthApplicationTests {
         assertThat(response.refreshToken()).isNotBlank();
         assertThat(response.user().getId()).isEqualTo(user.getId());
         assertThat(response.user().getNickname()).isEqualTo("Princess Peach");
-        assertThat(response.roleCodes()).containsExactlyInAnyOrder("CHAT_BASIC", "RAG_ADMIN", "AGENT_DASHBOARD_USER");
+        assertThat(response.roleCodes()).containsExactlyInAnyOrder("CHAT_BASIC", "RAG_USER", "AGENT_DASHBOARD_USER");
         assertThat(response.menus()).extracting("permCode")
                 .contains("menu:chat", "menu:rag", "menu:agent");
         assertThat(response.permissionCodes())

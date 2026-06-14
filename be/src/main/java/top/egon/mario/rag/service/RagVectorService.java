@@ -32,6 +32,6 @@ public interface RagVectorService {
      * Retrieves source chunks visible to the current user.
      */
     List<SourceReferenceResponse> search(@NotBlank String query, @NotNull Collection<Long> knowledgeBaseIds,
-                                         @Min(1) @Max(20) int topK, @NotNull BigDecimal threshold);
+                                         @Min(1) @Max(100) int topK, @NotNull BigDecimal threshold);
 
 }

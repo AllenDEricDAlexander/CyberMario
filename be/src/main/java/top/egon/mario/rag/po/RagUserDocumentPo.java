@@ -12,6 +12,8 @@ import top.egon.mario.rag.po.enums.RagDocumentSourceType;
 import top.egon.mario.rag.po.enums.RagDocumentStatus;
 import top.egon.mario.rag.po.enums.RagFileType;
 
+import java.time.Instant;
+
 /**
  * User-visible document reference linked to a knowledge base and a physical file.
  */
@@ -56,5 +58,23 @@ public class RagUserDocumentPo extends BaseAuditablePo {
 
     @Column(name = "error_message", length = 1024)
     private String errorMessage;
+
+    @Column(name = "source_uri", length = 1024)
+    private String sourceUri;
+
+    @Column(name = "parser_type", length = 64)
+    private String parserType;
+
+    @Column(name = "chunk_strategy", length = 64)
+    private String chunkStrategy;
+
+    @Column(name = "embedding_model", length = 128)
+    private String embeddingModel;
+
+    @Column(name = "embedding_dimension")
+    private Integer embeddingDimension;
+
+    @Column(name = "indexed_at")
+    private Instant indexedAt;
 
 }

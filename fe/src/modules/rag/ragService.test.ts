@@ -1,5 +1,14 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest'
-import {getArxivToolLogs, getRagDocuments, getRagIngestionJobs, getRagKnowledgeBases, streamRagChat} from './ragService'
+import {
+    createRagFeedback,
+    getRagRetrievalTrace,
+    getRagSettings,
+    getArxivToolLogs,
+    getRagDocuments,
+    getRagIngestionJobs,
+    getRagKnowledgeBases,
+    streamRagChat,
+} from './ragService'
 
 vi.mock('../../services/request', () => ({
     requestFormData: vi.fn(),
@@ -43,5 +52,20 @@ describe('ragService', () => {
             },
             signal,
         }, onChunk)
+    })
+
+    test('calls trace feedback and settings endpoints', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        void getRagRetrievalTrace('trace-1')
+        void getRagSettings()
+        void createRagFeedback({feedbackType: 'HELPFUL', traceId: 'trace-1'})
+
+        expect(requestJson).toHaveBeenNthCalledWith(1, '/api/rag/retrieval/traces/trace-1')
+        expect(requestJson).toHaveBeenNthCalledWith(2, '/api/rag/settings')
+        expect(requestJson).toHaveBeenNthCalledWith(3, '/api/rag/feedback', {
+            method: 'POST',
+            body: {feedbackType: 'HELPFUL', traceId: 'trace-1'},
+        })
     })
 })

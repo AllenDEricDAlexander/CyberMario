@@ -27,6 +27,9 @@ public interface RagDocumentChunkRepository extends JpaRepository<RagDocumentChu
 
     List<RagDocumentChunkPo> findByKnowledgeBaseIdInAndEnabledTrueAndDeletedFalse(Collection<Long> knowledgeBaseIds);
 
+    List<RagDocumentChunkPo> findByKnowledgeBaseIdInAndEnabledTrueAndDeletedFalseAndContentContainingIgnoreCase(Collection<Long> knowledgeBaseIds,
+                                                                                                                String content);
+
     @Modifying(flushAutomatically = true)
     @Query("delete from RagDocumentChunkPo chunk where chunk.documentId = :documentId")
     int deleteByDocumentId(@Param("documentId") Long documentId);

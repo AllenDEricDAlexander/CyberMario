@@ -89,6 +89,16 @@ mario:
     retrieval:
       default-top-k: 6
       default-similarity-threshold: 0.55
+      default-search-mode: HYBRID
+      candidate-top-k: 50
+      context-top-k: 6
+      vector-weight: 0.65
+      keyword-weight: 0.35
+      chunk-size: 800
+      chunk-overlap: 120
+      rerank-enabled: false
+      rerank-model: qwen3-rerank
+      rerank-base-url: https://dashscope.aliyuncs.com/compatible-api/v1
     model:
       chat-model: qwen-plus
       embedding-model: text-embedding-v4

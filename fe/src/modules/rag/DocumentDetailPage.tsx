@@ -32,6 +32,8 @@ function DocumentDetailPage() {
     const columns: ColumnsType<RagChunkResponse> = [
         {title: '序号', dataIndex: 'chunkIndex', width: 80},
         {title: 'Token', dataIndex: 'tokenCount', width: 90},
+        {title: '标题路径', dataIndex: 'headingPath', width: 180, render: (value) => value || '-'},
+        {title: 'Hash', dataIndex: 'contentHash', width: 110, render: (value) => value ? value.slice(0, 8) : '-'},
         {
             title: '状态',
             dataIndex: 'enabled',
