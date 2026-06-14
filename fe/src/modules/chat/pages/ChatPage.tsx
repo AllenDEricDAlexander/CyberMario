@@ -4,7 +4,9 @@ import {type FormEvent, useMemo, useRef, useState} from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {PageToolbar} from '../../../components/PageToolbar'
+import {VisualBackdrop} from '../../../components/VisualBackdrop'
 import {resolveErrorMessage} from '../../../services/request'
+import {appendChatChunk} from '../chatMessageStream'
 import {streamChatResponse} from '../chatService'
 import type {ChatMessage} from '../chatTypes'
 
@@ -70,15 +72,7 @@ export function ChatPage() {
                     setMessages((currentMessages) =>
                         currentMessages.map((chatMessage) =>
                             chatMessage.id === assistantMessageId
-                                ? chunk.type === 'think'
-                                    ? {
-                                        ...chatMessage,
-                                        thinkContent: `${chatMessage.thinkContent ?? ''}${chunk.message ?? ''}`,
-                                    }
-                                    : {
-                                        ...chatMessage,
-                                        content: `${chatMessage.content}${chunk.message ?? ''}`,
-                                    }
+                                ? appendChatChunk(chatMessage, chunk)
                                 : chatMessage,
                         ),
                     )
@@ -130,6 +124,7 @@ export function ChatPage() {
 
     return (
         <div className="chat-workspace">
+            <VisualBackdrop particleCount={12} variant="chat"/>
             <PageToolbar
                 actions={(
                     <Button icon={<ReloadOutlined/>} onClick={handleNewConversation}>

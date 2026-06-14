@@ -2,6 +2,7 @@ import {LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined, UserOutlined} from
 import {Avatar, Button, Dropdown, Layout, Menu, Result, Space, Typography} from 'antd'
 import {useEffect, useMemo, useState} from 'react'
 import {Outlet, useLocation, useNavigate} from 'react-router'
+import {VisualBackdrop} from '../../components/VisualBackdrop'
 import {hasAdminPermissionBypass, useAuth} from '../../modules/auth/authStore'
 import {voidify} from '../../utils/async'
 import {buildAuthorizedAdminMenuItems, canAccessAdminPath, findMenuPath, flattenMenuKeys} from './menu'
@@ -105,15 +106,18 @@ export function AdminLayout() {
                     </Space>
                 </Header>
                 <Content className="admin-content">
-                    {canAccessCurrentPath ? (
-                        <Outlet key={contentVersion}/>
-                    ) : (
-                        <Result
-                            status="403"
-                            subTitle="当前账号没有该菜单权限。"
-                            title="无权访问"
-                        />
-                    )}
+                    <VisualBackdrop variant="content"/>
+                    <div className="admin-content-inner">
+                        {canAccessCurrentPath ? (
+                            <Outlet key={contentVersion}/>
+                        ) : (
+                            <Result
+                                status="403"
+                                subTitle="当前账号没有该菜单权限。"
+                                title="无权访问"
+                            />
+                        )}
+                    </div>
                 </Content>
             </Layout>
         </Layout>
