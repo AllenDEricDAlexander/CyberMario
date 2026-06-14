@@ -1,11 +1,13 @@
 package top.egon.mario.rbac.web;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -42,6 +44,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 @RequestMapping("/api/admin/users")
 @Slf4j
+@Validated
 public class AdminUserController extends ReactiveRbacSupport {
 
     private final RbacUserService userService;
@@ -50,8 +53,8 @@ public class AdminUserController extends ReactiveRbacSupport {
     @RbacApi(appCode = "rbac", code = "api:rbac:admin:*", name = "RBAC Administration APIs",
             method = "ANY", pattern = "/api/admin/**", matcher = ApiMatcherType.ANT, risk = ApiRiskLevel.HIGH)
     @GetMapping
-    public Mono<ApiResponse<PageResult<UserResponse>>> page(@RequestParam(defaultValue = "1") int page,
-                                                            @RequestParam(defaultValue = "20") int size) {
+    public Mono<ApiResponse<PageResult<UserResponse>>> page(@RequestParam(defaultValue = "1") @Min(1) int page,
+                                                            @RequestParam(defaultValue = "20") @Min(1) int size) {
         return blocking(() -> pageResult(userService.getUserPage(PageRequest.of(Math.max(page - 1, 0), size, Sort.by("id").descending()))));
     }
 
@@ -62,43 +65,43 @@ public class AdminUserController extends ReactiveRbacSupport {
     }
 
     @GetMapping("/{id}")
-    public Mono<ApiResponse<UserResponse>> detail(@PathVariable Long id) {
+    public Mono<ApiResponse<UserResponse>> detail(@PathVariable @Min(1) Long id) {
         return blocking(() -> userService.getUser(id));
     }
 
     @PutMapping("/{id}")
-    public Mono<ApiResponse<UserResponse>> update(@PathVariable Long id, @RequestBody UpdateUserRequest request) {
+    public Mono<ApiResponse<UserResponse>> update(@PathVariable @Min(1) Long id, @Valid @RequestBody UpdateUserRequest request) {
         return blocking(() -> userService.updateUser(id, request));
     }
 
     @DeleteMapping("/{id}")
-    public Mono<ApiResponse<Void>> delete(@PathVariable Long id, @AuthenticationPrincipal RbacPrincipal principal) {
+    public Mono<ApiResponse<Void>> delete(@PathVariable @Min(1) Long id, @AuthenticationPrincipal RbacPrincipal principal) {
         return blockingVoid(() -> userService.deleteUser(id, actorId(principal)));
     }
 
     @PatchMapping("/{id}/status")
-    public Mono<ApiResponse<Void>> status(@PathVariable Long id, @RequestBody StatusRequest request) {
+    public Mono<ApiResponse<Void>> status(@PathVariable @Min(1) Long id, @Valid @RequestBody StatusRequest request) {
         return blockingVoid(() -> userService.updateStatus(id, request.getRbacStatus()));
     }
 
     @PutMapping("/{id}/password")
-    public Mono<ApiResponse<Void>> resetPassword(@PathVariable Long id, @Valid @RequestBody ResetPasswordRequest request) {
+    public Mono<ApiResponse<Void>> resetPassword(@PathVariable @Min(1) Long id, @Valid @RequestBody ResetPasswordRequest request) {
         return blockingVoid(() -> userService.resetPassword(id, request.password()));
     }
 
     @GetMapping("/{id}/roles")
-    public Mono<ApiResponse<Set<Long>>> roles(@PathVariable Long id) {
+    public Mono<ApiResponse<Set<Long>>> roles(@PathVariable @Min(1) Long id) {
         return blocking(() -> userService.getDirectRoleIds(id));
     }
 
     @PutMapping("/{id}/roles")
-    public Mono<ApiResponse<Void>> replaceRoles(@PathVariable Long id, @RequestBody ReplaceIdsRequest request,
+    public Mono<ApiResponse<Void>> replaceRoles(@PathVariable @Min(1) Long id, @Valid @RequestBody ReplaceIdsRequest request,
                                                 @AuthenticationPrincipal RbacPrincipal principal) {
         return blockingVoid(() -> userService.replaceUserRoles(id, request.getIds(), actorId(principal)));
     }
 
     @GetMapping("/{id}/permissions/effective")
-    public Mono<ApiResponse<EffectivePermissionResponse>> effectivePermissions(@PathVariable Long id) {
+    public Mono<ApiResponse<EffectivePermissionResponse>> effectivePermissions(@PathVariable @Min(1) Long id) {
         return blocking(() -> effectivePermissionService.getUserEffectivePermissions(id));
     }
 

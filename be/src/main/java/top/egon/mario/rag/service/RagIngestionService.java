@@ -1,5 +1,6 @@
 package top.egon.mario.rag.service;
 
+import jakarta.validation.constraints.NotNull;
 import top.egon.mario.rag.dto.response.RagIngestionJobResponse;
 
 /**
@@ -10,6 +11,6 @@ public interface RagIngestionService {
     /**
      * Processes a document and updates the related job.
      */
-    RagIngestionJobResponse ingest(Long jobId);
+    RagIngestionJobResponse ingest(@NotNull Long jobId);
 
 }

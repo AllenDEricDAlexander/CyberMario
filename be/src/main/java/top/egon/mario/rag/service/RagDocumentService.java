@@ -1,5 +1,7 @@
 package top.egon.mario.rag.service;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.codec.multipart.FilePart;
@@ -16,20 +18,20 @@ import top.egon.mario.rbac.service.security.RbacPrincipal;
  */
 public interface RagDocumentService {
 
-    Mono<UploadDocumentResponse> upload(Long knowledgeBaseId, Flux<FilePart> files, boolean parseImmediately, RbacPrincipal principal);
+    Mono<UploadDocumentResponse> upload(@NotNull Long knowledgeBaseId, @NotNull Flux<FilePart> files, boolean parseImmediately, RbacPrincipal principal);
 
-    RagDocumentResponse importText(ImportTextDocumentRequest request, RbacPrincipal principal);
+    RagDocumentResponse importText(@Valid @NotNull ImportTextDocumentRequest request, RbacPrincipal principal);
 
-    Page<RagDocumentResponse> page(Long knowledgeBaseId, Pageable pageable, RbacPrincipal principal);
+    Page<RagDocumentResponse> page(Long knowledgeBaseId, @NotNull Pageable pageable, RbacPrincipal principal);
 
-    RagDocumentResponse detail(Long id, RbacPrincipal principal);
+    RagDocumentResponse detail(@NotNull Long id, RbacPrincipal principal);
 
-    void delete(Long id, RbacPrincipal principal);
+    void delete(@NotNull Long id, RbacPrincipal principal);
 
-    RagDocumentResponse reindex(Long id, RbacPrincipal principal);
+    RagDocumentResponse reindex(@NotNull Long id, RbacPrincipal principal);
 
-    Page<RagChunkResponse> chunks(Long documentId, Pageable pageable, RbacPrincipal principal);
+    Page<RagChunkResponse> chunks(@NotNull Long documentId, @NotNull Pageable pageable, RbacPrincipal principal);
 
-    void updateChunkEnabled(Long chunkId, boolean enabled, RbacPrincipal principal);
+    void updateChunkEnabled(@NotNull Long chunkId, boolean enabled, RbacPrincipal principal);
 
 }

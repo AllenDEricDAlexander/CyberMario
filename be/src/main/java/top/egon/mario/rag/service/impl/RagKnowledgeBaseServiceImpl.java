@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.validation.annotation.Validated;
 import top.egon.mario.rag.config.RagProperties;
 import top.egon.mario.rag.converter.RagDtoConverter;
 import top.egon.mario.rag.dto.request.CreateKnowledgeBaseRequest;
@@ -33,6 +34,7 @@ import java.util.stream.Collectors;
  */
 @Service
 @RequiredArgsConstructor
+@Validated
 public class RagKnowledgeBaseServiceImpl implements RagKnowledgeBaseService {
 
     private final RagProperties properties;

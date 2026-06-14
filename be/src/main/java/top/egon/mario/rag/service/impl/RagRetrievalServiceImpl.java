@@ -3,6 +3,7 @@ package top.egon.mario.rag.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.validation.annotation.Validated;
 import top.egon.mario.rag.config.RagProperties;
 import top.egon.mario.rag.dto.request.RetrievalSearchRequest;
 import top.egon.mario.rag.dto.response.RetrievalSearchResponse;
@@ -21,6 +22,7 @@ import java.util.Set;
  */
 @Service
 @RequiredArgsConstructor
+@Validated
 public class RagRetrievalServiceImpl implements RagRetrievalService {
 
     private final RagProperties properties;

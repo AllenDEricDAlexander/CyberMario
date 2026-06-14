@@ -1,5 +1,10 @@
 package top.egon.mario.rag.service;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import top.egon.mario.rag.dto.request.RetrievalSearchRequest;
 import top.egon.mario.rag.dto.response.RetrievalSearchResponse;
 import top.egon.mario.rag.dto.response.SourceReferenceResponse;
@@ -13,9 +18,9 @@ import java.util.List;
  */
 public interface RagRetrievalService {
 
-    RetrievalSearchResponse search(RetrievalSearchRequest request, RbacPrincipal principal);
+    RetrievalSearchResponse search(@Valid @NotNull RetrievalSearchRequest request, RbacPrincipal principal);
 
-    List<SourceReferenceResponse> searchSources(String query, List<Long> knowledgeBaseIds, Integer topK,
+    List<SourceReferenceResponse> searchSources(@NotBlank String query, List<Long> knowledgeBaseIds, @Min(1) @Max(20) Integer topK,
                                                 BigDecimal threshold, RbacPrincipal principal);
 
 }

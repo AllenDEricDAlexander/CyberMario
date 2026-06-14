@@ -1,5 +1,6 @@
 package top.egon.mario.rag.dto.request;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
@@ -17,8 +18,8 @@ public record RagChatRequest(
         String sessionId,
         @NotBlank String question,
         List<Long> knowledgeBaseIds,
-        RetrievalOptions retrievalOptions,
-        ModelOptions modelOptions,
+        @Valid RetrievalOptions retrievalOptions,
+        @Valid ModelOptions modelOptions,
         Boolean withSources
 ) {
 

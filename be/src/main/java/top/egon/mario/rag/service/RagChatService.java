@@ -1,5 +1,7 @@
 package top.egon.mario.rag.service;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import reactor.core.publisher.Flux;
 import top.egon.mario.rag.dto.request.RagChatRequest;
 import top.egon.mario.rag.dto.response.RagStreamEvent;
@@ -13,6 +15,6 @@ public interface RagChatService {
     /**
      * Answers a user question with streamed RAG events.
      */
-    Flux<RagStreamEvent> stream(RagChatRequest request, RbacPrincipal principal);
+    Flux<RagStreamEvent> stream(@Valid @NotNull RagChatRequest request, RbacPrincipal principal);
 
 }

@@ -1,5 +1,6 @@
 package top.egon.mario.rbac.dto.request;
 
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -11,6 +12,7 @@ import java.util.Set;
 @Getter
 @Setter
 public class ReplaceIdsRequest {
+    @NotNull
     private Set<Long> ids = Set.of();
     private boolean syncButtonApis;
     private String remark;

@@ -1,5 +1,7 @@
 package top.egon.mario.rag.service;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import top.egon.mario.rag.dto.request.CreateKnowledgeBaseRequest;
@@ -16,16 +18,16 @@ import java.util.List;
  */
 public interface RagKnowledgeBaseService {
 
-    Page<KnowledgeBaseResponse> page(Pageable pageable);
+    Page<KnowledgeBaseResponse> page(@NotNull Pageable pageable);
 
-    KnowledgeBaseResponse create(CreateKnowledgeBaseRequest request, RbacPrincipal principal);
+    KnowledgeBaseResponse create(@Valid @NotNull CreateKnowledgeBaseRequest request, RbacPrincipal principal);
 
-    KnowledgeBaseResponse update(Long id, UpdateKnowledgeBaseRequest request, RbacPrincipal principal);
+    KnowledgeBaseResponse update(@NotNull Long id, @Valid @NotNull UpdateKnowledgeBaseRequest request, RbacPrincipal principal);
 
-    void delete(Long id, RbacPrincipal principal);
+    void delete(@NotNull Long id, RbacPrincipal principal);
 
-    List<KnowledgeBaseUserResponse> replaceUsers(Long id, ReplaceKnowledgeBaseUsersRequest request, RbacPrincipal principal);
+    List<KnowledgeBaseUserResponse> replaceUsers(@NotNull Long id, @Valid @NotNull ReplaceKnowledgeBaseUsersRequest request, RbacPrincipal principal);
 
-    List<KnowledgeBaseUserResponse> users(Long id, RbacPrincipal principal);
+    List<KnowledgeBaseUserResponse> users(@NotNull Long id, RbacPrincipal principal);
 
 }

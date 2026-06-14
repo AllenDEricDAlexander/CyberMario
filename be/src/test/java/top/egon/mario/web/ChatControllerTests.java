@@ -9,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Scheduler;
 import reactor.test.StepVerifier;
 import top.egon.mario.agent.service.ChatAgentService;
 import top.egon.mario.pojo.response.ChatResponse;
@@ -33,6 +34,9 @@ class ChatControllerTests {
     @MockitoBean
     private RbacApiRuleCache rbacApiRuleCache;
 
+    @MockitoBean
+    private Scheduler blockingScheduler;
+
     @Test
     void chatReturnsAgentResponse() {
         given(chatAgentService.chat("你好", "thread-1"))
@@ -54,6 +58,26 @@ class ChatControllerTests {
                         .getResponseBody())
                 .expectNext(new ChatResponse("thread-1", "你好，我是 CyberMario。"))
                 .verifyComplete();
+    }
+
+    @Test
+    void chatRejectsBlankMessage() {
+        webTestClient.post()
+                .uri("/demo/chat/stream")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_NDJSON)
+                .bodyValue("""
+                        {
+                          "message": "",
+                          "threadId": "thread-1"
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("VALIDATION_ERROR")
+                .jsonPath("$.message").value(message ->
+                        org.assertj.core.api.Assertions.assertThat(message.toString()).contains("message"));
     }
 
 }

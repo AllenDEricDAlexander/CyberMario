@@ -1,11 +1,13 @@
 package top.egon.mario.rbac.web;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,13 +36,14 @@ import java.util.Set;
 @RequiredArgsConstructor
 @RequestMapping("/api/admin/roles")
 @Slf4j
+@Validated
 public class AdminRoleController extends ReactiveRbacSupport {
 
     private final RbacRoleService roleService;
 
     @GetMapping
-    public Mono<ApiResponse<PageResult<RoleResponse>>> page(@RequestParam(defaultValue = "1") int page,
-                                                            @RequestParam(defaultValue = "20") int size) {
+    public Mono<ApiResponse<PageResult<RoleResponse>>> page(@RequestParam(defaultValue = "1") @Min(1) int page,
+                                                            @RequestParam(defaultValue = "20") @Min(1) int size) {
         return blocking(() -> pageResult(roleService.getRolePage(PageRequest.of(Math.max(page - 1, 0), size, Sort.by("sortNo").ascending()))));
     }
 
@@ -50,43 +53,43 @@ public class AdminRoleController extends ReactiveRbacSupport {
     }
 
     @GetMapping("/{id}")
-    public Mono<ApiResponse<RoleResponse>> detail(@PathVariable Long id) {
+    public Mono<ApiResponse<RoleResponse>> detail(@PathVariable @Min(1) Long id) {
         return blocking(() -> roleService.getRole(id));
     }
 
     @PutMapping("/{id}")
-    public Mono<ApiResponse<RoleResponse>> update(@PathVariable Long id, @RequestBody UpdateRoleRequest request) {
+    public Mono<ApiResponse<RoleResponse>> update(@PathVariable @Min(1) Long id, @Valid @RequestBody UpdateRoleRequest request) {
         return blocking(() -> roleService.updateRole(id, request));
     }
 
     @DeleteMapping("/{id}")
-    public Mono<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public Mono<ApiResponse<Void>> delete(@PathVariable @Min(1) Long id) {
         return blockingVoid(() -> roleService.deleteRole(id));
     }
 
     @GetMapping("/{id}/permissions")
-    public Mono<ApiResponse<Set<Long>>> permissions(@PathVariable Long id) {
+    public Mono<ApiResponse<Set<Long>>> permissions(@PathVariable @Min(1) Long id) {
         return blocking(() -> roleService.getDirectPermissionIds(id));
     }
 
     @GetMapping("/{id}/permissions/effective")
-    public Mono<ApiResponse<Set<Long>>> effectivePermissions(@PathVariable Long id) {
+    public Mono<ApiResponse<Set<Long>>> effectivePermissions(@PathVariable @Min(1) Long id) {
         return blocking(() -> roleService.getEffectivePermissionIds(id));
     }
 
     @PutMapping("/{id}/permissions")
-    public Mono<ApiResponse<Set<Long>>> replacePermissions(@PathVariable Long id, @RequestBody ReplaceIdsRequest request,
+    public Mono<ApiResponse<Set<Long>>> replacePermissions(@PathVariable @Min(1) Long id, @Valid @RequestBody ReplaceIdsRequest request,
                                                            @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> roleService.replaceRolePermissions(id, request.getIds(), request.isSyncButtonApis(), actorId(principal)));
     }
 
     @GetMapping("/{id}/inheritance")
-    public Mono<ApiResponse<Set<Long>>> inheritance(@PathVariable Long id) {
+    public Mono<ApiResponse<Set<Long>>> inheritance(@PathVariable @Min(1) Long id) {
         return blocking(() -> roleService.getInheritedRoleIds(id));
     }
 
     @PutMapping("/{id}/inheritance")
-    public Mono<ApiResponse<Void>> replaceInheritance(@PathVariable Long id, @RequestBody ReplaceIdsRequest request,
+    public Mono<ApiResponse<Void>> replaceInheritance(@PathVariable @Min(1) Long id, @Valid @RequestBody ReplaceIdsRequest request,
                                                       @AuthenticationPrincipal RbacPrincipal principal) {
         return blockingVoid(() -> roleService.replaceRoleInheritance(id, request.getIds(), actorId(principal)));
     }

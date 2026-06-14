@@ -1,5 +1,7 @@
 package top.egon.mario.rbac.service;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import top.egon.mario.rbac.dto.request.PermissionRequest;
@@ -17,29 +19,29 @@ import java.util.Set;
  */
 public interface RbacPermissionService {
 
-    PermissionResponse createPermission(PermissionRequest request, Long actorUserId);
+    PermissionResponse createPermission(@Valid @NotNull PermissionRequest request, Long actorUserId);
 
-    PermissionPo getPermissionPo(Long permissionId);
+    PermissionPo getPermissionPo(@NotNull Long permissionId);
 
-    PermissionResponse getPermission(Long permissionId);
+    PermissionResponse getPermission(@NotNull Long permissionId);
 
-    Page<PermissionResponse> getPermissionPage(Pageable pageable);
+    Page<PermissionResponse> getPermissionPage(@NotNull Pageable pageable);
 
-    Page<PermissionResponse> getApiPermissionPage(Pageable pageable);
+    Page<PermissionResponse> getApiPermissionPage(@NotNull Pageable pageable);
 
     List<MenuTreeResponse> getMenuTree();
 
-    List<PermissionResponse> getButtonsByMenuId(Long menuPermissionId);
+    List<PermissionResponse> getButtonsByMenuId(@NotNull Long menuPermissionId);
 
-    Set<Long> getButtonApiIds(Long buttonPermissionId);
+    Set<Long> getButtonApiIds(@NotNull Long buttonPermissionId);
 
-    PermissionResponse updatePermission(Long permissionId, PermissionRequest request, Long actorUserId);
+    PermissionResponse updatePermission(@NotNull Long permissionId, @Valid @NotNull PermissionRequest request, Long actorUserId);
 
-    void updateStatus(Long permissionId, top.egon.mario.rbac.dto.enums.PermissionStatus status);
+    void updateStatus(@NotNull Long permissionId, @NotNull top.egon.mario.rbac.dto.enums.PermissionStatus status);
 
-    void deletePermission(Long permissionId);
+    void deletePermission(@NotNull Long permissionId);
 
-    void replaceButtonApis(Long buttonPermissionId, Collection<Long> apiPermissionIds, Long actorUserId);
+    void replaceButtonApis(@NotNull Long buttonPermissionId, Collection<Long> apiPermissionIds, Long actorUserId);
 
     List<ApiPermissionRule> findEnabledApiRules();
 

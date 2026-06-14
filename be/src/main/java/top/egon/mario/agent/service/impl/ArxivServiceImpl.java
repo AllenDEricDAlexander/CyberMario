@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.stereotype.Service;
+import org.springframework.validation.annotation.Validated;
 import top.egon.mario.agent.service.ArxivService;
 import top.egon.mario.common.utils.LogUtil;
 
@@ -13,6 +14,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Validated
 public class ArxivServiceImpl implements ArxivService {
 
 

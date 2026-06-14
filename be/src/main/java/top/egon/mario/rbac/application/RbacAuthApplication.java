@@ -1,5 +1,8 @@
 package top.egon.mario.rbac.application;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -8,6 +11,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.validation.annotation.Validated;
 import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.converter.RbacDtoConverter;
 import top.egon.mario.rbac.dto.request.LoginRequest;
@@ -41,6 +45,7 @@ import java.util.stream.Stream;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Validated
 public class RbacAuthApplication {
 
     private final UserRepository userRepository;
@@ -55,7 +60,7 @@ public class RbacAuthApplication {
     private final RbacPermissionVersionService permissionVersionService;
 
     @Transactional
-    public LoginResponse login(LoginRequest request, String ip, String userAgent) {
+    public LoginResponse login(@Valid @NotNull LoginRequest request, String ip, String userAgent) {
         UserPo user = userRepository.findByUsernameAndDeletedFalse(request.username().trim().toLowerCase())
                 .orElseThrow(() -> new RbacException("AUTH_INVALID_CREDENTIALS", "username or password is invalid"));
         ensureUserCanLogin(user);
@@ -76,7 +81,7 @@ public class RbacAuthApplication {
     }
 
     @Transactional
-    public LoginResponse refresh(String refreshToken, String ip, String userAgent) {
+    public LoginResponse refresh(@NotBlank String refreshToken, String ip, String userAgent) {
         JwtClaims claims = jwtTokenService.validate(refreshToken, "refresh");
         String refreshTokenHash = jwtTokenService.hashToken(refreshToken);
         tokenCache.findRefreshTokenHash(claims).ifPresent(cachedHash -> {
@@ -111,7 +116,7 @@ public class RbacAuthApplication {
     }
 
     @Transactional
-    public void logout(String refreshToken) {
+    public void logout(@NotBlank String refreshToken) {
         JwtClaims claims = jwtTokenService.validate(refreshToken, "refresh");
         refreshTokenRepository.findByTokenId(claims.tokenId()).ifPresent(token -> {
             token.setRevokedAt(Instant.now());
@@ -122,7 +127,7 @@ public class RbacAuthApplication {
     }
 
     @Transactional(readOnly = true)
-    public Authentication authenticateAccessToken(String accessToken) {
+    public Authentication authenticateAccessToken(@NotBlank String accessToken) {
         JwtClaims claims = jwtTokenService.validate(accessToken, "access");
         if (!tokenCache.isAccessTokenActive(claims)) {
             LogUtil.warn(log).log("access token rejected, reason=inactive, userId={}, accessTokenId={}",
@@ -143,7 +148,7 @@ public class RbacAuthApplication {
     }
 
     @Transactional(readOnly = true)
-    public LoginResponse currentUser(Long userId) {
+    public LoginResponse currentUser(@NotNull Long userId) {
         UserPo user = userRepository.findByIdAndDeletedFalse(userId)
                 .orElseThrow(() -> new RbacException("RBAC_USER_NOT_FOUND", "user not found"));
         return buildLoginResponse(user, null);

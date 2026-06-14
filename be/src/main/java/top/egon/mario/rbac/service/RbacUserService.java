@@ -1,5 +1,8 @@
 package top.egon.mario.rbac.service;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import top.egon.mario.rbac.dto.request.CreateUserRequest;
@@ -15,26 +18,26 @@ import java.util.Set;
  */
 public interface RbacUserService {
 
-    UserResponse createUser(CreateUserRequest request, Long actorUserId);
+    UserResponse createUser(@Valid @NotNull CreateUserRequest request, Long actorUserId);
 
-    UserPo getUserPo(Long userId);
+    UserPo getUserPo(@NotNull Long userId);
 
-    UserResponse getUser(Long userId);
+    UserResponse getUser(@NotNull Long userId);
 
-    Page<UserResponse> getUserPage(Pageable pageable);
+    Page<UserResponse> getUserPage(@NotNull Pageable pageable);
 
-    UserResponse updateUser(Long userId, UpdateUserRequest request);
+    UserResponse updateUser(@NotNull Long userId, @Valid @NotNull UpdateUserRequest request);
 
-    void resetPassword(Long userId, String newPassword);
+    void resetPassword(@NotNull Long userId, @NotBlank String newPassword);
 
-    void updateStatus(Long userId, top.egon.mario.rbac.dto.enums.RbacStatus status);
+    void updateStatus(@NotNull Long userId, @NotNull top.egon.mario.rbac.dto.enums.RbacStatus status);
 
-    void deleteUser(Long userId, Long actorUserId);
+    void deleteUser(@NotNull Long userId, Long actorUserId);
 
-    void markLoginSuccess(Long userId);
+    void markLoginSuccess(@NotNull Long userId);
 
-    void replaceUserRoles(Long userId, Collection<Long> roleIds, Long actorUserId);
+    void replaceUserRoles(@NotNull Long userId, Collection<Long> roleIds, Long actorUserId);
 
-    Set<Long> getDirectRoleIds(Long userId);
+    Set<Long> getDirectRoleIds(@NotNull Long userId);
 
 }

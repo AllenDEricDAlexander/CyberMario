@@ -1,10 +1,12 @@
 package top.egon.mario.rag.web;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,6 +38,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/rag/knowledge-bases")
+@Validated
 public class RagKnowledgeBaseController extends ReactiveRagSupport {
 
     private final RagKnowledgeBaseService knowledgeBaseService;
@@ -43,8 +46,8 @@ public class RagKnowledgeBaseController extends ReactiveRagSupport {
     @RbacApi(appCode = "rag", code = "api:rag:knowledge-base:collection", name = "RAG 知识库集合",
             method = "ANY", pattern = "/api/rag/knowledge-bases", risk = ApiRiskLevel.HIGH)
     @GetMapping
-    public Mono<ApiResponse<PageResult<KnowledgeBaseResponse>>> page(@RequestParam(defaultValue = "1") int page,
-                                                                     @RequestParam(defaultValue = "20") int size) {
+    public Mono<ApiResponse<PageResult<KnowledgeBaseResponse>>> page(@RequestParam(defaultValue = "1") @Min(1) int page,
+                                                                     @RequestParam(defaultValue = "20") @Min(1) int size) {
         return blocking(() -> pageResult(knowledgeBaseService.page(PageRequest.of(Math.max(page - 1, 0), size, Sort.by("id").descending()))));
     }
 
@@ -57,26 +60,26 @@ public class RagKnowledgeBaseController extends ReactiveRagSupport {
     }
 
     @PutMapping("/{id}")
-    public Mono<ApiResponse<KnowledgeBaseResponse>> update(@PathVariable Long id,
+    public Mono<ApiResponse<KnowledgeBaseResponse>> update(@PathVariable @Min(1) Long id,
                                                            @Valid @RequestBody UpdateKnowledgeBaseRequest request,
                                                            @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> knowledgeBaseService.update(id, request, principal));
     }
 
     @DeleteMapping("/{id}")
-    public Mono<ApiResponse<Void>> delete(@PathVariable Long id,
+    public Mono<ApiResponse<Void>> delete(@PathVariable @Min(1) Long id,
                                           @AuthenticationPrincipal RbacPrincipal principal) {
         return blockingVoid(() -> knowledgeBaseService.delete(id, principal));
     }
 
     @GetMapping("/{id}/users")
-    public Mono<ApiResponse<List<KnowledgeBaseUserResponse>>> users(@PathVariable Long id,
+    public Mono<ApiResponse<List<KnowledgeBaseUserResponse>>> users(@PathVariable @Min(1) Long id,
                                                                     @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> knowledgeBaseService.users(id, principal));
     }
 
     @PutMapping("/{id}/users")
-    public Mono<ApiResponse<List<KnowledgeBaseUserResponse>>> replaceUsers(@PathVariable Long id,
+    public Mono<ApiResponse<List<KnowledgeBaseUserResponse>>> replaceUsers(@PathVariable @Min(1) Long id,
                                                                            @Valid @RequestBody ReplaceKnowledgeBaseUsersRequest request,
                                                                            @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> knowledgeBaseService.replaceUsers(id, request, principal));

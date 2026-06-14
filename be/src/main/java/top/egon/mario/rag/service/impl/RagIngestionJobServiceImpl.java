@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.validation.annotation.Validated;
 import top.egon.mario.rag.converter.RagDtoConverter;
 import top.egon.mario.rag.dto.response.RagIngestionJobResponse;
 import top.egon.mario.rag.po.RagIngestionJobPo;
@@ -26,6 +27,7 @@ import java.util.Set;
  */
 @Service
 @RequiredArgsConstructor
+@Validated
 public class RagIngestionJobServiceImpl implements RagIngestionJobService {
 
     private final RagIngestionJobRepository jobRepository;

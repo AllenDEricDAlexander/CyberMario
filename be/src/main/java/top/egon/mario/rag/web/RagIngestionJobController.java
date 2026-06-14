@@ -1,9 +1,11 @@
 package top.egon.mario.rag.web;
 
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,6 +28,7 @@ import top.egon.mario.rbac.service.security.RbacPrincipal;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/rag/ingestion-jobs")
+@Validated
 public class RagIngestionJobController extends ReactiveRagSupport {
 
     private final RagIngestionJobService ingestionJobService;
@@ -33,9 +36,9 @@ public class RagIngestionJobController extends ReactiveRagSupport {
     @RbacApi(appCode = "rag", code = "api:rag:ingestion-job:collection", name = "RAG 入库任务集合",
             method = "ANY", pattern = "/api/rag/ingestion-jobs", risk = ApiRiskLevel.MEDIUM)
     @GetMapping
-    public Mono<ApiResponse<PageResult<RagIngestionJobResponse>>> page(@RequestParam(required = false) Long knowledgeBaseId,
-                                                                       @RequestParam(defaultValue = "1") int page,
-                                                                       @RequestParam(defaultValue = "20") int size,
+    public Mono<ApiResponse<PageResult<RagIngestionJobResponse>>> page(@RequestParam(required = false) @Min(1) Long knowledgeBaseId,
+                                                                       @RequestParam(defaultValue = "1") @Min(1) int page,
+                                                                       @RequestParam(defaultValue = "20") @Min(1) int size,
                                                                        @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> pageResult(ingestionJobService.page(knowledgeBaseId, PageRequest.of(Math.max(page - 1, 0), size, Sort.by("id").descending()), principal)));
     }
@@ -43,13 +46,13 @@ public class RagIngestionJobController extends ReactiveRagSupport {
     @RbacApi(appCode = "rag", code = "api:rag:ingestion-job:*", name = "RAG 入库任务管理",
             method = "ANY", pattern = "/api/rag/ingestion-jobs/**", matcher = ApiMatcherType.ANT, risk = ApiRiskLevel.MEDIUM)
     @PostMapping("/{id}/retry")
-    public Mono<ApiResponse<RagIngestionJobResponse>> retry(@PathVariable Long id,
+    public Mono<ApiResponse<RagIngestionJobResponse>> retry(@PathVariable @Min(1) Long id,
                                                             @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> ingestionJobService.retry(id, principal));
     }
 
     @PostMapping("/{id}/cancel")
-    public Mono<ApiResponse<Void>> cancel(@PathVariable Long id,
+    public Mono<ApiResponse<Void>> cancel(@PathVariable @Min(1) Long id,
                                           @AuthenticationPrincipal RbacPrincipal principal) {
         return blockingVoid(() -> ingestionJobService.cancel(id, principal));
     }

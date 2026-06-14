@@ -1,5 +1,6 @@
 package top.egon.mario.rbac.service;
 
+import jakarta.validation.constraints.NotNull;
 import top.egon.mario.rbac.service.model.ButtonApiLink;
 
 import java.util.Collection;
@@ -10,7 +11,7 @@ import java.util.Set;
  */
 public interface RolePermissionMergeService {
 
-    Set<Long> mergeButtonApis(Set<Long> submittedPermissionIds, boolean syncButtonApis,
+    Set<Long> mergeButtonApis(@NotNull Set<Long> submittedPermissionIds, boolean syncButtonApis,
                               Collection<ButtonApiLink> buttonApiLinks);
 
 }

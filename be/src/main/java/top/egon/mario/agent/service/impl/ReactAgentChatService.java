@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.util.StringUtils;
+import org.springframework.validation.annotation.Validated;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
@@ -25,6 +26,7 @@ import java.util.UUID;
  * streaming and exposes both reasoning (think) and final message chunks.
  */
 @Slf4j
+@Validated
 public class ReactAgentChatService implements ChatAgentService {
 
     private final ReactAgent agent;

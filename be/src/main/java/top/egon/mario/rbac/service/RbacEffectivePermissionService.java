@@ -1,5 +1,6 @@
 package top.egon.mario.rbac.service;
 
+import jakarta.validation.constraints.NotNull;
 import top.egon.mario.rbac.dto.response.EffectivePermissionResponse;
 import top.egon.mario.rbac.dto.response.MenuTreeResponse;
 
@@ -11,12 +12,12 @@ import java.util.Set;
  */
 public interface RbacEffectivePermissionService {
 
-    EffectivePermissionResponse getUserEffectivePermissions(Long userId);
+    EffectivePermissionResponse getUserEffectivePermissions(@NotNull Long userId);
 
-    List<MenuTreeResponse> getUserMenuTree(Long userId);
+    List<MenuTreeResponse> getUserMenuTree(@NotNull Long userId);
 
-    Set<Long> resolveEffectiveRoleIds(Long userId);
+    Set<Long> resolveEffectiveRoleIds(@NotNull Long userId);
 
-    Set<String> getUserApiAuthorities(Long userId);
+    Set<String> getUserApiAuthorities(@NotNull Long userId);
 
 }

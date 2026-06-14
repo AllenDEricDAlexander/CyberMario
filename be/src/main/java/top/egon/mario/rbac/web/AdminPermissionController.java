@@ -1,11 +1,13 @@
 package top.egon.mario.rbac.web;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -35,13 +37,14 @@ import java.util.List;
 @RequiredArgsConstructor
 @RequestMapping("/api/admin/permissions")
 @Slf4j
+@Validated
 public class AdminPermissionController extends ReactiveRbacSupport {
 
     private final RbacPermissionService permissionService;
 
     @GetMapping
-    public Mono<ApiResponse<PageResult<PermissionResponse>>> page(@RequestParam(defaultValue = "1") int page,
-                                                                  @RequestParam(defaultValue = "20") int size) {
+    public Mono<ApiResponse<PageResult<PermissionResponse>>> page(@RequestParam(defaultValue = "1") @Min(1) int page,
+                                                                  @RequestParam(defaultValue = "20") @Min(1) int size) {
         return blocking(() -> pageResult(permissionService.getPermissionPage(PageRequest.of(Math.max(page - 1, 0), size, Sort.by("id").descending()))));
     }
 
@@ -52,23 +55,23 @@ public class AdminPermissionController extends ReactiveRbacSupport {
     }
 
     @GetMapping("/{id}")
-    public Mono<ApiResponse<PermissionResponse>> detail(@PathVariable Long id) {
+    public Mono<ApiResponse<PermissionResponse>> detail(@PathVariable @Min(1) Long id) {
         return blocking(() -> permissionService.getPermission(id));
     }
 
     @PutMapping("/{id}")
-    public Mono<ApiResponse<PermissionResponse>> update(@PathVariable Long id, @Valid @RequestBody PermissionRequest request,
+    public Mono<ApiResponse<PermissionResponse>> update(@PathVariable @Min(1) Long id, @Valid @RequestBody PermissionRequest request,
                                                         @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> permissionService.updatePermission(id, request, actorId(principal)));
     }
 
     @DeleteMapping("/{id}")
-    public Mono<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public Mono<ApiResponse<Void>> delete(@PathVariable @Min(1) Long id) {
         return blockingVoid(() -> permissionService.deletePermission(id));
     }
 
     @PatchMapping("/{id}/status")
-    public Mono<ApiResponse<Void>> status(@PathVariable Long id, @RequestBody StatusRequest request) {
+    public Mono<ApiResponse<Void>> status(@PathVariable @Min(1) Long id, @Valid @RequestBody StatusRequest request) {
         return blockingVoid(() -> permissionService.updateStatus(id, request.getPermissionStatus()));
     }
 

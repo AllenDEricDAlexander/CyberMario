@@ -1,10 +1,14 @@
 package top.egon.mario.config;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.support.WebExchangeBindException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import reactor.core.publisher.Mono;
 import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.common.api.TraceContext;
@@ -12,30 +16,52 @@ import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rag.service.RagException;
 import top.egon.mario.rbac.service.RbacException;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
 
+    private static final String VALIDATION_ERROR = "VALIDATION_ERROR";
+
     @ExceptionHandler(WebExchangeBindException.class)
-    public Mono<ResponseEntity<Map<String, Object>>> handleValidationErrors(WebExchangeBindException ex) {
-
-        Map<String, Object> errors = new HashMap<>();
-        ex.getBindingResult().getFieldErrors().forEach(error -> {
-            errors.put(error.getField(), error.getDefaultMessage());
-        });
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", false);
-        response.put("errors", errors);
-
+    public Mono<ResponseEntity<ApiResponse<Void>>> handleValidationErrors(WebExchangeBindException ex) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .map(this::formatFieldError)
+                .collect(Collectors.joining("; "));
         return Mono.deferContextual(contextView -> {
             String traceId = TraceContext.traceId(contextView);
             return Mono.just(TraceContext.withMdc(traceId, () -> {
-                LogUtil.warn(log).log("request validation failed, fieldCount={}", errors.size());
-                return ResponseEntity.badRequest().body(response);
+                LogUtil.warn(log).log("request validation failed, fieldCount={}", ex.getBindingResult().getFieldErrorCount());
+                return validationResponse(message, traceId);
+            }));
+        });
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public Mono<ResponseEntity<ApiResponse<Void>>> handleConstraintViolation(ConstraintViolationException ex) {
+        String message = ex.getConstraintViolations().stream()
+                .map(this::formatConstraintViolation)
+                .collect(Collectors.joining("; "));
+        return Mono.deferContextual(contextView -> {
+            String traceId = TraceContext.traceId(contextView);
+            return Mono.just(TraceContext.withMdc(traceId, () -> {
+                LogUtil.warn(log).log("method validation failed, violationCount={}", ex.getConstraintViolations().size());
+                return validationResponse(message, traceId);
+            }));
+        });
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public Mono<ResponseEntity<ApiResponse<Void>>> handleHandlerMethodValidation(HandlerMethodValidationException ex) {
+        String message = ex.getAllErrors().stream()
+                .map(error -> error.getDefaultMessage() == null ? error.toString() : error.getDefaultMessage())
+                .collect(Collectors.joining("; "));
+        return Mono.deferContextual(contextView -> {
+            String traceId = TraceContext.traceId(contextView);
+            return Mono.just(TraceContext.withMdc(traceId, () -> {
+                LogUtil.warn(log).log("handler method validation failed, errorCount={}", ex.getAllErrors().size());
+                return validationResponse(message, traceId);
             }));
         });
     }
@@ -60,5 +86,18 @@ public class GlobalExceptionHandler {
                 return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getCode(), ex.getMessage(), traceId));
             }));
         });
+    }
+
+    private ResponseEntity<ApiResponse<Void>> validationResponse(String message, String traceId) {
+        String responseMessage = message == null || message.isBlank() ? "request validation failed" : message;
+        return ResponseEntity.badRequest().body(ApiResponse.fail(VALIDATION_ERROR, responseMessage, traceId));
+    }
+
+    private String formatFieldError(FieldError error) {
+        return error.getField() + ": " + error.getDefaultMessage();
+    }
+
+    private String formatConstraintViolation(ConstraintViolation<?> violation) {
+        return violation.getPropertyPath() + ": " + violation.getMessage();
     }
 }

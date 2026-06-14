@@ -1,9 +1,11 @@
 package top.egon.mario.rbac.web;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,6 +31,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @RequestMapping("/api/admin/menus")
 @Slf4j
+@Validated
 public class AdminMenuController extends ReactiveRbacSupport {
 
     private final RbacPermissionService permissionService;
@@ -45,13 +48,13 @@ public class AdminMenuController extends ReactiveRbacSupport {
     }
 
     @PutMapping("/{id}")
-    public Mono<ApiResponse<PermissionResponse>> update(@PathVariable Long id, @Valid @RequestBody PermissionRequest request,
+    public Mono<ApiResponse<PermissionResponse>> update(@PathVariable @Min(1) Long id, @Valid @RequestBody PermissionRequest request,
                                                         @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> permissionService.updatePermission(id, request, actorId(principal)));
     }
 
     @DeleteMapping("/{id}")
-    public Mono<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public Mono<ApiResponse<Void>> delete(@PathVariable @Min(1) Long id) {
         return blockingVoid(() -> permissionService.deletePermission(id));
     }
 

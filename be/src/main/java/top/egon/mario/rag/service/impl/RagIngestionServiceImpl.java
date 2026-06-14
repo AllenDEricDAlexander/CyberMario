@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.validation.annotation.Validated;
 import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rag.converter.RagDtoConverter;
 import top.egon.mario.rag.dto.response.RagIngestionJobResponse;
@@ -39,6 +40,7 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Validated
 public class RagIngestionServiceImpl implements RagIngestionService {
 
     private final RagIngestionJobRepository jobRepository;

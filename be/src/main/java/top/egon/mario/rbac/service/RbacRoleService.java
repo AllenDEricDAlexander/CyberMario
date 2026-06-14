@@ -1,5 +1,7 @@
 package top.egon.mario.rbac.service;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import top.egon.mario.rbac.dto.request.CreateRoleRequest;
@@ -15,27 +17,27 @@ import java.util.Set;
  */
 public interface RbacRoleService {
 
-    RoleResponse createRole(CreateRoleRequest request);
+    RoleResponse createRole(@Valid @NotNull CreateRoleRequest request);
 
-    RolePo getRolePo(Long roleId);
+    RolePo getRolePo(@NotNull Long roleId);
 
-    RoleResponse getRole(Long roleId);
+    RoleResponse getRole(@NotNull Long roleId);
 
-    Page<RoleResponse> getRolePage(Pageable pageable);
+    Page<RoleResponse> getRolePage(@NotNull Pageable pageable);
 
-    RoleResponse updateRole(Long roleId, UpdateRoleRequest request);
+    RoleResponse updateRole(@NotNull Long roleId, @Valid @NotNull UpdateRoleRequest request);
 
-    void deleteRole(Long roleId);
+    void deleteRole(@NotNull Long roleId);
 
-    void replaceRoleInheritance(Long roleId, Collection<Long> inheritedRoleIds, Long actorUserId);
+    void replaceRoleInheritance(@NotNull Long roleId, Collection<Long> inheritedRoleIds, Long actorUserId);
 
-    Set<Long> replaceRolePermissions(Long roleId, Collection<Long> permissionIds, boolean syncButtonApis,
+    Set<Long> replaceRolePermissions(@NotNull Long roleId, Collection<Long> permissionIds, boolean syncButtonApis,
                                      Long actorUserId);
 
-    Set<Long> getEffectivePermissionIds(Long roleId);
+    Set<Long> getEffectivePermissionIds(@NotNull Long roleId);
 
-    Set<Long> getDirectPermissionIds(Long roleId);
+    Set<Long> getDirectPermissionIds(@NotNull Long roleId);
 
-    Set<Long> getInheritedRoleIds(Long roleId);
+    Set<Long> getInheritedRoleIds(@NotNull Long roleId);
 
 }

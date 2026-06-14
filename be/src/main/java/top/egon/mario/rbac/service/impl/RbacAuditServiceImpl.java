@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.validation.annotation.Validated;
 import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.po.AuditLogPo;
 import top.egon.mario.rbac.repository.AuditLogRepository;
@@ -17,6 +18,7 @@ import java.time.Instant;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Validated
 public class RbacAuditServiceImpl implements RbacAuditService {
 
     private final AuditLogRepository auditLogRepository;

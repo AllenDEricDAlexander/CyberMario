@@ -1,5 +1,6 @@
 package top.egon.mario.rbac.dto.request;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
@@ -27,8 +28,11 @@ public class PermissionRequest {
     private PermissionStatus status = PermissionStatus.ENABLED;
     private int sortNo;
     private String description;
+    @Valid
     private Menu menu;
+    @Valid
     private Button button;
+    @Valid
     private Api api;
 
     @Getter

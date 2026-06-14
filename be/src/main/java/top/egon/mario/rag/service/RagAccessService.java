@@ -1,5 +1,6 @@
 package top.egon.mario.rag.service;
 
+import jakarta.validation.constraints.NotNull;
 import top.egon.mario.rag.po.enums.RagAccessLevel;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
@@ -19,7 +20,7 @@ public interface RagAccessService {
     /**
      * Ensures the current user has the requested access level on a knowledge base.
      */
-    void requireAccess(RbacPrincipal principal, Long knowledgeBaseId, RagAccessLevel requiredLevel);
+    void requireAccess(RbacPrincipal principal, @NotNull Long knowledgeBaseId, @NotNull RagAccessLevel requiredLevel);
 
     /**
      * Returns whether the principal can bypass knowledge base data permissions.

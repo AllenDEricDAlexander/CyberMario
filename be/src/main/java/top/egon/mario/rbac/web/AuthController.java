@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,6 +30,7 @@ import top.egon.mario.rbac.service.security.RbacPrincipal;
 @RequiredArgsConstructor
 @RequestMapping("/api/auth")
 @Slf4j
+@Validated
 public class AuthController extends ReactiveRbacSupport {
 
     private final RbacAuthApplication authApplication;

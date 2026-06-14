@@ -6,6 +6,7 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
+import org.springframework.validation.annotation.Validated;
 import reactor.core.publisher.Flux;
 import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.rag.config.RagProperties;
@@ -26,6 +27,7 @@ import java.util.stream.Collectors;
  */
 @Service
 @RequiredArgsConstructor
+@Validated
 public class RagChatServiceImpl implements RagChatService {
 
     private final RagProperties properties;

@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.validation.annotation.Validated;
 import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.converter.RbacDtoConverter;
 import top.egon.mario.rbac.dto.request.CreateRoleRequest;
@@ -48,6 +49,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Validated
 public class RbacRoleServiceImpl implements RbacRoleService {
 
     private final RoleRepository roleRepository;

@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,6 +24,7 @@ import top.egon.mario.rbac.service.security.RbacPrincipal;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/rag/chat")
+@Validated
 public class RagChatController {
 
     private final RagChatService chatService;

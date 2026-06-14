@@ -1,5 +1,6 @@
 package top.egon.mario.rag.service;
 
+import jakarta.validation.constraints.NotNull;
 import top.egon.mario.rag.po.RagFileObjectPo;
 
 /**
@@ -10,6 +11,6 @@ public interface RagDocumentParser {
     /**
      * Extracts text from a stored file object.
      */
-    String parse(RagFileObjectPo fileObject);
+    String parse(@NotNull RagFileObjectPo fileObject);
 
 }

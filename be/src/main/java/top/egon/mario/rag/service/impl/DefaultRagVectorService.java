@@ -4,6 +4,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
+import org.springframework.validation.annotation.Validated;
 import top.egon.mario.rag.dto.response.SourceReferenceResponse;
 import top.egon.mario.rag.po.RagDocumentChunkPo;
 import top.egon.mario.rag.po.RagKnowledgeBasePo;
@@ -25,6 +26,7 @@ import java.util.UUID;
  * Default vector service that uses Spring AI VectorStore when configured.
  */
 @Service
+@Validated
 public class DefaultRagVectorService implements RagVectorService {
 
     private final Optional<VectorStore> vectorStore;

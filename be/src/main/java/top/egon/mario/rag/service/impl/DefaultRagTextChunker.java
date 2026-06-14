@@ -1,6 +1,7 @@
 package top.egon.mario.rag.service.impl;
 
 import org.springframework.stereotype.Component;
+import org.springframework.validation.annotation.Validated;
 import top.egon.mario.rag.service.RagTextChunker;
 import top.egon.mario.rag.service.model.RagChunkCandidate;
 
@@ -11,6 +12,7 @@ import java.util.List;
  * Character-window chunker tuned for a stable first RAG implementation.
  */
 @Component
+@Validated
 public class DefaultRagTextChunker implements RagTextChunker {
 
     private static final int CHUNK_SIZE = 1800;

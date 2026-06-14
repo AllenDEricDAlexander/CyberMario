@@ -3,6 +3,7 @@ package top.egon.mario.rag.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.validation.annotation.Validated;
 import top.egon.mario.rag.po.RagKnowledgeBasePo;
 import top.egon.mario.rag.po.RagKnowledgeBaseUserPo;
 import top.egon.mario.rag.po.enums.RagAccessLevel;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
  */
 @Service
 @RequiredArgsConstructor
+@Validated
 public class RagAccessServiceImpl implements RagAccessService {
 
     private static final String SUPER_ADMIN_ROLE_CODE = "SUPER_ADMIN";
