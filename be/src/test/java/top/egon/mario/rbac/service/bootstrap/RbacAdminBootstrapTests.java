@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import top.egon.mario.rag.repository.RagKnowledgeBaseUserRepository;
 import top.egon.mario.rbac.po.ApiPo;
 import top.egon.mario.rbac.po.PermissionPo;
 import top.egon.mario.rbac.po.RolePermissionPo;
@@ -80,9 +81,12 @@ class RbacAdminBootstrapTests {
     private ApiRepository apiRepository;
     @Autowired
     private RbacResourceSynchronizer synchronizer;
+    @Autowired
+    private RagKnowledgeBaseUserRepository knowledgeBaseUserRepository;
 
     @BeforeEach
     void setUp() {
+        knowledgeBaseUserRepository.deleteAll();
         auditLogRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         rolePermissionRepository.deleteAll();

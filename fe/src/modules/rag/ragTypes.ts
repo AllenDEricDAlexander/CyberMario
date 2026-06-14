@@ -4,10 +4,17 @@ export type RagKnowledgeBaseStatus = 'ENABLED' | 'DISABLED'
 export type RagAccessLevel = 'READ' | 'WRITE' | 'MANAGE'
 export type RagDocumentStatus = 'UPLOADED' | 'PARSING' | 'CHUNKING' | 'EMBEDDING' | 'INDEXED' | 'FAILED' | 'DELETED'
 export type RagFileType = 'MD' | 'TXT' | 'PDF' | 'DOCX' | 'TEXT'
-export type RagDocumentSourceType = 'UPLOAD' | 'TEXT'
+export type RagDocumentSourceType = 'UPLOAD' | 'TEXT' | 'ARXIV'
 export type RagJobStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELED'
 export type RagJobStep = 'UPLOAD' | 'PARSE' | 'CHUNK' | 'EMBEDDING' | 'INDEX' | 'DONE'
 export type RagSearchMode = 'VECTOR' | 'KEYWORD' | 'HYBRID' | 'HYBRID_RERANK'
+export type ArxivToolLogStatus =
+    | 'SEARCHED'
+    | 'IMPORT_PENDING'
+    | 'IMPORT_RUNNING'
+    | 'IMPORT_SUCCESS'
+    | 'IMPORT_FAILED'
+    | 'IMPORT_SKIPPED'
 
 export type KnowledgeBaseResponse = {
     id: number
@@ -68,6 +75,28 @@ export type RagIngestionJobResponse = {
     chunkCount: number
     successCount: number
     failedCount: number
+    errorMessage?: string
+    startedAt?: string
+    finishedAt?: string
+    createdAt?: string
+}
+
+export type ArxivToolLogResponse = {
+    id: number
+    requestId: string
+    requestUserId?: number
+    requestUsername?: string
+    query: string
+    maxResults: number
+    includeFullText: boolean
+    resultCount: number
+    knowledgeBaseId?: number
+    entryId?: string
+    title?: string
+    pdfUrl?: string
+    status: ArxivToolLogStatus
+    documentId?: number
+    ragIngestionJobId?: number
     errorMessage?: string
     startedAt?: string
     finishedAt?: string

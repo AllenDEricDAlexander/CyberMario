@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import top.egon.mario.rag.repository.RagKnowledgeBaseUserRepository;
 import top.egon.mario.rbac.dto.request.ChangeCurrentUserPasswordRequest;
 import top.egon.mario.rbac.dto.request.UpdateCurrentUserProfileRequest;
 import top.egon.mario.rbac.dto.response.UserResponse;
@@ -60,9 +61,12 @@ class RbacUserSelfServiceTests {
     private MenuRepository menuRepository;
     @Autowired
     private ApiRepository apiRepository;
+    @Autowired
+    private RagKnowledgeBaseUserRepository knowledgeBaseUserRepository;
 
     @BeforeEach
     void setUp() {
+        knowledgeBaseUserRepository.deleteAll();
         auditLogRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         rolePermissionRepository.deleteAll();

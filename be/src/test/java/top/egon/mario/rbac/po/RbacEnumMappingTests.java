@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import top.egon.mario.rag.repository.RagKnowledgeBaseUserRepository;
 import top.egon.mario.rbac.dto.enums.RbacStatus;
 import top.egon.mario.rbac.dto.response.UserResponse;
 import top.egon.mario.rbac.repository.UserRepository;
@@ -24,9 +25,12 @@ class RbacEnumMappingTests {
 
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private RagKnowledgeBaseUserRepository knowledgeBaseUserRepository;
 
     @BeforeEach
     void setUp() {
+        knowledgeBaseUserRepository.deleteAll();
         userRepository.deleteAll();
     }
 

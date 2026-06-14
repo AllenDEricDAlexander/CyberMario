@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import top.egon.mario.rag.repository.RagKnowledgeBaseUserRepository;
 import top.egon.mario.rbac.dto.request.LoginRequest;
 import top.egon.mario.rbac.dto.request.RegisterRequest;
 import top.egon.mario.rbac.dto.response.LoginResponse;
@@ -68,9 +69,12 @@ class RbacAuthApplicationTests {
     private MenuRepository menuRepository;
     @Autowired
     private ApiRepository apiRepository;
+    @Autowired
+    private RagKnowledgeBaseUserRepository knowledgeBaseUserRepository;
 
     @BeforeEach
     void setUp() {
+        knowledgeBaseUserRepository.deleteAll();
         auditLogRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         rolePermissionRepository.deleteAll();

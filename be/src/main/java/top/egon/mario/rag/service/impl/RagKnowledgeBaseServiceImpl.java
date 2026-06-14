@@ -23,6 +23,7 @@ import top.egon.mario.rag.repository.RagKnowledgeBaseUserRepository;
 import top.egon.mario.rag.service.RagAccessService;
 import top.egon.mario.rag.service.RagException;
 import top.egon.mario.rag.service.RagKnowledgeBaseService;
+import top.egon.mario.rag.service.bootstrap.SuperAdminArxivKnowledgeBaseBootstrap;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.util.List;
@@ -45,8 +46,19 @@ public class RagKnowledgeBaseServiceImpl implements RagKnowledgeBaseService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<KnowledgeBaseResponse> page(Pageable pageable) {
-        return knowledgeBaseRepository.findAll((root, query, cb) -> cb.isFalse(root.get("deleted")), pageable)
+    public Page<KnowledgeBaseResponse> page(Pageable pageable, RbacPrincipal principal) {
+        return knowledgeBaseRepository.findAll((root, query, cb) -> {
+                    var notDeleted = cb.isFalse(root.get("deleted"));
+                    if (accessService.canBypassDataPermission(principal)) {
+                        return notDeleted;
+                    }
+                    // The system arXiv collection is a protected super-admin
+                    // knowledge base. Hide it from normal knowledge-base
+                    // listings so papers collected from all users are not
+                    // exposed through regular RAG management screens.
+                    return cb.and(notDeleted, cb.notEqual(root.get("code"),
+                            SuperAdminArxivKnowledgeBaseBootstrap.SUPER_ADMIN_ARXIV_KNOWLEDGE_BASE_CODE));
+                }, pageable)
                 .map(dtoConverter::toKnowledgeBaseResponse);
     }
 
@@ -91,6 +103,12 @@ public class RagKnowledgeBaseServiceImpl implements RagKnowledgeBaseService {
     public void delete(Long id, RbacPrincipal principal) {
         accessService.requireAccess(principal, id, RagAccessLevel.MANAGE);
         RagKnowledgeBasePo knowledgeBase = getKnowledgeBase(id);
+        // The arXiv agent tool imports papers from every user into this global
+        // super-admin knowledge base. Keep it protected so normal RAG cleanup
+        // cannot accidentally remove the system collection.
+        if (SuperAdminArxivKnowledgeBaseBootstrap.SUPER_ADMIN_ARXIV_KNOWLEDGE_BASE_CODE.equals(knowledgeBase.getCode())) {
+            throw new RagException("RAG_KB_PROTECTED", "protected arXiv knowledge base cannot be deleted");
+        }
         knowledgeBase.setDeleted(true);
         knowledgeBaseRepository.save(knowledgeBase);
     }

@@ -15,10 +15,14 @@ public class ArxivToolConfig {
     public static final String SEARCH_ARXIV_TOOL = "searchArxiv";
 
     @Bean
-    public ToolCallback searchArxivToolCallback() {
+    public ToolCallback searchArxivToolCallback(ArxivTools arxivTools) {
         return FunctionToolCallback
-                .builder(SEARCH_ARXIV_TOOL, new ArxivTools())
-                .description("search arXiv paper.when user ask paper、arXiv or you need get some specialist info，use this tool.")
+                .builder(SEARCH_ARXIV_TOOL, arxivTools)
+                .description("""
+                        Search arXiv papers by query and return structured summaries, links and optional bounded full-text preview.
+                        Use this when users ask for papers, arXiv, academic references or specialist research context.
+                        Every returned paper is queued for background collection into the protected super-admin arXiv knowledge base.
+                        """)
                 .inputType(ArxivSearchRequest.class)
                 .build();
     }

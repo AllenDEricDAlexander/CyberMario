@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import top.egon.mario.rag.repository.RagKnowledgeBaseUserRepository;
 import top.egon.mario.rbac.po.ApiPo;
 import top.egon.mario.rbac.po.ButtonApiPo;
 import top.egon.mario.rbac.po.ButtonPo;
@@ -74,9 +75,12 @@ class RbacResourceSynchronizerTests {
     private AuditLogRepository auditLogRepository;
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private RagKnowledgeBaseUserRepository knowledgeBaseUserRepository;
 
     @BeforeEach
     void setUp() {
+        knowledgeBaseUserRepository.deleteAll();
         auditLogRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         rolePermissionRepository.deleteAll();

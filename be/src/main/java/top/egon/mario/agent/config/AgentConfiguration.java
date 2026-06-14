@@ -18,6 +18,7 @@ import top.egon.mario.agent.model.service.MarioModelFactory;
 import top.egon.mario.agent.model.service.model.ModelCallContext;
 import top.egon.mario.agent.service.ChatAgentService;
 import top.egon.mario.agent.service.impl.ReactAgentChatService;
+import top.egon.mario.agent.tools.arxiv.ArxivToolUserContext;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -69,8 +70,9 @@ public class AgentConfiguration {
      * Adapts the blocking agent API to the reactive HTTP layer.
      */
     @Bean
-    public ChatAgentService chatAgentService(ReactAgent cyberMarioAgent, Scheduler blockingScheduler) {
-        return new ReactAgentChatService(cyberMarioAgent, blockingScheduler);
+    public ChatAgentService chatAgentService(ReactAgent cyberMarioAgent, Scheduler blockingScheduler,
+                                             ArxivToolUserContext arxivToolUserContext) {
+        return new ReactAgentChatService(cyberMarioAgent, blockingScheduler, arxivToolUserContext);
     }
 
 }

@@ -18,7 +18,7 @@ import java.util.List;
  */
 public interface RagKnowledgeBaseService {
 
-    Page<KnowledgeBaseResponse> page(@NotNull Pageable pageable);
+    Page<KnowledgeBaseResponse> page(@NotNull Pageable pageable, RbacPrincipal principal);
 
     KnowledgeBaseResponse create(@Valid @NotNull CreateKnowledgeBaseRequest request, RbacPrincipal principal);
 

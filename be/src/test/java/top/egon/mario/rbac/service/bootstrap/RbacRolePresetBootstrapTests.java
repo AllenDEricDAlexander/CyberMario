@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationEventPublisher;
+import top.egon.mario.rag.repository.RagKnowledgeBaseUserRepository;
 import top.egon.mario.rbac.po.PermissionPo;
 import top.egon.mario.rbac.po.RolePo;
 import top.egon.mario.rbac.po.enums.PermissionStatus;
@@ -69,9 +70,12 @@ class RbacRolePresetBootstrapTests {
     private RbacPermissionVersionService permissionVersionService;
     @Autowired
     private ApplicationEventPublisher eventPublisher;
+    @Autowired
+    private RagKnowledgeBaseUserRepository knowledgeBaseUserRepository;
 
     @BeforeEach
     void setUp() {
+        knowledgeBaseUserRepository.deleteAll();
         auditLogRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         rolePermissionRepository.deleteAll();

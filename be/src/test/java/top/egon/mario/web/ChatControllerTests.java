@@ -16,6 +16,7 @@ import top.egon.mario.pojo.response.ChatResponse;
 import top.egon.mario.rbac.application.RbacAuthApplication;
 import top.egon.mario.rbac.service.security.RbacApiRuleCache;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 @WebFluxTest(controllers = ChatController.class,
@@ -39,7 +40,7 @@ class ChatControllerTests {
 
     @Test
     void chatReturnsAgentResponse() {
-        given(chatAgentService.chat("你好", "thread-1"))
+        given(chatAgentService.chat(org.mockito.ArgumentMatchers.eq("你好"), org.mockito.ArgumentMatchers.eq("thread-1"), any()))
                 .willReturn(Flux.just(new ChatResponse("thread-1", "你好，我是 CyberMario。")));
 
         StepVerifier.create(webTestClient.post()

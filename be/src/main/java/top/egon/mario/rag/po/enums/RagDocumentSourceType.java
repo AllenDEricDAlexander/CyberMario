@@ -6,6 +6,7 @@ package top.egon.mario.rag.po.enums;
 public enum RagDocumentSourceType {
 
     UPLOAD,
-    TEXT
+    TEXT,
+    ARXIV
 
 }

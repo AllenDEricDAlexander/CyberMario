@@ -1,8 +1,11 @@
 package top.egon.mario.agent.model.service.resource;
 
 import org.springframework.stereotype.Component;
+import top.egon.mario.rbac.po.enums.ApiMatcherType;
+import top.egon.mario.rbac.po.enums.ApiRiskLevel;
 import top.egon.mario.rbac.po.enums.PermissionStatus;
 import top.egon.mario.rbac.service.resource.RbacResourceProvider;
+import top.egon.mario.rbac.service.resource.model.RbacApiSeed;
 import top.egon.mario.rbac.service.resource.model.RbacMenuSeed;
 import top.egon.mario.rbac.service.resource.model.RbacResourceSeed;
 import top.egon.mario.rbac.service.resource.model.RbacResourceSource;
@@ -25,7 +28,7 @@ public class AgentDashboardRbacResourceProvider implements RbacResourceProvider 
 
     @Override
     public List<RbacResourceSeed> resources() {
-        return List.of(menu());
+        return List.of(dashboardMenu(), arxivLogCollectionApi(), arxivLogApi());
     }
 
     @Override
@@ -42,7 +45,7 @@ public class AgentDashboardRbacResourceProvider implements RbacResourceProvider 
         ));
     }
 
-    private RbacResourceSeed menu() {
+    private RbacResourceSeed dashboardMenu() {
         return RbacResourceSeed.menu(
                 APP_CODE,
                 APP_CODE,
@@ -53,6 +56,34 @@ public class AgentDashboardRbacResourceProvider implements RbacResourceProvider 
                 10,
                 "AI model usage dashboard",
                 new RbacMenuSeed("dashboard", "/dashboard", null, null, "DashboardOutlined", false, true, null),
+                RbacResourceSource.PROVIDER
+        );
+    }
+
+    private RbacResourceSeed arxivLogApi() {
+        return RbacResourceSeed.api(
+                APP_CODE,
+                APP_CODE,
+                "api:agent:arxiv-log:*",
+                "arXiv 工具日志管理",
+                PermissionStatus.ENABLED,
+                0,
+                "Super-admin-only arXiv tool logs",
+                new RbacApiSeed("ANY", "/api/admin/agent/arxiv/logs/**", ApiMatcherType.ANT, false, ApiRiskLevel.HIGH),
+                RbacResourceSource.PROVIDER
+        );
+    }
+
+    private RbacResourceSeed arxivLogCollectionApi() {
+        return RbacResourceSeed.api(
+                APP_CODE,
+                APP_CODE,
+                "api:agent:arxiv-log:collection",
+                "arXiv 工具日志集合",
+                PermissionStatus.ENABLED,
+                0,
+                "Super-admin-only arXiv tool log collection",
+                new RbacApiSeed("GET", "/api/admin/agent/arxiv/logs", ApiMatcherType.EXACT, false, ApiRiskLevel.HIGH),
                 RbacResourceSource.PROVIDER
         );
     }

@@ -1,6 +1,7 @@
 import {requestFormData, requestJson, streamJsonLines} from '../../services/request'
 import {buildSearchParams} from '../../services/urlSearch'
 import type {
+    ArxivToolLogResponse,
     KnowledgeBaseResponse,
     KnowledgeBaseUserResponse,
     RagChatRequest,
@@ -112,6 +113,13 @@ export function getRagIngestionJobs(params: PageParams & { knowledgeBaseId?: num
         page: params.page ?? 1,
         size: params.size ?? 20,
         knowledgeBaseId: params.knowledgeBaseId,
+    })}`)
+}
+
+export function getArxivToolLogs(params: PageParams) {
+    return requestJson<RagPage<ArxivToolLogResponse>>(`/api/admin/agent/arxiv/logs?${buildSearchParams({
+        page: params.page ?? 1,
+        size: params.size ?? 20,
     })}`)
 }
 

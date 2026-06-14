@@ -1,58 +1,122 @@
 package top.egon.mario.agent.tools.arxiv;
 
-import com.alibaba.cloud.ai.reader.arxiv.ArxivDocumentReader;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.document.Document;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+import top.egon.mario.agent.tools.arxiv.dto.ArxivImportJob;
+import top.egon.mario.agent.tools.arxiv.dto.ArxivPaper;
 import top.egon.mario.agent.tools.arxiv.dto.ArxivSearchRequest;
 import top.egon.mario.agent.tools.arxiv.dto.ArxivSearchResponse;
+import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.common.utils.LogUtil;
+import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Spring AI function tool for arXiv search, full-text preview and background collection.
+ */
 @Slf4j
+@Component
 public class ArxivTools implements Function<ArxivSearchRequest, ArxivSearchResponse> {
-    @Override
-    public ArxivSearchResponse apply(ArxivSearchRequest request) {
-        int limit = request.maxResults() == null ? 5 : Math.min(Math.max(request.maxResults(), 1), 10);
-        LogUtil.info(log).log("arxiv tool search started, queryLength={}, limit={}",
-                request.query() == null ? 0 : request.query().length(), limit);
 
-        ArxivDocumentReader reader = new ArxivDocumentReader(request.query(), limit);
+    private final ArxivPaperService paperService;
+    private final ArxivToolLogService logService;
+    private final ArxivImportService importService;
+    private final ArxivToolUserContext userContext;
 
-        // getSummaries 只取摘要，比较轻；get 会下载并解析 PDF，比较重
-        List<Document> documents = reader.getSummaries();
-
-        if (documents.isEmpty()) {
-            LogUtil.info(log).log("arxiv tool search completed, resultCount=0");
-            return new ArxivSearchResponse("未检索到相关 arXiv 论文。query = " + request.query());
-        }
-
-        String content = documents.stream().map(this::format).collect(Collectors.joining("\n\n---\n\n"));
-
-        LogUtil.info(log).log("arxiv tool search completed, resultCount={}", documents.size());
-        return new ArxivSearchResponse(content);
+    public ArxivTools(ArxivPaperService paperService, ArxivToolLogService logService,
+                      ArxivImportService importService, ArxivToolUserContext userContext) {
+        this.paperService = paperService;
+        this.logService = logService;
+        this.importService = importService;
+        this.userContext = userContext;
     }
 
-    private String format(Document document) {
-        Map<String, Object> metadata = document.getMetadata();
+    @Override
+    public ArxivSearchResponse apply(ArxivSearchRequest request) {
+        if (request == null || !StringUtils.hasText(request.query())) {
+            return new ArxivSearchResponse(false, "arXiv 查询语句不能为空。", null, List.of(), "", List.of());
+        }
+        String query = request.query().trim();
+        int limit = paperService.limit(request.maxResults());
+        boolean includeFullText = Boolean.TRUE.equals(request.includeFullText());
+        RbacPrincipal principal = userContext.get();
+        Long userId = principal == null ? null : principal.userId();
+        String username = principal == null ? null : principal.username();
+        String requestId = TraceContext.newTraceId();
 
+        LogUtil.info(log).log("arxiv tool search started, queryLength={}, limit={}, includeFullText={}",
+                query.length(), limit, includeFullText);
+
+        List<ArxivPaper> papers = paperService.searchSummaries(query, limit);
+        if (includeFullText && !papers.isEmpty()) {
+            String preview = paperService.readFullTextPreview(query, 1);
+            papers = withFullTextPreview(papers, preview);
+        }
+        logService.createSearchLog(requestId, userId, username, query, limit, includeFullText, papers.size(), null);
+        List<ArxivImportJob> importJobs = importService.importPapers(requestId, userId, username, query, papers);
+
+        if (papers.isEmpty()) {
+            LogUtil.info(log).log("arxiv tool search completed, resultCount=0");
+            return new ArxivSearchResponse(true, "未检索到相关 arXiv 论文。", query, List.of(),
+                    "未检索到相关 arXiv 论文。query = " + query, importJobs);
+        }
+
+        String content = papers.stream()
+                .map(this::format)
+                .collect(Collectors.joining("\n\n---\n\n"));
+        LogUtil.info(log).log("arxiv tool search completed, resultCount={}, importJobCount={}",
+                papers.size(), importJobs.size());
+        return new ArxivSearchResponse(true, "已检索到 arXiv 论文，并已提交后台收录任务。", query, papers, content, importJobs);
+    }
+
+    private List<ArxivPaper> withFullTextPreview(List<ArxivPaper> papers, String preview) {
+        if (!StringUtils.hasText(preview)) {
+            return papers;
+        }
+        ArxivPaper first = papers.getFirst();
+        ArxivPaper updated = new ArxivPaper(first.entryId(), first.title(), first.authors(), first.summary(),
+                first.published(), first.updated(), first.categories(), first.primaryCategory(), first.pdfUrl(),
+                first.doi(), first.comment(), preview);
+        return java.util.stream.Stream.concat(java.util.stream.Stream.of(updated), papers.stream().skip(1)).toList();
+    }
+
+    private String format(ArxivPaper paper) {
         return """
                 Title: %s
                 Authors: %s
                 Published: %s
+                Updated: %s
                 Category: %s
                 PDF: %s
+                Entry: %s
                 
                 Summary:
-                %s
-                """.formatted(get(metadata, "title"), get(metadata, "authors"), get(metadata, "published"), get(metadata, "primary_category"), get(metadata, "pdf_url"), document.getText());
+                %s%s
+                """.formatted(
+                value(paper.title()),
+                String.join(", ", paper.authors()),
+                value(paper.published()),
+                value(paper.updated()),
+                value(paper.primaryCategory()),
+                value(paper.pdfUrl()),
+                value(paper.entryId()),
+                value(paper.summary()),
+                fullTextBlock(paper)
+        );
     }
 
-    private String get(Map<String, Object> metadata, String key) {
-        Object value = metadata.get(key);
+    private String fullTextBlock(ArxivPaper paper) {
+        if (!StringUtils.hasText(paper.fullTextPreview())) {
+            return "";
+        }
+        return "\n\nFull Text Preview:\n" + paper.fullTextPreview();
+    }
+
+    private String value(Object value) {
         return value == null ? "" : value.toString();
     }
 }

@@ -16,6 +16,7 @@ import top.egon.mario.rag.converter.RagDtoConverter;
 import top.egon.mario.rag.dto.request.ImportTextDocumentRequest;
 import top.egon.mario.rag.dto.response.RagChunkResponse;
 import top.egon.mario.rag.dto.response.RagDocumentResponse;
+import top.egon.mario.rag.dto.response.RagIngestionJobResponse;
 import top.egon.mario.rag.dto.response.UploadDocumentResponse;
 import top.egon.mario.rag.po.RagDocumentChunkPo;
 import top.egon.mario.rag.po.RagFileObjectPo;
@@ -95,6 +96,27 @@ public class RagDocumentServiceImpl implements RagDocumentService {
             return result.document();
         } catch (Exception e) {
             throw new RagException("RAG_TEXT_IMPORT_FAILED", "text import failed");
+        }
+    }
+
+    @Override
+    @Transactional
+    public RagIngestionJobResponse importArxivPdf(Long knowledgeBaseId, Path pdfFile, String displayName, RbacPrincipal principal) {
+        accessService.requireAccess(principal, knowledgeBaseId, RagAccessLevel.WRITE);
+        try {
+            RagDocumentWithJob result = saveDocumentFromTempFile(
+                    knowledgeBaseId,
+                    pdfFile,
+                    displayName,
+                    "application/pdf",
+                    RagFileType.PDF,
+                    RagDocumentSourceType.ARXIV,
+                    false,
+                    principal
+            );
+            return ingestionService.ingest(result.jobId());
+        } catch (Exception e) {
+            throw new RagException("RAG_ARXIV_IMPORT_FAILED", "arXiv PDF import failed");
         }
     }
 

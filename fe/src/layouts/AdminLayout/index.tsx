@@ -18,13 +18,13 @@ export function AdminLayout() {
     const [contentVersion, setContentVersion] = useState(0)
     const canBypassMenuPermissions = hasAdminPermissionBypass(auth)
     const menuItems = useMemo(
-        () => buildAuthorizedAdminMenuItems(auth.menus, canBypassMenuPermissions),
-        [auth.menus, canBypassMenuPermissions],
+        () => buildAuthorizedAdminMenuItems(auth.menus, canBypassMenuPermissions, auth.roleCodes),
+        [auth.menus, auth.roleCodes, canBypassMenuPermissions],
     )
     const menuKeys = useMemo(() => flattenMenuKeys(menuItems), [menuItems])
     const canAccessCurrentPath = useMemo(
-        () => canAccessAdminPath(location.pathname, auth.menus, canBypassMenuPermissions),
-        [auth.menus, canBypassMenuPermissions, location.pathname],
+        () => canAccessAdminPath(location.pathname, auth.menus, canBypassMenuPermissions, auth.roleCodes),
+        [auth.menus, auth.roleCodes, canBypassMenuPermissions, location.pathname],
     )
 
     const selectedKeys = useMemo(() => {

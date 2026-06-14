@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,6 +19,7 @@ import top.egon.mario.rbac.po.enums.ApiRiskLevel;
 import top.egon.mario.rbac.service.resource.annotation.RbacApi;
 import top.egon.mario.rbac.service.resource.annotation.RbacMenu;
 import top.egon.mario.rbac.service.resource.annotation.RbacResourceModule;
+import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 /**
  * Reactive HTTP entry point for CyberMario conversations.
@@ -38,8 +40,9 @@ public class ChatController {
      */
     @RbacApi(appCode = "chat", code = "api:chat:stream", name = "Agent Chat Stream API", risk = ApiRiskLevel.MEDIUM)
     @PostMapping(path = "/stream", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_NDJSON_VALUE)
-    public Flux<ChatResponse> chat(@Valid @RequestBody Mono<ChatRequest> request) {
-        return request.flatMapMany(chatRequest -> chatAgentService.chat(chatRequest.message(), chatRequest.threadId()));
+    public Flux<ChatResponse> chat(@Valid @RequestBody Mono<ChatRequest> request,
+                                   @AuthenticationPrincipal RbacPrincipal principal) {
+        return request.flatMapMany(chatRequest -> chatAgentService.chat(chatRequest.message(), chatRequest.threadId(), principal));
     }
 
 }

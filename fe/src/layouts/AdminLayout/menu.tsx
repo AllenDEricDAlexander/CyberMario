@@ -6,6 +6,7 @@ import {
     ControlOutlined,
     DashboardOutlined,
     DatabaseOutlined,
+    FileSearchOutlined,
     FileTextOutlined,
     MenuOutlined,
     MessageOutlined,
@@ -28,6 +29,7 @@ const menuPathByKey: Record<string, string> = {
     '/rag/documents': '/rag/documents',
     '/rag/ingestion-jobs': '/rag/ingestion-jobs',
     '/rag/retrieval-lab': '/rag/retrieval-lab',
+    '/rag/arxiv-logs': '/rag/arxiv-logs',
     '/rag/settings': '/rag/settings',
     '/rbac/users': '/rbac/users',
     '/rbac/roles': '/rbac/roles',
@@ -79,6 +81,11 @@ export const adminMenuItems: AdminMenuItem[] = [
                 label: '检索调试',
             },
             {
+                key: '/rag/arxiv-logs',
+                icon: <FileSearchOutlined/>,
+                label: 'arXiv 日志',
+            },
+            {
                 key: '/rag/settings',
                 icon: <SettingOutlined/>,
                 label: 'RAG 设置',
@@ -128,16 +135,17 @@ export function findMenuPath(key: string) {
     return menuPathByKey[key]
 }
 
-export function buildAuthorizedAdminMenuItems(menus: MenuTreeResponse[], canBypass: boolean) {
+export function buildAuthorizedAdminMenuItems(menus: MenuTreeResponse[], canBypass: boolean, roleCodes: string[] = []) {
+    const superAdminOnlyPaths = superAdminMenuPathSet(roleCodes)
     if (canBypass) {
-        return adminMenuItems
+        return filterMenuItems(adminMenuItems, menuPathSet(menus), superAdminOnlyPaths, true)
     }
     const allowedPaths = menuPathSet(menus)
-    return filterMenuItems(adminMenuItems, allowedPaths)
+    return filterMenuItems(adminMenuItems, allowedPaths, superAdminOnlyPaths, false)
 }
 
-export function firstAuthorizedMenuPath(menus: MenuTreeResponse[], canBypass: boolean) {
-    return flattenMenuKeys(buildAuthorizedAdminMenuItems(menus, canBypass))[0]
+export function firstAuthorizedMenuPath(menus: MenuTreeResponse[], canBypass: boolean, roleCodes: string[] = []) {
+    return flattenMenuKeys(buildAuthorizedAdminMenuItems(menus, canBypass, roleCodes))[0]
 }
 
 export function flattenMenuKeys(items: AdminMenuItem[]) {
@@ -156,25 +164,36 @@ export function flattenMenuKeys(items: AdminMenuItem[]) {
     return keys
 }
 
-export function canAccessAdminPath(pathname: string, menus: MenuTreeResponse[], canBypass: boolean) {
+export function canAccessAdminPath(pathname: string, menus: MenuTreeResponse[], canBypass: boolean, roleCodes: string[] = []) {
+    if (isSuperAdminOnlyPath(pathname) && !isSuperAdmin(roleCodes)) {
+        return false
+    }
     if (canBypass || pathname === '/' || pathname === '/account/settings') {
         return true
     }
-    return flattenMenuKeys(buildAuthorizedAdminMenuItems(menus, canBypass))
+    return flattenMenuKeys(buildAuthorizedAdminMenuItems(menus, canBypass, roleCodes))
         .some((key) => pathname === key || pathname.startsWith(`${key}/`))
 }
 
-function filterMenuItems(items: AdminMenuItem[], allowedPaths: Set<string>): AdminMenuItem[] {
+function filterMenuItems(
+    items: AdminMenuItem[],
+    allowedPaths: Set<string>,
+    superAdminOnlyPaths: Set<string>,
+    includeAllPaths: boolean,
+): AdminMenuItem[] {
     return items.flatMap((item) => {
         if (!item) {
             return []
         }
         if ('children' in item && item.children) {
-            const children = filterMenuItems(item.children, allowedPaths)
+            const children = filterMenuItems(item.children, allowedPaths, superAdminOnlyPaths, includeAllPaths)
             return children.length ? [{...item, children}] : []
         }
         const key = String(item.key)
-        return allowedPaths.has(key) ? [item] : []
+        if (superAdminOnlyPaths.has(key)) {
+            return isSuperAdminOnlyAllowed(superAdminOnlyPaths, key) ? [item] : []
+        }
+        return includeAllPaths || allowedPaths.has(key) ? [item] : []
     })
 }
 
@@ -191,4 +210,20 @@ function collectMenuPaths(menus: MenuTreeResponse[], paths: Set<string>) {
         }
         collectMenuPaths(menu.children ?? [], paths)
     }
+}
+
+function superAdminMenuPathSet(roleCodes: string[]) {
+    return isSuperAdmin(roleCodes) ? new Set<string>() : new Set(['/rag/arxiv-logs'])
+}
+
+function isSuperAdmin(roleCodes: string[]) {
+    return roleCodes.includes('SUPER_ADMIN')
+}
+
+function isSuperAdminOnlyAllowed(superAdminOnlyPaths: Set<string>, key: string) {
+    return !superAdminOnlyPaths.has(key)
+}
+
+function isSuperAdminOnlyPath(pathname: string) {
+    return pathname === '/rag/arxiv-logs' || pathname.startsWith('/rag/arxiv-logs/')
 }

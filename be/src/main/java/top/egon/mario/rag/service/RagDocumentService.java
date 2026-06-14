@@ -10,8 +10,11 @@ import reactor.core.publisher.Mono;
 import top.egon.mario.rag.dto.request.ImportTextDocumentRequest;
 import top.egon.mario.rag.dto.response.RagChunkResponse;
 import top.egon.mario.rag.dto.response.RagDocumentResponse;
+import top.egon.mario.rag.dto.response.RagIngestionJobResponse;
 import top.egon.mario.rag.dto.response.UploadDocumentResponse;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
+
+import java.nio.file.Path;
 
 /**
  * Application service for RAG document uploads, text imports and chunk management.
@@ -21,6 +24,9 @@ public interface RagDocumentService {
     Mono<UploadDocumentResponse> upload(@NotNull Long knowledgeBaseId, @NotNull Flux<FilePart> files, boolean parseImmediately, RbacPrincipal principal);
 
     RagDocumentResponse importText(@Valid @NotNull ImportTextDocumentRequest request, RbacPrincipal principal);
+
+    RagIngestionJobResponse importArxivPdf(@NotNull Long knowledgeBaseId, @NotNull Path pdfFile,
+                                           @NotNull String displayName, RbacPrincipal principal);
 
     Page<RagDocumentResponse> page(Long knowledgeBaseId, @NotNull Pageable pageable, RbacPrincipal principal);
 

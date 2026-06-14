@@ -15,13 +15,23 @@ class AgentDashboardRbacResourceProviderTests {
         AgentDashboardRbacResourceProvider provider = new AgentDashboardRbacResourceProvider();
 
         assertThat(provider.resources())
+                .filteredOn(seed -> seed.type() == PermissionType.MENU)
+                .extracting(seed -> seed.code())
+                .containsExactly("menu:agent");
+        assertThat(provider.resources())
+                .filteredOn(seed -> "menu:agent".equals(seed.code()))
                 .singleElement()
-                .satisfies(seed -> {
-                    assertThat(seed.code()).isEqualTo("menu:agent");
-                    assertThat(seed.type()).isEqualTo(PermissionType.MENU);
-                    assertThat(seed.menu().routePath()).isEqualTo("/dashboard");
-                    assertThat(seed.menu().icon()).isEqualTo("DashboardOutlined");
-                });
+                .satisfies(seed -> assertThat(seed.menu().routePath()).isEqualTo("/dashboard"));
+    }
+
+    @Test
+    void resourcesContainArxivLogApi() {
+        AgentDashboardRbacResourceProvider provider = new AgentDashboardRbacResourceProvider();
+
+        assertThat(provider.resources())
+                .filteredOn(seed -> seed.type() == PermissionType.API)
+                .extracting(seed -> seed.code())
+                .contains("api:agent:arxiv-log:collection", "api:agent:arxiv-log:*");
     }
 
     @Test
@@ -37,7 +47,9 @@ class AgentDashboardRbacResourceProviderTests {
                                     "api:agent:model-audit:dashboard:self")
                             .doesNotContain("api:rbac:admin:*",
                                     "api:agent:model-audit:dashboard:global",
-                                    "api:agent:model-audit:dashboard:user-options");
+                                    "api:agent:model-audit:dashboard:user-options",
+                                    "menu:rag:arxiv-logs",
+                                    "api:agent:arxiv-log:*");
                 });
     }
 

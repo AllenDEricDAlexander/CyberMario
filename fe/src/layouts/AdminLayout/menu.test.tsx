@@ -34,6 +34,27 @@ const menuTree: MenuTreeResponse[] = [
         children: [],
     },
     {
+        permissionId: 4,
+        permCode: 'menu:rag',
+        permName: 'RAG 管理',
+        routePath: undefined,
+        hidden: false,
+        cacheable: true,
+        sortNo: 4,
+        children: [
+            {
+                permissionId: 5,
+                permCode: 'menu:rag:arxiv-logs',
+                permName: 'arXiv 日志',
+                routePath: '/rag/arxiv-logs',
+                hidden: false,
+                cacheable: true,
+                sortNo: 5,
+                children: [],
+            },
+        ],
+    },
+    {
         permissionId: 3,
         permCode: 'menu:hidden',
         permName: '隐藏菜单',
@@ -60,5 +81,15 @@ describe('admin menu authorization', () => {
 
     test('returns the first authorized path for default navigation', () => {
         expect(firstAuthorizedMenuPath(menuTree, false)).toBe('/dashboard')
+    })
+
+    test('hides arxiv logs unless user has super admin role', () => {
+        expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, false, [])))
+            .not.toContain('/rag/arxiv-logs')
+        expect(canAccessAdminPath('/rag/arxiv-logs', menuTree, true, ['RAG_ADMIN'])).toBe(false)
+
+        expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, true, ['SUPER_ADMIN'])))
+            .toContain('/rag/arxiv-logs')
+        expect(canAccessAdminPath('/rag/arxiv-logs', menuTree, true, ['SUPER_ADMIN'])).toBe(true)
     })
 })

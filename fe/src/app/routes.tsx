@@ -42,6 +42,7 @@ export const router = createBrowserRouter([
                     {path: 'rag/documents/:documentId', lazy: () => import('../modules/rag/DocumentDetailPage')},
                     {path: 'rag/ingestion-jobs', lazy: () => import('../modules/rag/IngestionJobListPage')},
                     {path: 'rag/retrieval-lab', lazy: () => import('../modules/rag/RetrievalLabPage')},
+                    {path: 'rag/arxiv-logs', lazy: () => import('../modules/rag/ArxivToolLogListPage')},
                     {path: 'rag/settings', lazy: () => import('../modules/rag/RagSettingsPage')},
                     {path: 'rbac/users', lazy: () => import('../modules/rbac/users/UserListPage')},
                     {path: 'rbac/roles', lazy: () => import('../modules/rbac/roles/RoleListPage')},
@@ -84,7 +85,8 @@ function RequireAuth() {
 
 function DefaultAdminRoute() {
     const auth = useAuth()
-    return <Navigate replace to={firstAuthorizedMenuPath(auth.menus, hasAdminPermissionBypass(auth)) ?? '/403'}/>
+    return <Navigate replace
+                     to={firstAuthorizedMenuPath(auth.menus, hasAdminPermissionBypass(auth), auth.roleCodes) ?? '/403'}/>
 }
 
 function ForbiddenRoute() {
@@ -92,5 +94,6 @@ function ForbiddenRoute() {
     if (!auth.authenticated) {
         return <Navigate replace to="/login"/>
     }
-    return <Navigate replace to={firstAuthorizedMenuPath(auth.menus, hasAdminPermissionBypass(auth)) ?? '/login'}/>
+    return <Navigate replace
+                     to={firstAuthorizedMenuPath(auth.menus, hasAdminPermissionBypass(auth), auth.roleCodes) ?? '/login'}/>
 }

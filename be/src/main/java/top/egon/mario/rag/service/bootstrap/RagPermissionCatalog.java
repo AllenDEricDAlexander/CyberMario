@@ -22,7 +22,8 @@ public class RagPermissionCatalog {
                 new MenuPermissionSeed("menu:rag:documents", "文档管理", "menu:rag", "/rag/documents", "rag-documents", 23),
                 new MenuPermissionSeed("menu:rag:ingestion-jobs", "入库任务", "menu:rag", "/rag/ingestion-jobs", "rag-ingestion-jobs", 24),
                 new MenuPermissionSeed("menu:rag:retrieval-lab", "检索调试", "menu:rag", "/rag/retrieval-lab", "rag-retrieval-lab", 25),
-                new MenuPermissionSeed("menu:rag:settings", "RAG 设置", "menu:rag", "/rag/settings", "rag-settings", 26)
+                new MenuPermissionSeed("menu:rag:settings", "RAG 设置", "menu:rag", "/rag/settings", "rag-settings", 26),
+                new MenuPermissionSeed("menu:rag:arxiv-logs", "arXiv 工具日志", "menu:rag", "/rag/arxiv-logs", "rag-arxiv-logs", 27)
         );
     }
 

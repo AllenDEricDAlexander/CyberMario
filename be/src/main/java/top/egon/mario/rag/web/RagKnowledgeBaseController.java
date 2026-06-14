@@ -47,8 +47,10 @@ public class RagKnowledgeBaseController extends ReactiveRagSupport {
             method = "ANY", pattern = "/api/rag/knowledge-bases", risk = ApiRiskLevel.HIGH)
     @GetMapping
     public Mono<ApiResponse<PageResult<KnowledgeBaseResponse>>> page(@RequestParam(defaultValue = "1") @Min(1) int page,
-                                                                     @RequestParam(defaultValue = "20") @Min(1) int size) {
-        return blocking(() -> pageResult(knowledgeBaseService.page(PageRequest.of(Math.max(page - 1, 0), size, Sort.by("id").descending()))));
+                                                                     @RequestParam(defaultValue = "20") @Min(1) int size,
+                                                                     @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> pageResult(knowledgeBaseService.page(
+                PageRequest.of(Math.max(page - 1, 0), size, Sort.by("id").descending()), principal)));
     }
 
     @RbacApi(appCode = "rag", code = "api:rag:knowledge-base:*", name = "RAG 知识库管理",

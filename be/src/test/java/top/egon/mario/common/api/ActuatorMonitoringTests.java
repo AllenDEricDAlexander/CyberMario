@@ -61,7 +61,7 @@ class ActuatorMonitoringTests {
 
     @Test
     void chatEndpointRequiresRbacApiPermission() {
-        given(chatAgentService.chat(anyString(), anyString()))
+        given(chatAgentService.chat(anyString(), anyString(), org.mockito.ArgumentMatchers.isNull()))
                 .willReturn(Flux.just(new ChatResponse("thread-1", "blocked")));
 
         webTestClient.post()

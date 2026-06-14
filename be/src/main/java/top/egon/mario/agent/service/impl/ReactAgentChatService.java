@@ -13,9 +13,11 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import top.egon.mario.agent.service.ChatAgentService;
+import top.egon.mario.agent.tools.arxiv.ArxivToolUserContext;
 import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.pojo.response.ChatResponse;
+import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.util.UUID;
 
@@ -31,14 +33,16 @@ public class ReactAgentChatService implements ChatAgentService {
 
     private final ReactAgent agent;
     private final Scheduler blockingScheduler;
+    private final ArxivToolUserContext arxivToolUserContext;
 
-    public ReactAgentChatService(ReactAgent agent, Scheduler blockingScheduler) {
+    public ReactAgentChatService(ReactAgent agent, Scheduler blockingScheduler, ArxivToolUserContext arxivToolUserContext) {
         this.agent = agent;
         this.blockingScheduler = blockingScheduler;
+        this.arxivToolUserContext = arxivToolUserContext;
     }
 
     @Override
-    public Flux<ChatResponse> chat(String message, String threadId) {
+    public Flux<ChatResponse> chat(String message, String threadId, RbacPrincipal principal) {
         String conversationThreadId = resolveThreadId(threadId);
         RunnableConfig config = RunnableConfig.builder()
                 .threadId(conversationThreadId)
@@ -51,11 +55,13 @@ public class ReactAgentChatService implements ChatAgentService {
             return Mono.just(config)
                     .flatMapMany(cfg -> {
                         try {
+                            arxivToolUserContext.set(principal);
                             return agent.stream(message, cfg);
                         } catch (GraphRunnerException e) {
                             return Flux.error(e);
                         }
                     })
+                    .doFinally(signalType -> arxivToolUserContext.clear())
                     .doOnComplete(() -> TraceContext.withMdc(traceId,
                             () -> LogUtil.info(log).log("agent chat completed, threadId={}", conversationThreadId)))
                     .doOnError(error -> TraceContext.withMdc(traceId,
