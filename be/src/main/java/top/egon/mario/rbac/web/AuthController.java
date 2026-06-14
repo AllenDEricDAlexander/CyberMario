@@ -17,6 +17,7 @@ import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.rbac.application.RbacAuthApplication;
 import top.egon.mario.rbac.dto.request.LoginRequest;
 import top.egon.mario.rbac.dto.request.RefreshTokenRequest;
+import top.egon.mario.rbac.dto.request.RegisterRequest;
 import top.egon.mario.rbac.dto.response.LoginResponse;
 import top.egon.mario.rbac.po.enums.ApiMatcherType;
 import top.egon.mario.rbac.po.enums.ApiRiskLevel;
@@ -39,6 +40,12 @@ public class AuthController extends ReactiveRbacSupport {
     @PostMapping("/login")
     public Mono<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request, ServerWebExchange exchange) {
         return blocking(() -> authApplication.login(request, clientIp(exchange), userAgent(exchange)));
+    }
+
+    @RbacApi(appCode = "rbac", code = "api:rbac:auth:register", name = "RBAC 用户注册", publicFlag = true)
+    @PostMapping("/register")
+    public Mono<ApiResponse<LoginResponse>> register(@Valid @RequestBody RegisterRequest request, ServerWebExchange exchange) {
+        return blocking(() -> authApplication.register(request, clientIp(exchange), userAgent(exchange)));
     }
 
     @RbacApi(appCode = "rbac", code = "api:rbac:auth:refresh", name = "RBAC 刷新令牌", publicFlag = true)

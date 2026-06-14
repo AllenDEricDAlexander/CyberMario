@@ -11,6 +11,7 @@ public final class RbacPublicApiPolicy {
 
     public static final String[] PUBLIC_AUTH_ENDPOINTS = {
             "/api/auth/login",
+            "/api/auth/register",
             "/api/auth/refresh"
     };
     public static final String[] PUBLIC_ACTUATOR_ENDPOINTS = {

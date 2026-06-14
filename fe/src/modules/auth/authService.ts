@@ -1,9 +1,17 @@
 import {requestJson} from '../../services/request'
 import {getRefreshToken} from '../../services/tokenStorage'
-import type {LoginRequest, LoginResponse} from './authTypes'
+import type {LoginRequest, LoginResponse, RegisterRequest} from './authTypes'
 
 export function login(request: LoginRequest) {
     return requestJson<LoginResponse>('/api/auth/login', {
+        method: 'POST',
+        body: request,
+        auth: false,
+    })
+}
+
+export function register(request: RegisterRequest) {
+    return requestJson<LoginResponse>('/api/auth/register', {
         method: 'POST',
         body: request,
         auth: false,

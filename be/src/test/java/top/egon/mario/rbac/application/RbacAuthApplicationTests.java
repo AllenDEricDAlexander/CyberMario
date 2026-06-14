@@ -7,7 +7,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import top.egon.mario.rbac.dto.request.LoginRequest;
+import top.egon.mario.rbac.dto.request.RegisterRequest;
 import top.egon.mario.rbac.dto.response.LoginResponse;
+import top.egon.mario.rbac.po.MenuPo;
 import top.egon.mario.rbac.po.PermissionPo;
 import top.egon.mario.rbac.po.RefreshTokenPo;
 import top.egon.mario.rbac.po.RolePermissionPo;
@@ -81,6 +83,58 @@ class RbacAuthApplicationTests {
         permissionRepository.deleteAll();
         roleRepository.deleteAll();
         userRepository.deleteAll();
+    }
+
+    @Test
+    void registerCreatesEnabledUserWithDefaultBusinessRolesAndNoRbacAdminPermission() {
+        RolePo chatRole = roleRepository.save(role("CHAT_BASIC"));
+        RolePo ragRole = roleRepository.save(role("RAG_ADMIN"));
+        RolePo dashboardRole = roleRepository.save(role("AGENT_DASHBOARD_USER"));
+        grant(chatRole, menuPermission("menu:chat", "chat", "/chat"));
+        grant(chatRole, permission("api:chat:stream", PermissionType.API));
+        grant(chatRole, permission("api:rbac:auth:self", PermissionType.API));
+        grant(chatRole, permission("api:rbac:me:self", PermissionType.API));
+        grant(ragRole, menuPermission("menu:rag", "rag", "/rag/chat"));
+        grant(ragRole, permission("api:rag:document:*", PermissionType.API));
+        grant(dashboardRole, menuPermission("menu:agent", "dashboard", "/dashboard"));
+        grant(dashboardRole, permission("api:agent:model-audit:dashboard:self", PermissionType.API));
+        permission("api:agent:model-audit:dashboard:global", PermissionType.API);
+        permission("api:agent:model-audit:dashboard:user-options", PermissionType.API);
+        grant(roleRepository.save(role("RBAC_ADMIN")), permission("api:rbac:admin:*", PermissionType.API));
+
+        RegisterRequest request = new RegisterRequest(
+                "Peach",
+                "password123",
+                "Princess Peach",
+                "peach@example.com",
+                "13800000000",
+                "https://example.com/avatar.png"
+        );
+
+        LoginResponse response = authApplication.register(request, "127.0.0.1", "test");
+
+        UserPo user = userRepository.findByUsernameAndDeletedFalse("peach").orElseThrow();
+        assertThat(response.accessToken()).isNotBlank();
+        assertThat(response.refreshToken()).isNotBlank();
+        assertThat(response.user().getId()).isEqualTo(user.getId());
+        assertThat(response.user().getNickname()).isEqualTo("Princess Peach");
+        assertThat(response.roleCodes()).containsExactlyInAnyOrder("CHAT_BASIC", "RAG_ADMIN", "AGENT_DASHBOARD_USER");
+        assertThat(response.menus()).extracting("permCode")
+                .contains("menu:chat", "menu:rag", "menu:agent");
+        assertThat(response.permissionCodes())
+                .contains("api:chat:stream",
+                        "api:rag:document:*",
+                        "api:agent:model-audit:dashboard:self")
+                .doesNotContain("api:rbac:admin:*",
+                        "api:agent:model-audit:dashboard:global",
+                        "api:agent:model-audit:dashboard:user-options");
+        assertThat(passwordEncoder.matches("password123", user.getPasswordHash())).isTrue();
+        assertThat(user.getStatus()).isEqualTo(RbacStatus.ENABLED);
+        assertThat(user.isLocked()).isFalse();
+        assertThat(user.isPasswordExpired()).isFalse();
+        assertThat(userRoleRepository.findByUserId(user.getId()))
+                .extracting(UserRolePo::getRoleId)
+                .containsExactlyInAnyOrder(chatRole.getId(), ragRole.getId(), dashboardRole.getId());
     }
 
     @Test
@@ -168,6 +222,42 @@ class RbacAuthApplicationTests {
         LoginResponse afterGrant = authApplication.currentUser(user.getId());
 
         assertThat(afterGrant.permissionVersion()).isNotEqualTo(beforeGrant.permissionVersion());
+    }
+
+    private RolePo role(String code) {
+        RolePo role = new RolePo();
+        role.setRoleCode(code);
+        role.setRoleName(code);
+        role.setStatus(RbacStatus.ENABLED);
+        return role;
+    }
+
+    private PermissionPo permission(String code, PermissionType type) {
+        PermissionPo permission = new PermissionPo();
+        permission.setPermCode(code);
+        permission.setPermName(code);
+        permission.setPermType(type);
+        permission.setStatus(PermissionStatus.ENABLED);
+        return permissionRepository.save(permission);
+    }
+
+    private PermissionPo menuPermission(String code, String routeName, String routePath) {
+        PermissionPo permission = permission(code, PermissionType.MENU);
+        MenuPo menu = new MenuPo();
+        menu.setPermissionId(permission.getId());
+        menu.setRouteName(routeName);
+        menu.setRoutePath(routePath);
+        menu.setCacheable(true);
+        menuRepository.save(menu);
+        return permission;
+    }
+
+    private void grant(RolePo role, PermissionPo permission) {
+        RolePermissionPo rolePermission = new RolePermissionPo();
+        rolePermission.setRoleId(role.getId());
+        rolePermission.setPermissionId(permission.getId());
+        rolePermission.setGrantedAt(Instant.now());
+        rolePermissionRepository.save(rolePermission);
     }
 
 }

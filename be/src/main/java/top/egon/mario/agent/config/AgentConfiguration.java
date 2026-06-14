@@ -10,12 +10,12 @@ import org.springframework.context.annotation.Configuration;
 import reactor.core.scheduler.Scheduler;
 import top.egon.mario.agent.hooks.LoggingHook;
 import top.egon.mario.agent.interceptor.ToolMonitorInterceptor;
-import top.egon.mario.agent.model.api.MarioModelFactory;
-import top.egon.mario.agent.model.api.ModelCallContext;
-import top.egon.mario.agent.model.api.ModelOptions;
-import top.egon.mario.agent.model.api.ModelProviderType;
-import top.egon.mario.agent.model.api.ModelRequest;
-import top.egon.mario.agent.model.api.ModelScenario;
+import top.egon.mario.agent.model.dto.enums.ModelProviderType;
+import top.egon.mario.agent.model.dto.enums.ModelScenario;
+import top.egon.mario.agent.model.dto.request.ModelOptions;
+import top.egon.mario.agent.model.dto.request.ModelRequest;
+import top.egon.mario.agent.model.service.MarioModelFactory;
+import top.egon.mario.agent.model.service.model.ModelCallContext;
 import top.egon.mario.agent.service.ChatAgentService;
 import top.egon.mario.agent.service.impl.ReactAgentChatService;
 

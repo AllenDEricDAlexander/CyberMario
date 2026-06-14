@@ -4,10 +4,10 @@ import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import top.egon.mario.agent.model.api.MarioModelFactory;
-import top.egon.mario.agent.model.audit.ModelAuditService;
-import top.egon.mario.agent.model.factory.DefaultMarioModelFactory;
-import top.egon.mario.agent.model.provider.ModelProviderAdapter;
+import top.egon.mario.agent.model.service.MarioModelFactory;
+import top.egon.mario.agent.model.service.ModelAuditService;
+import top.egon.mario.agent.model.service.impl.DefaultMarioModelFactory;
+import top.egon.mario.agent.model.service.provider.ModelProviderAdapter;
 
 import java.util.List;
 

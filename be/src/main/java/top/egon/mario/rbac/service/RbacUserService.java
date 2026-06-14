@@ -5,7 +5,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import top.egon.mario.rbac.dto.request.ChangeCurrentUserPasswordRequest;
 import top.egon.mario.rbac.dto.request.CreateUserRequest;
+import top.egon.mario.rbac.dto.request.UpdateCurrentUserProfileRequest;
 import top.egon.mario.rbac.dto.request.UpdateUserRequest;
 import top.egon.mario.rbac.dto.response.UserResponse;
 import top.egon.mario.rbac.po.UserPo;
@@ -27,6 +29,10 @@ public interface RbacUserService {
     Page<UserResponse> getUserPage(@NotNull Pageable pageable);
 
     UserResponse updateUser(@NotNull Long userId, @Valid @NotNull UpdateUserRequest request);
+
+    UserResponse updateCurrentUserProfile(@NotNull Long userId, @Valid @NotNull UpdateCurrentUserProfileRequest request);
+
+    void changeCurrentUserPassword(@NotNull Long userId, @Valid @NotNull ChangeCurrentUserPasswordRequest request);
 
     void resetPassword(@NotNull Long userId, @NotBlank String newPassword);
 

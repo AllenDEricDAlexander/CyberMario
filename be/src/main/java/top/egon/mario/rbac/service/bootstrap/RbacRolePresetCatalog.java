@@ -14,14 +14,19 @@ public class RbacRolePresetCatalog {
                         "RBAC Administrator",
                         "System role for RBAC management.",
                         10,
-                        List.of("api:rbac:admin:*", "api:rbac:auth:self")
+                        List.of("api:rbac:admin:*", "api:rbac:auth:self", "api:rbac:me:self",
+                                "menu:agent",
+                                "api:agent:model-audit:dashboard:self",
+                                "api:agent:model-audit:dashboard:global",
+                                "api:agent:model-audit:dashboard:user-options")
                 ),
                 new RolePresetSeed(
                         "CHAT_USER",
                         "Chat User",
                         "System role for the agent chat console.",
                         50,
-                        List.of("api:chat:stream", "api:rbac:auth:self")
+                        List.of("menu:chat", "api:chat:stream", "api:rbac:auth:self", "api:rbac:me:self",
+                                "menu:agent", "api:agent:model-audit:dashboard:self")
                 )
         );
     }

@@ -16,6 +16,8 @@ import top.egon.mario.pojo.request.ChatRequest;
 import top.egon.mario.pojo.response.ChatResponse;
 import top.egon.mario.rbac.po.enums.ApiRiskLevel;
 import top.egon.mario.rbac.service.resource.annotation.RbacApi;
+import top.egon.mario.rbac.service.resource.annotation.RbacMenu;
+import top.egon.mario.rbac.service.resource.annotation.RbacResourceModule;
 
 /**
  * Reactive HTTP entry point for CyberMario conversations.
@@ -25,6 +27,8 @@ import top.egon.mario.rbac.service.resource.annotation.RbacApi;
 @RequestMapping("/demo/chat")
 @Slf4j
 @Validated
+@RbacResourceModule(appCode = "chat", name = "Chat", codePrefixes = {"menu:chat", "api:chat:"})
+@RbacMenu(code = "menu:chat", name = "Agent Chat", path = "/chat", routeName = "chat", icon = "CommentOutlined", sort = 10)
 public class ChatController {
 
     private final ChatAgentService chatAgentService;

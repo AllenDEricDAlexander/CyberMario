@@ -280,6 +280,16 @@ textarea {
     background: rgba(222, 73, 108, 0.12);
 }
 
+.auth-switch {
+    margin: 16px 0 0 !important;
+    text-align: center;
+}
+
+.auth-switch a {
+    color: var(--accent-bright);
+    font-weight: 700;
+}
+
 .auth-card .ant-alert-message,
 .auth-card .ant-alert-description {
     color: var(--text-inverse);
@@ -573,6 +583,16 @@ textarea {
 .ant-drawer .ant-card:hover {
     border-color: rgba(45, 212, 191, 0.34);
     box-shadow: var(--shadow-glow), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.dashboard-filter-card .ant-card-body {
+    padding: 16px;
+}
+
+.dashboard-filter-card .ant-picker,
+.dashboard-filter-card .ant-select,
+.dashboard-filter-card .ant-segmented {
+    max-width: 100%;
 }
 
 .ant-card-head {

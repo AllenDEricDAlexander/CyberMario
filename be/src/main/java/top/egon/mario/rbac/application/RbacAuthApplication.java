@@ -15,14 +15,19 @@ import org.springframework.validation.annotation.Validated;
 import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.converter.RbacDtoConverter;
 import top.egon.mario.rbac.dto.request.LoginRequest;
+import top.egon.mario.rbac.dto.request.RegisterRequest;
 import top.egon.mario.rbac.dto.response.EffectivePermissionResponse;
 import top.egon.mario.rbac.dto.response.LoginResponse;
 import top.egon.mario.rbac.dto.response.UserResponse;
 import top.egon.mario.rbac.po.RefreshTokenPo;
+import top.egon.mario.rbac.po.RolePo;
 import top.egon.mario.rbac.po.UserPo;
+import top.egon.mario.rbac.po.UserRolePo;
 import top.egon.mario.rbac.po.enums.RbacStatus;
 import top.egon.mario.rbac.repository.RefreshTokenRepository;
+import top.egon.mario.rbac.repository.RoleRepository;
 import top.egon.mario.rbac.repository.UserRepository;
+import top.egon.mario.rbac.repository.UserRoleRepository;
 import top.egon.mario.rbac.service.RbacAuditService;
 import top.egon.mario.rbac.service.RbacEffectivePermissionService;
 import top.egon.mario.rbac.service.RbacException;
@@ -35,6 +40,8 @@ import top.egon.mario.rbac.service.security.JwtTokenService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -48,8 +55,12 @@ import java.util.stream.Stream;
 @Validated
 public class RbacAuthApplication {
 
+    private static final List<String> DEFAULT_REGISTER_ROLE_CODES = List.of("CHAT_BASIC", "RAG_ADMIN", "AGENT_DASHBOARD_USER");
+
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final RoleRepository roleRepository;
+    private final UserRoleRepository userRoleRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenService jwtTokenService;
     private final RbacUserService rbacUserService;
@@ -58,6 +69,54 @@ public class RbacAuthApplication {
     private final RbacAuditService auditService;
     private final RbacTokenCache tokenCache;
     private final RbacPermissionVersionService permissionVersionService;
+
+    @Transactional
+    public LoginResponse register(@Valid @NotNull RegisterRequest request, String ip, String userAgent) {
+        String username = request.username().trim().toLowerCase(Locale.ROOT);
+        if (userRepository.existsByUsernameAndDeletedFalse(username)) {
+            throw new RbacException("RBAC_USER_USERNAME_DUPLICATED", "username already exists");
+        }
+        if (hasText(request.email()) && userRepository.existsByEmailAndDeletedFalse(request.email().trim())) {
+            throw new RbacException("RBAC_USER_EMAIL_DUPLICATED", "email already exists");
+        }
+        if (hasText(request.mobile()) && userRepository.existsByMobileAndDeletedFalse(request.mobile().trim())) {
+            throw new RbacException("RBAC_USER_MOBILE_DUPLICATED", "mobile already exists");
+        }
+        List<RolePo> defaultRoles = DEFAULT_REGISTER_ROLE_CODES.stream()
+                .map(this::getDefaultRegisterRole)
+                .toList();
+
+        UserPo user = new UserPo();
+        user.setUsername(username);
+        user.setNickname(trimToNull(request.nickname()));
+        user.setEmail(trimToNull(request.email()));
+        user.setMobile(trimToNull(request.mobile()));
+        user.setAvatarUrl(request.avatarUrl());
+        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setStatus(RbacStatus.ENABLED);
+        user.setLocked(false);
+        user.setPasswordExpired(false);
+        UserPo savedUser = userRepository.save(user);
+        Instant now = Instant.now();
+        userRoleRepository.saveAll(defaultRoles.stream()
+                .map(role -> {
+                    UserRolePo relation = new UserRolePo();
+                    relation.setUserId(savedUser.getId());
+                    relation.setRoleId(role.getId());
+                    relation.setGrantedAt(now);
+                    return relation;
+                })
+                .toList());
+
+        JwtTokenPair tokenPair = jwtTokenService.createTokenPair(savedUser.getId(), savedUser.getUsername());
+        String refreshTokenHash = jwtTokenService.hashToken(tokenPair.refreshToken());
+        saveRefreshToken(savedUser.getId(), tokenPair.refreshTokenId(), refreshTokenHash, tokenPair.refreshTokenExpiresInSeconds(), ip, userAgent);
+        tokenCache.storeTokenPair(savedUser.getId(), tokenPair, refreshTokenHash);
+        auditService.log(savedUser.getId(), "AUTH_REGISTER", "USER", savedUser.getId(), null, savedUser.getUsername(), ip, userAgent);
+        LogUtil.info(log).log("registration succeeded, userId={}, accessTokenId={}, refreshTokenId={}",
+                savedUser.getId(), tokenPair.accessTokenId(), tokenPair.refreshTokenId());
+        return buildLoginResponse(savedUser, tokenPair);
+    }
 
     @Transactional
     public LoginResponse login(@Valid @NotNull LoginRequest request, String ip, String userAgent) {
@@ -188,6 +247,23 @@ public class RbacAuthApplication {
         if (user.getStatus() != RbacStatus.ENABLED || user.isLocked() || user.isPasswordExpired()) {
             throw new RbacException("AUTH_USER_DISABLED", "user cannot login");
         }
+    }
+
+    private RolePo getDefaultRegisterRole(String roleCode) {
+        RolePo role = roleRepository.findByRoleCodeAndDeletedFalse(roleCode)
+                .orElseThrow(() -> new RbacException("RBAC_DEFAULT_ROLE_NOT_FOUND", "default register role is missing"));
+        if (role.getStatus() != RbacStatus.ENABLED) {
+            throw new RbacException("RBAC_DEFAULT_ROLE_DISABLED", "default register role is disabled");
+        }
+        return role;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    private String trimToNull(String value) {
+        return hasText(value) ? value.trim() : null;
     }
 
 }

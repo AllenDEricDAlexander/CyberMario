@@ -144,7 +144,7 @@ mario:
       enabled: ${RBAC_RESOURCE_SYNC_ENABLED:true}
     bootstrap:
       admin:
-        enabled: ${RBAC_BOOTSTRAP_ADMIN_ENABLED:false}
+        enabled: ${RBAC_BOOTSTRAP_ADMIN_ENABLED:true}
         username: ${RBAC_BOOTSTRAP_ADMIN_USERNAME:admin}
         password: ${RBAC_BOOTSTRAP_ADMIN_PASSWORD:HomeLab666@2026}
         require-password-change: ${RBAC_BOOTSTRAP_ADMIN_REQUIRE_PASSWORD_CHANGE:false}

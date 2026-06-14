@@ -2,8 +2,13 @@ import {createContext, type ReactNode, useCallback, useContext, useEffect, useMe
 import {subscribePermissionVersion} from '../../services/permissionVersionEvents'
 import {clearTokens, hasStoredToken, saveTokens} from '../../services/tokenStorage'
 import type {MenuTreeResponse, UserResponse} from '../rbac/rbacTypes'
-import {fetchCurrentUser, login as loginRequest, logout as logoutRequest} from './authService'
-import type {LoginRequest, LoginResponse} from './authTypes'
+import {
+    fetchCurrentUser,
+    login as loginRequest,
+    logout as logoutRequest,
+    register as registerRequest
+} from './authService'
+import type {LoginRequest, LoginResponse, RegisterRequest} from './authTypes'
 
 export type AuthState = {
     bootstrapping: boolean
@@ -16,6 +21,7 @@ export type AuthState = {
     buttonCodes: string[]
     permissionCodes: string[]
     login: (request: LoginRequest) => Promise<void>
+    register: (request: RegisterRequest) => Promise<void>
     logout: () => Promise<void>
     reload: () => Promise<void>
     hasButton: (buttonCode: string) => boolean
@@ -108,6 +114,14 @@ export function AuthProvider({children}: AuthProviderProps) {
         [applySession],
     )
 
+    const register = useCallback(
+        async (request: RegisterRequest) => {
+            const response = await registerRequest(request)
+            applySession(response)
+        },
+        [applySession],
+    )
+
     const logout = useCallback(async () => {
         try {
             await logoutRequest()
@@ -134,13 +148,14 @@ export function AuthProvider({children}: AuthProviderProps) {
             buttonCodes: session?.buttonCodes ?? [],
             permissionCodes: session?.permissionCodes ?? [],
             login,
+            register,
             logout,
             reload,
             hasButton: (buttonCode) => buttonCodeSet.has(buttonCode),
             hasAnyButton: (buttonCodes) => buttonCodes.some((buttonCode) => buttonCodeSet.has(buttonCode)),
             hasPermission: (permissionCode) => permissionCodeSet.has(permissionCode),
         }),
-        [bootstrapping, buttonCodeSet, login, logout, permissionChange, permissionCodeSet, reload, session],
+        [bootstrapping, buttonCodeSet, login, logout, permissionChange, permissionCodeSet, register, reload, session],
     )
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

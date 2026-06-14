@@ -93,8 +93,14 @@ class RbacRolePresetBootstrapTests {
     @Test
     void bootstrapCreatesPresetRolesAndGrantsExistingPermissions() {
         PermissionPo chatPermission = permissionRepository.save(permission("api:chat:stream"));
+        PermissionPo chatMenuPermission = permissionRepository.save(menuPermission("menu:chat"));
         PermissionPo rbacPermission = permissionRepository.save(permission("api:rbac:admin:*"));
         PermissionPo authSelfPermission = permissionRepository.save(permission("api:rbac:auth:self"));
+        PermissionPo meSelfPermission = permissionRepository.save(permission("api:rbac:me:self"));
+        PermissionPo dashboardMenuPermission = permissionRepository.save(menuPermission("menu:agent"));
+        PermissionPo dashboardSelfPermission = permissionRepository.save(permission("api:agent:model-audit:dashboard:self"));
+        PermissionPo dashboardGlobalPermission = permissionRepository.save(permission("api:agent:model-audit:dashboard:global"));
+        PermissionPo dashboardUserOptionsPermission = permissionRepository.save(permission("api:agent:model-audit:dashboard:user-options"));
 
         rolePresetBootstrap.bootstrap();
 
@@ -106,10 +112,18 @@ class RbacRolePresetBootstrapTests {
         assertThat(chatRole.getStatus()).isEqualTo(RbacStatus.ENABLED);
         assertThat(rolePermissionRepository.findByRoleId(chatRole.getId()))
                 .extracting("permissionId")
-                .contains(chatPermission.getId(), authSelfPermission.getId());
+                .contains(chatPermission.getId(), chatMenuPermission.getId(),
+                        authSelfPermission.getId(), meSelfPermission.getId(),
+                        dashboardMenuPermission.getId(), dashboardSelfPermission.getId());
+        assertThat(rbacRole.isBuiltIn()).isFalse();
+        assertThat(rbacRole.isManaged()).isTrue();
+        assertThat(rbacRole.getOwnerApp()).isEqualTo("rbac");
+        assertThat(rbacRole.getStatus()).isEqualTo(RbacStatus.ENABLED);
         assertThat(rolePermissionRepository.findByRoleId(rbacRole.getId()))
                 .extracting("permissionId")
-                .contains(rbacPermission.getId(), authSelfPermission.getId());
+                .contains(rbacPermission.getId(), authSelfPermission.getId(), meSelfPermission.getId(),
+                        dashboardMenuPermission.getId(), dashboardSelfPermission.getId(),
+                        dashboardGlobalPermission.getId(), dashboardUserOptionsPermission.getId());
         assertThat(chatRole.getPermissionVersion()).isGreaterThan(0);
     }
 
@@ -157,6 +171,12 @@ class RbacRolePresetBootstrapTests {
         permission.setPermName(code);
         permission.setPermType(PermissionType.API);
         permission.setStatus(PermissionStatus.ENABLED);
+        return permission;
+    }
+
+    private PermissionPo menuPermission(String code) {
+        PermissionPo permission = permission(code);
+        permission.setPermType(PermissionType.MENU);
         return permission;
     }
 

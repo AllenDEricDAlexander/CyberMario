@@ -4,6 +4,7 @@ import {
     BranchesOutlined,
     CommentOutlined,
     ControlOutlined,
+    DashboardOutlined,
     DatabaseOutlined,
     FileTextOutlined,
     MenuOutlined,
@@ -20,6 +21,7 @@ import type {MenuTreeResponse} from '../../modules/rbac/rbacTypes'
 export type AdminMenuItem = Required<MenuProps>['items'][number]
 
 const menuPathByKey: Record<string, string> = {
+    '/dashboard': '/dashboard',
     '/chat': '/chat',
     '/rag/chat': '/rag/chat',
     '/rag/knowledge-bases': '/rag/knowledge-bases',
@@ -36,6 +38,11 @@ const menuPathByKey: Record<string, string> = {
 }
 
 export const adminMenuItems: AdminMenuItem[] = [
+    {
+        key: '/dashboard',
+        icon: <DashboardOutlined/>,
+        label: '首页控制台',
+    },
     {
         key: '/chat',
         icon: <CommentOutlined/>,
@@ -150,7 +157,7 @@ export function flattenMenuKeys(items: AdminMenuItem[]) {
 }
 
 export function canAccessAdminPath(pathname: string, menus: MenuTreeResponse[], canBypass: boolean) {
-    if (canBypass || pathname === '/') {
+    if (canBypass || pathname === '/' || pathname === '/account/settings') {
         return true
     }
     return flattenMenuKeys(buildAuthorizedAdminMenuItems(menus, canBypass))

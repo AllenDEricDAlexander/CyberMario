@@ -21,6 +21,7 @@ public class RagRbacResourceProvider implements RbacResourceProvider {
 
     private static final String APP_CODE = "rag";
     private static final String AUTH_SELF_API_PERMISSION_CODE = "api:rbac:auth:self";
+    private static final String ME_SELF_API_PERMISSION_CODE = "api:rbac:me:self";
 
     private final RagPermissionCatalog catalog = new RagPermissionCatalog();
 
@@ -57,7 +58,7 @@ public class RagRbacResourceProvider implements RbacResourceProvider {
                                 "api:rag:knowledge-base:collection", "api:rag:knowledge-base:*",
                                 "api:rag:document:collection", "api:rag:document:*",
                                 "api:rag:chunk:*", "api:rag:ingestion-job:collection", "api:rag:ingestion-job:*",
-                                AUTH_SELF_API_PERMISSION_CODE
+                                AUTH_SELF_API_PERMISSION_CODE, ME_SELF_API_PERMISSION_CODE
                         ),
                         RbacResourceSource.PROVIDER
                 ),
@@ -76,7 +77,7 @@ public class RagRbacResourceProvider implements RbacResourceProvider {
                                 "api:rag:knowledge-base:collection",
                                 "api:rag:document:collection", "api:rag:document:*",
                                 "api:rag:chunk:*", "api:rag:ingestion-job:collection", "api:rag:ingestion-job:*",
-                                AUTH_SELF_API_PERMISSION_CODE
+                                AUTH_SELF_API_PERMISSION_CODE, ME_SELF_API_PERMISSION_CODE
                         ),
                         RbacResourceSource.PROVIDER
                 ),
@@ -91,7 +92,8 @@ public class RagRbacResourceProvider implements RbacResourceProvider {
                                 "menu:rag:ingestion-jobs", "menu:rag:retrieval-lab",
                                 "api:rag:chat:stream", "api:rag:retrieval:search",
                                 "api:rag:knowledge-base:collection", "api:rag:document:collection",
-                                "api:rag:ingestion-job:collection", AUTH_SELF_API_PERMISSION_CODE
+                                "api:rag:ingestion-job:collection", AUTH_SELF_API_PERMISSION_CODE,
+                                ME_SELF_API_PERMISSION_CODE
                         ),
                         RbacResourceSource.PROVIDER
                 )

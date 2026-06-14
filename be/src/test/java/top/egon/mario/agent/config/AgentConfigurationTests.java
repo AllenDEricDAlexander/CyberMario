@@ -7,11 +7,11 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import reactor.core.publisher.Flux;
-import top.egon.mario.agent.model.api.MarioModelFactory;
-import top.egon.mario.agent.model.api.ModelProviderType;
-import top.egon.mario.agent.model.api.ModelRequest;
-import top.egon.mario.agent.model.api.ModelResolveResult;
-import top.egon.mario.agent.model.api.ModelScenario;
+import top.egon.mario.agent.model.dto.enums.ModelProviderType;
+import top.egon.mario.agent.model.dto.enums.ModelScenario;
+import top.egon.mario.agent.model.dto.request.ModelRequest;
+import top.egon.mario.agent.model.dto.response.ModelResolveResult;
+import top.egon.mario.agent.model.service.MarioModelFactory;
 
 import java.math.BigDecimal;
 import java.util.List;

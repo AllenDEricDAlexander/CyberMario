@@ -12,7 +12,9 @@ import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.converter.RbacDtoConverter;
+import top.egon.mario.rbac.dto.request.ChangeCurrentUserPasswordRequest;
 import top.egon.mario.rbac.dto.request.CreateUserRequest;
+import top.egon.mario.rbac.dto.request.UpdateCurrentUserProfileRequest;
 import top.egon.mario.rbac.dto.request.UpdateUserRequest;
 import top.egon.mario.rbac.dto.response.UserResponse;
 import top.egon.mario.rbac.po.RolePo;
@@ -126,6 +128,39 @@ public class RbacUserServiceImpl implements RbacUserService {
 
     @Override
     @Transactional
+    public UserResponse updateCurrentUserProfile(Long userId, UpdateCurrentUserProfileRequest request) {
+        UserPo user = getUserPo(userId);
+        checkUniqueContactForUser(user, request.email(), request.mobile());
+        user.setNickname(request.nickname());
+        user.setEmail(trimToNull(request.email()));
+        user.setMobile(trimToNull(request.mobile()));
+        user.setAvatarUrl(request.avatarUrl());
+        UserPo savedUser = userRepository.save(user);
+        LogUtil.info(log).log("rbac current user profile updated, userId={}", userId);
+        return rbacDtoConverter.toUserResponse(savedUser);
+    }
+
+    @Override
+    @Transactional
+    public void changeCurrentUserPassword(Long userId, ChangeCurrentUserPasswordRequest request) {
+        UserPo user = getUserPo(userId);
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            throw new RbacException("RBAC_CURRENT_PASSWORD_INVALID", "current password is invalid");
+        }
+        if (!request.newPassword().equals(request.confirmPassword())) {
+            throw new RbacException("RBAC_PASSWORD_CONFIRM_MISMATCH", "password confirmation does not match");
+        }
+        if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
+            throw new RbacException("RBAC_PASSWORD_UNCHANGED", "new password must be different from current password");
+        }
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        user.setPasswordExpired(false);
+        userRepository.save(user);
+        LogUtil.info(log).log("rbac current user password changed, userId={}", userId);
+    }
+
+    @Override
+    @Transactional
     public void resetPassword(Long userId, String newPassword) {
         UserPo user = getUserPo(userId);
         user.setPasswordHash(passwordEncoder.encode(newPassword));
@@ -226,6 +261,19 @@ public class RbacUserServiceImpl implements RbacUserService {
             throw new RbacException("RBAC_USER_EMAIL_DUPLICATED", "email already exists");
         }
         if (StringUtils.hasText(mobile) && userRepository.existsByMobileAndDeletedFalse(mobile.trim())) {
+            throw new RbacException("RBAC_USER_MOBILE_DUPLICATED", "mobile already exists");
+        }
+    }
+
+    private void checkUniqueContactForUser(UserPo user, String email, String mobile) {
+        String trimmedEmail = trimToNull(email);
+        if (trimmedEmail != null && !trimmedEmail.equals(user.getEmail())
+                && userRepository.existsByEmailAndDeletedFalse(trimmedEmail)) {
+            throw new RbacException("RBAC_USER_EMAIL_DUPLICATED", "email already exists");
+        }
+        String trimmedMobile = trimToNull(mobile);
+        if (trimmedMobile != null && !trimmedMobile.equals(user.getMobile())
+                && userRepository.existsByMobileAndDeletedFalse(trimmedMobile)) {
             throw new RbacException("RBAC_USER_MOBILE_DUPLICATED", "mobile already exists");
         }
     }

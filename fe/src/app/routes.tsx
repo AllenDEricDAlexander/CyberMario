@@ -5,6 +5,7 @@ import {firstAuthorizedMenuPath} from '../layouts/AdminLayout/menu'
 import {AuthLayout} from '../layouts/AuthLayout'
 import {hasAdminPermissionBypass, useAuth} from '../modules/auth/authStore'
 import {LoginPage} from '../modules/auth/pages/LoginPage'
+import {RegisterPage} from '../modules/auth/pages/RegisterPage'
 import {ChatPage} from '../modules/chat/pages/ChatPage'
 
 export const router = createBrowserRouter([
@@ -17,6 +18,14 @@ export const router = createBrowserRouter([
         ),
     },
     {
+        path: '/register',
+        element: (
+            <AuthLayout>
+                <RegisterPage/>
+            </AuthLayout>
+        ),
+    },
+    {
         path: '/',
         element: <RequireAuth/>,
         children: [
@@ -24,6 +33,8 @@ export const router = createBrowserRouter([
                 element: <AdminLayout/>,
                 children: [
                     {index: true, element: <DefaultAdminRoute/>},
+                    {path: 'dashboard', lazy: () => import('../modules/dashboard/DashboardPage')},
+                    {path: 'account/settings', lazy: () => import('../modules/account/pages/AccountSettingsPage')},
                     {path: 'chat', element: <ChatPage/>},
                     {path: 'rag/chat', lazy: () => import('../modules/rag/RagChatPage')},
                     {path: 'rag/knowledge-bases', lazy: () => import('../modules/rag/KnowledgeBaseListPage')},

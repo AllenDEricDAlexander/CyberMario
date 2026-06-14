@@ -4,6 +4,16 @@ import {buildAuthorizedAdminMenuItems, canAccessAdminPath, firstAuthorizedMenuPa
 
 const menuTree: MenuTreeResponse[] = [
     {
+        permissionId: 10,
+        permCode: 'menu:agent',
+        permName: '首页控制台',
+        routePath: '/dashboard',
+        hidden: false,
+        cacheable: true,
+        sortNo: 0,
+        children: [],
+    },
+    {
         permissionId: 1,
         permCode: 'menu:chat',
         permName: 'Agent Chat',
@@ -39,7 +49,7 @@ describe('admin menu authorization', () => {
     test('keeps only authorized non-hidden menu paths', () => {
         const items = buildAuthorizedAdminMenuItems(menuTree, false)
 
-        expect(flattenMenuKeys(items)).toEqual(['/chat', '/rbac/users'])
+        expect(flattenMenuKeys(items)).toEqual(['/dashboard', '/chat', '/rbac/users'])
     })
 
     test('allows detail routes under an authorized menu path', () => {
@@ -49,6 +59,6 @@ describe('admin menu authorization', () => {
     })
 
     test('returns the first authorized path for default navigation', () => {
-        expect(firstAuthorizedMenuPath(menuTree, false)).toBe('/chat')
+        expect(firstAuthorizedMenuPath(menuTree, false)).toBe('/dashboard')
     })
 })

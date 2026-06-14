@@ -1,4 +1,4 @@
-import {LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined, UserOutlined} from '@ant-design/icons'
+import {LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined, UserOutlined} from '@ant-design/icons'
 import {Avatar, Button, Dropdown, Layout, Menu, Result, Space, Typography} from 'antd'
 import {useEffect, useMemo, useState} from 'react'
 import {Outlet, useLocation, useNavigate} from 'react-router'
@@ -35,6 +35,10 @@ export function AdminLayout() {
     async function handleLogout() {
         await auth.logout()
         void navigate('/login', {replace: true})
+    }
+
+    function openAccountSettings() {
+        void navigate('/account/settings')
     }
 
     useEffect(() => {
@@ -87,6 +91,12 @@ export function AdminLayout() {
                             menu={{
                                 items: [
                                     {
+                                        key: 'account-settings',
+                                        icon: <SettingOutlined/>,
+                                        label: '个人设置',
+                                        onClick: openAccountSettings,
+                                    },
+                                    {
                                         key: 'logout',
                                         icon: <LogoutOutlined/>,
                                         label: '退出登录',
@@ -98,7 +108,7 @@ export function AdminLayout() {
                         >
                             <Button type="text">
                                 <Space>
-                                    <Avatar icon={<UserOutlined/>} size="small"/>
+                                    <Avatar icon={<UserOutlined/>} size="small" src={auth.user?.avatarUrl}/>
                                     <Typography.Text>{auth.user?.nickname || auth.user?.username}</Typography.Text>
                                 </Space>
                             </Button>

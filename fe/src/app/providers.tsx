@@ -1,7 +1,9 @@
-import type {ReactNode} from 'react'
+import {type ReactNode, useEffect} from 'react'
 import {App, ConfigProvider} from 'antd'
 import zhCN from 'antd/locale/zh_CN'
+import {resolveErrorMessage} from '../services/request'
 import {AuthProvider} from '../modules/auth/authStore'
+import {registerAsyncErrorHandler, registerUnhandledRejectionReporter} from '../utils/async'
 
 type AppProvidersProps = {
     children: ReactNode
@@ -31,8 +33,28 @@ export function AppProviders({children}: AppProvidersProps) {
             }}
         >
             <App>
-                <AuthProvider>{children}</AuthProvider>
+                <AsyncErrorReporter>
+                    <AuthProvider>{children}</AuthProvider>
+                </AsyncErrorReporter>
             </App>
         </ConfigProvider>
     )
+}
+
+function AsyncErrorReporter({children}: AppProvidersProps) {
+    const {message} = App.useApp()
+
+    useEffect(() => {
+        const reportError = (error: unknown) => {
+            message.error(resolveErrorMessage(error))
+        }
+        const disposeRejectedHandler = registerAsyncErrorHandler(reportError)
+        const disposeUnhandledRejectionHandler = registerUnhandledRejectionReporter(reportError)
+        return () => {
+            disposeRejectedHandler()
+            disposeUnhandledRejectionHandler()
+        }
+    }, [message])
+
+    return <>{children}</>
 }

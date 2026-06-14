@@ -182,11 +182,27 @@ function parseApiResponse<T>(text: string) {
 }
 
 function toApiRequestError(response: Response, payload: ApiResponse<unknown> | null) {
-    return new ApiRequestError(payload?.message ?? `请求失败：HTTP ${response.status}`, {
+    return new ApiRequestError(payload?.message ?? defaultHttpErrorMessage(response.status), {
         code: payload?.code ?? `HTTP_${response.status}`,
         status: response.status,
         traceId: payload?.traceId,
     })
+}
+
+function defaultHttpErrorMessage(status: number) {
+    if (status === 401) {
+        return '登录已失效，请重新登录'
+    }
+    if (status === 403) {
+        return '没有权限执行该操作'
+    }
+    if (status === 404) {
+        return '请求的资源不存在'
+    }
+    if (status >= 500) {
+        return '服务暂时不可用，请稍后重试'
+    }
+    return `请求失败：HTTP ${status}`
 }
 
 async function fetchWithAuthRetry(

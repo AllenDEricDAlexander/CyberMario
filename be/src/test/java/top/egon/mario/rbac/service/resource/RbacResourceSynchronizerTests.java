@@ -288,6 +288,40 @@ class RbacResourceSynchronizerTests {
                 .contains(ragApi.getId(), authSelfApi.getId());
     }
 
+    @Test
+    void synchronizeDashboardResourcesCanBeGrantedThroughManagedAdminRoles() {
+        RolePo rbacAdminRole = roleRepository.save(role("RBAC_ADMIN", true));
+        synchronizer.synchronize("agent", List.of(
+                dashboardMenuSeed(),
+                dashboardApiSeed("api:agent:model-audit:dashboard:self", "/api/agent/model-audit/dashboard/self"),
+                dashboardApiSeed("api:agent:model-audit:dashboard:global", "/api/agent/model-audit/dashboard/global"),
+                dashboardApiSeed("api:agent:model-audit:dashboard:user-options", "/api/agent/model-audit/dashboard/user-options")
+        ), List.of());
+
+        synchronizer.synchronize("agent", List.of(), List.of(
+                new RbacRolePresetSeed(
+                        "agent",
+                        "RBAC_ADMIN",
+                        "RBAC Administrator",
+                        "System role for RBAC management.",
+                        10,
+                        List.of("menu:agent", "api:agent:model-audit:dashboard:self",
+                                "api:agent:model-audit:dashboard:global",
+                                "api:agent:model-audit:dashboard:user-options"),
+                        RbacResourceSource.PROVIDER
+                )
+        ));
+
+        PermissionPo dashboardMenu = permissionRepository.findByPermCodeAndDeletedFalse("menu:agent").orElseThrow();
+        PermissionPo dashboardSelf = permissionRepository.findByPermCodeAndDeletedFalse("api:agent:model-audit:dashboard:self").orElseThrow();
+        PermissionPo dashboardGlobal = permissionRepository.findByPermCodeAndDeletedFalse("api:agent:model-audit:dashboard:global").orElseThrow();
+        PermissionPo dashboardUserOptions = permissionRepository.findByPermCodeAndDeletedFalse("api:agent:model-audit:dashboard:user-options").orElseThrow();
+        assertThat(rolePermissionRepository.findByRoleId(rbacAdminRole.getId()))
+                .extracting(RolePermissionPo::getPermissionId)
+                .containsExactlyInAnyOrder(dashboardMenu.getId(), dashboardSelf.getId(),
+                        dashboardGlobal.getId(), dashboardUserOptions.getId());
+    }
+
     private RbacResourceSeed rootMenuSeed() {
         return RbacResourceSeed.menu(
                 "rag",
@@ -358,6 +392,35 @@ class RbacResourceSynchronizerTests {
                 0,
                 null,
                 new RbacApiSeed("ANY", "/api/auth/**", ApiMatcherType.ANT, false, ApiRiskLevel.MEDIUM),
+                RbacResourceSource.ANNOTATION
+        );
+    }
+
+    private RbacResourceSeed dashboardMenuSeed() {
+        return RbacResourceSeed.menu(
+                "agent",
+                "agent",
+                "menu:agent",
+                "首页控制台",
+                null,
+                PermissionStatus.ENABLED,
+                10,
+                null,
+                new RbacMenuSeed("dashboard", "/dashboard", null, null, "DashboardOutlined", false, true, null),
+                RbacResourceSource.PROVIDER
+        );
+    }
+
+    private RbacResourceSeed dashboardApiSeed(String code, String pattern) {
+        return RbacResourceSeed.api(
+                "agent",
+                "agent",
+                code,
+                code,
+                PermissionStatus.ENABLED,
+                0,
+                null,
+                new RbacApiSeed("GET", pattern, ApiMatcherType.EXACT, false, ApiRiskLevel.HIGH),
                 RbacResourceSource.ANNOTATION
         );
     }

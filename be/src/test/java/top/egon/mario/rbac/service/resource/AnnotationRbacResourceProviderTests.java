@@ -13,6 +13,7 @@ import top.egon.mario.rbac.po.enums.ApiMatcherType;
 import top.egon.mario.rbac.po.enums.ApiRiskLevel;
 import top.egon.mario.rbac.po.enums.PermissionType;
 import top.egon.mario.rbac.service.resource.annotation.RbacApi;
+import top.egon.mario.rbac.service.resource.annotation.RbacMenu;
 import top.egon.mario.rbac.service.resource.annotation.RbacResourceModule;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -70,15 +71,67 @@ class AnnotationRbacResourceProviderTests {
                 });
     }
 
+    @Test
+    void providersIncludeCurrentUserSelfApiAnnotation() {
+        assertThat(annotationProvider.providers())
+                .filteredOn(provider -> provider.appCode().equals("rbac"))
+                .flatExtracting(RbacResourceProvider::resources)
+                .anySatisfy(seed -> {
+                    assertThat(seed.code()).isEqualTo("api:rbac:me:self");
+                    assertThat(seed.api().httpMethod()).isEqualTo("ANY");
+                    assertThat(seed.api().urlPattern()).isEqualTo("/api/me/**");
+                    assertThat(seed.api().matcherType()).isEqualTo(ApiMatcherType.ANT);
+                });
+    }
+
+    @Test
+    void providersIncludeChatMenuAnnotation() {
+        assertThat(annotationProvider.providers())
+                .filteredOn(provider -> provider.appCode().equals("chat"))
+                .flatExtracting(RbacResourceProvider::resources)
+                .anySatisfy(seed -> {
+                    assertThat(seed.code()).isEqualTo("menu:chat");
+                    assertThat(seed.type()).isEqualTo(PermissionType.MENU);
+                    assertThat(seed.menu().routePath()).isEqualTo("/chat");
+                    assertThat(seed.menu().routeName()).isEqualTo("chat");
+                });
+    }
+
+    @Test
+    void providersIncludeAgentDashboardApis() {
+        assertThat(annotationProvider.providers())
+                .filteredOn(provider -> provider.appCode().equals("agent"))
+                .flatExtracting(RbacResourceProvider::resources)
+                .anySatisfy(seed -> {
+                    assertThat(seed.code()).isEqualTo("api:agent:model-audit:dashboard:global");
+                    assertThat(seed.type()).isEqualTo(PermissionType.API);
+                    assertThat(seed.api().httpMethod()).isEqualTo("GET");
+                    assertThat(seed.api().urlPattern()).isEqualTo("/api/agent/model-audit/dashboard/global");
+                    assertThat(seed.api().matcherType()).isEqualTo(ApiMatcherType.EXACT);
+                    assertThat(seed.api().riskLevel()).isEqualTo(ApiRiskLevel.HIGH);
+                })
+                .anySatisfy(seed -> {
+                    assertThat(seed.code()).isEqualTo("api:agent:model-audit:dashboard:user-options");
+                    assertThat(seed.type()).isEqualTo(PermissionType.API);
+                    assertThat(seed.api().urlPattern()).isEqualTo("/api/agent/model-audit/dashboard/user-options");
+                });
+    }
+
     @Configuration
     @RbacResourceModule(appCode = "test", name = "Test", codePrefixes = {"api:test:"})
     static class TestRbacResourceModule {
     }
 
+    @Configuration
+    @RbacResourceModule(appCode = "chat", name = "Chat", codePrefixes = {"menu:chat", "api:chat:"})
+    @RbacMenu(code = "menu:chat", name = "Agent Chat", path = "/chat", routeName = "chat", icon = "CommentOutlined", sort = 10)
+    static class TestChatResourceModule {
+    }
+
     @RestController
     static class TestRbacController {
 
-        @RbacApi(code = "api:test:example:get", name = "Test Example", risk = ApiRiskLevel.MEDIUM)
+        @RbacApi(appCode = "test", code = "api:test:example:get", name = "Test Example", risk = ApiRiskLevel.MEDIUM)
         @GetMapping("/internal/example")
         Mono<String> example() {
             return Mono.just("ok");

@@ -1,7 +1,7 @@
 import {LockOutlined, UserOutlined} from '@ant-design/icons'
 import {Alert, Button, Card, Form, Input, Typography} from 'antd'
 import {useState} from 'react'
-import {Navigate, useLocation, useNavigate} from 'react-router'
+import {Link, Navigate, useLocation, useNavigate} from 'react-router'
 import {VisualBackdrop} from '../../../components/VisualBackdrop'
 import {resolveErrorMessage} from '../../../services/request'
 import {voidify} from '../../../utils/async'
@@ -85,6 +85,9 @@ export function LoginPage() {
                         <Button block htmlType="submit" type="primary">
                             登录
                         </Button>
+                        <Typography.Paragraph className="auth-switch" type="secondary">
+                            还没有账号？<Link to="/register">立即注册</Link>
+                        </Typography.Paragraph>
                     </Form>
                 </Card>
             </section>

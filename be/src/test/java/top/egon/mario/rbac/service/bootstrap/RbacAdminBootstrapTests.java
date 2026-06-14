@@ -28,6 +28,10 @@ import top.egon.mario.rbac.repository.RolePermissionRepository;
 import top.egon.mario.rbac.repository.RoleRepository;
 import top.egon.mario.rbac.repository.UserRepository;
 import top.egon.mario.rbac.repository.UserRoleRepository;
+import top.egon.mario.rbac.service.resource.RbacResourceSynchronizer;
+import top.egon.mario.rbac.service.resource.model.RbacApiSeed;
+import top.egon.mario.rbac.service.resource.model.RbacMenuSeed;
+import top.egon.mario.rbac.service.resource.model.RbacResourceSeed;
 import top.egon.mario.rbac.service.resource.model.RbacResourceSource;
 
 import java.time.Instant;
@@ -74,6 +78,8 @@ class RbacAdminBootstrapTests {
     private MenuRepository menuRepository;
     @Autowired
     private ApiRepository apiRepository;
+    @Autowired
+    private RbacResourceSynchronizer synchronizer;
 
     @BeforeEach
     void setUp() {
@@ -185,6 +191,30 @@ class RbacAdminBootstrapTests {
     }
 
     @Test
+    void bootstrapGrantsSuperAdminAnnotationSynchronizedDashboardApis() {
+        synchronizer.synchronize("agent", List.of(
+                dashboardMenuSeed(),
+                dashboardApiSeed("api:agent:model-audit:dashboard:self", "/api/agent/model-audit/dashboard/self"),
+                dashboardApiSeed("api:agent:model-audit:dashboard:global", "/api/agent/model-audit/dashboard/global"),
+                dashboardApiSeed("api:agent:model-audit:dashboard:user-options", "/api/agent/model-audit/dashboard/user-options")
+        ), List.of());
+
+        adminBootstrap.bootstrap();
+
+        PermissionPo dashboardSelf = permissionRepository.findByPermCodeAndDeletedFalse("api:agent:model-audit:dashboard:self").orElseThrow();
+        PermissionPo dashboardGlobal = permissionRepository.findByPermCodeAndDeletedFalse("api:agent:model-audit:dashboard:global").orElseThrow();
+        PermissionPo dashboardUserOptions = permissionRepository.findByPermCodeAndDeletedFalse("api:agent:model-audit:dashboard:user-options").orElseThrow();
+        PermissionPo dashboardMenu = permissionRepository.findByPermCodeAndDeletedFalse("menu:agent").orElseThrow();
+        RolePo superAdmin = roleRepository.findByRoleCodeAndDeletedFalse("SUPER_ADMIN").orElseThrow();
+        assertThat(rolePermissionRepository.findByRoleId(superAdmin.getId()))
+                .extracting(RolePermissionPo::getPermissionId)
+                .contains(dashboardSelf.getId(), dashboardGlobal.getId(), dashboardUserOptions.getId(),
+                        dashboardMenu.getId());
+        assertThat(apiRepository.findById(dashboardGlobal.getId()).orElseThrow().getUrlPattern())
+                .isEqualTo("/api/agent/model-audit/dashboard/global");
+    }
+
+    @Test
     void bootstrapDoesNotOverwriteAnnotationManagedPermissionMetadata() {
         PermissionPo authSelfPermission = permission("api:rbac:auth:self", PermissionType.API);
         authSelfPermission.setManaged(true);
@@ -246,6 +276,35 @@ class RbacAdminBootstrapTests {
         role.setRoleName(code);
         role.setStatus(RbacStatus.ENABLED);
         return role;
+    }
+
+    private RbacResourceSeed dashboardMenuSeed() {
+        return RbacResourceSeed.menu(
+                "agent",
+                "agent",
+                "menu:agent",
+                "首页控制台",
+                null,
+                PermissionStatus.ENABLED,
+                10,
+                null,
+                new RbacMenuSeed("dashboard", "/dashboard", null, null, "DashboardOutlined", false, true, null),
+                RbacResourceSource.PROVIDER
+        );
+    }
+
+    private RbacResourceSeed dashboardApiSeed(String code, String pattern) {
+        return RbacResourceSeed.api(
+                "agent",
+                "agent",
+                code,
+                code,
+                PermissionStatus.ENABLED,
+                0,
+                null,
+                new RbacApiSeed("GET", pattern, ApiMatcherType.EXACT, false, ApiRiskLevel.HIGH),
+                RbacResourceSource.ANNOTATION
+        );
     }
 
 }

@@ -72,6 +72,17 @@ describe('requestJson', () => {
             traceId: 'trace-1',
         })
     })
+
+    test('uses friendly fallback messages for empty forbidden responses', async () => {
+        vi.stubGlobal('fetch', vi.fn(() => new Response(null, {status: 403})))
+
+        await expect(requestJson('/api/me/profile')).rejects.toMatchObject({
+            name: 'ApiRequestError',
+            code: 'HTTP_403',
+            message: '没有权限执行该操作',
+            status: 403,
+        })
+    })
 })
 
 describe('streamJsonLines', () => {

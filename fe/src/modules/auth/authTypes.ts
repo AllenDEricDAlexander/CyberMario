@@ -5,6 +5,15 @@ export type LoginRequest = {
     password: string
 }
 
+export type RegisterRequest = {
+    username: string
+    password: string
+    nickname?: string
+    email?: string
+    mobile?: string
+    avatarUrl?: string
+}
+
 export type LoginResponse = {
     accessToken?: string | null
     refreshToken?: string | null
