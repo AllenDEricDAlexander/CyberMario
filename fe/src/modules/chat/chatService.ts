@@ -1,7 +1,7 @@
-import {API_BASE_URL, streamServerSentEvents} from '../../services/request'
+import {streamJsonLines} from '../../services/request'
 import type {ChatResponse} from './chatTypes'
 
-const CHAT_ENDPOINT = `${API_BASE_URL}/demo/chat/stream`
+const CHAT_ENDPOINT = '/demo/chat/stream'
 
 export function streamChatResponse(
     request: {
@@ -11,7 +11,7 @@ export function streamChatResponse(
     },
     onChunk: (chunk: ChatResponse) => void,
 ) {
-    return streamServerSentEvents(
+    return streamJsonLines<ChatResponse>(
         CHAT_ENDPOINT,
         {
             body: {

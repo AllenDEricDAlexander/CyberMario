@@ -1,73 +1,65 @@
-# React + TypeScript + Vite
+# CyberMario Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + TypeScript + Vite frontend for CyberMario. The UI is built with Ant Design and talks to the backend through
+`/api` and `/demo` routes.
 
-Currently, two official plugins are available:
+## Scripts
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev
+npm run lint
+npm run typecheck
+npm run test
+npm run test:coverage
+npm run build
+npm run analyze
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+- `dev` starts Vite locally.
+- `lint` runs ESLint.
+- `typecheck` runs TypeScript project checks without emitting files.
+- `test` runs Vitest unit tests.
+- `test:coverage` runs Vitest with coverage output.
+- `build` runs typecheck and Vite production build.
+- `analyze` builds with bundle analysis output at `dist/stats.html`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Backend Target
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Vite proxies `/api` and `/demo` to the backend. The target is resolved in this order:
+
+1. `VITE_BACKEND_TARGET`
+2. `VITE_API_BASE_URL`
+3. `http://localhost:${VITE_BACKEND_PORT || BACKEND_PORT || 28080}`
+
+When `VITE_API_BASE_URL` is set in browser builds, frontend requests use it as the absolute API base URL.
+
+## Response Contracts
+
+The frontend keeps normal JSON responses and streaming responses separate.
+
+- Spring MVC JSON responses and WebFlux `Mono<ApiResponse<T>>` responses use `requestJson<T>()`.
+- File uploads use `requestFormData<T>()`, and their response body is still parsed as normal JSON.
+- True NDJSON HTTP streams use `streamJsonLines<T>()`.
+
+`Mono` is not treated as a frontend stream because the browser receives one complete HTTP response body. Only endpoints
+that continuously write newline-delimited JSON events should use `streamJsonLines<T>()`.
+
+## Request Helpers
+
+Core request utilities live in `src/services/request.ts`.
+
+- `requestJson<T>()` unwraps backend `ApiResponse<T>` and throws `ApiRequestError` for HTTP or business errors.
+- `requestFormData<T>()` sends `FormData` and unwraps the same response envelope.
+- `streamJsonLines<T>()` reads NDJSON events and uses the same backend error envelope when the stream request fails.
+- `buildSearchParams()` in `src/services/urlSearch.ts` builds encoded query strings for service APIs.
+
+## Validation
+
+Before handing frontend changes back, run:
+
+```bash
+npm run lint
+npm run typecheck
+npm run test
+npm run build
 ```

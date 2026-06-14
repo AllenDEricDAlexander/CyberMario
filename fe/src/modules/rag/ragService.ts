@@ -1,4 +1,5 @@
 import {requestFormData, requestJson, streamJsonLines} from '../../services/request'
+import {buildSearchParams} from '../../services/urlSearch'
 import type {
     KnowledgeBaseResponse,
     KnowledgeBaseUserResponse,
@@ -17,7 +18,10 @@ type PageParams = {
 }
 
 export function getRagKnowledgeBases(params: PageParams) {
-    return requestJson<RagPage<KnowledgeBaseResponse>>(`/api/rag/knowledge-bases?page=${params.page ?? 1}&size=${params.size ?? 20}`)
+    return requestJson<RagPage<KnowledgeBaseResponse>>(`/api/rag/knowledge-bases?${buildSearchParams({
+        page: params.page ?? 1,
+        size: params.size ?? 20,
+    })}`)
 }
 
 export function createRagKnowledgeBase(request: Partial<KnowledgeBaseResponse>) {
@@ -52,13 +56,11 @@ export function replaceRagKnowledgeBaseUsers(id: number, users: Array<{ userId: 
 }
 
 export function getRagDocuments(params: PageParams & { knowledgeBaseId?: number }) {
-    const search = new URLSearchParams()
-    search.set('page', String(params.page ?? 1))
-    search.set('size', String(params.size ?? 20))
-    if (params.knowledgeBaseId) {
-        search.set('knowledgeBaseId', String(params.knowledgeBaseId))
-    }
-    return requestJson<RagPage<RagDocumentResponse>>(`/api/rag/documents?${search.toString()}`)
+    return requestJson<RagPage<RagDocumentResponse>>(`/api/rag/documents?${buildSearchParams({
+        page: params.page ?? 1,
+        size: params.size ?? 20,
+        knowledgeBaseId: params.knowledgeBaseId,
+    })}`)
 }
 
 export function uploadRagDocuments(request: { knowledgeBaseId: number; files: File[]; parseImmediately: boolean }) {
@@ -106,13 +108,11 @@ export function updateRagChunkEnabled(id: number, enabled: boolean) {
 }
 
 export function getRagIngestionJobs(params: PageParams & { knowledgeBaseId?: number }) {
-    const search = new URLSearchParams()
-    search.set('page', String(params.page ?? 1))
-    search.set('size', String(params.size ?? 20))
-    if (params.knowledgeBaseId) {
-        search.set('knowledgeBaseId', String(params.knowledgeBaseId))
-    }
-    return requestJson<RagPage<RagIngestionJobResponse>>(`/api/rag/ingestion-jobs?${search.toString()}`)
+    return requestJson<RagPage<RagIngestionJobResponse>>(`/api/rag/ingestion-jobs?${buildSearchParams({
+        page: params.page ?? 1,
+        size: params.size ?? 20,
+        knowledgeBaseId: params.knowledgeBaseId,
+    })}`)
 }
 
 export function retryRagIngestionJob(id: number) {

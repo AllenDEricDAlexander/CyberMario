@@ -13,14 +13,7 @@ type RequestOptions = {
     headers?: HeadersInit
 }
 
-type StreamChunkHandler = (chunk: ChatResponse) => void
 type JsonLineHandler<T> = (chunk: T) => void
-
-type ChatResponse = {
-    threadId: string
-    message: string
-    type: 'think' | 'message'
-}
 
 type RefreshLoginResponse = {
     accessToken?: string | null
@@ -45,7 +38,7 @@ export async function requestFormData<T>(endpoint: string, formData: FormData, o
         options,
     )
 
-    return unwrapJsonResponse<T>(response)
+    return unwrapApiResponse<T>(response)
 }
 
 async function requestJsonInternal<T>(
@@ -63,66 +56,7 @@ async function requestJsonInternal<T>(
         allowRefresh,
     )
 
-    return unwrapJsonResponse<T>(response)
-}
-
-export async function streamServerSentEvents(
-    endpoint: string,
-    request: {
-        body: unknown
-        signal: AbortSignal
-    },
-    onChunk: StreamChunkHandler,
-) {
-    const response = await fetchWithAuthRetry(
-        () => fetch(endpoint, {
-            method: 'POST',
-            headers: buildHeaders({headers: {Accept: 'application/x-ndjson'}}),
-            body: JSON.stringify(request.body),
-            signal: request.signal,
-        }),
-        {},
-    )
-
-    if (!response.ok) {
-        throw new Error(`请求失败：HTTP ${response.status}`)
-    }
-    if (!response.body) {
-        throw new Error('后端没有返回可读取的响应流')
-    }
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    while (true) {
-        const {done, value} = await reader.read()
-        if (done) {
-            break
-        }
-
-        buffer += decoder.decode(value, {stream: true})
-        const lines = buffer.split('\n')
-        buffer = lines.pop() ?? ''
-
-        for (const line of lines) {
-            const trimmed = line.trim()
-            if (!trimmed) continue
-            try {
-                onChunk(JSON.parse(trimmed) as ChatResponse)
-            } catch {
-                console.warn('NDJSON parse failed:', trimmed.slice(0, 80))
-            }
-        }
-    }
-
-    if (buffer.trim()) {
-        try {
-            onChunk(JSON.parse(buffer.trim()) as ChatResponse)
-        } catch {
-            console.warn('NDJSON final line parse failed:', buffer.trim().slice(0, 80))
-        }
-    }
+    return unwrapApiResponse<T>(response)
 }
 
 export async function streamJsonLines<T>(
@@ -144,13 +78,17 @@ export async function streamJsonLines<T>(
     )
 
     if (!response.ok) {
-        throw new Error(`请求失败：HTTP ${response.status}`)
+        await throwApiResponseError(response)
     }
     if (!response.body) {
         throw new Error('后端没有返回可读取的响应流')
     }
 
-    const reader = response.body.getReader()
+    await readJsonLines(response.body, onChunk)
+}
+
+async function readJsonLines<T>(body: ReadableStream<Uint8Array>, onChunk: JsonLineHandler<T>) {
+    const reader = body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
 
@@ -204,16 +142,12 @@ function buildHeaders(options: RequestOptions, includeJsonContentType = true) {
     return headers
 }
 
-async function unwrapJsonResponse<T>(response: Response): Promise<T> {
+async function unwrapApiResponse<T>(response: Response): Promise<T> {
     const text = await response.text()
-    const payload = text ? (JSON.parse(text) as ApiResponse<T>) : null
+    const payload = parseApiResponse<T>(text)
 
     if (!response.ok) {
-        throw new ApiRequestError(payload?.message ?? `请求失败：HTTP ${response.status}`, {
-            code: payload?.code ?? `HTTP_${response.status}`,
-            status: response.status,
-            traceId: payload?.traceId,
-        })
+        throw toApiRequestError(response, payload)
     }
 
     if (!payload) {
@@ -229,6 +163,30 @@ async function unwrapJsonResponse<T>(response: Response): Promise<T> {
     }
 
     return payload.data
+}
+
+async function throwApiResponseError(response: Response): Promise<never> {
+    const text = await response.text()
+    throw toApiRequestError(response, parseApiResponse<unknown>(text))
+}
+
+function parseApiResponse<T>(text: string) {
+    if (!text) {
+        return null
+    }
+    try {
+        return JSON.parse(text) as ApiResponse<T>
+    } catch {
+        return null
+    }
+}
+
+function toApiRequestError(response: Response, payload: ApiResponse<unknown> | null) {
+    return new ApiRequestError(payload?.message ?? `请求失败：HTTP ${response.status}`, {
+        code: payload?.code ?? `HTTP_${response.status}`,
+        status: response.status,
+        traceId: payload?.traceId,
+    })
 }
 
 async function fetchWithAuthRetry(
@@ -266,7 +224,7 @@ async function refreshAccessToken() {
             body: JSON.stringify({refreshToken}),
         })
             .then(async (response) => {
-                const data = await unwrapJsonResponse<RefreshLoginResponse>(response)
+                const data = await unwrapApiResponse<RefreshLoginResponse>(response)
                 saveTokens(data)
                 return Boolean(data.accessToken)
             })

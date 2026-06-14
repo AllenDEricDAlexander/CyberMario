@@ -1,4 +1,5 @@
 import {requestJson} from '../../services/request'
+import {buildSearchParams} from '../../services/urlSearch'
 import type {PageResult} from '../../types/api'
 import type {
     ApiPermissionRule,
@@ -20,7 +21,10 @@ type PageParams = {
 }
 
 export function getUsers(params: PageParams) {
-    return requestJson<PageResult<UserResponse>>(`/api/admin/users?page=${params.page ?? 1}&size=${params.size ?? 20}`)
+    return requestJson<PageResult<UserResponse>>(`/api/admin/users?${buildSearchParams({
+        page: params.page ?? 1,
+        size: params.size ?? 20,
+    })}`)
 }
 
 export function createUser(request: CreateUserRequest) {
@@ -73,7 +77,10 @@ export function getUserEffectivePermissions(id: number) {
 }
 
 export function getRoles(params: PageParams) {
-    return requestJson<PageResult<RoleResponse>>(`/api/admin/roles?page=${params.page ?? 1}&size=${params.size ?? 20}`)
+    return requestJson<PageResult<RoleResponse>>(`/api/admin/roles?${buildSearchParams({
+        page: params.page ?? 1,
+        size: params.size ?? 20,
+    })}`)
 }
 
 export function createRole(request: CreateRoleRequest) {
@@ -123,7 +130,10 @@ export function replaceRoleInheritance(id: number, ids: number[]) {
 }
 
 export function getPermissions(params: PageParams) {
-    return requestJson<PageResult<PermissionResponse>>(`/api/admin/permissions?page=${params.page ?? 1}&size=${params.size ?? 50}`)
+    return requestJson<PageResult<PermissionResponse>>(`/api/admin/permissions?${buildSearchParams({
+        page: params.page ?? 1,
+        size: params.size ?? 50,
+    })}`)
 }
 
 export function createPermission(request: PermissionRequest) {
@@ -217,7 +227,10 @@ export function getApiPermissionRules() {
 }
 
 export function getApiPermissions(params: PageParams) {
-    return requestJson<PageResult<PermissionResponse>>(`/api/admin/api-permissions?page=${params.page ?? 1}&size=${params.size ?? 20}`)
+    return requestJson<PageResult<PermissionResponse>>(`/api/admin/api-permissions?${buildSearchParams({
+        page: params.page ?? 1,
+        size: params.size ?? 20,
+    })}`)
 }
 
 export function createApiPermission(request: PermissionRequest) {

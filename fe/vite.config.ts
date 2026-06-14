@@ -1,9 +1,19 @@
 import {defineConfig} from 'vite'
 import react from '@vitejs/plugin-react'
+import {visualizer} from 'rollup-plugin-visualizer'
 
 // https://vite.dev/config/
-export default defineConfig({
-    plugins: [react()],
+export default defineConfig(({mode}) => ({
+    plugins: [
+        react(),
+        mode === 'analyze'
+            ? visualizer({
+                filename: 'dist/stats.html',
+                gzipSize: true,
+                brotliSize: true,
+            })
+            : undefined,
+    ],
     build: {
         chunkSizeWarningLimit: 1200,
     },
@@ -26,4 +36,4 @@ export default defineConfig({
             },
         },
     },
-})
+}))
