@@ -121,7 +121,10 @@ public class ReactAgentChatService implements ChatAgentService {
                     .flatMap(output -> toChatResponse(output, conversationThreadId))
                     .doOnNext(response -> collectAuditChunk(response, messageChunks, thinkChunks))
                     .doFinally(signalType -> finishAudit(signalType, auditId.get(), messageChunks, thinkChunks, null))
-                    .doOnError(error -> failAudit(auditId.get(), error));
+                    .onErrorResume(error -> {
+                        failAudit(auditId.get(), error);
+                        return Flux.just(new ChatResponse(conversationThreadId, errorMessage(error), "error"));
+                    });
         });
     }
 
@@ -206,6 +209,9 @@ public class ReactAgentChatService implements ChatAgentService {
         }
         if (messages instanceof java.util.List<?> list && !list.isEmpty()) {
             Object last = list.get(list.size() - 1);
+            if (!(last instanceof AssistantMessage)) {
+                return Flux.empty();
+            }
             String text = extractText(last);
             if (StringUtils.hasText(text)) {
                 return Flux.just(new ChatResponse(threadId, text, "message"));
@@ -242,6 +248,11 @@ public class ReactAgentChatService implements ChatAgentService {
             return threadId.trim();
         }
         return UUID.randomUUID().toString();
+    }
+
+    private String errorMessage(Throwable error) {
+        String message = error == null ? null : error.getMessage();
+        return "模型调用失败：" + (StringUtils.hasText(message) ? message : "请检查模型配置后重试");
     }
 
 }

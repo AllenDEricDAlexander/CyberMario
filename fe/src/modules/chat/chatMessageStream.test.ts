@@ -59,4 +59,19 @@ describe('chatMessageStream', () => {
         expect(second.content).toBe('')
         expect(second.thinkContent).toBe('分析用户问题')
     })
+
+    test('error chunks replace any streamed assistant content', () => {
+        const streamed = appendChatChunk(assistantMessage, {
+            threadId: 'thread-1',
+            type: 'message',
+            message: '用户刚刚发送的问题',
+        })
+        const failed = appendChatChunk(streamed, {
+            threadId: 'thread-1',
+            type: 'error',
+            message: '模型调用失败：url error',
+        })
+
+        expect(failed.content).toBe('模型调用失败：url error')
+    })
 })

@@ -6,6 +6,7 @@ import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
@@ -115,7 +116,7 @@ class ReactAgentChatServiceTests {
     }
 
     @Test
-    void debugChatMarksAuditFailedWhenAgentFails() throws Exception {
+    void debugChatMarksAuditFailedAndReturnsErrorChunkWhenAgentFails() throws Exception {
         ReactAgent agent = mock(ReactAgent.class);
         TestSupport support = new TestSupport(agent);
         given(support.presetService.resolveRuntimeSpec(any(AgentDebugChatRequest.class))).willReturn(runtimeSpec("debug-fingerprint"));
@@ -123,14 +124,50 @@ class ReactAgentChatServiceTests {
         given(agent.stream(eq("你好"), any(RunnableConfig.class))).willReturn(Flux.error(new IllegalStateException("boom")));
 
         StepVerifier.create(support.chatService.debugChat(new AgentDebugChatRequest("你好", "thread-1", 9L, null), null))
-                .expectError(IllegalStateException.class)
-                .verify();
+                .expectNext(new ChatResponse("thread-1", "模型调用失败：boom", "error"))
+                .verifyComplete();
 
         verify(support.auditService).fail(eq(99L), eq(IllegalStateException.class.getName()), eq("boom"), any(Instant.class));
     }
 
+    @Test
+    void chatConvertsAgentFailureToErrorChunk() throws Exception {
+        ReactAgent agent = mock(ReactAgent.class);
+        TestSupport support = new TestSupport(agent);
+        given(support.auditService.start(any(), eq("查这个链接"))).willReturn(99L);
+        given(agent.stream(eq("查这个链接"), any(RunnableConfig.class)))
+                .willReturn(Flux.error(new IllegalArgumentException("[InvalidParameter] url error, please check url")));
+
+        StepVerifier.create(support.chatService.chat("查这个链接", "thread-1", null))
+                .assertNext(response -> {
+                    assertThat(response.threadId()).isEqualTo("thread-1");
+                    assertThat(response.type()).isEqualTo("error");
+                    assertThat(response.message()).contains("模型调用失败");
+                    assertThat(response.message()).contains("url error");
+                })
+                .verifyComplete();
+
+        verify(support.auditService).fail(eq(99L), eq(IllegalArgumentException.class.getName()),
+                eq("[InvalidParameter] url error, please check url"), any(Instant.class));
+    }
+
+    @Test
+    void chatDoesNotEmitUserMessageFromStateFallback() throws Exception {
+        ReactAgent agent = mock(ReactAgent.class);
+        TestSupport support = new TestSupport(agent);
+        given(agent.stream(eq("你好"), any(RunnableConfig.class)))
+                .willReturn(Flux.just(userMessageOutput("你好")));
+
+        StepVerifier.create(support.chatService.chat("你好", "thread-1", null))
+                .verifyComplete();
+    }
+
     private NodeOutput messageOutput(String text) {
         return NodeOutput.of("node", "agent", new OverAllState(Map.of("messages", java.util.List.of(new AssistantMessage(text)))), null);
+    }
+
+    private NodeOutput userMessageOutput(String text) {
+        return NodeOutput.of("node", "agent", new OverAllState(Map.of("messages", java.util.List.of(new UserMessage(text)))), null);
     }
 
     private static AgentRuntimeSpec runtimeSpec(String fingerprint) {

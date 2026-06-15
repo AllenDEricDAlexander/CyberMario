@@ -10,5 +10,5 @@ export type ChatMessage = {
 export type ChatResponse = {
     threadId: string
     message: string
-    type: 'think' | 'message'
+    type: 'think' | 'message' | 'error'
 }
