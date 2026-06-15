@@ -105,6 +105,10 @@ class RbacRolePresetBootstrapTests {
         PermissionPo dashboardSelfPermission = permissionRepository.save(permission("api:agent:model-audit:dashboard:self"));
         PermissionPo dashboardGlobalPermission = permissionRepository.save(permission("api:agent:model-audit:dashboard:global"));
         PermissionPo dashboardUserOptionsPermission = permissionRepository.save(permission("api:agent:model-audit:dashboard:user-options"));
+        PermissionPo debugMenuPermission = permissionRepository.save(menuPermission("menu:agent:debug"));
+        PermissionPo debugStreamPermission = permissionRepository.save(permission("api:agent:debug:chat:stream"));
+        PermissionPo presetCollectionPermission = permissionRepository.save(permission("api:agent:preset:collection"));
+        PermissionPo presetApiPermission = permissionRepository.save(permission("api:agent:preset:*"));
 
         rolePresetBootstrap.bootstrap();
 
@@ -118,7 +122,9 @@ class RbacRolePresetBootstrapTests {
                 .extracting("permissionId")
                 .contains(chatPermission.getId(), chatMenuPermission.getId(),
                         authSelfPermission.getId(), meSelfPermission.getId(),
-                        dashboardMenuPermission.getId(), dashboardSelfPermission.getId());
+                        dashboardMenuPermission.getId(), dashboardSelfPermission.getId(),
+                        debugMenuPermission.getId(), debugStreamPermission.getId(),
+                        presetCollectionPermission.getId(), presetApiPermission.getId());
         assertThat(rbacRole.isBuiltIn()).isFalse();
         assertThat(rbacRole.isManaged()).isTrue();
         assertThat(rbacRole.getOwnerApp()).isEqualTo("rbac");

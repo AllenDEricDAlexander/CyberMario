@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.support.WebExchangeBindException;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import reactor.core.publisher.Mono;
+import top.egon.mario.agent.service.AgentException;
 import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.common.utils.LogUtil;
@@ -83,6 +84,17 @@ public class GlobalExceptionHandler {
             String traceId = TraceContext.traceId(contextView);
             return Mono.just(TraceContext.withMdc(traceId, () -> {
                 LogUtil.warn(log).log("rag request rejected, code={}", ex.getCode());
+                return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getCode(), ex.getMessage(), traceId));
+            }));
+        });
+    }
+
+    @ExceptionHandler(AgentException.class)
+    public Mono<ResponseEntity<ApiResponse<Void>>> handleAgentException(AgentException ex) {
+        return Mono.deferContextual(contextView -> {
+            String traceId = TraceContext.traceId(contextView);
+            return Mono.just(TraceContext.withMdc(traceId, () -> {
+                LogUtil.warn(log).log("agent request rejected, code={}", ex.getCode());
                 return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getCode(), ex.getMessage(), traceId));
             }));
         });

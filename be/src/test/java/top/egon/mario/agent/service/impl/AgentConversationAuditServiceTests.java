@@ -2,6 +2,8 @@ package top.egon.mario.agent.service.impl;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import top.egon.mario.agent.po.AgentConversationAuditPo;
 import top.egon.mario.agent.po.AgentConversationMessageAuditPo;
 import top.egon.mario.agent.po.enums.AgentConversationMessageType;
@@ -9,13 +11,17 @@ import top.egon.mario.agent.po.enums.AgentConversationRole;
 import top.egon.mario.agent.po.enums.AgentConversationStatus;
 import top.egon.mario.agent.repository.AgentConversationAuditRepository;
 import top.egon.mario.agent.repository.AgentConversationMessageAuditRepository;
+import top.egon.mario.agent.service.AgentException;
 import top.egon.mario.agent.service.model.AgentConversationAuditStart;
 import top.egon.mario.agent.service.model.AgentConversationMessageRecord;
+import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -148,6 +154,81 @@ class AgentConversationAuditServiceTests {
         assertThat(audit.getFinishedAt()).isEqualTo(Instant.parse("2026-06-14T01:00:02Z"));
         assertThat(audit.getDurationMs()).isEqualTo(2000L);
         verify(auditRepository).save(audit);
+    }
+
+    @Test
+    void pageRequiresSuperAdminAndMapsEffectiveConfig() {
+        AgentConversationAuditRepository auditRepository = mock(AgentConversationAuditRepository.class);
+        AgentConversationMessageAuditRepository messageRepository = mock(AgentConversationMessageAuditRepository.class);
+        AgentConversationAuditPo audit = auditPo();
+        given(auditRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(PageRequest.class)))
+                .willReturn(new PageImpl<>(List.of(audit), PageRequest.of(0, 20), 1));
+        AgentConversationAuditServiceImpl service = new AgentConversationAuditServiceImpl(auditRepository, messageRepository);
+
+        var page = service.page(null, PageRequest.of(0, 20), principal("SUPER_ADMIN"));
+
+        assertThat(page.getContent()).singleElement().satisfies(response -> {
+            assertThat(response.id()).isEqualTo(12L);
+            assertThat(response.effectiveConfigJson()).isEqualTo("{\"systemPrompt\":\"prompt\"}");
+            assertThat(response.ip()).isEqualTo("127.0.0.1");
+            assertThat(response.userAgent()).isEqualTo("JUnit");
+        });
+        assertThatThrownBy(() -> service.page(null, PageRequest.of(0, 20), principal("CHAT_BASIC")))
+                .isInstanceOf(AgentException.class)
+                .hasMessageContaining("only available to super administrators");
+    }
+
+    @Test
+    void messagesRequiresSuperAdminAndReturnsOriginalContent() {
+        AgentConversationAuditRepository auditRepository = mock(AgentConversationAuditRepository.class);
+        AgentConversationMessageAuditRepository messageRepository = mock(AgentConversationMessageAuditRepository.class);
+        AgentConversationMessageAuditPo message = new AgentConversationMessageAuditPo();
+        message.setId(20L);
+        message.setConversationAuditId(12L);
+        message.setSeqNo(1);
+        message.setRole(AgentConversationRole.ASSISTANT);
+        message.setMessageType(AgentConversationMessageType.MESSAGE);
+        message.setContent("raw answer");
+        message.setContentChars(10);
+        message.setCreatedAt(Instant.parse("2026-06-14T01:00:02Z"));
+        given(auditRepository.existsById(12L)).willReturn(true);
+        given(messageRepository.findByConversationAuditIdOrderBySeqNoAsc(12L)).willReturn(List.of(message));
+        AgentConversationAuditServiceImpl service = new AgentConversationAuditServiceImpl(auditRepository, messageRepository);
+
+        var messages = service.messages(12L, principal("SUPER_ADMIN"));
+
+        assertThat(messages).singleElement().satisfies(response -> {
+            assertThat(response.id()).isEqualTo(20L);
+            assertThat(response.content()).isEqualTo("raw answer");
+        });
+        assertThatThrownBy(() -> service.messages(12L, principal("CHAT_BASIC")))
+                .isInstanceOf(AgentException.class)
+                .hasMessageContaining("only available to super administrators");
+    }
+
+    private AgentConversationAuditPo auditPo() {
+        AgentConversationAuditPo audit = new AgentConversationAuditPo();
+        audit.setId(12L);
+        audit.setRequestId("request-1");
+        audit.setTraceId("trace-1");
+        audit.setUserId(8L);
+        audit.setUsername("luigi");
+        audit.setThreadId("thread-1");
+        audit.setPresetId(9L);
+        audit.setRuntimeFingerprint("fingerprint");
+        audit.setEffectiveConfigJson("{\"systemPrompt\":\"prompt\"}");
+        audit.setStatus(AgentConversationStatus.SUCCESS);
+        audit.setStartedAt(Instant.parse("2026-06-14T01:00:00Z"));
+        audit.setFinishedAt(Instant.parse("2026-06-14T01:00:03Z"));
+        audit.setDurationMs(3000L);
+        audit.setIp("127.0.0.1");
+        audit.setUserAgent("JUnit");
+        audit.setCreatedAt(Instant.parse("2026-06-14T01:00:00Z"));
+        return audit;
+    }
+
+    private RbacPrincipal principal(String roleCode) {
+        return new RbacPrincipal(1L, "user", Set.of(roleCode), Set.of(), "v1");
     }
 
 }

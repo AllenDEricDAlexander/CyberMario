@@ -1,11 +1,14 @@
 import {
     ApiOutlined,
     AppstoreOutlined,
+    AuditOutlined,
     BranchesOutlined,
+    CloudServerOutlined,
     CommentOutlined,
     ControlOutlined,
     DashboardOutlined,
     DatabaseOutlined,
+    ExperimentOutlined,
     FileSearchOutlined,
     FileTextOutlined,
     MenuOutlined,
@@ -15,6 +18,7 @@ import {
     SettingOutlined,
     SyncOutlined,
     TeamOutlined,
+    ToolOutlined,
 } from '@ant-design/icons'
 import type {MenuProps} from 'antd'
 import type {MenuTreeResponse} from '../../modules/rbac/rbacTypes'
@@ -24,6 +28,11 @@ export type AdminMenuItem = Required<MenuProps>['items'][number]
 const menuPathByKey: Record<string, string> = {
     '/dashboard': '/dashboard',
     '/chat': '/chat',
+    '/agent/debug': '/agent/debug',
+    '/agent/conversation-audits': '/agent/conversation-audits',
+    '/agent/mcp/servers': '/agent/mcp/servers',
+    '/agent/mcp/tools': '/agent/mcp/tools',
+    '/agent/mcp/logs': '/agent/mcp/logs',
     '/rag/chat': '/rag/chat',
     '/rag/knowledge-bases': '/rag/knowledge-bases',
     '/rag/documents': '/rag/documents',
@@ -49,6 +58,38 @@ export const adminMenuItems: AdminMenuItem[] = [
         key: '/chat',
         icon: <CommentOutlined/>,
         label: 'Agent Chat',
+    },
+    {
+        key: 'agent',
+        icon: <ExperimentOutlined/>,
+        label: 'Agent 管理',
+        children: [
+            {
+                key: '/agent/debug',
+                icon: <ExperimentOutlined/>,
+                label: 'Agent 调试',
+            },
+            {
+                key: '/agent/conversation-audits',
+                icon: <AuditOutlined/>,
+                label: '对话审计',
+            },
+            {
+                key: '/agent/mcp/servers',
+                icon: <CloudServerOutlined/>,
+                label: 'MCP 服务配置',
+            },
+            {
+                key: '/agent/mcp/tools',
+                icon: <ToolOutlined/>,
+                label: 'MCP 工具策略',
+            },
+            {
+                key: '/agent/mcp/logs',
+                icon: <AuditOutlined/>,
+                label: 'MCP 调用日志',
+            },
+        ],
     },
     {
         key: 'rag',
@@ -213,7 +254,9 @@ function collectMenuPaths(menus: MenuTreeResponse[], paths: Set<string>) {
 }
 
 function superAdminMenuPathSet(roleCodes: string[]) {
-    return isSuperAdmin(roleCodes) ? new Set<string>() : new Set(['/rag/arxiv-logs'])
+    return isSuperAdmin(roleCodes)
+        ? new Set<string>()
+        : new Set(['/rag/arxiv-logs', '/agent/conversation-audits'])
 }
 
 function isSuperAdmin(roleCodes: string[]) {
@@ -225,5 +268,8 @@ function isSuperAdminOnlyAllowed(superAdminOnlyPaths: Set<string>, key: string) 
 }
 
 function isSuperAdminOnlyPath(pathname: string) {
-    return pathname === '/rag/arxiv-logs' || pathname.startsWith('/rag/arxiv-logs/')
+    return pathname === '/rag/arxiv-logs'
+        || pathname.startsWith('/rag/arxiv-logs/')
+        || pathname === '/agent/conversation-audits'
+        || pathname.startsWith('/agent/conversation-audits/')
 }

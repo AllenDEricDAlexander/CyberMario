@@ -82,6 +82,11 @@ info:
     name: ${spring.application.name:Mario}
     description: Cyber Mario is a chat bot
 
+agent:
+  mcp:
+    runtime:
+      enabled: false
+
 mario:
   rag:
     storage:

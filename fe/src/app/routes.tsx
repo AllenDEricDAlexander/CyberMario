@@ -36,6 +36,14 @@ export const router = createBrowserRouter([
                     {path: 'dashboard', lazy: () => import('../modules/dashboard/DashboardPage')},
                     {path: 'account/settings', lazy: () => import('../modules/account/pages/AccountSettingsPage')},
                     {path: 'chat', element: <ChatPage/>},
+                    {path: 'agent/debug', lazy: () => import('../modules/agent/AgentDebugPage')},
+                    {
+                        path: 'agent/conversation-audits',
+                        lazy: () => import('../modules/agent/AgentConversationAuditPage')
+                    },
+                    {path: 'agent/mcp/servers', lazy: () => import('../modules/agent/mcp/McpServerListPage')},
+                    {path: 'agent/mcp/tools', lazy: () => import('../modules/agent/mcp/McpToolListPage')},
+                    {path: 'agent/mcp/logs', lazy: () => import('../modules/agent/mcp/McpToolCallLogListPage')},
                     {path: 'rag/chat', lazy: () => import('../modules/rag/RagChatPage')},
                     {path: 'rag/knowledge-bases', lazy: () => import('../modules/rag/KnowledgeBaseListPage')},
                     {path: 'rag/documents', lazy: () => import('../modules/rag/DocumentListPage')},

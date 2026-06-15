@@ -1,3 +1,4 @@
+import {mcpButtonCodes} from '../../modules/agent/mcp/mcpPermissionCodes'
 import {ragButtonCodes} from '../../modules/rag/ragPermissionCodes'
 import {rbacButtonCodes} from '../../modules/rbac/rbacPermissionCodes'
 
@@ -13,6 +14,9 @@ const routeButtonPermissions: RouteButtonPermission[] = [
         buttonCodes: [...Object.values(ragButtonCodes.doc), ...Object.values(ragButtonCodes.chunk)]
     },
     {path: '/rag/ingestion-jobs', buttonCodes: Object.values(ragButtonCodes.job)},
+    {path: '/agent/mcp/servers', buttonCodes: Object.values(mcpButtonCodes.server)},
+    {path: '/agent/mcp/tools', buttonCodes: Object.values(mcpButtonCodes.tool)},
+    {path: '/agent/mcp/logs', buttonCodes: Object.values(mcpButtonCodes.log)},
     {path: '/rbac/users', buttonCodes: Object.values(rbacButtonCodes.user)},
     {path: '/rbac/roles', buttonCodes: Object.values(rbacButtonCodes.role)},
     {path: '/rbac/permissions', buttonCodes: Object.values(rbacButtonCodes.permission)},

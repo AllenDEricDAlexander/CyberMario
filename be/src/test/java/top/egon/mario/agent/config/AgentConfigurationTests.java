@@ -1,69 +1,52 @@
 package top.egon.mario.agent.config;
 
-import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import org.junit.jupiter.api.Test;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.prompt.ChatOptions;
-import org.springframework.ai.chat.prompt.Prompt;
-import reactor.core.publisher.Flux;
-import top.egon.mario.agent.model.dto.enums.ModelProviderType;
-import top.egon.mario.agent.model.dto.enums.ModelScenario;
-import top.egon.mario.agent.model.dto.request.ModelRequest;
-import top.egon.mario.agent.model.dto.response.ModelResolveResult;
-import top.egon.mario.agent.model.service.MarioModelFactory;
+import reactor.core.scheduler.Schedulers;
+import top.egon.mario.agent.service.AgentConversationAuditService;
+import top.egon.mario.agent.service.AgentPresetService;
+import top.egon.mario.agent.service.AgentRuntimeFactory;
+import top.egon.mario.agent.service.ChatAgentService;
+import top.egon.mario.agent.service.impl.ReactAgentChatService;
+import top.egon.mario.agent.service.model.AgentRuntimeDefaults;
+import top.egon.mario.agent.tools.arxiv.ArxivToolUserContext;
 
 import java.math.BigDecimal;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 /**
- * Verifies agent configuration keeps model construction behind the model factory.
+ * Verifies agent configuration exposes defaults and reactive chat wiring.
  */
 class AgentConfigurationTests {
 
     @Test
-    void cyberMarioAgentResolvesChatModelThroughModelFactory() {
+    void agentRuntimeDefaultsKeepCurrentCyberMarioPreset() {
         AgentConfiguration configuration = new AgentConfiguration();
-        StubMarioModelFactory modelFactory = new StubMarioModelFactory();
 
-        ReactAgent agent = configuration.cyberMarioAgent(modelFactory, List.of());
+        AgentRuntimeDefaults defaults = configuration.agentRuntimeDefaults();
 
-        assertThat(agent).isNotNull();
-        assertThat(modelFactory.request).isNotNull();
-        assertThat(modelFactory.request.provider()).isEqualTo(ModelProviderType.DASHSCOPE);
-        assertThat(modelFactory.request.model()).isEqualTo("qwen3.6-max-preview");
-        assertThat(modelFactory.request.options().temperature()).isEqualByComparingTo(BigDecimal.valueOf(0.7));
-        assertThat(modelFactory.request.options().topP()).isEqualByComparingTo(BigDecimal.valueOf(0.9));
-        assertThat(modelFactory.request.options().multiModel()).isTrue();
-        assertThat(modelFactory.request.options().enableThinking()).isTrue();
-        assertThat(modelFactory.request.context().scenario()).isEqualTo(ModelScenario.AGENT_CHAT);
+        assertThat(defaults.modelConfig().model()).isEqualTo("qwen3.6-max-preview");
+        assertThat(defaults.modelOptions().temperature()).isEqualByComparingTo(BigDecimal.valueOf(0.7));
+        assertThat(defaults.modelOptions().topP()).isEqualByComparingTo(BigDecimal.valueOf(0.9));
+        assertThat(defaults.modelOptions().multiModel()).isTrue();
+        assertThat(defaults.modelOptions().enableThinking()).isTrue();
+        assertThat(defaults.systemPrompt()).contains("CyberMario");
     }
 
-    private static final class StubMarioModelFactory implements MarioModelFactory {
+    @Test
+    void chatAgentServiceUsesRuntimeFactoryWiring() {
+        AgentConfiguration configuration = new AgentConfiguration();
 
-        private ModelRequest request;
+        ChatAgentService service = configuration.chatAgentService(
+                mock(AgentPresetService.class),
+                mock(AgentRuntimeFactory.class),
+                mock(AgentConversationAuditService.class),
+                Schedulers.immediate(),
+                new ArxivToolUserContext()
+        );
 
-        @Override
-        public ModelResolveResult resolve(ModelRequest request) {
-            this.request = request;
-            return new ModelResolveResult(new StubChatModel(), request.provider(), request.model(),
-                    request.options(), request.context(), ChatOptions.builder().model(request.model()).build());
-        }
-    }
-
-    private static final class StubChatModel implements ChatModel {
-
-        @Override
-        public ChatResponse call(Prompt prompt) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Flux<ChatResponse> stream(Prompt prompt) {
-            return Flux.empty();
-        }
+        assertThat(service).isInstanceOf(ReactAgentChatService.class);
     }
 
 }

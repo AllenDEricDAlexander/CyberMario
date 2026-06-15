@@ -55,7 +55,8 @@ import java.util.stream.Stream;
 @Validated
 public class RbacAuthApplication {
 
-    private static final List<String> DEFAULT_REGISTER_ROLE_CODES = List.of("CHAT_BASIC", "RAG_USER", "AGENT_DASHBOARD_USER");
+    private static final List<String> DEFAULT_REGISTER_ROLE_CODES = List.of("CHAT_BASIC", "RAG_USER",
+            "AGENT_DASHBOARD_USER", "AGENT_MCP_USER");
 
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;

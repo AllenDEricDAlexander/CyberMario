@@ -64,13 +64,73 @@ const menuTree: MenuTreeResponse[] = [
         sortNo: 3,
         children: [],
     },
+    {
+        permissionId: 6,
+        permCode: 'menu:agent:debug',
+        permName: 'Agent 调试',
+        routePath: '/agent/debug',
+        hidden: false,
+        cacheable: true,
+        sortNo: 6,
+        children: [],
+    },
+    {
+        permissionId: 7,
+        permCode: 'menu:agent:conversation-audit',
+        permName: '对话审计',
+        routePath: '/agent/conversation-audits',
+        hidden: false,
+        cacheable: true,
+        sortNo: 7,
+        children: [],
+    },
+    {
+        permissionId: 8,
+        permCode: 'menu:agent:mcp-servers',
+        permName: 'MCP 服务配置',
+        routePath: '/agent/mcp/servers',
+        hidden: false,
+        cacheable: true,
+        sortNo: 8,
+        children: [],
+    },
+    {
+        permissionId: 9,
+        permCode: 'menu:agent:mcp-tools',
+        permName: 'MCP 工具策略',
+        routePath: '/agent/mcp/tools',
+        hidden: false,
+        cacheable: true,
+        sortNo: 9,
+        children: [],
+    },
+    {
+        permissionId: 11,
+        permCode: 'menu:agent:mcp-logs',
+        permName: 'MCP 调用日志',
+        routePath: '/agent/mcp/logs',
+        hidden: false,
+        cacheable: true,
+        sortNo: 11,
+        children: [],
+    },
 ]
+
+const menuTreeWithoutMcpLogs = menuTree.filter((menu) => menu.routePath !== '/agent/mcp/logs')
 
 describe('admin menu authorization', () => {
     test('keeps only authorized non-hidden menu paths', () => {
         const items = buildAuthorizedAdminMenuItems(menuTree, false)
 
-        expect(flattenMenuKeys(items)).toEqual(['/dashboard', '/chat', '/rbac/users'])
+        expect(flattenMenuKeys(items)).toEqual([
+            '/dashboard',
+            '/chat',
+            '/agent/debug',
+            '/agent/mcp/servers',
+            '/agent/mcp/tools',
+            '/agent/mcp/logs',
+            '/rbac/users',
+        ])
     })
 
     test('allows detail routes under an authorized menu path', () => {
@@ -91,5 +151,47 @@ describe('admin menu authorization', () => {
         expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, true, ['SUPER_ADMIN'])))
             .toContain('/rag/arxiv-logs')
         expect(canAccessAdminPath('/rag/arxiv-logs', menuTree, true, ['SUPER_ADMIN'])).toBe(true)
+    })
+
+    test('shows agent debug to chat users and conversation audits only to super admin', () => {
+        expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, false, ['CHAT_BASIC'])))
+            .toContain('/agent/debug')
+        expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, false, ['CHAT_BASIC'])))
+            .not.toContain('/agent/conversation-audits')
+        expect(canAccessAdminPath('/agent/conversation-audits', menuTree, true, ['CHAT_BASIC'])).toBe(false)
+
+        expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, true, ['SUPER_ADMIN'])))
+            .toContain('/agent/conversation-audits')
+        expect(canAccessAdminPath('/agent/conversation-audits', menuTree, true, ['SUPER_ADMIN'])).toBe(true)
+    })
+
+    test('shows MCP logs to non-super-admin users with MCP log menu permission', () => {
+        const mcpAdminKeys = flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, false, ['AGENT_MCP_ADMIN']))
+
+        expect(mcpAdminKeys).toContain('/agent/mcp/servers')
+        expect(mcpAdminKeys).toContain('/agent/mcp/tools')
+        expect(mcpAdminKeys).toContain('/agent/mcp/logs')
+        expect(canAccessAdminPath('/agent/mcp/servers', menuTree, false, ['AGENT_MCP_ADMIN'])).toBe(true)
+        expect(canAccessAdminPath('/agent/mcp/tools', menuTree, false, ['AGENT_MCP_ADMIN'])).toBe(true)
+        expect(canAccessAdminPath('/agent/mcp/logs', menuTree, false, ['AGENT_MCP_ADMIN'])).toBe(true)
+    })
+
+    test('hides MCP logs from non-super-admin users without MCP log menu permission', () => {
+        const mcpUserKeys = flattenMenuKeys(buildAuthorizedAdminMenuItems(
+            menuTreeWithoutMcpLogs,
+            false,
+            ['AGENT_MCP_USER'],
+        ))
+
+        expect(mcpUserKeys).toContain('/agent/mcp/servers')
+        expect(mcpUserKeys).toContain('/agent/mcp/tools')
+        expect(mcpUserKeys).not.toContain('/agent/mcp/logs')
+        expect(canAccessAdminPath('/agent/mcp/servers', menuTreeWithoutMcpLogs, false, ['AGENT_MCP_USER'])).toBe(true)
+        expect(canAccessAdminPath('/agent/mcp/tools', menuTreeWithoutMcpLogs, false, ['AGENT_MCP_USER'])).toBe(true)
+        expect(canAccessAdminPath('/agent/mcp/logs', menuTreeWithoutMcpLogs, false, ['AGENT_MCP_USER'])).toBe(false)
+
+        const superAdminKeys = flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, true, ['SUPER_ADMIN']))
+        expect(superAdminKeys).toContain('/agent/mcp/logs')
+        expect(canAccessAdminPath('/agent/mcp/logs', menuTree, true, ['SUPER_ADMIN'])).toBe(true)
     })
 })

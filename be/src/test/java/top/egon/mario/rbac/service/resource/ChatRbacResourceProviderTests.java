@@ -21,10 +21,17 @@ class ChatRbacResourceProviderTests {
                             .contains("menu:chat", "api:chat:stream",
                                     "api:rbac:auth:self", "api:rbac:me:self",
                                     "menu:agent",
-                                    "api:agent:model-audit:dashboard:self")
+                                    "api:agent:model-audit:dashboard:self",
+                                    "menu:agent:debug",
+                                    "api:agent:debug:chat:stream",
+                                    "api:agent:preset:collection",
+                                    "api:agent:preset:*")
                             .doesNotContain("api:rbac:admin:*",
                                     "api:agent:model-audit:dashboard:global",
-                                    "api:agent:model-audit:dashboard:user-options");
+                                    "api:agent:model-audit:dashboard:user-options",
+                                    "menu:agent:conversation-audit",
+                                    "api:agent:conversation-audit:collection",
+                                    "api:agent:conversation-audit:*");
                 });
     }
 

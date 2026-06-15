@@ -2,6 +2,7 @@ package top.egon.mario.agent.service;
 
 import jakarta.validation.constraints.NotBlank;
 import reactor.core.publisher.Flux;
+import top.egon.mario.agent.dto.request.AgentDebugChatRequest;
 import top.egon.mario.pojo.response.ChatResponse;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
@@ -15,5 +16,10 @@ public interface ChatAgentService {
      * The response is emitted in multiple chunks for HTTP streaming.
      */
     Flux<ChatResponse> chat(@NotBlank String message, String threadId, RbacPrincipal principal);
+
+    /**
+     * Sends a user message to an agent runtime resolved from a debug preset and request overrides.
+     */
+    Flux<ChatResponse> debugChat(AgentDebugChatRequest request, RbacPrincipal principal);
 
 }

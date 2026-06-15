@@ -26,7 +26,6 @@ class LoggingSourceConventionsTests {
             "top/egon/mario/agent/interceptor/DynamicPromptInterceptor.java",
             "top/egon/mario/agent/interceptor/ToolMonitorInterceptor.java",
             "top/egon/mario/agent/model/service/impl/DefaultModelAuditService.java",
-            "top/egon/mario/agent/service/impl/ArxivServiceImpl.java",
             "top/egon/mario/agent/service/impl/ReactAgentChatService.java",
             "top/egon/mario/agent/tools/arxiv/ArxivImportService.java",
             "top/egon/mario/agent/tools/arxiv/ArxivTools.java",

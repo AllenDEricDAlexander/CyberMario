@@ -97,7 +97,10 @@ spring:
       toolcalling:
         duckduckgo:
           enabled: true
-          api-key: ${SEARCH_API_KEY:}
+          api-key: ${SERPAPI_KEY:${SEARCH_API_KEY:}}
+        bravesearch:
+          enabled: true
+          api-key: ${BRAVE_SEARCH_API_KEY:}
         wikipedia:
           enabled: true
           language: en

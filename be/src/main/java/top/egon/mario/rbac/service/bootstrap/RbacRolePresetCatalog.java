@@ -26,7 +26,11 @@ public class RbacRolePresetCatalog {
                         "System role for the agent chat console.",
                         50,
                         List.of("menu:chat", "api:chat:stream", "api:rbac:auth:self", "api:rbac:me:self",
-                                "menu:agent", "api:agent:model-audit:dashboard:self")
+                                "menu:agent", "api:agent:model-audit:dashboard:self",
+                                "menu:agent:debug",
+                                "api:agent:debug:chat:stream",
+                                "api:agent:preset:collection",
+                                "api:agent:preset:*")
                 )
         );
     }

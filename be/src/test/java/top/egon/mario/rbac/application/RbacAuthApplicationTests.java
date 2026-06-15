@@ -94,6 +94,7 @@ class RbacAuthApplicationTests {
         RolePo chatRole = roleRepository.save(role("CHAT_BASIC"));
         RolePo ragRole = roleRepository.save(role("RAG_USER"));
         RolePo dashboardRole = roleRepository.save(role("AGENT_DASHBOARD_USER"));
+        RolePo mcpRole = roleRepository.save(role("AGENT_MCP_USER"));
         grant(chatRole, menuPermission("menu:chat", "chat", "/chat"));
         grant(chatRole, permission("api:chat:stream", PermissionType.API));
         grant(chatRole, permission("api:rbac:auth:self", PermissionType.API));
@@ -102,6 +103,24 @@ class RbacAuthApplicationTests {
         grant(ragRole, permission("api:rag:document:*", PermissionType.API));
         grant(dashboardRole, menuPermission("menu:agent", "dashboard", "/dashboard"));
         grant(dashboardRole, permission("api:agent:model-audit:dashboard:self", PermissionType.API));
+        grant(mcpRole, menuPermission("menu:agent:mcp-servers", "agent-mcp-servers", "/agent/mcp/servers"));
+        grant(mcpRole, menuPermission("menu:agent:mcp-tools", "agent-mcp-tools", "/agent/mcp/tools"));
+        grant(mcpRole, permission("btn:agent:mcp-server:add", PermissionType.BUTTON));
+        grant(mcpRole, permission("btn:agent:mcp-server:edit", PermissionType.BUTTON));
+        grant(mcpRole, permission("btn:agent:mcp-server:delete", PermissionType.BUTTON));
+        grant(mcpRole, permission("btn:agent:mcp-server:test", PermissionType.BUTTON));
+        grant(mcpRole, permission("btn:agent:mcp-server:discover", PermissionType.BUTTON));
+        grant(mcpRole, permission("btn:agent:mcp-server:toggle", PermissionType.BUTTON));
+        grant(mcpRole, permission("btn:agent:mcp-tool:edit-policy", PermissionType.BUTTON));
+        grant(mcpRole, permission("btn:agent:mcp-tool:toggle", PermissionType.BUTTON));
+        grant(mcpRole, permission("api:agent:mcp-server:collection", PermissionType.API));
+        grant(mcpRole, permission("api:agent:mcp-server:*", PermissionType.API));
+        grant(mcpRole, permission("api:agent:mcp-tool:collection", PermissionType.API));
+        grant(mcpRole, permission("api:agent:mcp-tool:*", PermissionType.API));
+        permission("menu:agent:mcp-logs", PermissionType.MENU);
+        permission("btn:agent:mcp-log:view", PermissionType.BUTTON);
+        permission("api:agent:mcp-log:collection", PermissionType.API);
+        permission("api:agent:mcp-log:*", PermissionType.API);
         permission("api:agent:model-audit:dashboard:global", PermissionType.API);
         permission("api:agent:model-audit:dashboard:user-options", PermissionType.API);
         grant(roleRepository.save(role("RBAC_ADMIN")), permission("api:rbac:admin:*", PermissionType.API));
@@ -122,23 +141,41 @@ class RbacAuthApplicationTests {
         assertThat(response.refreshToken()).isNotBlank();
         assertThat(response.user().getId()).isEqualTo(user.getId());
         assertThat(response.user().getNickname()).isEqualTo("Princess Peach");
-        assertThat(response.roleCodes()).containsExactlyInAnyOrder("CHAT_BASIC", "RAG_USER", "AGENT_DASHBOARD_USER");
+        assertThat(response.roleCodes()).containsExactlyInAnyOrder("CHAT_BASIC", "RAG_USER", "AGENT_DASHBOARD_USER",
+                "AGENT_MCP_USER");
         assertThat(response.menus()).extracting("permCode")
-                .contains("menu:chat", "menu:rag", "menu:agent");
+                .contains("menu:chat", "menu:rag", "menu:agent", "menu:agent:mcp-servers", "menu:agent:mcp-tools")
+                .doesNotContain("menu:agent:mcp-logs");
+        assertThat(response.buttonCodes())
+                .contains("btn:agent:mcp-server:add",
+                        "btn:agent:mcp-server:edit",
+                        "btn:agent:mcp-server:delete",
+                        "btn:agent:mcp-server:test",
+                        "btn:agent:mcp-server:discover",
+                        "btn:agent:mcp-server:toggle",
+                        "btn:agent:mcp-tool:edit-policy",
+                        "btn:agent:mcp-tool:toggle")
+                .doesNotContain("btn:agent:mcp-log:view");
         assertThat(response.permissionCodes())
                 .contains("api:chat:stream",
                         "api:rag:document:*",
-                        "api:agent:model-audit:dashboard:self")
+                        "api:agent:model-audit:dashboard:self",
+                        "api:agent:mcp-server:collection",
+                        "api:agent:mcp-server:*",
+                        "api:agent:mcp-tool:collection",
+                        "api:agent:mcp-tool:*")
                 .doesNotContain("api:rbac:admin:*",
                         "api:agent:model-audit:dashboard:global",
-                        "api:agent:model-audit:dashboard:user-options");
+                        "api:agent:model-audit:dashboard:user-options",
+                        "api:agent:mcp-log:collection",
+                        "api:agent:mcp-log:*");
         assertThat(passwordEncoder.matches("password123", user.getPasswordHash())).isTrue();
         assertThat(user.getStatus()).isEqualTo(RbacStatus.ENABLED);
         assertThat(user.isLocked()).isFalse();
         assertThat(user.isPasswordExpired()).isFalse();
         assertThat(userRoleRepository.findByUserId(user.getId()))
                 .extracting(UserRolePo::getRoleId)
-                .containsExactlyInAnyOrder(chatRole.getId(), ragRole.getId(), dashboardRole.getId());
+                .containsExactlyInAnyOrder(chatRole.getId(), ragRole.getId(), dashboardRole.getId(), mcpRole.getId());
     }
 
     @Test

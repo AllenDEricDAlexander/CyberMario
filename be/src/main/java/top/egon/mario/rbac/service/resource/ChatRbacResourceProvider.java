@@ -35,7 +35,11 @@ public class ChatRbacResourceProvider implements RbacResourceProvider {
                 50,
                 List.of("menu:chat", "api:chat:stream", "api:rbac:auth:self", "api:rbac:me:self",
                         "menu:agent",
-                        "api:agent:model-audit:dashboard:self"),
+                        "api:agent:model-audit:dashboard:self",
+                        "menu:agent:debug",
+                        "api:agent:debug:chat:stream",
+                        "api:agent:preset:collection",
+                        "api:agent:preset:*"),
                 RbacResourceSource.PROVIDER
         ));
     }
