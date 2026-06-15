@@ -4,6 +4,9 @@ import {
     deleteAgentPreset,
     getAgentConversationAuditMessages,
     getAgentConversationAudits,
+    getAgentRunAuditEvents,
+    getAgentRunAuditDetail,
+    getAgentRunAudits,
     getAgentPresets,
     streamAgentDebugChat,
     updateAgentPreset,
@@ -114,5 +117,32 @@ describe('agentService', () => {
             '/api/admin/agent/conversation-audits?page=3&size=40&username=luigi&threadId=thread-1&status=SUCCESS',
         )
         expect(requestJson).toHaveBeenNthCalledWith(2, '/api/admin/agent/conversation-audits/12/messages')
+    })
+
+    test('builds run audit list and event requests', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        void getAgentRunAudits({
+            page: 2,
+            size: 30,
+            startAt: '2026-06-15T00:00:00.000Z',
+            endAt: '2026-06-16T00:00:00.000Z',
+            username: 'luigi',
+            threadId: 'thread-1',
+            requestId: 'request-1',
+            traceId: 'trace-1',
+            toolName: 'docs_search',
+            mcpServerCode: 'docs',
+            status: 'FAILED',
+        })
+        void getAgentRunAuditDetail(12)
+        void getAgentRunAuditEvents(12)
+
+        expect(requestJson).toHaveBeenNthCalledWith(
+            1,
+            '/api/admin/agent/run-audits?page=2&size=30&startAt=2026-06-15T00%3A00%3A00.000Z&endAt=2026-06-16T00%3A00%3A00.000Z&username=luigi&threadId=thread-1&requestId=request-1&traceId=trace-1&toolName=docs_search&mcpServerCode=docs&status=FAILED',
+        )
+        expect(requestJson).toHaveBeenNthCalledWith(2, '/api/admin/agent/run-audits/12')
+        expect(requestJson).toHaveBeenNthCalledWith(3, '/api/admin/agent/run-audits/12/events')
     })
 })

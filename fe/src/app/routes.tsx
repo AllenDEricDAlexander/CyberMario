@@ -41,6 +41,7 @@ export const router = createBrowserRouter([
                         path: 'agent/conversation-audits',
                         lazy: () => import('../modules/agent/AgentConversationAuditPage')
                     },
+                    {path: 'agent/run-audits', lazy: () => import('../modules/agent/AgentRunAuditPage')},
                     {path: 'agent/mcp/servers', lazy: () => import('../modules/agent/mcp/McpServerListPage')},
                     {path: 'agent/mcp/tools', lazy: () => import('../modules/agent/mcp/McpToolListPage')},
                     {path: 'agent/mcp/logs', lazy: () => import('../modules/agent/mcp/McpToolCallLogListPage')},

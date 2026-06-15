@@ -17,7 +17,8 @@ class AgentDebugRbacResourceProviderTests {
         assertThat(provider.resources())
                 .filteredOn(seed -> seed.type() == PermissionType.MENU)
                 .extracting(seed -> seed.code())
-                .containsExactlyInAnyOrder("menu:agent:debug", "menu:agent:conversation-audit");
+                .containsExactlyInAnyOrder("menu:agent:debug", "menu:agent:conversation-audit",
+                        "menu:agent:run-audit");
         assertThat(provider.resources())
                 .filteredOn(seed -> "menu:agent:debug".equals(seed.code()))
                 .singleElement()
@@ -26,6 +27,10 @@ class AgentDebugRbacResourceProviderTests {
                 .filteredOn(seed -> "menu:agent:conversation-audit".equals(seed.code()))
                 .singleElement()
                 .satisfies(seed -> assertThat(seed.menu().routePath()).isEqualTo("/agent/conversation-audits"));
+        assertThat(provider.resources())
+                .filteredOn(seed -> "menu:agent:run-audit".equals(seed.code()))
+                .singleElement()
+                .satisfies(seed -> assertThat(seed.menu().routePath()).isEqualTo("/agent/run-audits"));
     }
 
     @Test
@@ -39,7 +44,9 @@ class AgentDebugRbacResourceProviderTests {
                         "api:agent:preset:collection",
                         "api:agent:preset:*",
                         "api:agent:conversation-audit:collection",
-                        "api:agent:conversation-audit:*");
+                        "api:agent:conversation-audit:*",
+                        "api:agent:run-audit:collection",
+                        "api:agent:run-audit:*");
     }
 
     @Test
@@ -57,7 +64,10 @@ class AgentDebugRbacResourceProviderTests {
                                     "api:agent:preset:*")
                             .doesNotContain("menu:agent:conversation-audit",
                                     "api:agent:conversation-audit:collection",
-                                    "api:agent:conversation-audit:*");
+                                    "api:agent:conversation-audit:*",
+                                    "menu:agent:run-audit",
+                                    "api:agent:run-audit:collection",
+                                    "api:agent:run-audit:*");
                 });
     }
 

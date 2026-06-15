@@ -19,6 +19,7 @@ import {
     SyncOutlined,
     TeamOutlined,
     ToolOutlined,
+    NodeIndexOutlined,
 } from '@ant-design/icons'
 import type {MenuProps} from 'antd'
 import type {MenuTreeResponse} from '../../modules/rbac/rbacTypes'
@@ -30,6 +31,7 @@ const menuPathByKey: Record<string, string> = {
     '/chat': '/chat',
     '/agent/debug': '/agent/debug',
     '/agent/conversation-audits': '/agent/conversation-audits',
+    '/agent/run-audits': '/agent/run-audits',
     '/agent/mcp/servers': '/agent/mcp/servers',
     '/agent/mcp/tools': '/agent/mcp/tools',
     '/agent/mcp/logs': '/agent/mcp/logs',
@@ -73,6 +75,11 @@ export const adminMenuItems: AdminMenuItem[] = [
                 key: '/agent/conversation-audits',
                 icon: <AuditOutlined/>,
                 label: '对话审计',
+            },
+            {
+                key: '/agent/run-audits',
+                icon: <NodeIndexOutlined/>,
+                label: '运行审计',
             },
             {
                 key: '/agent/mcp/servers',
@@ -256,7 +263,7 @@ function collectMenuPaths(menus: MenuTreeResponse[], paths: Set<string>) {
 function superAdminMenuPathSet(roleCodes: string[]) {
     return isSuperAdmin(roleCodes)
         ? new Set<string>()
-        : new Set(['/rag/arxiv-logs', '/agent/conversation-audits'])
+        : new Set(['/rag/arxiv-logs', '/agent/conversation-audits', '/agent/run-audits'])
 }
 
 function isSuperAdmin(roleCodes: string[]) {
@@ -272,4 +279,6 @@ function isSuperAdminOnlyPath(pathname: string) {
         || pathname.startsWith('/rag/arxiv-logs/')
         || pathname === '/agent/conversation-audits'
         || pathname.startsWith('/agent/conversation-audits/')
+        || pathname === '/agent/run-audits'
+        || pathname.startsWith('/agent/run-audits/')
 }

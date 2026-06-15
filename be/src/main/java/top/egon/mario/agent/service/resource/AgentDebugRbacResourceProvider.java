@@ -31,11 +31,14 @@ public class AgentDebugRbacResourceProvider implements RbacResourceProvider {
         return List.of(
                 debugMenu(),
                 conversationAuditMenu(),
+                runAuditMenu(),
                 debugChatStreamApi(),
                 presetCollectionApi(),
                 presetApi(),
                 conversationAuditCollectionApi(),
-                conversationAuditApi()
+                conversationAuditApi(),
+                runAuditCollectionApi(),
+                runAuditApi()
         );
     }
 
@@ -82,6 +85,22 @@ public class AgentDebugRbacResourceProvider implements RbacResourceProvider {
                 "Super-admin-only agent conversation audit",
                 new RbacMenuSeed("agentConversationAudits", "/agent/conversation-audits", null, null,
                         "AuditOutlined", false, true, null),
+                RbacResourceSource.PROVIDER
+        );
+    }
+
+    private RbacResourceSeed runAuditMenu() {
+        return RbacResourceSeed.menu(
+                APP_CODE,
+                APP_CODE,
+                "menu:agent:run-audit",
+                "运行审计",
+                null,
+                PermissionStatus.ENABLED,
+                95,
+                "Super-admin-only unified agent run audit",
+                new RbacMenuSeed("agentRunAudits", "/agent/run-audits", null, null,
+                        "NodeIndexOutlined", false, true, null),
                 RbacResourceSource.PROVIDER
         );
     }
@@ -153,6 +172,36 @@ public class AgentDebugRbacResourceProvider implements RbacResourceProvider {
                 0,
                 "Super-admin-only agent conversation audit detail endpoints",
                 new RbacApiSeed("ANY", "/api/admin/agent/conversation-audits/**", ApiMatcherType.ANT, false,
+                        ApiRiskLevel.HIGH),
+                RbacResourceSource.PROVIDER
+        );
+    }
+
+    private RbacResourceSeed runAuditCollectionApi() {
+        return RbacResourceSeed.api(
+                APP_CODE,
+                APP_CODE,
+                "api:agent:run-audit:collection",
+                "Agent 运行审计集合",
+                PermissionStatus.ENABLED,
+                0,
+                "Super-admin-only unified agent run audit collection",
+                new RbacApiSeed("GET", "/api/admin/agent/run-audits", ApiMatcherType.EXACT, false,
+                        ApiRiskLevel.HIGH),
+                RbacResourceSource.PROVIDER
+        );
+    }
+
+    private RbacResourceSeed runAuditApi() {
+        return RbacResourceSeed.api(
+                APP_CODE,
+                APP_CODE,
+                "api:agent:run-audit:*",
+                "Agent 运行审计管理",
+                PermissionStatus.ENABLED,
+                0,
+                "Super-admin-only unified agent run audit detail endpoints",
+                new RbacApiSeed("ANY", "/api/admin/agent/run-audits/**", ApiMatcherType.ANT, false,
                         ApiRiskLevel.HIGH),
                 RbacResourceSource.PROVIDER
         );

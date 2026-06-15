@@ -1,6 +1,7 @@
 package top.egon.mario.agent.service.impl;
 
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
+import com.alibaba.cloud.ai.graph.agent.interceptor.Interceptor;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -9,6 +10,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.tool.ToolCallback;
 import reactor.core.publisher.Flux;
 import top.egon.mario.agent.mcp.runtime.McpAgentToolProvider;
+import top.egon.mario.agent.mcp.runtime.LoggingMcpToolCallback;
 import top.egon.mario.agent.model.dto.enums.ModelProviderType;
 import top.egon.mario.agent.model.dto.enums.ModelScenario;
 import top.egon.mario.agent.model.dto.request.ModelOptions;
@@ -16,6 +18,10 @@ import top.egon.mario.agent.model.dto.request.ModelRequest;
 import top.egon.mario.agent.model.dto.response.ModelResolveResult;
 import top.egon.mario.agent.model.service.MarioModelFactory;
 import top.egon.mario.agent.model.service.model.ModelCallContext;
+import top.egon.mario.agent.observability.interceptor.AgentObservabilityModelInterceptor;
+import top.egon.mario.agent.observability.interceptor.AgentObservabilityToolInterceptor;
+import top.egon.mario.agent.observability.po.enums.AgentRunToolType;
+import top.egon.mario.agent.service.AgentRuntimeFactory;
 import top.egon.mario.agent.service.model.AgentModelConfig;
 import top.egon.mario.agent.service.model.AgentOptions;
 import top.egon.mario.agent.service.model.AgentRuntimeSpec;
@@ -133,6 +139,97 @@ class AgentRuntimeFactoryTests {
     }
 
     @Test
+    void getPassesObservabilityInterceptorsToReactAgentBuilder() {
+        StubMarioModelFactory modelFactory = new StubMarioModelFactory();
+        StubAgentBuilder builder = new StubAgentBuilder();
+        AgentObservabilityModelInterceptor modelInterceptor = mock(AgentObservabilityModelInterceptor.class);
+        AgentObservabilityToolInterceptor toolInterceptor = mock(AgentObservabilityToolInterceptor.class);
+        DefaultAgentRuntimeFactory factory = new DefaultAgentRuntimeFactory(
+                modelFactory,
+                List.of(),
+                builder,
+                null,
+                List.of(modelInterceptor, toolInterceptor)
+        );
+        ModelCallContext context = new ModelCallContext(8L, "trace-1", null, "thread-1",
+                ModelScenario.AGENT_CHAT, "request-1", null, null);
+
+        factory.get(specWithTools(), context);
+
+        assertThat(builder.interceptors)
+                .anySatisfy(interceptor -> assertThat(interceptor).isSameAs(modelInterceptor))
+                .anySatisfy(interceptor -> assertThat(interceptor).isSameAs(toolInterceptor));
+    }
+
+    @Test
+    void toolDescriptorsExposeMcpServerIdentityForEnabledMcpTools() {
+        StubMarioModelFactory modelFactory = new StubMarioModelFactory();
+        StubAgentBuilder builder = new StubAgentBuilder();
+        ToolCallback localTool = tool("searchWikipedia");
+        LoggingMcpToolCallback mcpTool = mock(LoggingMcpToolCallback.class);
+        given(mcpTool.getToolDefinition()).willReturn(org.springframework.ai.tool.definition.ToolDefinition.builder()
+                .name("docs_search")
+                .description("stub")
+                .inputSchema("{}")
+                .build());
+        given(mcpTool.serverCode()).willReturn("docs");
+        McpAgentToolProvider mcpToolProvider = mock(McpAgentToolProvider.class);
+        given(mcpToolProvider.currentToolCallbacks()).willReturn(new ToolCallback[]{mcpTool});
+        DefaultAgentRuntimeFactory factory = new DefaultAgentRuntimeFactory(
+                modelFactory,
+                List.of(localTool),
+                builder,
+                mcpToolProvider
+        );
+
+        Map<String, top.egon.mario.agent.observability.service.model.AgentRunAuditContext.ToolDescriptor> descriptors =
+                factory.toolDescriptors(specWithTools("searchWikipedia", "docs_search"));
+
+        assertThat(descriptors).containsOnlyKeys("searchWikipedia", "docs_search");
+        assertThat(descriptors.get("searchWikipedia").toolType()).isEqualTo(AgentRunToolType.LOCAL);
+        assertThat(descriptors.get("docs_search").toolType()).isEqualTo(AgentRunToolType.MCP);
+        assertThat(descriptors.get("docs_search").mcpServerCode()).isEqualTo("docs");
+    }
+
+    @Test
+    void runtimeUsesSameMcpSnapshotForAgentToolsAndAuditDescriptors() {
+        StubMarioModelFactory modelFactory = new StubMarioModelFactory();
+        StubAgentBuilder builder = new StubAgentBuilder();
+        LoggingMcpToolCallback firstMcpTool = mock(LoggingMcpToolCallback.class);
+        given(firstMcpTool.getToolDefinition()).willReturn(org.springframework.ai.tool.definition.ToolDefinition.builder()
+                .name("docs_search")
+                .description("stub")
+                .inputSchema("{}")
+                .build());
+        given(firstMcpTool.serverCode()).willReturn("docs-one");
+        LoggingMcpToolCallback secondMcpTool = mock(LoggingMcpToolCallback.class);
+        given(secondMcpTool.getToolDefinition()).willReturn(org.springframework.ai.tool.definition.ToolDefinition.builder()
+                .name("docs_search")
+                .description("stub")
+                .inputSchema("{}")
+                .build());
+        given(secondMcpTool.serverCode()).willReturn("docs-two");
+        McpAgentToolProvider mcpToolProvider = mock(McpAgentToolProvider.class);
+        given(mcpToolProvider.currentToolCallbacks()).willReturn(
+                new ToolCallback[]{firstMcpTool},
+                new ToolCallback[]{secondMcpTool}
+        );
+        DefaultAgentRuntimeFactory factory = new DefaultAgentRuntimeFactory(
+                modelFactory,
+                List.of(),
+                builder,
+                mcpToolProvider
+        );
+        ModelCallContext context = new ModelCallContext(8L, "trace-1", null, "thread-1",
+                ModelScenario.AGENT_CHAT, "request-1", null, null);
+
+        AgentRuntimeFactory.AgentRuntime runtime = factory.runtime(specWithTools("docs_search"), context);
+
+        assertThat(builder.tools).containsExactly(firstMcpTool);
+        assertThat(runtime.toolDescriptors().get("docs_search").mcpServerCode()).isEqualTo("docs-one");
+    }
+
+    @Test
     void localToolWinsWhenMcpToolNameConflicts() {
         StubMarioModelFactory modelFactory = new StubMarioModelFactory();
         StubAgentBuilder builder = new StubAgentBuilder();
@@ -197,6 +294,7 @@ class AgentRuntimeFactoryTests {
         private ChatOptions chatOptions;
         private String systemPrompt;
         private List<ToolCallback> tools = List.of();
+        private List<Interceptor> interceptors = List.of();
         private boolean parallelToolExecution;
         private int maxParallelTools;
         private int toolExecutionTimeoutSeconds;
@@ -209,6 +307,7 @@ class AgentRuntimeFactoryTests {
             this.chatOptions = request.chatOptions();
             this.systemPrompt = request.systemPrompt();
             this.tools = request.tools();
+            this.interceptors = request.interceptors();
             this.parallelToolExecution = request.agentOptions().parallelToolExecution();
             this.maxParallelTools = request.agentOptions().maxParallelTools();
             this.toolExecutionTimeoutSeconds = request.agentOptions().toolExecutionTimeoutSeconds();
