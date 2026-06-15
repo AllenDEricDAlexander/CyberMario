@@ -1,0 +1,256 @@
+import {DeleteOutlined, EditOutlined, ExperimentOutlined, PlusOutlined, SearchOutlined,} from '@ant-design/icons'
+import {App, Button, Popconfirm, Space, Switch, Table, Tag, Typography} from 'antd'
+import type {ColumnsType} from 'antd/es/table'
+import type {ReactNode} from 'react'
+import {useEffect, useState} from 'react'
+import {PageToolbar} from '../../../components/PageToolbar'
+import {resolveErrorMessage} from '../../../services/request'
+import {canUseRbacButton, useAuth} from '../../auth/authStore'
+import {mcpButtonCodes} from './mcpPermissionCodes'
+import {
+    createMcpServer,
+    deleteMcpServer,
+    disableMcpServer,
+    discoverMcpTools,
+    enableMcpServer,
+    getMcpServers,
+    testMcpServer,
+    updateMcpServer,
+} from './mcpService'
+import type {
+    CreateMcpServerRequest,
+    McpServerResponse,
+    McpServerStatus,
+    McpTransportType,
+    UpdateMcpServerRequest,
+} from './mcpTypes'
+import {McpServerEditorDrawer} from './McpServerEditorDrawer'
+
+function McpServerListPage() {
+    const {message} = App.useApp()
+    const auth = useAuth()
+    const [servers, setServers] = useState<McpServerResponse[]>([])
+    const [loading, setLoading] = useState(false)
+    const [saving, setSaving] = useState(false)
+    const [editingServer, setEditingServer] = useState<McpServerResponse | null>(null)
+    const [editorOpen, setEditorOpen] = useState(false)
+    const [switchingId, setSwitchingId] = useState<number | null>(null)
+
+    const canCreate = canUseRbacButton(auth, mcpButtonCodes.server.create)
+    const canEdit = canUseRbacButton(auth, mcpButtonCodes.server.edit)
+    const canDelete = canUseRbacButton(auth, mcpButtonCodes.server.delete)
+    const canTest = canUseRbacButton(auth, mcpButtonCodes.server.test)
+    const canDiscover = canUseRbacButton(auth, mcpButtonCodes.server.discover)
+    const canToggle = canUseRbacButton(auth, mcpButtonCodes.server.toggle)
+
+    useEffect(() => {
+        void loadServers()
+    }, [])
+
+    async function loadServers() {
+        setLoading(true)
+        try {
+            setServers(await getMcpServers())
+        } catch (requestError) {
+            message.error(resolveErrorMessage(requestError))
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    function openEditor(server?: McpServerResponse) {
+        setEditingServer(server ?? null)
+        setEditorOpen(true)
+    }
+
+    async function saveServer(request: CreateMcpServerRequest | UpdateMcpServerRequest) {
+        setSaving(true)
+        try {
+            if (editingServer) {
+                await updateMcpServer(editingServer.id, request as UpdateMcpServerRequest)
+            } else {
+                await createMcpServer(request as CreateMcpServerRequest)
+            }
+            message.success('保存成功')
+            setEditorOpen(false)
+            await loadServers()
+        } catch (requestError) {
+            message.error(resolveErrorMessage(requestError))
+            throw requestError
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    async function removeServer(server: McpServerResponse) {
+        try {
+            await deleteMcpServer(server.id)
+            message.success('服务已删除')
+            await loadServers()
+        } catch (requestError) {
+            message.error(resolveErrorMessage(requestError))
+        }
+    }
+
+    async function toggleServer(server: McpServerResponse, checked: boolean) {
+        setSwitchingId(server.id)
+        try {
+            if (checked) {
+                await enableMcpServer(server.id)
+            } else {
+                await disableMcpServer(server.id)
+            }
+            message.success(checked ? '服务已启用' : '服务已禁用')
+            await loadServers()
+        } catch (requestError) {
+            message.error(resolveErrorMessage(requestError))
+        } finally {
+            setSwitchingId(null)
+        }
+    }
+
+    async function testServer(server: McpServerResponse) {
+        try {
+            const result = await testMcpServer(server.id)
+            if (result.success) {
+                message.success(`连接成功，发现 ${result.toolCount} 个工具`)
+            } else {
+                message.error(result.errorMessage || '连接测试失败')
+            }
+            await loadServers()
+        } catch (requestError) {
+            message.error(resolveErrorMessage(requestError))
+        }
+    }
+
+    async function discoverTools(server: McpServerResponse) {
+        try {
+            const result = await discoverMcpTools(server.id)
+            message.success(`发现 ${result.discoveredCount} 个工具，新增 ${result.createdCount} 个，更新 ${result.updatedCount} 个`)
+            await loadServers()
+        } catch (requestError) {
+            message.error(resolveErrorMessage(requestError))
+        }
+    }
+
+    const columns: ColumnsType<McpServerResponse> = [
+        {title: '编码', dataIndex: 'serverCode', fixed: 'left', width: 170},
+        {title: '名称', dataIndex: 'serverName', width: 180},
+        {
+            title: '传输',
+            dataIndex: 'transportType',
+            width: 150,
+            render: (value: McpTransportType) => <Tag color="blue">{value}</Tag>,
+        },
+        {
+            title: 'Base URL',
+            dataIndex: 'baseUrl',
+            width: 260,
+            render: (value: string) => <Typography.Text copyable ellipsis={{tooltip: value}}>{value}</Typography.Text>,
+        },
+        {title: 'Endpoint', dataIndex: 'endpoint', width: 160},
+        {
+            title: '状态',
+            dataIndex: 'status',
+            width: 120,
+            render: (value: McpServerStatus) => <Tag color={serverStatusColor(value)}>{value}</Tag>,
+        },
+        {
+            title: '启用',
+            dataIndex: 'enabled',
+            width: 100,
+            render: (_, record) => (
+                <Switch
+                    checked={record.enabled}
+                    disabled={!canToggle}
+                    loading={switchingId === record.id}
+                    onChange={(checked) => void toggleServer(record, checked)}
+                    size="small"
+                />
+            ),
+        },
+        {title: '最近连接', dataIndex: 'lastConnectedAt', width: 190, render: valueOrDash},
+        {
+            title: '操作',
+            fixed: 'right',
+            width: 310,
+            render: (_, record) => renderActions(record),
+        },
+    ]
+
+    function renderActions(record: McpServerResponse) {
+        const actions: ReactNode[] = []
+        if (canEdit) {
+            actions.push(
+                <Button icon={<EditOutlined/>} key="edit" onClick={() => openEditor(record)} size="small">编辑</Button>,
+            )
+        }
+        if (canTest) {
+            actions.push(
+                <Button icon={<ExperimentOutlined/>} key="test" onClick={() => void testServer(record)} size="small">
+                    测试
+                </Button>,
+            )
+        }
+        if (canDiscover) {
+            actions.push(
+                <Button icon={<SearchOutlined/>} key="discover" onClick={() => void discoverTools(record)} size="small">
+                    发现
+                </Button>,
+            )
+        }
+        if (canDelete) {
+            actions.push(
+                <Popconfirm key="delete" title="确认删除该 MCP 服务？" onConfirm={() => void removeServer(record)}>
+                    <Button danger icon={<DeleteOutlined/>} size="small">删除</Button>
+                </Popconfirm>,
+            )
+        }
+        return actions.length ? <Space>{actions}</Space> : '-'
+    }
+
+    return (
+        <>
+            <PageToolbar
+                actions={canCreate &&
+                    <Button icon={<PlusOutlined/>} onClick={() => openEditor()} type="primary">新建服务</Button>}
+                description="维护 ReactAgent 可连接的 MCP 服务、连接参数和工具发现状态。"
+                title="MCP 服务配置"
+            />
+            <Table<McpServerResponse>
+                columns={columns}
+                dataSource={servers}
+                loading={loading}
+                pagination={false}
+                rowKey="id"
+                scroll={{x: 1650}}
+            />
+            <McpServerEditorDrawer
+                loading={saving}
+                onClose={() => setEditorOpen(false)}
+                onSubmit={saveServer}
+                open={editorOpen}
+                server={editingServer}
+            />
+        </>
+    )
+}
+
+function valueOrDash(value?: string | number | null) {
+    return value ?? '-'
+}
+
+function serverStatusColor(status: McpServerStatus) {
+    if (status === 'CONNECTED') {
+        return 'success'
+    }
+    if (status === 'FAILED') {
+        return 'error'
+    }
+    if (status === 'CONNECTING') {
+        return 'processing'
+    }
+    return 'default'
+}
+
+export const Component = McpServerListPage
