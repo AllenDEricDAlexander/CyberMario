@@ -49,6 +49,16 @@ class LoggingMcpToolCallbackTests {
                 .satisfies(error -> assertThat(error.getSuppressed()).hasSize(1));
     }
 
+    @Test
+    void exposesMcpServerAndToolIdentityForRunAudit() {
+        ToolCallback delegate = mock(ToolCallback.class);
+        LoggingMcpToolCallback callback = new LoggingMcpToolCallback(delegate, server(), tool(),
+                mock(McpToolCallLogService.class));
+
+        assertThat(callback.serverCode()).isEqualTo("docs");
+        assertThat(callback.toolKey()).isEqualTo("docs_search");
+    }
+
     private McpServerConfigPo server() {
         McpServerConfigPo server = new McpServerConfigPo();
         server.setServerCode("docs");

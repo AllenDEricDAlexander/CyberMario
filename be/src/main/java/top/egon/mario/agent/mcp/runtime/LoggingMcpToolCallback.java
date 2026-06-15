@@ -36,6 +36,14 @@ public class LoggingMcpToolCallback implements ToolCallback {
         return delegate.getToolMetadata();
     }
 
+    public String serverCode() {
+        return server == null ? null : server.getServerCode();
+    }
+
+    public String toolKey() {
+        return tool == null ? null : tool.getToolKey();
+    }
+
     @Override
     public String call(String toolInput) {
         return call(toolInput, null);

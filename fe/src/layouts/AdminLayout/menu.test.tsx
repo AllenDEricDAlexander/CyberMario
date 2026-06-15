@@ -86,9 +86,9 @@ const menuTree: MenuTreeResponse[] = [
     },
     {
         permissionId: 8,
-        permCode: 'menu:agent:mcp-servers',
-        permName: 'MCP 服务配置',
-        routePath: '/agent/mcp/servers',
+        permCode: 'menu:agent:run-audit',
+        permName: '运行审计',
+        routePath: '/agent/run-audits',
         hidden: false,
         cacheable: true,
         sortNo: 8,
@@ -96,12 +96,22 @@ const menuTree: MenuTreeResponse[] = [
     },
     {
         permissionId: 9,
+        permCode: 'menu:agent:mcp-servers',
+        permName: 'MCP 服务配置',
+        routePath: '/agent/mcp/servers',
+        hidden: false,
+        cacheable: true,
+        sortNo: 9,
+        children: [],
+    },
+    {
+        permissionId: 10,
         permCode: 'menu:agent:mcp-tools',
         permName: 'MCP 工具策略',
         routePath: '/agent/mcp/tools',
         hidden: false,
         cacheable: true,
-        sortNo: 9,
+        sortNo: 10,
         children: [],
     },
     {
@@ -158,11 +168,17 @@ describe('admin menu authorization', () => {
             .toContain('/agent/debug')
         expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, false, ['CHAT_BASIC'])))
             .not.toContain('/agent/conversation-audits')
+        expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, false, ['CHAT_BASIC'])))
+            .not.toContain('/agent/run-audits')
         expect(canAccessAdminPath('/agent/conversation-audits', menuTree, true, ['CHAT_BASIC'])).toBe(false)
+        expect(canAccessAdminPath('/agent/run-audits', menuTree, true, ['CHAT_BASIC'])).toBe(false)
 
         expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, true, ['SUPER_ADMIN'])))
             .toContain('/agent/conversation-audits')
+        expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, true, ['SUPER_ADMIN'])))
+            .toContain('/agent/run-audits')
         expect(canAccessAdminPath('/agent/conversation-audits', menuTree, true, ['SUPER_ADMIN'])).toBe(true)
+        expect(canAccessAdminPath('/agent/run-audits', menuTree, true, ['SUPER_ADMIN'])).toBe(true)
     })
 
     test('shows MCP logs to non-super-admin users with MCP log menu permission', () => {

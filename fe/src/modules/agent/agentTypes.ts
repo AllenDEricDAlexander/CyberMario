@@ -4,6 +4,21 @@ import type {ChatResponse} from '../chat/chatTypes'
 export type AgentConversationStatus = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED'
 export type AgentConversationRole = 'USER' | 'ASSISTANT' | 'SYSTEM'
 export type AgentConversationMessageType = 'MESSAGE' | 'THINK' | 'ERROR'
+export type AgentRunAuditStatus = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED'
+export type AgentRunEventStatus = 'STARTED' | 'SUCCESS' | 'FAILED' | 'CANCELLED'
+export type AgentRunEventType =
+    | 'RUN_STARTED'
+    | 'USER_MESSAGE'
+    | 'MODEL_REQUEST'
+    | 'MODEL_RESPONSE'
+    | 'TOOL_REQUEST'
+    | 'TOOL_RESPONSE'
+    | 'ASSISTANT_THINK'
+    | 'ASSISTANT_MESSAGE'
+    | 'RUN_COMPLETED'
+    | 'RUN_FAILED'
+    | 'RUN_CANCELLED'
+export type AgentRunToolType = 'LOCAL' | 'MCP' | 'UNKNOWN'
 export type AgentModelProviderType = 'DASHSCOPE' | 'DEEPSEEK'
 
 export type AgentModelConfig = {
@@ -96,6 +111,63 @@ export type AgentConversationMessageAuditResponse = {
     messageType: AgentConversationMessageType
     content?: string
     contentChars?: number
+    createdAt?: string
+}
+
+export type AgentRunAuditResponse = {
+    id: number
+    requestId?: string
+    traceId?: string
+    threadId: string
+    userId?: number
+    username?: string
+    presetId?: number
+    runtimeFingerprint?: string
+    effectiveConfigJson?: string
+    userMessage?: string
+    finalMessage?: string
+    finalThinking?: string
+    status: AgentRunAuditStatus
+    modelCallCount?: number
+    toolCallCount?: number
+    mcpToolCallCount?: number
+    startedAt: string
+    finishedAt?: string
+    durationMs?: number
+    errorCode?: string
+    errorMessage?: string
+    createdAt?: string
+}
+
+export type AgentRunEventAuditResponse = {
+    id: number
+    runId: number
+    requestId?: string
+    traceId?: string
+    threadId?: string
+    seqNo: number
+    eventType: AgentRunEventType
+    reactRound?: number
+    toolCallId?: string
+    toolName?: string
+    toolType?: AgentRunToolType
+    mcpServerCode?: string
+    status: AgentRunEventStatus
+    startedAt: string
+    finishedAt?: string
+    durationMs?: number
+    modelProvider?: AgentModelProviderType
+    modelName?: string
+    promptText?: string
+    requestMessagesJson?: string
+    requestOptionsJson?: string
+    availableToolsJson?: string
+    responseText?: string
+    toolArguments?: string
+    toolResult?: string
+    metadataJson?: string
+    errorCode?: string
+    errorMessage?: string
     createdAt?: string
 }
 

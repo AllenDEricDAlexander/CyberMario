@@ -23,7 +23,10 @@ class RbacRolePresetCatalogTests {
                                 "api:agent:preset:*")
                         .doesNotContain("menu:agent:conversation-audit",
                                 "api:agent:conversation-audit:collection",
-                                "api:agent:conversation-audit:*"));
+                                "api:agent:conversation-audit:*",
+                                "menu:agent:run-audit",
+                                "api:agent:run-audit:collection",
+                                "api:agent:run-audit:*"));
     }
 
 }

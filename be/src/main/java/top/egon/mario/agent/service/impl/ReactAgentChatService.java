@@ -3,7 +3,6 @@ package top.egon.mario.agent.service.impl;
 import com.alibaba.cloud.ai.graph.NodeOutput;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
-import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -17,6 +16,9 @@ import reactor.core.scheduler.Scheduler;
 import top.egon.mario.agent.dto.request.AgentDebugChatRequest;
 import top.egon.mario.agent.model.dto.enums.ModelScenario;
 import top.egon.mario.agent.model.service.model.ModelCallContext;
+import top.egon.mario.agent.observability.service.AgentRunAuditService;
+import top.egon.mario.agent.observability.service.model.AgentRunAuditContext;
+import top.egon.mario.agent.observability.service.model.AgentRunAuditStart;
 import top.egon.mario.agent.po.enums.AgentConversationMessageType;
 import top.egon.mario.agent.po.enums.AgentConversationRole;
 import top.egon.mario.agent.service.AgentConversationAuditService;
@@ -35,6 +37,7 @@ import top.egon.mario.rbac.service.security.RbacPrincipal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -51,15 +54,17 @@ public class ReactAgentChatService implements ChatAgentService {
     private final AgentPresetService agentPresetService;
     private final AgentRuntimeFactory agentRuntimeFactory;
     private final AgentConversationAuditService auditService;
+    private final AgentRunAuditService runAuditService;
     private final Scheduler blockingScheduler;
     private final ArxivToolUserContext arxivToolUserContext;
 
     public ReactAgentChatService(AgentPresetService agentPresetService, AgentRuntimeFactory agentRuntimeFactory,
-                                 AgentConversationAuditService auditService, Scheduler blockingScheduler,
-                                 ArxivToolUserContext arxivToolUserContext) {
+                                 AgentConversationAuditService auditService, AgentRunAuditService runAuditService,
+                                 Scheduler blockingScheduler, ArxivToolUserContext arxivToolUserContext) {
         this.agentPresetService = agentPresetService;
         this.agentRuntimeFactory = agentRuntimeFactory;
         this.auditService = auditService;
+        this.runAuditService = runAuditService;
         this.blockingScheduler = blockingScheduler;
         this.arxivToolUserContext = arxivToolUserContext;
     }
@@ -76,9 +81,6 @@ public class ReactAgentChatService implements ChatAgentService {
 
     private Flux<ChatResponse> executeChat(String message, String threadId, RbacPrincipal principal, AgentDebugChatRequest debugRequest) {
         String conversationThreadId = resolveThreadId(threadId);
-        RunnableConfig config = RunnableConfig.builder()
-                .threadId(conversationThreadId)
-                .build();
 
         return Flux.deferContextual(contextView -> {
             String traceId = TraceContext.traceId(contextView);
@@ -96,18 +98,22 @@ public class ReactAgentChatService implements ChatAgentService {
                     null,
                     null
             );
-            ReactAgent agent = agentRuntimeFactory.get(spec, modelCallContext);
+            AgentRuntimeFactory.AgentRuntime runtime = agentRuntimeFactory.runtime(spec, modelCallContext);
             AtomicReference<Long> auditId = new AtomicReference<>();
+            AtomicReference<AgentRunAuditContext> runAuditContext = new AtomicReference<>();
             List<String> messageChunks = new ArrayList<>();
             List<String> thinkChunks = new ArrayList<>();
             TraceContext.withMdc(traceId, () -> LogUtil.info(log).log("agent chat started, threadId={}, messageLength={}",
                     conversationThreadId, message == null ? 0 : message.length()));
-            return Mono.just(config)
+            return Mono.just(RunnableConfig.builder().threadId(conversationThreadId).build())
                     .flatMapMany(cfg -> {
                         try {
                             auditId.set(startAudit(requestId, traceId, principal, conversationThreadId, spec, message));
+                            AgentRunAuditContext context = startRunAudit(requestId, traceId, principal,
+                                    conversationThreadId, spec, message, runtime.toolDescriptors());
+                            runAuditContext.set(context);
                             arxivToolUserContext.set(principal);
-                            return agent.stream(message, cfg);
+                            return runtime.agent().stream(message, runnableConfig(cfg, context));
                         } catch (GraphRunnerException e) {
                             return Flux.error(e);
                         }
@@ -120,9 +126,13 @@ public class ReactAgentChatService implements ChatAgentService {
                     .subscribeOn(blockingScheduler)
                     .flatMap(output -> toChatResponse(output, conversationThreadId))
                     .doOnNext(response -> collectAuditChunk(response, messageChunks, thinkChunks))
-                    .doFinally(signalType -> finishAudit(signalType, auditId.get(), messageChunks, thinkChunks, null))
+                    .doFinally(signalType -> {
+                        finishAudit(signalType, auditId.get(), messageChunks, thinkChunks, null);
+                        finishRunAudit(signalType, runAuditContext.get(), messageChunks, thinkChunks, null);
+                    })
                     .onErrorResume(error -> {
                         failAudit(auditId.get(), error);
+                        failRunAudit(runAuditContext.get(), error);
                         return Flux.just(new ChatResponse(conversationThreadId, errorMessage(error), "error"));
                     });
         });
@@ -143,6 +153,32 @@ public class ReactAgentChatService implements ChatAgentService {
                 null,
                 Instant.now()
         ), message);
+    }
+
+    private AgentRunAuditContext startRunAudit(String requestId, String traceId, RbacPrincipal principal,
+                                               String threadId, AgentRuntimeSpec spec, String message,
+                                               Map<String, AgentRunAuditContext.ToolDescriptor> toolDescriptors) {
+        return runAuditService.start(new AgentRunAuditStart(
+                requestId,
+                traceId,
+                principal == null ? null : principal.userId(),
+                principal == null ? null : principal.username(),
+                threadId,
+                spec.presetId(),
+                spec.fingerprint(),
+                agentPresetService.serializeRuntimeSpec(spec),
+                message,
+                toolDescriptors,
+                Instant.now()
+        ));
+    }
+
+    private RunnableConfig runnableConfig(RunnableConfig config, AgentRunAuditContext context) {
+        RunnableConfig.Builder builder = RunnableConfig.builder(config);
+        if (context != null) {
+            context.metadata().forEach(builder::addMetadata);
+        }
+        return builder.build();
     }
 
     private void collectAuditChunk(ChatResponse response, List<String> messageChunks, List<String> thinkChunks) {
@@ -185,6 +221,33 @@ public class ReactAgentChatService implements ChatAgentService {
             return;
         }
         auditService.fail(auditId, error.getClass().getName(), error.getMessage(), Instant.now());
+    }
+
+    private void finishRunAudit(SignalType signalType, AgentRunAuditContext context, List<String> messageChunks,
+                                List<String> thinkChunks, Throwable error) {
+        if (context == null || error != null) {
+            return;
+        }
+        if (signalType == SignalType.CANCEL) {
+            runAuditService.cancel(context, Instant.now());
+            return;
+        }
+        if (signalType == SignalType.ON_COMPLETE) {
+            String thinkContent = normalizeContent(String.join("", thinkChunks));
+            String messageContent = normalizeContent(String.join("", messageChunks));
+            runAuditService.complete(context, messageContent, thinkContent, Instant.now());
+        }
+    }
+
+    private void failRunAudit(AgentRunAuditContext context, Throwable error) {
+        if (context == null || error == null) {
+            return;
+        }
+        runAuditService.fail(context, error.getClass().getName(), error.getMessage(), Instant.now());
+    }
+
+    private String normalizeContent(String content) {
+        return StringUtils.hasText(content) ? content : null;
     }
 
     private Flux<ChatResponse> toChatResponse(NodeOutput output, String threadId) {

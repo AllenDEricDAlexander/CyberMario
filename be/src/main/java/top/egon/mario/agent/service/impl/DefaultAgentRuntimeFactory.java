@@ -1,6 +1,7 @@
 package top.egon.mario.agent.service.impl;
 
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
+import com.alibaba.cloud.ai.graph.agent.interceptor.Interceptor;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
@@ -11,18 +12,23 @@ import org.springframework.stereotype.Service;
 import top.egon.mario.agent.hooks.LoggingHook;
 import top.egon.mario.agent.interceptor.ToolMonitorInterceptor;
 import top.egon.mario.agent.mcp.runtime.McpAgentToolProvider;
+import top.egon.mario.agent.mcp.runtime.LoggingMcpToolCallback;
 import top.egon.mario.agent.model.dto.request.ModelRequest;
 import top.egon.mario.agent.model.dto.response.ModelResolveResult;
 import top.egon.mario.agent.model.service.MarioModelFactory;
 import top.egon.mario.agent.model.service.model.ModelCallContext;
+import top.egon.mario.agent.observability.po.enums.AgentRunToolType;
+import top.egon.mario.agent.observability.service.model.AgentRunAuditContext;
 import top.egon.mario.agent.service.AgentRuntimeFactory;
 import top.egon.mario.agent.service.model.AgentOptions;
 import top.egon.mario.agent.service.model.AgentRuntimeSpec;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -37,50 +43,90 @@ public class DefaultAgentRuntimeFactory implements AgentRuntimeFactory {
     private final List<ToolCallback> toolCallbacks;
     private final AgentBuilder agentBuilder;
     private final McpAgentToolProvider mcpAgentToolProvider;
+    private final List<Interceptor> interceptors;
 
     public DefaultAgentRuntimeFactory(MarioModelFactory marioModelFactory, List<ToolCallback> toolCallbacks) {
-        this(marioModelFactory, toolCallbacks, new ReactAgentBuilder(), null);
+        this(marioModelFactory, toolCallbacks, new ReactAgentBuilder(), null, List.of());
     }
 
     @Autowired
     public DefaultAgentRuntimeFactory(MarioModelFactory marioModelFactory, List<ToolCallback> toolCallbacks,
-                                      ObjectProvider<McpAgentToolProvider> mcpAgentToolProvider) {
+                                      ObjectProvider<McpAgentToolProvider> mcpAgentToolProvider,
+                                      ObjectProvider<Interceptor> interceptors) {
         this(marioModelFactory, toolCallbacks, new ReactAgentBuilder(),
-                mcpAgentToolProvider == null ? null : mcpAgentToolProvider.getIfAvailable());
+                mcpAgentToolProvider == null ? null : mcpAgentToolProvider.getIfAvailable(),
+                interceptors == null ? List.of() : interceptors.orderedStream().toList());
     }
 
     DefaultAgentRuntimeFactory(MarioModelFactory marioModelFactory, List<ToolCallback> toolCallbacks, AgentBuilder agentBuilder) {
-        this(marioModelFactory, toolCallbacks, agentBuilder, null);
+        this(marioModelFactory, toolCallbacks, agentBuilder, null, List.of());
     }
 
     DefaultAgentRuntimeFactory(MarioModelFactory marioModelFactory, List<ToolCallback> toolCallbacks,
                                AgentBuilder agentBuilder, McpAgentToolProvider mcpAgentToolProvider) {
+        this(marioModelFactory, toolCallbacks, agentBuilder, mcpAgentToolProvider, List.of());
+    }
+
+    DefaultAgentRuntimeFactory(MarioModelFactory marioModelFactory, List<ToolCallback> toolCallbacks,
+                               AgentBuilder agentBuilder, McpAgentToolProvider mcpAgentToolProvider,
+                               List<Interceptor> interceptors) {
         this.marioModelFactory = marioModelFactory;
         this.toolCallbacks = toolCallbacks == null ? List.of() : List.copyOf(toolCallbacks);
         this.agentBuilder = agentBuilder;
         this.mcpAgentToolProvider = mcpAgentToolProvider;
+        this.interceptors = interceptors == null ? List.of() : List.copyOf(interceptors);
     }
 
     @Override
     public ReactAgent get(AgentRuntimeSpec spec, ModelCallContext context) {
-        return buildAgent(spec, context);
+        return runtime(spec, context).agent();
     }
 
-    private ReactAgent buildAgent(AgentRuntimeSpec spec, ModelCallContext context) {
+    @Override
+    public AgentRuntime runtime(AgentRuntimeSpec spec, ModelCallContext context) {
+        List<ToolCallback> enabledTools = enabledTools(spec);
         ModelResolveResult model = marioModelFactory.resolve(new ModelRequest(
                 spec.modelConfig().provider(),
                 spec.modelConfig().model(),
                 spec.modelOptions(),
                 context
         ));
-        return agentBuilder.build(new AgentBuildRequest(
+        ReactAgent agent = agentBuilder.build(new AgentBuildRequest(
                 AGENT_NAME,
                 model.chatModel(),
                 model.chatOptions(),
                 spec.systemPrompt(),
-                enabledTools(spec),
+                enabledTools,
+                agentInterceptors(),
                 normalizeAgentOptions(spec.agentOptions())
         ));
+        return new AgentRuntime(agent, toolDescriptors(enabledTools));
+    }
+
+    @Override
+    public Map<String, AgentRunAuditContext.ToolDescriptor> toolDescriptors(AgentRuntimeSpec spec) {
+        return toolDescriptors(enabledTools(spec));
+    }
+
+    private Map<String, AgentRunAuditContext.ToolDescriptor> toolDescriptors(List<ToolCallback> callbacks) {
+        Map<String, AgentRunAuditContext.ToolDescriptor> descriptors = new LinkedHashMap<>();
+        for (ToolCallback callback : callbacks) {
+            String toolName = callback.getToolDefinition().name();
+            if (callback instanceof LoggingMcpToolCallback mcpTool) {
+                descriptors.put(toolName, new AgentRunAuditContext.ToolDescriptor(AgentRunToolType.MCP,
+                        mcpTool.serverCode()));
+            } else {
+                descriptors.put(toolName, new AgentRunAuditContext.ToolDescriptor(AgentRunToolType.LOCAL, null));
+            }
+        }
+        return descriptors;
+    }
+
+    private List<Interceptor> agentInterceptors() {
+        List<Interceptor> values = new ArrayList<>();
+        values.addAll(interceptors);
+        values.add(new ToolMonitorInterceptor());
+        return values;
     }
 
     private List<ToolCallback> enabledTools(AgentRuntimeSpec spec) {
@@ -143,6 +189,7 @@ public class DefaultAgentRuntimeFactory implements AgentRuntimeFactory {
             ChatOptions chatOptions,
             String systemPrompt,
             List<ToolCallback> tools,
+            List<Interceptor> interceptors,
             AgentOptions agentOptions
     ) {
     }
@@ -157,7 +204,7 @@ public class DefaultAgentRuntimeFactory implements AgentRuntimeFactory {
                     .chatOptions(request.chatOptions())
                     .systemPrompt(request.systemPrompt())
                     .tools(request.tools())
-                    .interceptors(new ToolMonitorInterceptor())
+                    .interceptors(request.interceptors())
                     .hooks(new LoggingHook())
                     .saver(new MemorySaver())
                     .parallelToolExecution(request.agentOptions().parallelToolExecution())

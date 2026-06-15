@@ -2,6 +2,7 @@ package top.egon.mario.agent.config;
 
 import org.junit.jupiter.api.Test;
 import reactor.core.scheduler.Schedulers;
+import top.egon.mario.agent.observability.service.AgentRunAuditService;
 import top.egon.mario.agent.service.AgentConversationAuditService;
 import top.egon.mario.agent.service.AgentPresetService;
 import top.egon.mario.agent.service.AgentRuntimeFactory;
@@ -42,6 +43,7 @@ class AgentConfigurationTests {
                 mock(AgentPresetService.class),
                 mock(AgentRuntimeFactory.class),
                 mock(AgentConversationAuditService.class),
+                mock(AgentRunAuditService.class),
                 Schedulers.immediate(),
                 new ArxivToolUserContext()
         );

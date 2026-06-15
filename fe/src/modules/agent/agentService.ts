@@ -8,6 +8,9 @@ import type {
     AgentPage,
     AgentPresetRequest,
     AgentPresetResponse,
+    AgentRunAuditResponse,
+    AgentRunAuditStatus,
+    AgentRunEventAuditResponse,
     AgentStreamChunk,
 } from './agentTypes'
 
@@ -82,4 +85,42 @@ export function getAgentConversationAudits(params: PageParams & {
 
 export function getAgentConversationAuditMessages(id: number) {
     return requestJson<AgentConversationMessageAuditResponse[]>(`/api/admin/agent/conversation-audits/${id}/messages`)
+}
+
+export function getAgentRunAudits(params: PageParams & {
+    startAt?: string
+    endAt?: string
+    userId?: number
+    username?: string
+    threadId?: string
+    requestId?: string
+    traceId?: string
+    presetId?: number
+    toolName?: string
+    mcpServerCode?: string
+    status?: AgentRunAuditStatus
+}) {
+    return requestJson<AgentPage<AgentRunAuditResponse>>(`/api/admin/agent/run-audits?${buildSearchParams({
+        page: params.page ?? 1,
+        size: params.size ?? 20,
+        startAt: params.startAt,
+        endAt: params.endAt,
+        userId: params.userId,
+        username: params.username,
+        threadId: params.threadId,
+        requestId: params.requestId,
+        traceId: params.traceId,
+        presetId: params.presetId,
+        toolName: params.toolName,
+        mcpServerCode: params.mcpServerCode,
+        status: params.status,
+    })}`)
+}
+
+export function getAgentRunAuditEvents(id: number) {
+    return requestJson<AgentRunEventAuditResponse[]>(`/api/admin/agent/run-audits/${id}/events`)
+}
+
+export function getAgentRunAuditDetail(id: number) {
+    return requestJson<AgentRunAuditResponse>(`/api/admin/agent/run-audits/${id}`)
 }

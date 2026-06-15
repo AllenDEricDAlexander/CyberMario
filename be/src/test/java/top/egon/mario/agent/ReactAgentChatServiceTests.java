@@ -14,6 +14,9 @@ import top.egon.mario.agent.dto.request.AgentDebugChatRequest;
 import top.egon.mario.agent.model.dto.enums.ModelProviderType;
 import top.egon.mario.agent.model.dto.request.ModelOptions;
 import top.egon.mario.agent.model.service.model.ModelCallContext;
+import top.egon.mario.agent.observability.po.enums.AgentRunToolType;
+import top.egon.mario.agent.observability.service.AgentRunAuditService;
+import top.egon.mario.agent.observability.service.model.AgentRunAuditContext;
 import top.egon.mario.agent.po.enums.AgentConversationMessageType;
 import top.egon.mario.agent.po.enums.AgentConversationRole;
 import top.egon.mario.agent.service.AgentConversationAuditService;
@@ -32,6 +35,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,6 +44,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 
 class ReactAgentChatServiceTests {
 
@@ -106,13 +111,51 @@ class ReactAgentChatServiceTests {
                 .expectNext(new ChatResponse("thread-1", "答案", "message"))
                 .verifyComplete();
 
-        verify(support.runtimeFactory).get(eq(debugSpec), any(ModelCallContext.class));
+        verify(support.runtimeFactory).runtime(eq(debugSpec), any(ModelCallContext.class));
+        verify(support.runtimeFactory, never()).get(any(), any());
         verify(support.auditService).start(any(), eq("你好"));
         verify(support.auditService).complete(eq(99L), org.mockito.ArgumentMatchers.argThat(messages ->
                 messages.size() == 1
                         && messages.get(0).role() == AgentConversationRole.ASSISTANT
                         && messages.get(0).messageType() == AgentConversationMessageType.MESSAGE
                         && messages.get(0).content().equals("答案")), any(Instant.class));
+        verify(support.runAuditService).complete(eq(support.runAuditContext), eq("答案"), eq(null), any(Instant.class));
+    }
+
+    @Test
+    void chatStartsRunAuditAndPassesContextThroughRunnableConfigMetadata() throws Exception {
+        ReactAgent agent = mock(ReactAgent.class);
+        TestSupport support = new TestSupport(agent);
+        AgentRunAuditContext context = new AgentRunAuditContext(7L, "request-1", "trace-1",
+                8L, "luigi", "thread-1", 9L, "fingerprint-1", new AtomicInteger(-1), new AtomicInteger(0),
+                Map.of("docs_search", new AgentRunAuditContext.ToolDescriptor(AgentRunToolType.MCP, "docs")));
+        given(support.runtimeFactory.runtime(any(), any(ModelCallContext.class))).willReturn(
+                new AgentRuntimeFactory.AgentRuntime(agent, Map.of("docs_search",
+                        new AgentRunAuditContext.ToolDescriptor(AgentRunToolType.MCP, "docs"))));
+        given(support.runAuditService.start(any())).willReturn(context);
+        given(agent.stream(eq("你好"), any(RunnableConfig.class)))
+                .willAnswer(invocation -> {
+                    RunnableConfig config = invocation.getArgument(1);
+                    assertThat(config.metadata(AgentRunAuditContext.METADATA_KEY)).contains(context);
+                    assertThat(config.metadata("requestId")).isPresent();
+                    assertThat(config.metadata("threadId")).contains("thread-1");
+                    AgentRunAuditContext metadataContext = (AgentRunAuditContext) config.metadata(AgentRunAuditContext.METADATA_KEY).orElseThrow();
+                    assertThat(metadataContext.toolDescriptor("docs_search").toolType()).isEqualTo(AgentRunToolType.MCP);
+                    return Flux.just(messageOutput("答案"));
+                });
+
+        StepVerifier.create(support.chatService.chat("你好", "thread-1",
+                        new RbacPrincipal(8L, "luigi", Set.of("CHAT_BASIC"), Set.of(), "v1")))
+                .expectNext(new ChatResponse("thread-1", "答案", "message"))
+                .verifyComplete();
+
+        verify(support.runAuditService).start(org.mockito.ArgumentMatchers.argThat(start ->
+                start.userId().equals(8L)
+                        && start.username().equals("luigi")
+                        && start.threadId().equals("thread-1")
+                        && start.userMessage().equals("你好")
+                        && start.effectiveConfigJson().contains("systemPrompt")));
+        verify(support.runAuditService).complete(eq(context), eq("答案"), eq(null), any(Instant.class));
     }
 
     @Test
@@ -128,6 +171,8 @@ class ReactAgentChatServiceTests {
                 .verifyComplete();
 
         verify(support.auditService).fail(eq(99L), eq(IllegalStateException.class.getName()), eq("boom"), any(Instant.class));
+        verify(support.runAuditService).fail(eq(support.runAuditContext), eq(IllegalStateException.class.getName()),
+                eq("boom"), any(Instant.class));
     }
 
     @Test
@@ -148,6 +193,8 @@ class ReactAgentChatServiceTests {
                 .verifyComplete();
 
         verify(support.auditService).fail(eq(99L), eq(IllegalArgumentException.class.getName()),
+                eq("[InvalidParameter] url error, please check url"), any(Instant.class));
+        verify(support.runAuditService).fail(eq(support.runAuditContext), eq(IllegalArgumentException.class.getName()),
                 eq("[InvalidParameter] url error, please check url"), any(Instant.class));
     }
 
@@ -186,19 +233,26 @@ class ReactAgentChatServiceTests {
         private final AgentPresetService presetService = mock(AgentPresetService.class);
         private final AgentRuntimeFactory runtimeFactory = mock(AgentRuntimeFactory.class);
         private final AgentConversationAuditService auditService = mock(AgentConversationAuditService.class);
+        private final AgentRunAuditService runAuditService = mock(AgentRunAuditService.class);
         private final ArxivToolUserContext userContext = new ArxivToolUserContext();
+        private final AgentRunAuditContext runAuditContext = new AgentRunAuditContext(7L, "request-1", "trace-1",
+                8L, "luigi", "thread-1", 9L, "fingerprint-1", new AtomicInteger(-1), new AtomicInteger(0),
+                Map.of());
         private final ReactAgentChatService chatService;
 
         private TestSupport(ReactAgent agent) {
             AgentRuntimeSpec defaultSpec = runtimeSpec("default-fingerprint");
             given(presetService.defaultRuntimeSpec()).willReturn(defaultSpec);
             given(presetService.serializeRuntimeSpec(any())).willReturn("{\"systemPrompt\":\"system prompt\"}");
-            given(runtimeFactory.get(eq(defaultSpec), any(ModelCallContext.class))).willReturn(agent);
-            given(runtimeFactory.get(org.mockito.ArgumentMatchers.argThat(spec ->
-                    spec != null && "debug-fingerprint".equals(spec.fingerprint())), any(ModelCallContext.class))).willReturn(agent);
+            given(runtimeFactory.runtime(eq(defaultSpec), any(ModelCallContext.class)))
+                    .willReturn(new AgentRuntimeFactory.AgentRuntime(agent, Map.of()));
+            given(runtimeFactory.runtime(org.mockito.ArgumentMatchers.argThat(spec ->
+                    spec != null && "debug-fingerprint".equals(spec.fingerprint())), any(ModelCallContext.class)))
+                    .willReturn(new AgentRuntimeFactory.AgentRuntime(agent, Map.of()));
             given(auditService.start(any(), any())).willReturn(1L);
+            given(runAuditService.start(any())).willReturn(runAuditContext);
             doAnswer(invocation -> null).when(auditService).complete(any(), any(), any());
-            this.chatService = new ReactAgentChatService(presetService, runtimeFactory, auditService,
+            this.chatService = new ReactAgentChatService(presetService, runtimeFactory, auditService, runAuditService,
                     Schedulers.immediate(), userContext);
         }
     }
