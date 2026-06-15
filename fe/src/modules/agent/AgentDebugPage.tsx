@@ -443,7 +443,7 @@ function defaultFormValues(): DebugFormValues {
         topP: 0.9,
         enableThinking: true,
         enableSearch: false,
-        multiModel: true,
+        multiModel: false,
         parallelToolExecution: false,
         maxParallelTools: 5,
         toolExecutionTimeoutSeconds: 300,

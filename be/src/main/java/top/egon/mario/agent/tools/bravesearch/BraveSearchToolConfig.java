@@ -1,8 +1,10 @@
 package top.egon.mario.agent.tools.bravesearch;
 
+import com.alibaba.cloud.ai.toolcalling.bravesearch.BraveSearchConstants;
 import com.alibaba.cloud.ai.toolcalling.bravesearch.BraveSearchService;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.function.FunctionToolCallback;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -18,6 +20,8 @@ public class BraveSearchToolConfig {
      * Creates the tool callback consumed by ReactAgent.
      */
     @Bean
+    @ConditionalOnProperty(prefix = BraveSearchConstants.CONFIG_PREFIX, name = "enabled", havingValue = "true",
+            matchIfMissing = true)
     public ToolCallback searchBraveWebToolCallback(BraveSearchService braveSearchService) {
         return FunctionToolCallback
                 .builder(SEARCH_BRAVE_WEB_TOOL, braveSearchService)

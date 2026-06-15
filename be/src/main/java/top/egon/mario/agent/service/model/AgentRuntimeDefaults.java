@@ -22,7 +22,7 @@ public record AgentRuntimeDefaults(
         return new AgentRuntimeDefaults(
                 new AgentModelConfig(ModelProviderType.DASHSCOPE, "qwen3.6-max-preview"),
                 new ModelOptions(BigDecimal.valueOf(0.7), null, BigDecimal.valueOf(0.9), null,
-                        true, null, null, true, Map.of()),
+                        true, null, null, false, Map.of()),
                 """
                         You are CyberMario, a concise and helpful conversational assistant.
                         Answer user questions directly and keep the conversation context by thread.

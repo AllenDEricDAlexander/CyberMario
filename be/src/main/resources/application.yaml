@@ -99,10 +99,10 @@ spring:
           enabled: true
           api-key: ${SERPAPI_KEY:${SEARCH_API_KEY:}}
         bravesearch:
-          enabled: true
+          enabled: false
           api-key: ${BRAVE_SEARCH_API_KEY:}
         wikipedia:
-          enabled: true
+          enabled: false
           language: en
           limit: 10
 

@@ -1,8 +1,10 @@
 package top.egon.mario.agent.tools.wikipedia;
 
+import com.alibaba.cloud.ai.toolcalling.wikipedia.WikipediaConstants;
 import com.alibaba.cloud.ai.toolcalling.wikipedia.WikipediaService;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.function.FunctionToolCallback;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -18,6 +20,8 @@ public class WikipediaToolConfig {
      * Creates the tool callback consumed by ReactAgent.
      */
     @Bean
+    @ConditionalOnProperty(prefix = WikipediaConstants.CONFIG_PREFIX, name = "enabled", havingValue = "true",
+            matchIfMissing = true)
     public ToolCallback searchWikipediaToolCallback(WikipediaService wikipediaService) {
         return FunctionToolCallback
                 .builder(SEARCH_WIKIPEDIA_TOOL, wikipediaService)

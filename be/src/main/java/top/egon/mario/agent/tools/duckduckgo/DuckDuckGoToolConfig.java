@@ -1,8 +1,10 @@
 package top.egon.mario.agent.tools.duckduckgo;
 
+import com.alibaba.cloud.ai.toolcalling.duckduckgo.DuckDuckGoConstants;
 import com.alibaba.cloud.ai.toolcalling.duckduckgo.DuckDuckGoQueryNewsService;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.function.FunctionToolCallback;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -18,6 +20,8 @@ public class DuckDuckGoToolConfig {
      * Creates the tool callback consumed by ReactAgent.
      */
     @Bean
+    @ConditionalOnProperty(prefix = DuckDuckGoConstants.CONFIG_PREFIX, name = "enabled", havingValue = "true",
+            matchIfMissing = true)
     public ToolCallback searchDuckDuckGoNewsToolCallback(DuckDuckGoQueryNewsService duckDuckGoQueryNewsService) {
         return FunctionToolCallback
                 .builder(SEARCH_DUCKDUCKGO_NEWS_TOOL, duckDuckGoQueryNewsService)

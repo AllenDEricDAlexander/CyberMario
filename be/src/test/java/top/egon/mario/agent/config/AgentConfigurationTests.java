@@ -29,7 +29,7 @@ class AgentConfigurationTests {
         assertThat(defaults.modelConfig().model()).isEqualTo("qwen3.6-max-preview");
         assertThat(defaults.modelOptions().temperature()).isEqualByComparingTo(BigDecimal.valueOf(0.7));
         assertThat(defaults.modelOptions().topP()).isEqualByComparingTo(BigDecimal.valueOf(0.9));
-        assertThat(defaults.modelOptions().multiModel()).isTrue();
+        assertThat(defaults.modelOptions().multiModel()).isFalse();
         assertThat(defaults.modelOptions().enableThinking()).isTrue();
         assertThat(defaults.systemPrompt()).contains("CyberMario");
     }
