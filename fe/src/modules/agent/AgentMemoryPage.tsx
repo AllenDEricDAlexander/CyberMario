@@ -1,13 +1,15 @@
-import {InboxOutlined, ReloadOutlined} from '@ant-design/icons'
+import {FolderOpenOutlined, InboxOutlined, ReloadOutlined} from '@ant-design/icons'
 import {App, Button, Card, Select, Space, Table, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useMemo, useState} from 'react'
+import {useNavigate} from 'react-router'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {PageToolbar} from '../../components/PageToolbar'
+import {canAccessAdminPath} from '../../layouts/AdminLayout/menu'
 import {resolveErrorMessage} from '../../services/request'
 import {voidify} from '../../utils/async'
-import {canUseRbacButton, useAuth} from '../auth/authStore'
+import {canUseRbacButton, hasAdminPermissionBypass, useAuth} from '../auth/authStore'
 import {archiveAgentMemorySession, getAgentLongTermMemory, getAgentMemorySessions} from './agentService'
 import type {
     AgentLongTermMemoryResponse,
@@ -30,6 +32,7 @@ const statusOptions: Array<{ label: string; value: AgentMemorySessionStatus }> =
 
 function AgentMemoryPage() {
     const {message} = App.useApp()
+    const navigate = useNavigate()
     const auth = useAuth()
     const [longTerm, setLongTerm] = useState<AgentLongTermMemoryResponse>()
     const [sessions, setSessions] = useState<AgentMemorySessionResponse[]>([])
@@ -37,6 +40,12 @@ function AgentMemoryPage() {
     const [status, setStatus] = useState<AgentMemorySessionStatus | undefined>()
     const [loading, setLoading] = useState(false)
     const canArchive = canUseRbacButton(auth, memoryButtonCodes.session.archive)
+    const canOpenArchive = canAccessAdminPath(
+        '/agent/memory/archive',
+        auth.menus,
+        hasAdminPermissionBypass(auth),
+        auth.roleCodes,
+    )
 
     const load = useCallback(async () => {
         setLoading(true)
@@ -105,7 +114,17 @@ function AgentMemoryPage() {
     return (
         <>
             <PageToolbar
-                actions={<Button icon={<ReloadOutlined/>} loading={loading} onClick={voidify(load)}>刷新</Button>}
+                actions={(
+                    <>
+                        {canOpenArchive && (
+                            <Button icon={<FolderOpenOutlined/>}
+                                    onClick={() => void navigate('/agent/memory/archive')}>
+                                归档会话
+                            </Button>
+                        )}
+                        <Button icon={<ReloadOutlined/>} loading={loading} onClick={voidify(load)}>刷新</Button>
+                    </>
+                )}
                 description="查看当前用户的长期记忆和未归档会话。"
                 title="记忆管理"
             />

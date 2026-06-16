@@ -23,6 +23,66 @@ type KnowledgeBaseGrantFormValues = {
     users?: Array<{ userId: number; accessLevel: string }>
 }
 
+type KnowledgeBaseTableColumnsOptions = {
+    canEdit: boolean
+    canGrantUsers: boolean
+    canDelete: boolean
+    onEdit: (record: KnowledgeBaseResponse) => void
+    onGrantUsers: (record: KnowledgeBaseResponse) => void | Promise<void>
+    onDelete: (id: number) => void | Promise<void>
+}
+
+export const knowledgeBaseTableScrollX = 1400
+
+export function knowledgeBaseTableColumns(options: KnowledgeBaseTableColumnsOptions): ColumnsType<KnowledgeBaseResponse> {
+    const {canEdit, canGrantUsers, canDelete, onEdit, onGrantUsers, onDelete} = options
+    return [
+        {title: '名称', dataIndex: 'name', width: 180},
+        {title: '编码', dataIndex: 'code', width: 180},
+        {title: 'TopK', dataIndex: 'defaultTopK', width: 90},
+        {title: '模式', dataIndex: 'defaultSearchMode', width: 120, render: (value) => <Tag color="blue">{value}</Tag>},
+        {
+            title: 'Rerank',
+            dataIndex: 'rerankEnabled',
+            width: 90,
+            render: (value) => <Tag color={value ? 'purple' : 'default'}>{value ? '开启' : '关闭'}</Tag>,
+        },
+        {title: '阈值', dataIndex: 'defaultSimilarityThreshold', width: 100},
+        {
+            title: '状态',
+            dataIndex: 'status',
+            width: 100,
+            render: (value) => <Tag color={value === 'ENABLED' ? 'success' : 'default'}>{value}</Tag>,
+        },
+        {
+            title: '描述',
+            dataIndex: 'description',
+            width: 260,
+            ellipsis: true,
+            render: (_, record) => record.description || '-'
+        },
+        {
+            title: '操作',
+            fixed: 'right',
+            width: 260,
+            render: (_, record) => (
+                <Space>
+                    {canEdit &&
+                        <Button icon={<EditOutlined/>} size="small" onClick={() => onEdit(record)}>编辑</Button>}
+                    {canGrantUsers &&
+                        <Button icon={<TeamOutlined/>} size="small"
+                                onClick={() => void onGrantUsers(record)}>用户</Button>}
+                    {canDelete && (
+                        <Popconfirm title="确认删除该知识库？" onConfirm={() => void onDelete(record.id)}>
+                            <Button danger size="small">删除</Button>
+                        </Popconfirm>
+                    )}
+                </Space>
+            ),
+        },
+    ]
+}
+
 function KnowledgeBaseListPage() {
     const auth = useAuth()
     const {message} = App.useApp()
@@ -106,45 +166,14 @@ function KnowledgeBaseListPage() {
         }
     }
 
-    const columns: ColumnsType<KnowledgeBaseResponse> = [
-        {title: '名称', dataIndex: 'name', width: 180},
-        {title: '编码', dataIndex: 'code', width: 180},
-        {title: 'TopK', dataIndex: 'defaultTopK', width: 90},
-        {title: '模式', dataIndex: 'defaultSearchMode', width: 120, render: (value) => <Tag color="blue">{value}</Tag>},
-        {
-            title: 'Rerank',
-            dataIndex: 'rerankEnabled',
-            width: 90,
-            render: (value) => <Tag color={value ? 'purple' : 'default'}>{value ? '开启' : '关闭'}</Tag>,
-        },
-        {title: '阈值', dataIndex: 'defaultSimilarityThreshold', width: 100},
-        {
-            title: '状态',
-            dataIndex: 'status',
-            width: 100,
-            render: (value) => <Tag color={value === 'ENABLED' ? 'success' : 'default'}>{value}</Tag>,
-        },
-        {title: '描述', dataIndex: 'description', render: (_, record) => record.description || '-'},
-        {
-            title: '操作',
-            fixed: 'right',
-            width: 260,
-            render: (_, record) => (
-                <Space>
-                    {canEdit &&
-                        <Button icon={<EditOutlined/>} size="small" onClick={() => openEditor(record)}>编辑</Button>}
-                    {canGrantUsers &&
-                        <Button icon={<TeamOutlined/>} size="small"
-                                onClick={() => void openGrants(record)}>用户</Button>}
-                    {canDelete && (
-                        <Popconfirm title="确认删除该知识库？" onConfirm={() => void remove(record.id)}>
-                            <Button danger size="small">删除</Button>
-                        </Popconfirm>
-                    )}
-                </Space>
-            ),
-        },
-    ]
+    const columns = knowledgeBaseTableColumns({
+        canEdit,
+        canGrantUsers,
+        canDelete,
+        onEdit: openEditor,
+        onGrantUsers: openGrants,
+        onDelete: remove,
+    })
 
     return (
         <>
@@ -160,7 +189,7 @@ function KnowledgeBaseListPage() {
                 loading={loading}
                 pagination={{current: page, pageSize: size, total, showSizeChanger: true, onChange: voidify(load)}}
                 rowKey="id"
-                scroll={{x: 1100}}
+                scroll={{x: knowledgeBaseTableScrollX}}
             />
             <Modal
                 confirmLoading={saving}

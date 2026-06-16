@@ -5,7 +5,13 @@ import {Outlet, useLocation, useNavigate} from 'react-router'
 import {VisualBackdrop} from '../../components/VisualBackdrop'
 import {hasAdminPermissionBypass, useAuth} from '../../modules/auth/authStore'
 import {voidify} from '../../utils/async'
-import {buildAuthorizedAdminMenuItems, canAccessAdminPath, findMenuPath, flattenMenuKeys} from './menu'
+import {
+    buildAuthorizedAdminMenuItems,
+    canAccessAdminPath,
+    findMenuPath,
+    flattenMenuKeys,
+    selectedAdminMenuKey,
+} from './menu'
 import {isCurrentPathAffectedByLostButtons} from './permissionImpact'
 
 const {Header, Sider, Content} = Layout
@@ -28,7 +34,7 @@ export function AdminLayout() {
     )
 
     const selectedKeys = useMemo(() => {
-        const matched = menuKeys.find((key) => location.pathname === key || location.pathname.startsWith(`${key}/`))
+        const matched = selectedAdminMenuKey(location.pathname, menuKeys)
         return matched ? [matched] : ['/chat']
     }, [location.pathname, menuKeys])
 

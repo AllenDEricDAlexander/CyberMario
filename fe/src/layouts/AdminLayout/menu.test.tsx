@@ -1,6 +1,12 @@
 import {describe, expect, test} from 'vitest'
 import type {MenuTreeResponse} from '../../modules/rbac/rbacTypes'
-import {buildAuthorizedAdminMenuItems, canAccessAdminPath, firstAuthorizedMenuPath, flattenMenuKeys} from './menu'
+import {
+    buildAuthorizedAdminMenuItems,
+    canAccessAdminPath,
+    firstAuthorizedMenuPath,
+    flattenMenuKeys,
+    selectedAdminMenuKey,
+} from './menu'
 
 const menuTree: MenuTreeResponse[] = [
     {
@@ -173,6 +179,17 @@ describe('admin menu authorization', () => {
 
     test('returns the first authorized path for default navigation', () => {
         expect(firstAuthorizedMenuPath(menuTree, false)).toBe('/dashboard')
+    })
+
+    test('selects the most specific menu key for nested routes', () => {
+        expect(selectedAdminMenuKey('/agent/memory/archive', [
+            '/agent/memory',
+            '/agent/memory/archive',
+        ])).toBe('/agent/memory/archive')
+        expect(selectedAdminMenuKey('/agent/memory/archive/session-1', [
+            '/agent/memory',
+            '/agent/memory/archive',
+        ])).toBe('/agent/memory/archive')
     })
 
     test('hides arxiv logs unless user has super admin role', () => {

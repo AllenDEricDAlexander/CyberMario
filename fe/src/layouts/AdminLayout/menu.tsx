@@ -14,14 +14,14 @@ import {
     InboxOutlined,
     MenuOutlined,
     MessageOutlined,
+    NodeIndexOutlined,
+    ProfileOutlined,
     SafetyCertificateOutlined,
     SearchOutlined,
     SettingOutlined,
     SyncOutlined,
     TeamOutlined,
     ToolOutlined,
-    NodeIndexOutlined,
-    ProfileOutlined,
 } from '@ant-design/icons'
 import type {MenuProps} from 'antd'
 import type {MenuTreeResponse} from '../../modules/rbac/rbacTypes'
@@ -224,6 +224,12 @@ export function flattenMenuKeys(items: AdminMenuItem[]) {
         }
     }
     return keys
+}
+
+export function selectedAdminMenuKey(pathname: string, menuKeys: string[]) {
+    return menuKeys
+        .filter((key) => pathname === key || pathname.startsWith(`${key}/`))
+        .sort((left, right) => right.length - left.length)[0]
 }
 
 export function canAccessAdminPath(pathname: string, menus: MenuTreeResponse[], canBypass: boolean, roleCodes: string[] = []) {
