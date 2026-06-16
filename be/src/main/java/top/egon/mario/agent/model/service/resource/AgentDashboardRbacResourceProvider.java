@@ -28,7 +28,7 @@ public class AgentDashboardRbacResourceProvider implements RbacResourceProvider 
 
     @Override
     public List<RbacResourceSeed> resources() {
-        return List.of(dashboardMenu(), arxivLogCollectionApi(), arxivLogApi());
+        return List.of(dashboardMenu(), dashboardSelfApi(), dashboardGlobalApi(), arxivLogCollectionApi(), arxivLogApi());
     }
 
     @Override
@@ -56,6 +56,34 @@ public class AgentDashboardRbacResourceProvider implements RbacResourceProvider 
                 10,
                 "AI model usage dashboard",
                 new RbacMenuSeed("dashboard", "/dashboard", null, null, "DashboardOutlined", false, true, null),
+                RbacResourceSource.PROVIDER
+        );
+    }
+
+    private RbacResourceSeed dashboardSelfApi() {
+        return RbacResourceSeed.api(
+                APP_CODE,
+                APP_CODE,
+                "api:agent:model-audit:dashboard:self",
+                "AI 用量个人控制台",
+                PermissionStatus.ENABLED,
+                0,
+                "Personal AI model usage dashboard APIs",
+                new RbacApiSeed("GET", "/api/agent/model-audit/dashboard/self/**", ApiMatcherType.ANT, false, ApiRiskLevel.MEDIUM),
+                RbacResourceSource.PROVIDER
+        );
+    }
+
+    private RbacResourceSeed dashboardGlobalApi() {
+        return RbacResourceSeed.api(
+                APP_CODE,
+                APP_CODE,
+                "api:agent:model-audit:dashboard:global",
+                "AI 用量全局控制台",
+                PermissionStatus.ENABLED,
+                0,
+                "Global AI model usage dashboard APIs",
+                new RbacApiSeed("GET", "/api/agent/model-audit/dashboard/global/**", ApiMatcherType.ANT, false, ApiRiskLevel.HIGH),
                 RbacResourceSource.PROVIDER
         );
     }

@@ -297,9 +297,15 @@ class RbacResourceSynchronizerTests {
         RolePo rbacAdminRole = roleRepository.save(role("RBAC_ADMIN", true));
         synchronizer.synchronize("agent", List.of(
                 dashboardMenuSeed(),
-                dashboardApiSeed("api:agent:model-audit:dashboard:self", "/api/agent/model-audit/dashboard/self"),
-                dashboardApiSeed("api:agent:model-audit:dashboard:global", "/api/agent/model-audit/dashboard/global"),
-                dashboardApiSeed("api:agent:model-audit:dashboard:user-options", "/api/agent/model-audit/dashboard/user-options")
+                dashboardApiSeed("api:agent:model-audit:dashboard:self",
+                        "/api/agent/model-audit/dashboard/self/**",
+                        ApiMatcherType.ANT),
+                dashboardApiSeed("api:agent:model-audit:dashboard:global",
+                        "/api/agent/model-audit/dashboard/global/**",
+                        ApiMatcherType.ANT),
+                dashboardApiSeed("api:agent:model-audit:dashboard:user-options",
+                        "/api/agent/model-audit/dashboard/user-options",
+                        ApiMatcherType.EXACT)
         ), List.of());
 
         synchronizer.synchronize("agent", List.of(), List.of(
@@ -415,7 +421,7 @@ class RbacResourceSynchronizerTests {
         );
     }
 
-    private RbacResourceSeed dashboardApiSeed(String code, String pattern) {
+    private RbacResourceSeed dashboardApiSeed(String code, String pattern, ApiMatcherType matcherType) {
         return RbacResourceSeed.api(
                 "agent",
                 "agent",
@@ -424,7 +430,7 @@ class RbacResourceSynchronizerTests {
                 PermissionStatus.ENABLED,
                 0,
                 null,
-                new RbacApiSeed("GET", pattern, ApiMatcherType.EXACT, false, ApiRiskLevel.HIGH),
+                new RbacApiSeed("GET", pattern, matcherType, false, ApiRiskLevel.HIGH),
                 RbacResourceSource.ANNOTATION
         );
     }

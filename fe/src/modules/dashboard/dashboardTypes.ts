@@ -1,3 +1,5 @@
+import type {PageResult} from '../../types/api'
+
 export type ModelAuditDashboardScope = 'SELF' | 'GLOBAL'
 export type ModelAuditProvider = 'DASHSCOPE'
 export type ModelAuditScenario = 'UNKNOWN' | 'AGENT_CHAT' | 'RAG_CHAT' | 'RAG_SUMMARY' | 'BACKGROUND_TASK'
@@ -72,7 +74,7 @@ export type ModelAuditUserOption = {
     nickname?: string
 }
 
-export type ModelAuditDashboardResponse = {
+export type ModelAuditDashboardSummaryResponse = {
     scope: ModelAuditDashboardScope
     startAt: string
     endAt: string
@@ -84,5 +86,6 @@ export type ModelAuditDashboardResponse = {
     scenarioStats: ModelAuditDimensionStat[]
     statusStats: ModelAuditDimensionStat[]
     userStats: ModelAuditUserStat[]
-    recentCalls: ModelAuditRecentCall[]
 }
+
+export type ModelAuditRecentCallPage = PageResult<ModelAuditRecentCall>

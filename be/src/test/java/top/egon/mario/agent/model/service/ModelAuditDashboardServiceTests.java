@@ -4,12 +4,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import top.egon.mario.agent.model.dto.enums.ModelAuditDashboardScope;
 import top.egon.mario.agent.model.dto.enums.ModelProviderType;
 import top.egon.mario.agent.model.dto.enums.ModelScenario;
 import top.egon.mario.agent.model.dto.request.ModelAuditDashboardQuery;
-import top.egon.mario.agent.model.dto.response.ModelAuditDashboardResponse;
+import top.egon.mario.agent.model.dto.response.ModelAuditDashboardSummaryResponse;
 import top.egon.mario.agent.model.dto.response.ModelAuditDimensionStatResponse;
+import top.egon.mario.agent.model.dto.response.ModelAuditRecentCallResponse;
 import top.egon.mario.agent.model.dto.response.ModelAuditUserOptionResponse;
 import top.egon.mario.agent.model.po.ModelAuditPo;
 import top.egon.mario.agent.model.po.enums.ModelAuditStatus;
@@ -62,12 +65,12 @@ class ModelAuditDashboardServiceTests {
     }
 
     @Test
-    void selfDashboardOnlyAggregatesCurrentUser() {
+    void selfSummaryOnlyAggregatesCurrentUserAndDoesNotExposeUserStats() {
         audit(mario.getId(), "qwen-plus", ModelScenario.AGENT_CHAT, ModelAuditStatus.SUCCESS, 12, 8, 20, 120);
         audit(mario.getId(), "qwen-plus", ModelScenario.AGENT_CHAT, ModelAuditStatus.FAILED, 3, 0, 3, 40);
         audit(luigi.getId(), "qwen-max", ModelScenario.RAG_CHAT, ModelAuditStatus.SUCCESS, 30, 10, 40, 90);
 
-        ModelAuditDashboardResponse response = dashboardService.self(query(null), selfPrincipal(mario.getId()));
+        ModelAuditDashboardSummaryResponse response = dashboardService.selfSummary(query(null), selfPrincipal(mario.getId()));
 
         assertThat(response.scope()).isEqualTo(ModelAuditDashboardScope.SELF);
         assertThat(response.overview().callCount()).isEqualTo(2L);
@@ -79,25 +82,60 @@ class ModelAuditDashboardServiceTests {
     }
 
     @Test
-    void selfDashboardRejectsForeignUserFilter() {
-        assertThatThrownBy(() -> dashboardService.self(query(luigi.getId()), selfPrincipal(mario.getId())))
+    void selfRecentCallsArePagedAndScopedToCurrentUser() {
+        audit(mario.getId(), "qwen-plus", ModelScenario.AGENT_CHAT, ModelAuditStatus.SUCCESS, 1, 1, 2, 20);
+        audit(mario.getId(), "qwen-max", ModelScenario.RAG_CHAT, ModelAuditStatus.SUCCESS, 2, 2, 4, 40);
+        audit(mario.getId(), "qwen-turbo", ModelScenario.BACKGROUND_TASK, ModelAuditStatus.FAILED, 3, 3, 6, 60);
+        audit(luigi.getId(), "qwen-leaked", ModelScenario.RAG_CHAT, ModelAuditStatus.SUCCESS, 20, 20, 40, 90);
+
+        Page<ModelAuditRecentCallResponse> page = dashboardService.selfRecentCalls(
+                query(null),
+                PageRequest.of(0, 2),
+                selfPrincipal(mario.getId()));
+
+        assertThat(page.getTotalElements()).isEqualTo(3L);
+        assertThat(page.getContent()).hasSize(2);
+        assertThat(page.getContent())
+                .extracting(ModelAuditRecentCallResponse::model)
+                .containsExactly("qwen-turbo", "qwen-max");
+        assertThat(page.getContent())
+                .extracting(ModelAuditRecentCallResponse::userId)
+                .containsOnly(mario.getId());
+    }
+
+    @Test
+    void selfRecentCallsRejectForeignUserFilter() {
+        assertThatThrownBy(() -> dashboardService.selfRecentCalls(
+                query(luigi.getId()),
+                PageRequest.of(0, 20),
+                selfPrincipal(mario.getId())))
                 .isInstanceOf(RbacException.class)
                 .hasMessageContaining("MODEL_AUDIT_DASHBOARD_FORBIDDEN");
     }
 
     @Test
-    void globalDashboardRequiresAdministratorAuthority() {
-        assertThatThrownBy(() -> dashboardService.global(query(null), selfPrincipal(mario.getId())))
+    void globalSummaryRequiresAdministratorAuthority() {
+        assertThatThrownBy(() -> dashboardService.globalSummary(query(null), selfPrincipal(mario.getId())))
                 .isInstanceOf(RbacException.class)
                 .hasMessageContaining("MODEL_AUDIT_DASHBOARD_FORBIDDEN");
     }
 
     @Test
-    void globalDashboardAllowsAdministratorUserFilter() {
+    void globalRecentCallsRequiresAdministratorAuthority() {
+        assertThatThrownBy(() -> dashboardService.globalRecentCalls(
+                query(null),
+                PageRequest.of(0, 20),
+                selfPrincipal(mario.getId())))
+                .isInstanceOf(RbacException.class)
+                .hasMessageContaining("MODEL_AUDIT_DASHBOARD_FORBIDDEN");
+    }
+
+    @Test
+    void globalSummaryAllowsAdministratorUserFilter() {
         audit(mario.getId(), "qwen-plus", ModelScenario.AGENT_CHAT, ModelAuditStatus.SUCCESS, 12, 8, 20, 120);
         audit(luigi.getId(), "qwen-max", ModelScenario.RAG_CHAT, ModelAuditStatus.SUCCESS, 30, 10, 40, 90);
 
-        ModelAuditDashboardResponse response = dashboardService.global(query(luigi.getId()), adminPrincipal());
+        ModelAuditDashboardSummaryResponse response = dashboardService.globalSummary(query(luigi.getId()), adminPrincipal());
 
         assertThat(response.scope()).isEqualTo(ModelAuditDashboardScope.GLOBAL);
         assertThat(response.overview().callCount()).isEqualTo(1L);
@@ -105,6 +143,26 @@ class ModelAuditDashboardServiceTests {
         assertThat(response.userStats()).hasSize(1);
         assertThat(response.userStats().getFirst().userId()).isEqualTo(luigi.getId());
         assertThat(response.userStats().getFirst().username()).isEqualTo("luigi");
+    }
+
+    @Test
+    void globalRecentCallsReturnRequestedUserPage() {
+        audit(mario.getId(), "qwen-plus", ModelScenario.AGENT_CHAT, ModelAuditStatus.SUCCESS, 12, 8, 20, 120);
+        audit(luigi.getId(), "qwen-max", ModelScenario.RAG_CHAT, ModelAuditStatus.SUCCESS, 30, 10, 40, 90);
+        audit(luigi.getId(), "qwen-turbo", ModelScenario.RAG_SUMMARY, ModelAuditStatus.FAILED, 30, 30, 60, 35);
+
+        Page<ModelAuditRecentCallResponse> page = dashboardService.globalRecentCalls(
+                query(luigi.getId()),
+                PageRequest.of(0, 10),
+                adminPrincipal());
+
+        assertThat(page.getTotalElements()).isEqualTo(2L);
+        assertThat(page.getContent())
+                .extracting(ModelAuditRecentCallResponse::model)
+                .containsExactly("qwen-turbo", "qwen-max");
+        assertThat(page.getContent())
+                .extracting(ModelAuditRecentCallResponse::username)
+                .containsOnly("luigi");
     }
 
     @Test

@@ -7,7 +7,10 @@ import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
@@ -43,6 +46,29 @@ public class ModelAuditDashboardRepository {
         return entityManager.createQuery(cq)
                 .setMaxResults(limit)
                 .getResultList();
+    }
+
+    public Page<ModelAuditPo> recentCalls(ModelAuditDashboardQuery query, Pageable pageable) {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<ModelAuditPo> cq = cb.createQuery(ModelAuditPo.class);
+        Root<ModelAuditPo> root = cq.from(ModelAuditPo.class);
+        cq.select(root)
+                .where(predicates(cb, root, query).toArray(new Predicate[0]))
+                .orderBy(cb.desc(root.get("createdAt")), cb.desc(root.get("id")));
+        List<ModelAuditPo> content = entityManager.createQuery(cq)
+                .setFirstResult((int) pageable.getOffset())
+                .setMaxResults(pageable.getPageSize())
+                .getResultList();
+        return new PageImpl<>(content, pageable, countAudits(query));
+    }
+
+    private long countAudits(ModelAuditDashboardQuery query) {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Long> cq = cb.createQuery(Long.class);
+        Root<ModelAuditPo> root = cq.from(ModelAuditPo.class);
+        cq.select(cb.count(root))
+                .where(predicates(cb, root, query).toArray(new Predicate[0]));
+        return entityManager.createQuery(cq).getSingleResult();
     }
 
     public List<DimensionRow> dimensionStats(ModelAuditDashboardQuery query, String fieldName, int limit) {

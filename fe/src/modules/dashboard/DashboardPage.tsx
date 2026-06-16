@@ -1,5 +1,5 @@
 import {DashboardOutlined, ReloadOutlined, ThunderboltOutlined, UserOutlined,} from '@ant-design/icons'
-import {Bar, Column, Line, Pie} from '@ant-design/charts'
+import {Column, Line, Pie} from '@ant-design/charts'
 import {App, Button, Card, Col, DatePicker, Empty, Row, Segmented, Select, Space, Statistic, Table, Tag} from 'antd'
 import type {RangePickerProps} from 'antd/es/date-picker'
 import type {ColumnsType} from 'antd/es/table'
@@ -8,11 +8,11 @@ import {useEffect, useMemo, useState} from 'react'
 import {DateTimeText} from '../../components/DateTimeText'
 import {PageToolbar} from '../../components/PageToolbar'
 import {hasAdminPermissionBypass, useAuth} from '../auth/authStore'
-import {getModelAuditDashboard, getModelAuditUserOptions} from './dashboardService'
+import {getModelAuditDashboardSummary, getModelAuditRecentCalls, getModelAuditUserOptions} from './dashboardService'
 import type {
     ModelAuditDashboardQuery,
-    ModelAuditDashboardResponse,
     ModelAuditDashboardScope,
+    ModelAuditDashboardSummaryResponse,
     ModelAuditRecentCall,
     ModelAuditUserOption,
 } from './dashboardTypes'
@@ -34,31 +34,61 @@ function DashboardPage() {
     const [status, setStatus] = useState<string>()
     const [userId, setUserId] = useState<number>()
     const [userOptions, setUserOptions] = useState<ModelAuditUserOption[]>([])
-    const [loading, setLoading] = useState(false)
+    const [summaryLoading, setSummaryLoading] = useState(false)
+    const [recentLoading, setRecentLoading] = useState(false)
     const [userLoading, setUserLoading] = useState(false)
-    const [data, setData] = useState<ModelAuditDashboardResponse>()
+    const [summary, setSummary] = useState<ModelAuditDashboardSummaryResponse>()
+    const [recentCalls, setRecentCalls] = useState<ModelAuditRecentCall[]>([])
+    const [recentPage, setRecentPage] = useState(1)
+    const [recentSize, setRecentSize] = useState(20)
+    const [recentTotal, setRecentTotal] = useState(0)
 
     const effectiveScope = canViewGlobal ? scope : 'SELF'
 
-    async function load() {
-        setLoading(true)
+    function buildQuery(): ModelAuditDashboardQuery {
+        return {
+            scope: effectiveScope,
+            startAt: range?.[0]?.toISOString(),
+            endAt: range?.[1]?.toISOString(),
+            userId: effectiveScope === 'GLOBAL' ? userId : undefined,
+            provider: provider as ModelAuditDashboardQuery['provider'],
+            model,
+            scenario: scenario as ModelAuditDashboardQuery['scenario'],
+            status: status as ModelAuditDashboardQuery['status'],
+        }
+    }
+
+    async function loadSummary() {
+        setSummaryLoading(true)
         try {
-            const request: ModelAuditDashboardQuery = {
-                scope: effectiveScope,
-                startAt: range?.[0]?.toISOString(),
-                endAt: range?.[1]?.toISOString(),
-                userId: effectiveScope === 'GLOBAL' ? userId : undefined,
-                provider: provider as ModelAuditDashboardQuery['provider'],
-                model,
-                scenario: scenario as ModelAuditDashboardQuery['scenario'],
-                status: status as ModelAuditDashboardQuery['status'],
-            }
-            setData(await getModelAuditDashboard(request))
+            setSummary(await getModelAuditDashboardSummary(buildQuery()))
         } catch (error) {
             message.error((error as Error).message)
         } finally {
-            setLoading(false)
+            setSummaryLoading(false)
         }
+    }
+
+    async function loadRecent(nextPage = recentPage, nextSize = recentSize) {
+        setRecentLoading(true)
+        try {
+            const page = await getModelAuditRecentCalls(buildQuery(), nextPage, nextSize)
+            setRecentCalls(page.records)
+            setRecentPage(page.page)
+            setRecentSize(page.size)
+            setRecentTotal(page.total)
+        } catch (error) {
+            message.error((error as Error).message)
+        } finally {
+            setRecentLoading(false)
+        }
+    }
+
+    async function loadDashboard() {
+        await Promise.all([
+            loadSummary(),
+            loadRecent(1, recentSize),
+        ])
     }
 
     async function searchUsers(keyword: string) {
@@ -75,7 +105,7 @@ function DashboardPage() {
         if (effectiveScope !== 'GLOBAL') {
             setUserId(undefined)
         }
-        void load()
+        void loadDashboard()
     }, [effectiveScope])
 
     const recentColumns: ColumnsType<ModelAuditRecentCall> = [
@@ -99,7 +129,8 @@ function DashboardPage() {
         <>
             <PageToolbar
                 actions={
-                    <Button icon={<ReloadOutlined/>} loading={loading} onClick={() => void load()} type="primary">
+                    <Button icon={<ReloadOutlined/>} loading={summaryLoading || recentLoading}
+                            onClick={() => void loadDashboard()} type="primary">
                         刷新
                     </Button>
                 }
@@ -126,13 +157,11 @@ function DashboardPage() {
                     {canViewGlobal && effectiveScope === 'GLOBAL' && (
                         <Select
                             allowClear
-                            filterOption={false}
                             loading={userLoading}
                             onChange={setUserId}
-                            onSearch={(value) => void searchUsers(value)}
                             options={userOptions.map((user) => ({label: userOptionLabel(user), value: user.id}))}
                             placeholder="选择用户"
-                            showSearch
+                            showSearch={{filterOption: false, onSearch: (value) => void searchUsers(value)}}
                             style={{width: 240}}
                             value={userId}
                         />
@@ -148,7 +177,7 @@ function DashboardPage() {
                     <Select
                         allowClear
                         onChange={setModel}
-                        options={modelOptions(data)}
+                        options={modelOptions(summary)}
                         placeholder="模型"
                         showSearch
                         style={{width: 220}}
@@ -171,28 +200,29 @@ function DashboardPage() {
                         style={{width: 140}}
                         value={status}
                     />
-                    <Button onClick={() => void load()}>查询</Button>
+                    <Button onClick={() => void loadDashboard()}>查询</Button>
                 </Space>
             </Card>
 
             <Row gutter={[16, 16]} style={{marginTop: 16}}>
-                <MetricCard icon={<DashboardOutlined/>} loading={loading} title="调用次数"
-                            value={data?.overview.callCount ?? 0}/>
-                <MetricCard icon={<ThunderboltOutlined/>} loading={loading} title="总 Token"
-                            value={data?.overview.totalTokens ?? 0}/>
-                <MetricCard loading={loading} title="输入 Token" value={data?.overview.promptTokens ?? 0}/>
-                <MetricCard loading={loading} title="输出 Token" value={data?.overview.completionTokens ?? 0}/>
-                <MetricCard loading={loading} suffix="%" title="成功率"
-                            value={((data?.overview.successRate ?? 0) * 100).toFixed(1)}/>
-                <MetricCard loading={loading} suffix="ms" title="平均耗时"
-                            value={Math.round(data?.overview.avgDurationMs ?? 0)}/>
+                <MetricCard icon={<DashboardOutlined/>} loading={summaryLoading} title="调用次数"
+                            value={summary?.overview.callCount ?? 0}/>
+                <MetricCard icon={<ThunderboltOutlined/>} loading={summaryLoading} title="总 Token"
+                            value={summary?.overview.totalTokens ?? 0}/>
+                <MetricCard loading={summaryLoading} title="输入 Token" value={summary?.overview.promptTokens ?? 0}/>
+                <MetricCard loading={summaryLoading} title="输出 Token"
+                            value={summary?.overview.completionTokens ?? 0}/>
+                <MetricCard loading={summaryLoading} suffix="%" title="成功率"
+                            value={((summary?.overview.successRate ?? 0) * 100).toFixed(1)}/>
+                <MetricCard loading={summaryLoading} suffix="ms" title="平均耗时"
+                            value={Math.round(summary?.overview.avgDurationMs ?? 0)}/>
             </Row>
 
             <Row gutter={[16, 16]} style={{marginTop: 16}}>
                 <Col lg={14} xs={24}>
-                    <ChartCard empty={!data?.tokenTrend.length} title="Token 趋势">
+                    <ChartCard empty={!summary?.tokenTrend.length} title="Token 趋势">
                         <Line
-                            data={data?.tokenTrend ?? []}
+                            data={summary?.tokenTrend ?? []}
                             height={300}
                             theme={chartTheme}
                             xField="date"
@@ -203,9 +233,9 @@ function DashboardPage() {
                     </ChartCard>
                 </Col>
                 <Col lg={10} xs={24}>
-                    <ChartCard empty={!data?.callTrend.length} title="调用量趋势">
+                    <ChartCard empty={!summary?.callTrend.length} title="调用量趋势">
                         <Column
-                            data={data?.callTrend ?? []}
+                            data={summary?.callTrend ?? []}
                             height={300}
                             theme={chartTheme}
                             xField="date"
@@ -214,33 +244,33 @@ function DashboardPage() {
                     </ChartCard>
                 </Col>
                 <Col lg={12} xs={24}>
-                    <ChartCard empty={!data?.modelStats.length} title="模型 Token 排行">
-                        <Bar
-                            data={data?.modelStats ?? []}
+                    <ChartCard empty={!summary?.modelStats.length} title="模型 Token 排行">
+                        <Column
+                            data={summary?.modelStats ?? []}
                             height={320}
                             theme={chartTheme}
-                            xField="totalTokens"
-                            yField="name"
+                            xField="name"
+                            yField="totalTokens"
                         />
                     </ChartCard>
                 </Col>
                 <Col lg={6} xs={24}>
-                    <ChartCard empty={!data?.scenarioStats.length} title="场景分布">
+                    <ChartCard empty={!summary?.scenarioStats.length} title="场景分布">
                         <Pie
                             angleField="callCount"
                             colorField="name"
-                            data={data?.scenarioStats ?? []}
+                            data={summary?.scenarioStats ?? []}
                             height={320}
                             theme={chartTheme}
                         />
                     </ChartCard>
                 </Col>
                 <Col lg={6} xs={24}>
-                    <ChartCard empty={!data?.statusStats.length} title="状态分布">
+                    <ChartCard empty={!summary?.statusStats.length} title="状态分布">
                         <Pie
                             angleField="callCount"
                             colorField="name"
-                            data={data?.statusStats ?? []}
+                            data={summary?.statusStats ?? []}
                             height={320}
                             theme={chartTheme}
                         />
@@ -248,13 +278,13 @@ function DashboardPage() {
                 </Col>
                 {canViewGlobal && effectiveScope === 'GLOBAL' && (
                     <Col xs={24}>
-                        <ChartCard empty={!data?.userStats.length} title="用户 Token 排行">
-                            <Bar
-                                data={(data?.userStats ?? []).map((item) => ({...item, name: userStatLabel(item)}))}
+                        <ChartCard empty={!summary?.userStats.length} title="用户 Token 排行">
+                            <Column
+                                data={(summary?.userStats ?? []).map((item) => ({...item, name: userStatLabel(item)}))}
                                 height={320}
                                 theme={chartTheme}
-                                xField="totalTokens"
-                                yField="name"
+                                xField="name"
+                                yField="totalTokens"
                             />
                         </ChartCard>
                     </Col>
@@ -264,9 +294,15 @@ function DashboardPage() {
             <Card style={{marginTop: 16}} title="最近调用">
                 <Table<ModelAuditRecentCall>
                     columns={recentColumns}
-                    dataSource={data?.recentCalls ?? []}
-                    loading={loading}
-                    pagination={false}
+                    dataSource={recentCalls}
+                    loading={recentLoading}
+                    pagination={{
+                        current: recentPage,
+                        pageSize: recentSize,
+                        total: recentTotal,
+                        showSizeChanger: true,
+                        onChange: (page, size) => void loadRecent(page, size),
+                    }}
                     rowKey="id"
                     scroll={{x: 1350}}
                 />
@@ -299,7 +335,7 @@ function ChartCard(props: { title: string; empty: boolean; children: ReactNode }
     )
 }
 
-function modelOptions(data?: ModelAuditDashboardResponse) {
+function modelOptions(data?: ModelAuditDashboardSummaryResponse) {
     return (data?.modelStats ?? []).map((item) => ({label: item.name, value: item.name}))
 }
 

@@ -198,9 +198,15 @@ class RbacAdminBootstrapTests {
     void bootstrapGrantsSuperAdminAnnotationSynchronizedDashboardApis() {
         synchronizer.synchronize("agent", List.of(
                 dashboardMenuSeed(),
-                dashboardApiSeed("api:agent:model-audit:dashboard:self", "/api/agent/model-audit/dashboard/self"),
-                dashboardApiSeed("api:agent:model-audit:dashboard:global", "/api/agent/model-audit/dashboard/global"),
-                dashboardApiSeed("api:agent:model-audit:dashboard:user-options", "/api/agent/model-audit/dashboard/user-options")
+                dashboardApiSeed("api:agent:model-audit:dashboard:self",
+                        "/api/agent/model-audit/dashboard/self/**",
+                        ApiMatcherType.ANT),
+                dashboardApiSeed("api:agent:model-audit:dashboard:global",
+                        "/api/agent/model-audit/dashboard/global/**",
+                        ApiMatcherType.ANT),
+                dashboardApiSeed("api:agent:model-audit:dashboard:user-options",
+                        "/api/agent/model-audit/dashboard/user-options",
+                        ApiMatcherType.EXACT)
         ), List.of());
 
         adminBootstrap.bootstrap();
@@ -215,7 +221,9 @@ class RbacAdminBootstrapTests {
                 .contains(dashboardSelf.getId(), dashboardGlobal.getId(), dashboardUserOptions.getId(),
                         dashboardMenu.getId());
         assertThat(apiRepository.findById(dashboardGlobal.getId()).orElseThrow().getUrlPattern())
-                .isEqualTo("/api/agent/model-audit/dashboard/global");
+                .isEqualTo("/api/agent/model-audit/dashboard/global/**");
+        assertThat(apiRepository.findById(dashboardGlobal.getId()).orElseThrow().getMatcherType())
+                .isEqualTo(ApiMatcherType.ANT);
     }
 
     @Test
@@ -297,7 +305,7 @@ class RbacAdminBootstrapTests {
         );
     }
 
-    private RbacResourceSeed dashboardApiSeed(String code, String pattern) {
+    private RbacResourceSeed dashboardApiSeed(String code, String pattern, ApiMatcherType matcherType) {
         return RbacResourceSeed.api(
                 "agent",
                 "agent",
@@ -306,7 +314,7 @@ class RbacAdminBootstrapTests {
                 PermissionStatus.ENABLED,
                 0,
                 null,
-                new RbacApiSeed("GET", pattern, ApiMatcherType.EXACT, false, ApiRiskLevel.HIGH),
+                new RbacApiSeed("GET", pattern, matcherType, false, ApiRiskLevel.HIGH),
                 RbacResourceSource.ANNOTATION
         );
     }

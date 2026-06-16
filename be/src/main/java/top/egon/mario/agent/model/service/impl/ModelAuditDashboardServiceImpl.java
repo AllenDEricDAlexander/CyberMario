@@ -1,12 +1,15 @@
 package top.egon.mario.agent.model.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import top.egon.mario.agent.model.dto.enums.ModelAuditDashboardScope;
 import top.egon.mario.agent.model.dto.request.ModelAuditDashboardQuery;
-import top.egon.mario.agent.model.dto.response.ModelAuditDashboardResponse;
+import top.egon.mario.agent.model.dto.response.ModelAuditDashboardSummaryResponse;
 import top.egon.mario.agent.model.dto.response.ModelAuditDimensionStatResponse;
 import top.egon.mario.agent.model.dto.response.ModelAuditOverviewResponse;
 import top.egon.mario.agent.model.dto.response.ModelAuditRecentCallResponse;
@@ -46,28 +49,38 @@ public class ModelAuditDashboardServiceImpl implements ModelAuditDashboardServic
     private static final Duration DEFAULT_RANGE = Duration.ofDays(7);
     private static final Duration MAX_RANGE = Duration.ofDays(90);
     private static final int AUDIT_LIMIT = 100_000;
-    private static final int RECENT_LIMIT = 20;
     private static final int STAT_LIMIT = 20;
 
     private final ModelAuditDashboardRepository dashboardRepository;
 
     @Override
     @Transactional(readOnly = true)
-    public ModelAuditDashboardResponse self(ModelAuditDashboardQuery query, RbacPrincipal principal) {
-        requirePermission(principal, SELF_PERMISSION);
-        if (query != null && query.userId() != null && !Objects.equals(query.userId(), principal.userId())) {
-            throw forbidden();
-        }
-        ModelAuditDashboardQuery normalized = normalize(query, principal.userId());
-        return dashboard(ModelAuditDashboardScope.SELF, normalized, false);
+    public ModelAuditDashboardSummaryResponse selfSummary(ModelAuditDashboardQuery query, RbacPrincipal principal) {
+        ModelAuditDashboardQuery normalized = normalizeSelfQuery(query, principal);
+        return summary(ModelAuditDashboardScope.SELF, normalized, false);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public ModelAuditDashboardResponse global(ModelAuditDashboardQuery query, RbacPrincipal principal) {
-        requireGlobalPermission(principal);
-        ModelAuditDashboardQuery normalized = normalize(query, query == null ? null : query.userId());
-        return dashboard(ModelAuditDashboardScope.GLOBAL, normalized, true);
+    public ModelAuditDashboardSummaryResponse globalSummary(ModelAuditDashboardQuery query, RbacPrincipal principal) {
+        ModelAuditDashboardQuery normalized = normalizeGlobalQuery(query, principal);
+        return summary(ModelAuditDashboardScope.GLOBAL, normalized, true);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ModelAuditRecentCallResponse> selfRecentCalls(ModelAuditDashboardQuery query, Pageable pageable,
+                                                              RbacPrincipal principal) {
+        ModelAuditDashboardQuery normalized = normalizeSelfQuery(query, principal);
+        return recentCalls(normalized, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ModelAuditRecentCallResponse> globalRecentCalls(ModelAuditDashboardQuery query, Pageable pageable,
+                                                                RbacPrincipal principal) {
+        ModelAuditDashboardQuery normalized = normalizeGlobalQuery(query, principal);
+        return recentCalls(normalized, pageable);
     }
 
     @Override
@@ -77,13 +90,22 @@ public class ModelAuditDashboardServiceImpl implements ModelAuditDashboardServic
         return dashboardRepository.userOptions(keyword, Math.min(Math.max(size, 1), 50));
     }
 
-    private ModelAuditDashboardResponse dashboard(ModelAuditDashboardScope scope, ModelAuditDashboardQuery query, boolean includeUserStats) {
+    private ModelAuditDashboardQuery normalizeSelfQuery(ModelAuditDashboardQuery query, RbacPrincipal principal) {
+        requirePermission(principal, SELF_PERMISSION);
+        if (query != null && query.userId() != null && !Objects.equals(query.userId(), principal.userId())) {
+            throw forbidden();
+        }
+        return normalize(query, principal.userId());
+    }
+
+    private ModelAuditDashboardQuery normalizeGlobalQuery(ModelAuditDashboardQuery query, RbacPrincipal principal) {
+        requireGlobalPermission(principal);
+        return normalize(query, query == null ? null : query.userId());
+    }
+
+    private ModelAuditDashboardSummaryResponse summary(ModelAuditDashboardScope scope, ModelAuditDashboardQuery query, boolean includeUserStats) {
         List<ModelAuditPo> audits = dashboardRepository.findAudits(query, AUDIT_LIMIT);
-        Map<Long, UserPo> usersById = usersById(audits.stream()
-                .map(ModelAuditPo::getUserId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet()));
-        return new ModelAuditDashboardResponse(
+        return new ModelAuditDashboardSummaryResponse(
                 scope,
                 query.startAt(),
                 query.endAt(),
@@ -94,9 +116,17 @@ public class ModelAuditDashboardServiceImpl implements ModelAuditDashboardServic
                 dimensionStats(query, "model"),
                 dimensionStats(query, "scenario"),
                 dimensionStats(query, "status"),
-                includeUserStats ? userStats(query) : List.of(),
-                recentCalls(audits.stream().limit(RECENT_LIMIT).toList(), usersById)
+                includeUserStats ? userStats(query) : List.of()
         );
+    }
+
+    private Page<ModelAuditRecentCallResponse> recentCalls(ModelAuditDashboardQuery query, Pageable pageable) {
+        Page<ModelAuditPo> page = dashboardRepository.recentCalls(query, pageable);
+        Map<Long, UserPo> usersById = usersById(page.getContent().stream()
+                .map(ModelAuditPo::getUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet()));
+        return new PageImpl<>(recentCalls(page.getContent(), usersById), pageable, page.getTotalElements());
     }
 
     private ModelAuditDashboardQuery normalize(ModelAuditDashboardQuery query, Long userId) {

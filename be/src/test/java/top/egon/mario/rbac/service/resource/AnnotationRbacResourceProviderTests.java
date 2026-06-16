@@ -98,22 +98,16 @@ class AnnotationRbacResourceProviderTests {
     }
 
     @Test
-    void providersIncludeAgentDashboardApis() {
+    void providersIncludeAgentDashboardUserOptionsApi() {
         assertThat(annotationProvider.providers())
                 .filteredOn(provider -> provider.appCode().equals("agent"))
                 .flatExtracting(RbacResourceProvider::resources)
                 .anySatisfy(seed -> {
-                    assertThat(seed.code()).isEqualTo("api:agent:model-audit:dashboard:global");
-                    assertThat(seed.type()).isEqualTo(PermissionType.API);
-                    assertThat(seed.api().httpMethod()).isEqualTo("GET");
-                    assertThat(seed.api().urlPattern()).isEqualTo("/api/agent/model-audit/dashboard/global");
-                    assertThat(seed.api().matcherType()).isEqualTo(ApiMatcherType.EXACT);
-                    assertThat(seed.api().riskLevel()).isEqualTo(ApiRiskLevel.HIGH);
-                })
-                .anySatisfy(seed -> {
                     assertThat(seed.code()).isEqualTo("api:agent:model-audit:dashboard:user-options");
                     assertThat(seed.type()).isEqualTo(PermissionType.API);
                     assertThat(seed.api().urlPattern()).isEqualTo("/api/agent/model-audit/dashboard/user-options");
+                    assertThat(seed.api().matcherType()).isEqualTo(ApiMatcherType.EXACT);
+                    assertThat(seed.api().riskLevel()).isEqualTo(ApiRiskLevel.HIGH);
                 });
     }
 
