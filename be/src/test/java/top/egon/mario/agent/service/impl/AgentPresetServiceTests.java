@@ -129,6 +129,9 @@ class AgentPresetServiceTests {
         AgentDebugChatRequest request = new AgentDebugChatRequest(
                 "hello",
                 "thread-1",
+                null,
+                null,
+                null,
                 9L,
                 new AgentPresetConfig(null,
                         new ModelOptions(new BigDecimal("0.2"), null, null, null, false, null, null, null, Map.of()),
@@ -158,6 +161,9 @@ class AgentPresetServiceTests {
                 "hello",
                 null,
                 null,
+                null,
+                null,
+                null,
                 new AgentPresetConfig(
                         new AgentModelConfig(ModelProviderType.DASHSCOPE, "other-model"),
                         null,
@@ -176,6 +182,9 @@ class AgentPresetServiceTests {
         AgentPresetServiceImpl service = newService(mock(AgentChatPresetRepository.class));
         AgentDebugChatRequest request = new AgentDebugChatRequest(
                 "hello",
+                null,
+                null,
+                null,
                 null,
                 null,
                 new AgentPresetConfig(null, null, null, new AgentToolConfig(Set.of("missing_tool")), null)
@@ -207,6 +216,9 @@ class AgentPresetServiceTests {
         AgentPresetServiceImpl service = newService(mock(AgentChatPresetRepository.class), mcpToolProvider);
         AgentDebugChatRequest request = new AgentDebugChatRequest(
                 "hello",
+                null,
+                null,
+                null,
                 null,
                 null,
                 new AgentPresetConfig(null, null, null, new AgentToolConfig(Set.of("mcp_search")), null)

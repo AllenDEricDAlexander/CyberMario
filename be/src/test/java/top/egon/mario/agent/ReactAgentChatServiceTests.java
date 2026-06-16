@@ -14,6 +14,19 @@ import top.egon.mario.agent.dto.request.AgentDebugChatRequest;
 import top.egon.mario.agent.model.dto.enums.ModelProviderType;
 import top.egon.mario.agent.model.dto.request.ModelOptions;
 import top.egon.mario.agent.model.service.model.ModelCallContext;
+import top.egon.mario.agent.memory.hook.AgentMemoryMessagesHook;
+import top.egon.mario.agent.memory.po.AgentMemorySessionPo;
+import top.egon.mario.agent.memory.po.enums.AgentMemoryEntryType;
+import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageRole;
+import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageType;
+import top.egon.mario.agent.memory.po.enums.AgentMemorySessionStatus;
+import top.egon.mario.agent.memory.service.AgentMemoryContextService;
+import top.egon.mario.agent.memory.service.AgentMemoryExtractionService;
+import top.egon.mario.agent.memory.service.AgentMemoryMessageService;
+import top.egon.mario.agent.memory.service.AgentMemorySessionService;
+import top.egon.mario.agent.memory.service.model.AgentMemoryContext;
+import top.egon.mario.agent.memory.service.model.AgentMemoryExtractionRequest;
+import top.egon.mario.agent.memory.service.model.AgentMemoryMessageRecord;
 import top.egon.mario.agent.observability.po.enums.AgentRunToolType;
 import top.egon.mario.agent.observability.service.AgentRunAuditService;
 import top.egon.mario.agent.observability.service.model.AgentRunAuditContext;
@@ -28,6 +41,7 @@ import top.egon.mario.agent.service.model.AgentOptions;
 import top.egon.mario.agent.service.model.AgentRuntimeSpec;
 import top.egon.mario.agent.service.model.AgentToolConfig;
 import top.egon.mario.agent.tools.arxiv.ArxivToolUserContext;
+import top.egon.mario.pojo.request.ChatRequest;
 import top.egon.mario.pojo.response.ChatResponse;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
@@ -55,6 +69,7 @@ class ReactAgentChatServiceTests {
                 .willAnswer(invocation -> {
                     RunnableConfig config = invocation.getArgument(1);
                     assertThat(config.threadId()).contains("thread-1");
+                    assertThat(config.metadata("agentMemorySessionId")).contains("thread-1");
                     return Flux.empty();
                 });
         TestSupport support = new TestSupport(agent);
@@ -106,7 +121,7 @@ class ReactAgentChatServiceTests {
                 .willReturn(Flux.just(messageOutput("答案")));
 
         StepVerifier.create(support.chatService.debugChat(
-                        new AgentDebugChatRequest("你好", "thread-1", 9L, null),
+                        new AgentDebugChatRequest("你好", "thread-1", null, null, null, 9L, null),
                         new RbacPrincipal(8L, "luigi", Set.of("CHAT_BASIC"), Set.of(), "v1")))
                 .expectNext(new ChatResponse("thread-1", "答案", "message"))
                 .verifyComplete();
@@ -120,6 +135,13 @@ class ReactAgentChatServiceTests {
                         && messages.get(0).messageType() == AgentConversationMessageType.MESSAGE
                         && messages.get(0).content().equals("答案")), any(Instant.class));
         verify(support.runAuditService).complete(eq(support.runAuditContext), eq("答案"), eq(null), any(Instant.class));
+        verify(support.memoryMessageService).appendAll(org.mockito.ArgumentMatchers.argThat(records ->
+                records.size() == 2
+                        && records.get(0).role() == AgentMemoryMessageRole.USER
+                        && records.get(1).role() == AgentMemoryMessageRole.ASSISTANT
+                        && records.get(1).messageType() == AgentMemoryMessageType.MESSAGE
+                        && records.get(1).content().equals("答案")));
+        verify(support.memoryExtractionService).extractAfterTurn(any(AgentMemoryExtractionRequest.class));
     }
 
     @Test
@@ -139,10 +161,15 @@ class ReactAgentChatServiceTests {
                     assertThat(config.metadata(AgentRunAuditContext.METADATA_KEY)).contains(context);
                     assertThat(config.metadata("requestId")).isPresent();
                     assertThat(config.metadata("threadId")).contains("thread-1");
+                    assertThat(config.metadata(AgentMemoryMessagesHook.SHORT_TERM_PROMPT_METADATA)).contains("short prompt");
+                    assertThat(config.metadata(AgentMemoryMessagesHook.LONG_TERM_PROMPT_METADATA)).contains("long prompt");
                     AgentRunAuditContext metadataContext = (AgentRunAuditContext) config.metadata(AgentRunAuditContext.METADATA_KEY).orElseThrow();
                     assertThat(metadataContext.toolDescriptor("docs_search").toolType()).isEqualTo(AgentRunToolType.MCP);
                     return Flux.just(messageOutput("答案"));
                 });
+
+        given(support.memoryContextService.contextFor(any(), any()))
+                .willReturn(new AgentMemoryContext("short prompt", "long prompt"));
 
         StepVerifier.create(support.chatService.chat("你好", "thread-1",
                         new RbacPrincipal(8L, "luigi", Set.of("CHAT_BASIC"), Set.of(), "v1")))
@@ -166,7 +193,8 @@ class ReactAgentChatServiceTests {
         given(support.auditService.start(any(), eq("你好"))).willReturn(99L);
         given(agent.stream(eq("你好"), any(RunnableConfig.class))).willReturn(Flux.error(new IllegalStateException("boom")));
 
-        StepVerifier.create(support.chatService.debugChat(new AgentDebugChatRequest("你好", "thread-1", 9L, null), null))
+        StepVerifier.create(support.chatService.debugChat(
+                        new AgentDebugChatRequest("你好", "thread-1", null, null, null, 9L, null), null))
                 .expectNext(new ChatResponse("thread-1", "模型调用失败：boom", "error"))
                 .verifyComplete();
 
@@ -196,6 +224,28 @@ class ReactAgentChatServiceTests {
                 eq("[InvalidParameter] url error, please check url"), any(Instant.class));
         verify(support.runAuditService).fail(eq(support.runAuditContext), eq(IllegalArgumentException.class.getName()),
                 eq("[InvalidParameter] url error, please check url"), any(Instant.class));
+    }
+
+    @Test
+    void chatTreatsSessionIdAsConversationThreadAndKeepsThreadIdCompatibility() throws Exception {
+        ReactAgent agent = mock(ReactAgent.class);
+        TestSupport support = new TestSupport(agent);
+        given(support.memorySessionService.resolveOrCreate(
+                eq(AgentMemoryEntryType.AGENT_CHAT), eq("session-1"), eq(false), eq(true), any()))
+                .willReturn(session("session-1", AgentMemoryEntryType.AGENT_CHAT));
+        given(agent.stream(eq("你好"), any(RunnableConfig.class)))
+                .willAnswer(invocation -> {
+                    RunnableConfig config = invocation.getArgument(1);
+                    assertThat(config.threadId()).contains("session-1");
+                    assertThat(config.metadata("agentMemoryEntryType")).contains("AGENT_CHAT");
+                    return Flux.just(messageOutput("答案"));
+                });
+
+        StepVerifier.create(support.chatService.chat(
+                        new ChatRequest("你好", "legacy-thread", "session-1", false),
+                        new RbacPrincipal(8L, "luigi", Set.of("CHAT_BASIC"), Set.of(), "v1")))
+                .expectNext(new ChatResponse("session-1", "答案", "message"))
+                .verifyComplete();
     }
 
     @Test
@@ -234,6 +284,10 @@ class ReactAgentChatServiceTests {
         private final AgentRuntimeFactory runtimeFactory = mock(AgentRuntimeFactory.class);
         private final AgentConversationAuditService auditService = mock(AgentConversationAuditService.class);
         private final AgentRunAuditService runAuditService = mock(AgentRunAuditService.class);
+        private final AgentMemorySessionService memorySessionService = mock(AgentMemorySessionService.class);
+        private final AgentMemoryMessageService memoryMessageService = mock(AgentMemoryMessageService.class);
+        private final AgentMemoryContextService memoryContextService = mock(AgentMemoryContextService.class);
+        private final AgentMemoryExtractionService memoryExtractionService = mock(AgentMemoryExtractionService.class);
         private final ArxivToolUserContext userContext = new ArxivToolUserContext();
         private final AgentRunAuditContext runAuditContext = new AgentRunAuditContext(7L, "request-1", "trace-1",
                 8L, "luigi", "thread-1", 9L, "fingerprint-1", new AtomicInteger(-1), new AtomicInteger(0),
@@ -251,10 +305,32 @@ class ReactAgentChatServiceTests {
                     .willReturn(new AgentRuntimeFactory.AgentRuntime(agent, Map.of()));
             given(auditService.start(any(), any())).willReturn(1L);
             given(runAuditService.start(any())).willReturn(runAuditContext);
+            given(memorySessionService.resolveOrCreate(any(), any(), any(), any(), any()))
+                    .willAnswer(invocation -> {
+                        AgentMemoryEntryType entryType = invocation.getArgument(0);
+                        String sessionId = invocation.getArgument(1);
+                        return session(sessionId == null || sessionId.isBlank() ? "thread-1" : sessionId, entryType);
+                    });
+            given(memoryContextService.contextFor(any(), any())).willReturn(new AgentMemoryContext("", ""));
+            given(memoryMessageService.nextTurnNo(any())).willReturn(1);
             doAnswer(invocation -> null).when(auditService).complete(any(), any(), any());
             this.chatService = new ReactAgentChatService(presetService, runtimeFactory, auditService, runAuditService,
-                    Schedulers.immediate(), userContext);
+                    Schedulers.immediate(), userContext, memorySessionService, memoryMessageService,
+                    memoryContextService, memoryExtractionService);
         }
+    }
+
+    private static AgentMemorySessionPo session(String sessionId, AgentMemoryEntryType entryType) {
+        AgentMemorySessionPo session = new AgentMemorySessionPo();
+        session.setSessionId(sessionId);
+        session.setEntryType(entryType);
+        session.setUserId(8L);
+        session.setUsername("luigi");
+        session.setStatus(AgentMemorySessionStatus.ACTIVE);
+        session.setMemoryEnabled(true);
+        session.setLongTermExtractionEnabled(true);
+        session.setShortTermWindowTurns(10);
+        return session;
     }
 
 }

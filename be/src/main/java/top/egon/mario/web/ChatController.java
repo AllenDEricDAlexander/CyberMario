@@ -42,7 +42,7 @@ public class ChatController {
     @PostMapping(path = "/stream", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_NDJSON_VALUE)
     public Flux<ChatResponse> chat(@Valid @RequestBody Mono<ChatRequest> request,
                                    @AuthenticationPrincipal RbacPrincipal principal) {
-        return request.flatMapMany(chatRequest -> chatAgentService.chat(chatRequest.message(), chatRequest.threadId(), principal));
+        return request.flatMapMany(chatRequest -> chatAgentService.chat(chatRequest, principal));
     }
 
 }

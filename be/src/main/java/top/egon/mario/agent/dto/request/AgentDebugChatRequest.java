@@ -9,6 +9,9 @@ import top.egon.mario.agent.service.model.AgentPresetConfig;
 public record AgentDebugChatRequest(
         @NotBlank String message,
         String threadId,
+        String sessionId,
+        Boolean memoryEnabled,
+        Boolean longTermExtractionEnabled,
         Long presetId,
         AgentPresetConfig overrides
 ) {

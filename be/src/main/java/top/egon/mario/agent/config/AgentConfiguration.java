@@ -3,6 +3,10 @@ package top.egon.mario.agent.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import reactor.core.scheduler.Scheduler;
+import top.egon.mario.agent.memory.service.AgentMemoryContextService;
+import top.egon.mario.agent.memory.service.AgentMemoryExtractionService;
+import top.egon.mario.agent.memory.service.AgentMemoryMessageService;
+import top.egon.mario.agent.memory.service.AgentMemorySessionService;
 import top.egon.mario.agent.observability.service.AgentRunAuditService;
 import top.egon.mario.agent.service.AgentConversationAuditService;
 import top.egon.mario.agent.service.AgentPresetService;
@@ -35,9 +39,14 @@ public class AgentConfiguration {
                                              AgentConversationAuditService auditService,
                                              AgentRunAuditService runAuditService,
                                              Scheduler blockingScheduler,
-                                             ArxivToolUserContext arxivToolUserContext) {
+                                             ArxivToolUserContext arxivToolUserContext,
+                                             AgentMemorySessionService memorySessionService,
+                                             AgentMemoryMessageService memoryMessageService,
+                                             AgentMemoryContextService memoryContextService,
+                                             AgentMemoryExtractionService memoryExtractionService) {
         return new ReactAgentChatService(agentPresetService, agentRuntimeFactory, auditService, runAuditService,
-                blockingScheduler, arxivToolUserContext);
+                blockingScheduler, arxivToolUserContext, memorySessionService, memoryMessageService,
+                memoryContextService, memoryExtractionService);
     }
 
 }

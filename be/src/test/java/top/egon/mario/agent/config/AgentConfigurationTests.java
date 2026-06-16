@@ -2,6 +2,10 @@ package top.egon.mario.agent.config;
 
 import org.junit.jupiter.api.Test;
 import reactor.core.scheduler.Schedulers;
+import top.egon.mario.agent.memory.service.AgentMemoryContextService;
+import top.egon.mario.agent.memory.service.AgentMemoryExtractionService;
+import top.egon.mario.agent.memory.service.AgentMemoryMessageService;
+import top.egon.mario.agent.memory.service.AgentMemorySessionService;
 import top.egon.mario.agent.observability.service.AgentRunAuditService;
 import top.egon.mario.agent.service.AgentConversationAuditService;
 import top.egon.mario.agent.service.AgentPresetService;
@@ -45,7 +49,11 @@ class AgentConfigurationTests {
                 mock(AgentConversationAuditService.class),
                 mock(AgentRunAuditService.class),
                 Schedulers.immediate(),
-                new ArxivToolUserContext()
+                new ArxivToolUserContext(),
+                mock(AgentMemorySessionService.class),
+                mock(AgentMemoryMessageService.class),
+                mock(AgentMemoryContextService.class),
+                mock(AgentMemoryExtractionService.class)
         );
 
         assertThat(service).isInstanceOf(ReactAgentChatService.class);
