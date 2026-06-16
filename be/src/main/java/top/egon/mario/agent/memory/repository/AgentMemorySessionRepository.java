@@ -17,6 +17,8 @@ public interface AgentMemorySessionRepository extends JpaRepository<AgentMemoryS
 
     Optional<AgentMemorySessionPo> findBySessionIdAndUserIdAndDeletedFalse(String sessionId, Long userId);
 
+    Optional<AgentMemorySessionPo> findBySessionIdAndDeletedFalse(String sessionId);
+
     List<AgentMemorySessionPo> findByUserIdAndEntryTypeAndStatusAndDeletedFalseOrderByUpdatedAtDesc(
             Long userId, AgentMemoryEntryType entryType, AgentMemorySessionStatus status);
 
