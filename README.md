@@ -46,7 +46,7 @@ feature inventory and implementation notes, see [FEATURE_CHECKLIST.md](FEATURE_C
 ## Prerequisites
 
 - JDK 21
-- Node.js and npm compatible with the frontend toolchain
+- Bun compatible with the frontend toolchain
 - PostgreSQL with pgvector available for RAG vector storage
 - Redis
 - DashScope API key for model calls
@@ -86,7 +86,7 @@ Install frontend dependencies:
 
 ```bash
 cd fe
-npm install
+bun install
 ```
 
 Build or run the backend:
@@ -100,7 +100,7 @@ Run the frontend dev server:
 
 ```bash
 cd fe
-npm run dev
+bun run dev
 ```
 
 The Vite dev server proxies `/api` and `/demo` to the backend. The proxy target is resolved from
@@ -133,10 +133,10 @@ Frontend:
 
 ```bash
 cd fe
-npm run lint
-npm run typecheck
-npm run test
-npm run build
+bun run lint
+bun run typecheck
+bun run test
+bun run build
 ```
 
 For documentation-only edits, a lightweight whitespace check is usually enough:

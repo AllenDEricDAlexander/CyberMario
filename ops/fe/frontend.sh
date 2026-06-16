@@ -117,7 +117,7 @@ get_running_pid() {
 # Start frontend in background and append logs to frontend.log.
 start_frontend() {
     if [[ ! -x "${VITE_BIN}" ]]; then
-        echo "Vite executable not found. Run npm install under ${FRONTEND_DIR} first."
+        echo "Vite executable not found. Run bun install under ${FRONTEND_DIR} first."
         exit 1
     fi
 

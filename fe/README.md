@@ -5,14 +5,20 @@ React + TypeScript + Vite frontend for CyberMario. The UI is built with Ant Desi
 
 ## Scripts
 
+Install dependencies:
+
 ```bash
-npm run dev
-npm run lint
-npm run typecheck
-npm run test
-npm run test:coverage
-npm run build
-npm run analyze
+bun install
+```
+
+```bash
+bun run dev
+bun run lint
+bun run typecheck
+bun run test
+bun run test:coverage
+bun run build
+bun run analyze
 ```
 
 - `dev` starts Vite locally.
@@ -58,8 +64,8 @@ Core request utilities live in `src/services/request.ts`.
 Before handing frontend changes back, run:
 
 ```bash
-npm run lint
-npm run typecheck
-npm run test
-npm run build
+bun run lint
+bun run typecheck
+bun run test
+bun run build
 ```
