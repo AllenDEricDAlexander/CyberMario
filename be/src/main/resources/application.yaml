@@ -186,3 +186,9 @@ mario:
       chat-model: ${AI_CHAT_MODEL:qwen3.7-plus}
       embedding-model: ${AI_EMBEDDING_MODEL:text-embedding-v4}
       embedding-dimension: ${AI_EMBEDDING_DIMENSION:1024}
+  agent:
+    memory:
+      checkpointer:
+        enabled: ${AGENT_MEMORY_CHECKPOINTER_ENABLED:false}
+        create-tables: ${AGENT_MEMORY_CHECKPOINTER_CREATE_TABLES:true}
+        drop-tables-first: ${AGENT_MEMORY_CHECKPOINTER_DROP_TABLES_FIRST:false}

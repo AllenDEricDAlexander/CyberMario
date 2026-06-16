@@ -1,7 +1,9 @@
 package top.egon.mario.agent.service.impl;
 
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
+import com.alibaba.cloud.ai.graph.agent.hook.Hook;
 import com.alibaba.cloud.ai.graph.agent.interceptor.Interceptor;
+import com.alibaba.cloud.ai.graph.checkpoint.BaseCheckpointSaver;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -18,6 +20,8 @@ import top.egon.mario.agent.model.dto.request.ModelRequest;
 import top.egon.mario.agent.model.dto.response.ModelResolveResult;
 import top.egon.mario.agent.model.service.MarioModelFactory;
 import top.egon.mario.agent.model.service.model.ModelCallContext;
+import top.egon.mario.agent.memory.checkpoint.AgentMemoryCheckpointerProvider;
+import top.egon.mario.agent.memory.hook.AgentMemoryMessagesHook;
 import top.egon.mario.agent.observability.interceptor.AgentObservabilityModelInterceptor;
 import top.egon.mario.agent.observability.interceptor.AgentObservabilityToolInterceptor;
 import top.egon.mario.agent.observability.po.enums.AgentRunToolType;
@@ -162,6 +166,32 @@ class AgentRuntimeFactoryTests {
     }
 
     @Test
+    void getPassesMemoryHookAndCheckpointSaverToReactAgentBuilder() {
+        StubMarioModelFactory modelFactory = new StubMarioModelFactory();
+        StubAgentBuilder builder = new StubAgentBuilder();
+        AgentMemoryMessagesHook memoryHook = new AgentMemoryMessagesHook();
+        AgentMemoryCheckpointerProvider checkpointerProvider = mock(AgentMemoryCheckpointerProvider.class);
+        BaseCheckpointSaver saver = mock(BaseCheckpointSaver.class);
+        given(checkpointerProvider.saver()).willReturn(saver);
+        DefaultAgentRuntimeFactory factory = new DefaultAgentRuntimeFactory(
+                modelFactory,
+                List.of(),
+                builder,
+                null,
+                List.of(),
+                checkpointerProvider,
+                List.of(memoryHook)
+        );
+        ModelCallContext context = new ModelCallContext(8L, "trace-1", null, "thread-1",
+                ModelScenario.AGENT_CHAT, "request-1", null, null);
+
+        factory.get(specWithTools(), context);
+
+        assertThat(builder.checkpointSaver).isSameAs(saver);
+        assertThat(builder.hooks).contains(memoryHook);
+    }
+
+    @Test
     void toolDescriptorsExposeMcpServerIdentityForEnabledMcpTools() {
         StubMarioModelFactory modelFactory = new StubMarioModelFactory();
         StubAgentBuilder builder = new StubAgentBuilder();
@@ -295,6 +325,8 @@ class AgentRuntimeFactoryTests {
         private String systemPrompt;
         private List<ToolCallback> tools = List.of();
         private List<Interceptor> interceptors = List.of();
+        private List<Hook> hooks = List.of();
+        private BaseCheckpointSaver checkpointSaver;
         private boolean parallelToolExecution;
         private int maxParallelTools;
         private int toolExecutionTimeoutSeconds;
@@ -308,6 +340,8 @@ class AgentRuntimeFactoryTests {
             this.systemPrompt = request.systemPrompt();
             this.tools = request.tools();
             this.interceptors = request.interceptors();
+            this.hooks = request.hooks();
+            this.checkpointSaver = request.checkpointSaver();
             this.parallelToolExecution = request.agentOptions().parallelToolExecution();
             this.maxParallelTools = request.agentOptions().maxParallelTools();
             this.toolExecutionTimeoutSeconds = request.agentOptions().toolExecutionTimeoutSeconds();

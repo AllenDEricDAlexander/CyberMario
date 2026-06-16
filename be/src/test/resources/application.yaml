@@ -119,3 +119,7 @@ mario:
       secret: CyberMarioTestJwtSecretForRbac1PermissionsAtLeast32Bytes
       access-token-ttl: PT5M
       refresh-token-ttl: PT1H
+  agent:
+    memory:
+      checkpointer:
+        enabled: false

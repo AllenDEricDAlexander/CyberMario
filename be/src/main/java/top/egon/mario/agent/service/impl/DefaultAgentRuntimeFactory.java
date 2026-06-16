@@ -1,7 +1,9 @@
 package top.egon.mario.agent.service.impl;
 
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
+import com.alibaba.cloud.ai.graph.agent.hook.Hook;
 import com.alibaba.cloud.ai.graph.agent.interceptor.Interceptor;
+import com.alibaba.cloud.ai.graph.checkpoint.BaseCheckpointSaver;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
@@ -11,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import top.egon.mario.agent.hooks.LoggingHook;
 import top.egon.mario.agent.interceptor.ToolMonitorInterceptor;
+import top.egon.mario.agent.memory.checkpoint.AgentMemoryCheckpointerProvider;
 import top.egon.mario.agent.mcp.runtime.McpAgentToolProvider;
 import top.egon.mario.agent.mcp.runtime.LoggingMcpToolCallback;
 import top.egon.mario.agent.model.dto.request.ModelRequest;
@@ -44,37 +47,53 @@ public class DefaultAgentRuntimeFactory implements AgentRuntimeFactory {
     private final AgentBuilder agentBuilder;
     private final McpAgentToolProvider mcpAgentToolProvider;
     private final List<Interceptor> interceptors;
+    private final AgentMemoryCheckpointerProvider checkpointerProvider;
+    private final List<Hook> hooks;
 
     public DefaultAgentRuntimeFactory(MarioModelFactory marioModelFactory, List<ToolCallback> toolCallbacks) {
-        this(marioModelFactory, toolCallbacks, new ReactAgentBuilder(), null, List.of());
+        this(marioModelFactory, toolCallbacks, new ReactAgentBuilder(), null, List.of(), null, List.of());
     }
 
     @Autowired
     public DefaultAgentRuntimeFactory(MarioModelFactory marioModelFactory, List<ToolCallback> toolCallbacks,
                                       ObjectProvider<McpAgentToolProvider> mcpAgentToolProvider,
-                                      ObjectProvider<Interceptor> interceptors) {
+                                      ObjectProvider<Interceptor> interceptors,
+                                      ObjectProvider<AgentMemoryCheckpointerProvider> checkpointerProvider,
+                                      ObjectProvider<Hook> hooks) {
         this(marioModelFactory, toolCallbacks, new ReactAgentBuilder(),
                 mcpAgentToolProvider == null ? null : mcpAgentToolProvider.getIfAvailable(),
-                interceptors == null ? List.of() : interceptors.orderedStream().toList());
+                interceptors == null ? List.of() : interceptors.orderedStream().toList(),
+                checkpointerProvider == null ? null : checkpointerProvider.getIfAvailable(),
+                hooks == null ? List.of() : hooks.orderedStream().toList());
     }
 
     DefaultAgentRuntimeFactory(MarioModelFactory marioModelFactory, List<ToolCallback> toolCallbacks, AgentBuilder agentBuilder) {
-        this(marioModelFactory, toolCallbacks, agentBuilder, null, List.of());
+        this(marioModelFactory, toolCallbacks, agentBuilder, null, List.of(), null, List.of());
     }
 
     DefaultAgentRuntimeFactory(MarioModelFactory marioModelFactory, List<ToolCallback> toolCallbacks,
                                AgentBuilder agentBuilder, McpAgentToolProvider mcpAgentToolProvider) {
-        this(marioModelFactory, toolCallbacks, agentBuilder, mcpAgentToolProvider, List.of());
+        this(marioModelFactory, toolCallbacks, agentBuilder, mcpAgentToolProvider, List.of(), null, List.of());
     }
 
     DefaultAgentRuntimeFactory(MarioModelFactory marioModelFactory, List<ToolCallback> toolCallbacks,
                                AgentBuilder agentBuilder, McpAgentToolProvider mcpAgentToolProvider,
                                List<Interceptor> interceptors) {
+        this(marioModelFactory, toolCallbacks, agentBuilder, mcpAgentToolProvider, interceptors, null, List.of());
+    }
+
+    DefaultAgentRuntimeFactory(MarioModelFactory marioModelFactory, List<ToolCallback> toolCallbacks,
+                               AgentBuilder agentBuilder, McpAgentToolProvider mcpAgentToolProvider,
+                               List<Interceptor> interceptors,
+                               AgentMemoryCheckpointerProvider checkpointerProvider,
+                               List<Hook> hooks) {
         this.marioModelFactory = marioModelFactory;
         this.toolCallbacks = toolCallbacks == null ? List.of() : List.copyOf(toolCallbacks);
         this.agentBuilder = agentBuilder;
         this.mcpAgentToolProvider = mcpAgentToolProvider;
         this.interceptors = interceptors == null ? List.of() : List.copyOf(interceptors);
+        this.checkpointerProvider = checkpointerProvider;
+        this.hooks = hooks == null ? List.of() : List.copyOf(hooks);
     }
 
     @Override
@@ -98,6 +117,8 @@ public class DefaultAgentRuntimeFactory implements AgentRuntimeFactory {
                 spec.systemPrompt(),
                 enabledTools,
                 agentInterceptors(),
+                agentHooks(),
+                checkpointSaver(),
                 normalizeAgentOptions(spec.agentOptions())
         ));
         return new AgentRuntime(agent, toolDescriptors(enabledTools));
@@ -127,6 +148,16 @@ public class DefaultAgentRuntimeFactory implements AgentRuntimeFactory {
         values.addAll(interceptors);
         values.add(new ToolMonitorInterceptor());
         return values;
+    }
+
+    private List<Hook> agentHooks() {
+        List<Hook> values = new ArrayList<>(hooks);
+        values.add(new LoggingHook());
+        return values;
+    }
+
+    private BaseCheckpointSaver checkpointSaver() {
+        return checkpointerProvider == null ? new MemorySaver() : checkpointerProvider.saver();
     }
 
     private List<ToolCallback> enabledTools(AgentRuntimeSpec spec) {
@@ -190,6 +221,8 @@ public class DefaultAgentRuntimeFactory implements AgentRuntimeFactory {
             String systemPrompt,
             List<ToolCallback> tools,
             List<Interceptor> interceptors,
+            List<Hook> hooks,
+            BaseCheckpointSaver checkpointSaver,
             AgentOptions agentOptions
     ) {
     }
@@ -205,8 +238,8 @@ public class DefaultAgentRuntimeFactory implements AgentRuntimeFactory {
                     .systemPrompt(request.systemPrompt())
                     .tools(request.tools())
                     .interceptors(request.interceptors())
-                    .hooks(new LoggingHook())
-                    .saver(new MemorySaver())
+                    .hooks(request.hooks())
+                    .saver(request.checkpointSaver())
                     .parallelToolExecution(request.agentOptions().parallelToolExecution())
                     .maxParallelTools(request.agentOptions().maxParallelTools())
                     .toolExecutionTimeout(Duration.ofSeconds(request.agentOptions().toolExecutionTimeoutSeconds()))
