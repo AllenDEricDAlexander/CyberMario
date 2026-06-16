@@ -1,0 +1,76 @@
+<h2>Agent 运行审计：列表 + 详情</h2>
+<p class="subtitle">默认打开就是最近运行列表，不需要提前知道 threadId、requestId 或 traceId。</p>
+
+<div class="mockup">
+    <div class="mockup-header">Agent 运行审计 /agent/run-audits</div>
+    <div class="mockup-body">
+        <div style="display:grid;grid-template-columns:1fr 440px;gap:16px;min-height:560px;">
+            <div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <div>
+                        <div class="label">Default View</div>
+                        <h3 style="margin:4px 0;">最近 Agent 运行</h3>
+                    </div>
+                    <button class="mock-button">Refresh</button>
+                </div>
+                <div class="placeholder" style="height:74px;text-align:left;padding:12px;margin-bottom:12px;">
+                    <div class="label">Optional Filters</div>
+                    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:8px;">
+                        <input class="mock-input" placeholder="用户 / 用户ID">
+                        <input class="mock-input" placeholder="状态">
+                        <input class="mock-input" placeholder="时间范围">
+                        <input class="mock-input" placeholder="Tool name">
+                        <input class="mock-input" placeholder="thread / req / trace">
+                    </div>
+                </div>
+                <div class="placeholder" style="height:340px;text-align:left;padding:14px;">
+                    <div style="display:grid;grid-template-columns:72px 90px 120px 1fr 90px 96px 92px;gap:8px;font-weight:700;margin-bottom:10px;">
+                        <span>ID</span><span>Status</span><span>User</span><span>用户消息摘要</span><span>耗时</span><span>Tool</span><span>操作</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:72px 90px 120px 1fr 90px 96px 92px;gap:8px;margin-bottom:10px;padding:8px;background:#eef5ff;border-radius:4px;">
+                        <span>#4821</span><span>SUCCESS</span><span>admin</span><span>系统日志能力很薄弱，提升监控...</span><span>8.2s</span><span>3 / MCP 1</span><span>详情</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:72px 90px 120px 1fr 90px 96px 92px;gap:8px;margin-bottom:10px;">
+                        <span>#4820</span><span>FAILED</span><span>mario</span><span>调用搜索工具查一下...</span><span>13.4s</span><span>2 / MCP 0</span><span>详情</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:72px 90px 120px 1fr 90px 96px 92px;gap:8px;margin-bottom:10px;">
+                        <span>#4819</span><span>CANCELLED</span><span>luigi</span><span>解释 RAG 检索结果...</span><span>4.1s</span><span>0 / MCP 0</span><span>详情</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:72px 90px 120px 1fr 90px 96px 92px;gap:8px;">
+                        <span>#4818</span><span>SUCCESS</span><span>admin</span><span>帮我分析错误栈...</span><span>6.7s</span><span>1 / MCP 0</span><span>详情</span>
+                    </div>
+                </div>
+            </div>
+            <div class="placeholder" style="text-align:left;padding:14px;">
+                <div class="label">Detail Drawer</div>
+                <h3 style="margin:4px 0 10px;">Run #4821 时间线</h3>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+                    <span style="padding:4px 8px;border:1px solid #91caff;border-radius:4px;">requestId 可复制</span>
+                    <span style="padding:4px 8px;border:1px solid #91caff;border-radius:4px;">threadId 可复制</span>
+                    <span style="padding:4px 8px;border:1px solid #91caff;border-radius:4px;">traceId 可复制</span>
+                </div>
+                <div style="display:grid;grid-template-columns:96px 1fr;gap:8px;margin-bottom:8px;">
+                    <span>00:00.000</span><span>RUN_STARTED runtime config</span>
+                    <span>00:00.003</span><span>USER_MESSAGE 明文</span>
+                    <span>00:00.012</span><span>MODEL_REQUEST round=1 prompt/messages/tools</span>
+                    <span>00:01.940</span><span>MODEL_RESPONSE round=1 tool_calls</span>
+                    <span>00:01.945</span><span>TOOL_REQUEST searchWikipedia arguments</span>
+                    <span>00:03.100</span><span>TOOL_RESPONSE result</span>
+                    <span>00:04.880</span><span>MODEL_RESPONSE round=2 final answer</span>
+                    <span>00:04.900</span><span>RUN_COMPLETED final output</span>
+                </div>
+                <div class="placeholder" style="height:140px;text-align:left;padding:10px;margin-top:12px;">
+                    <div class="label">Expanded Event</div>
+                    <p style="margin:6px 0;">展开任意事件，查看并复制完整 prompt、messages、tool input/output、model
+                        output、metadata、error。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="section">
+    <h3>入口规则</h3>
+    <p>列表默认按开始时间倒序展示最近运行。threadId、requestId、traceId 只是过滤和复制字段，不要求用户提前知道。排查流程是：打开页面
+        -> 看最近列表或按用户/时间/状态/tool 过滤 -> 点详情 -> 查看完整时间线。</p>
+</div>

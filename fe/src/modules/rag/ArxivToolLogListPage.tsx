@@ -2,6 +2,7 @@ import {ReloadOutlined} from '@ant-design/icons'
 import {Button, Table, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback} from 'react'
+import {DateTimeText} from '../../components/DateTimeText'
 import {PageToolbar} from '../../components/PageToolbar'
 import {usePageData} from '../../hooks/usePageData'
 import {voidify} from '../../utils/async'
@@ -65,8 +66,8 @@ function ArxivToolLogListPage() {
         {title: '文档 ID', dataIndex: 'documentId', width: 100, render: valueOrDash},
         {title: '入库任务', dataIndex: 'ragIngestionJobId', width: 100, render: valueOrDash},
         {title: '错误', dataIndex: 'errorMessage', render: valueOrDash},
-        {title: '创建时间', dataIndex: 'createdAt', width: 190, render: valueOrDash},
-        {title: '完成时间', dataIndex: 'finishedAt', width: 190, render: valueOrDash},
+        {title: '创建时间', dataIndex: 'createdAt', width: 190, render: renderDateTime},
+        {title: '完成时间', dataIndex: 'finishedAt', width: 190, render: renderDateTime},
     ]
 
     return (
@@ -90,6 +91,10 @@ function ArxivToolLogListPage() {
 
 function valueOrDash(value?: string | number | null) {
     return value ?? '-'
+}
+
+function renderDateTime(value?: string | number | null) {
+    return <DateTimeText value={value}/>
 }
 
 function statusColor(status: ArxivToolLogStatus) {

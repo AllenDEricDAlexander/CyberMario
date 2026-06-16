@@ -1,0 +1,68 @@
+<h2>Agent 运行审计页面结构</h2>
+<p class="subtitle">用于确认“统一 Agent Run + Event 时间线”的后台排查体验。</p>
+
+<div class="mockup">
+    <div class="mockup-header">Agent 运行审计 /agent/run-audits</div>
+    <div class="mockup-body">
+        <div style="display:grid;grid-template-columns:260px 1fr;gap:16px;min-height:540px;">
+            <div class="mock-sidebar" style="padding:14px;">
+                <div class="label">Filters</div>
+                <input class="mock-input" placeholder="Trace ID / Request ID">
+                <input class="mock-input" placeholder="Thread ID">
+                <input class="mock-input" placeholder="User / User ID">
+                <input class="mock-input" placeholder="Tool name">
+                <div style="display:flex;gap:8px;margin-top:10px;">
+                    <button class="mock-button">Search</button>
+                    <button class="mock-button">Reset</button>
+                </div>
+                <div style="margin-top:18px;">
+                    <div class="label">Run Status</div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                        <span style="padding:4px 8px;border:1px solid #d9d9d9;border-radius:4px;">SUCCESS</span>
+                        <span style="padding:4px 8px;border:1px solid #d9d9d9;border-radius:4px;">FAILED</span>
+                        <span style="padding:4px 8px;border:1px solid #d9d9d9;border-radius:4px;">CANCELLED</span>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;">
+                    <div class="placeholder">Runs<br><strong>128</strong></div>
+                    <div class="placeholder">Model Calls<br><strong>423</strong></div>
+                    <div class="placeholder">Tool Calls<br><strong>96</strong></div>
+                    <div class="placeholder">Failed<br><strong>7</strong></div>
+                </div>
+                <div class="placeholder" style="height:260px;text-align:left;padding:14px;">
+                    <div style="display:grid;grid-template-columns:80px 120px 1fr 120px 100px;gap:8px;font-weight:700;margin-bottom:10px;">
+                        <span>ID</span><span>Status</span><span>Thread / Message</span><span>Duration</span><span>Action</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:80px 120px 1fr 120px 100px;gap:8px;margin-bottom:8px;">
+                        <span>#4821</span><span>SUCCESS</span><span>thread-7 / 解释这个报错...</span><span>8.2s</span><span>Detail</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:80px 120px 1fr 120px 100px;gap:8px;margin-bottom:8px;">
+                        <span>#4820</span><span>FAILED</span><span>thread-7 / 调用搜索...</span><span>13.4s</span><span>Detail</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:80px 120px 1fr 120px 100px;gap:8px;">
+                        <span>#4819</span><span>SUCCESS</span><span>thread-3 / 生成方案...</span><span>5.9s</span><span>Detail</span>
+                    </div>
+                </div>
+                <div class="placeholder" style="margin-top:12px;height:180px;text-align:left;padding:14px;">
+                    <div class="label">Detail Drawer Timeline</div>
+                    <div style="display:grid;grid-template-columns:120px 1fr;gap:10px;margin-top:8px;">
+                        <span>00:00.000</span><span>RUN_STARTED user=admin preset=Default</span>
+                        <span>00:00.012</span><span>MODEL_REQUEST round=1 prompt/messages/tools/options</span>
+                        <span>00:01.940</span><span>MODEL_RESPONSE round=1 tool_calls=[searchWikipedia]</span>
+                        <span>00:01.945</span><span>TOOL_REQUEST searchWikipedia arguments</span>
+                        <span>00:03.100</span><span>TOOL_RESPONSE result</span>
+                        <span>00:04.880</span><span>MODEL_RESPONSE round=2 final answer</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="section">
+    <h3>Detail behavior</h3>
+    <p>点击详情后打开右侧抽屉，上半部分展示 run 摘要和 runtime config，下半部分按 seq_no 展示事件时间线。每个事件可展开查看明文
+        prompt、messages、tool input/output、model output、metadata 和错误。</p>
+</div>

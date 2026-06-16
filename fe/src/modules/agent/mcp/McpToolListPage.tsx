@@ -2,6 +2,7 @@ import {EditOutlined, ReloadOutlined} from '@ant-design/icons'
 import {App, Button, Card, Form, Select, Space, Switch, Table, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useEffect, useState} from 'react'
+import {DateTimeText} from '../../../components/DateTimeText'
 import {PageToolbar} from '../../../components/PageToolbar'
 import {resolveErrorMessage} from '../../../services/request'
 import {canUseRbacButton, useAuth} from '../../auth/authStore'
@@ -149,7 +150,7 @@ function McpToolListPage() {
                 />
             ),
         },
-        {title: '最近发现', dataIndex: 'lastDiscoveredAt', width: 190, render: valueOrDash},
+        {title: '最近发现', dataIndex: 'lastDiscoveredAt', width: 190, render: renderDateTime},
         {
             title: '操作',
             fixed: 'right',
@@ -219,8 +220,8 @@ function McpToolListPage() {
     )
 }
 
-function valueOrDash(value?: string | number | null) {
-    return value ?? '-'
+function renderDateTime(value?: string | number | null) {
+    return <DateTimeText value={value}/>
 }
 
 function formatJson(value?: string) {

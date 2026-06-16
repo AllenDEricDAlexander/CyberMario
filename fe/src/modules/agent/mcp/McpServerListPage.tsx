@@ -3,6 +3,7 @@ import {App, Button, Popconfirm, Space, Switch, Table, Tag, Typography} from 'an
 import type {ColumnsType} from 'antd/es/table'
 import type {ReactNode} from 'react'
 import {useEffect, useState} from 'react'
+import {DateTimeText} from '../../../components/DateTimeText'
 import {PageToolbar} from '../../../components/PageToolbar'
 import {resolveErrorMessage} from '../../../services/request'
 import {canUseRbacButton, useAuth} from '../../auth/authStore'
@@ -169,7 +170,7 @@ function McpServerListPage() {
                 />
             ),
         },
-        {title: '最近连接', dataIndex: 'lastConnectedAt', width: 190, render: valueOrDash},
+        {title: '最近连接', dataIndex: 'lastConnectedAt', width: 190, render: renderDateTime},
         {
             title: '操作',
             fixed: 'right',
@@ -236,8 +237,8 @@ function McpServerListPage() {
     )
 }
 
-function valueOrDash(value?: string | number | null) {
-    return value ?? '-'
+function renderDateTime(value?: string | number | null) {
+    return <DateTimeText value={value}/>
 }
 
 function serverStatusColor(status: McpServerStatus) {

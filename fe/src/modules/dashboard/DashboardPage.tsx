@@ -5,6 +5,7 @@ import type {RangePickerProps} from 'antd/es/date-picker'
 import type {ColumnsType} from 'antd/es/table'
 import type {ReactNode} from 'react'
 import {useEffect, useMemo, useState} from 'react'
+import {DateTimeText} from '../../components/DateTimeText'
 import {PageToolbar} from '../../components/PageToolbar'
 import {hasAdminPermissionBypass, useAuth} from '../auth/authStore'
 import {getModelAuditDashboard, getModelAuditUserOptions} from './dashboardService'
@@ -78,7 +79,7 @@ function DashboardPage() {
     }, [effectiveScope])
 
     const recentColumns: ColumnsType<ModelAuditRecentCall> = [
-        {title: '时间', dataIndex: 'createdAt', width: 180, render: (value) => formatDateTime(value)},
+        {title: '时间', dataIndex: 'createdAt', width: 180, render: renderDateTime},
         {title: '用户', width: 160, render: (_, record) => userLabel(record)},
         {title: '模型', dataIndex: 'model', width: 190},
         {title: '场景', dataIndex: 'scenario', width: 130, render: (value) => <Tag>{value}</Tag>},
@@ -334,8 +335,8 @@ function numberText(value?: number | null) {
     return value == null ? '-' : value.toLocaleString()
 }
 
-function formatDateTime(value?: string) {
-    return value ? new Date(value).toLocaleString() : '-'
+function renderDateTime(value?: string | number | null) {
+    return <DateTimeText value={value}/>
 }
 
 export const Component = DashboardPage

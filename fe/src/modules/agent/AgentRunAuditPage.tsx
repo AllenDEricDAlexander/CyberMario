@@ -1,9 +1,25 @@
 import {EyeOutlined, ReloadOutlined, SearchOutlined} from '@ant-design/icons'
-import {Button, Card, Collapse, DatePicker, Descriptions, Drawer, Form, Input, InputNumber, Select, Space, Table, Tag, Typography} from 'antd'
 import type {CollapseProps} from 'antd'
+import {
+    Button,
+    Card,
+    Collapse,
+    DatePicker,
+    Descriptions,
+    Drawer,
+    Form,
+    Input,
+    InputNumber,
+    Select,
+    Space,
+    Table,
+    Tag,
+    Typography
+} from 'antd'
 import type {RangePickerProps} from 'antd/es/date-picker'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useRef, useState} from 'react'
+import {DateTimeText} from '../../components/DateTimeText'
 import {PageToolbar} from '../../components/PageToolbar'
 import {usePageData} from '../../hooks/usePageData'
 import {resolveErrorMessage} from '../../services/request'
@@ -89,8 +105,8 @@ function AgentRunAuditPage() {
         {title: '请求', dataIndex: 'requestId', width: 180, render: copyableOrDash},
         {title: 'Trace', dataIndex: 'traceId', width: 180, render: copyableOrDash},
         {title: '错误', dataIndex: 'errorMessage', width: 220, render: errorOrDash},
-        {title: '开始时间', dataIndex: 'startedAt', width: 190, render: valueOrDash},
-        {title: '完成时间', dataIndex: 'finishedAt', width: 190, render: valueOrDash},
+        {title: '开始时间', dataIndex: 'startedAt', width: 190, render: renderDateTime},
+        {title: '完成时间', dataIndex: 'finishedAt', width: 190, render: renderDateTime},
         {
             title: '操作',
             key: 'action',
@@ -210,7 +226,8 @@ function AgentRunAuditPage() {
                             <Descriptions.Item label="模型轮次">{selected.modelCallCount ?? 0}</Descriptions.Item>
                             <Descriptions.Item label="工具调用">{selected.toolCallCount ?? 0}</Descriptions.Item>
                             <Descriptions.Item label="MCP 调用">{selected.mcpToolCallCount ?? 0}</Descriptions.Item>
-                            <Descriptions.Item label="耗时">{selected.durationMs === undefined || selected.durationMs === null ? '-' : `${selected.durationMs}ms`}</Descriptions.Item>
+                            <Descriptions.Item
+                                label="耗时">{selected.durationMs === undefined || selected.durationMs === null ? '-' : `${selected.durationMs}ms`}</Descriptions.Item>
                         </Descriptions>
                         <Card size="small" title="运行配置">
                             <PayloadText value={selected.effectiveConfigJson}/>
@@ -220,9 +237,11 @@ function AgentRunAuditPage() {
                         </Card>
                         {(selected.finalThinking || selected.finalMessage || selected.errorMessage) && (
                             <Card size="small" title="最终结果">
-                                {selected.finalThinking && <PayloadBlock title="Thinking" value={selected.finalThinking}/>}
+                                {selected.finalThinking &&
+                                    <PayloadBlock title="Thinking" value={selected.finalThinking}/>}
                                 {selected.finalMessage && <PayloadBlock title="Message" value={selected.finalMessage}/>}
-                                {selected.errorMessage && <PayloadBlock danger title={selected.errorCode ?? 'Error'} value={selected.errorMessage}/>}
+                                {selected.errorMessage && <PayloadBlock danger title={selected.errorCode ?? 'Error'}
+                                                                        value={selected.errorMessage}/>}
                             </Card>
                         )}
                         {detailError && <Typography.Text type="danger">{detailError}</Typography.Text>}
@@ -258,15 +277,25 @@ function eventColumns(): ColumnsType<AgentRunEventAuditResponse> {
     return [
         {title: '#', dataIndex: 'seqNo', width: 70},
         {title: '事件', dataIndex: 'eventType', width: 170, render: eventTag},
-        {title: '状态', dataIndex: 'status', width: 110, render: (value: AgentRunEventStatus) => <Tag color={eventStatusColor(value)}>{value}</Tag>},
+        {
+            title: '状态',
+            dataIndex: 'status',
+            width: 110,
+            render: (value: AgentRunEventStatus) => <Tag color={eventStatusColor(value)}>{value}</Tag>
+        },
         {title: '轮次', dataIndex: 'reactRound', width: 80, render: valueOrDash},
         {title: '工具', dataIndex: 'toolName', width: 180, render: copyableOrDash},
         {title: '类型', dataIndex: 'toolType', width: 90, render: valueOrDash},
         {title: 'MCP 服务', dataIndex: 'mcpServerCode', width: 130, render: valueOrDash},
         {title: '模型', dataIndex: 'modelName', width: 160, render: valueOrDash},
-        {title: '耗时', dataIndex: 'durationMs', width: 100, render: (value?: number) => value === undefined || value === null ? '-' : `${value}ms`},
+        {
+            title: '耗时',
+            dataIndex: 'durationMs',
+            width: 100,
+            render: (value?: number) => value === undefined || value === null ? '-' : `${value}ms`
+        },
         {title: '错误', dataIndex: 'errorMessage', width: 220, render: errorOrDash},
-        {title: '开始时间', dataIndex: 'startedAt', width: 190, render: valueOrDash},
+        {title: '开始时间', dataIndex: 'startedAt', width: 190, render: renderDateTime},
     ]
 }
 
@@ -325,6 +354,10 @@ function hasEventPayload(event: AgentRunEventAuditResponse) {
 
 function valueOrDash(value?: string | number | null) {
     return value ?? '-'
+}
+
+function renderDateTime(value?: string | number | null) {
+    return <DateTimeText value={value}/>
 }
 
 function countOrZero(value?: number | null) {

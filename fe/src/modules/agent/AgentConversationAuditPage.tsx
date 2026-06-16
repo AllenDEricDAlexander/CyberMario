@@ -2,6 +2,7 @@ import {EyeOutlined, ReloadOutlined, SearchOutlined} from '@ant-design/icons'
 import {Button, Card, Drawer, Form, Input, InputNumber, Select, Space, Table, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useState} from 'react'
+import {DateTimeText} from '../../components/DateTimeText'
 import {PageToolbar} from '../../components/PageToolbar'
 import {usePageData} from '../../hooks/usePageData'
 import {resolveErrorMessage} from '../../services/request'
@@ -62,8 +63,8 @@ function AgentConversationAuditPage() {
         {title: '请求', dataIndex: 'requestId', width: 180, render: valueOrDash},
         {title: 'Trace', dataIndex: 'traceId', width: 180, render: valueOrDash},
         {title: '错误', dataIndex: 'errorMessage', width: 220, render: valueOrDash},
-        {title: '开始时间', dataIndex: 'startedAt', width: 190, render: valueOrDash},
-        {title: '完成时间', dataIndex: 'finishedAt', width: 190, render: valueOrDash},
+        {title: '开始时间', dataIndex: 'startedAt', width: 190, render: renderDateTime},
+        {title: '完成时间', dataIndex: 'finishedAt', width: 190, render: renderDateTime},
         {
             title: '操作',
             key: 'action',
@@ -186,6 +187,10 @@ function AgentConversationAuditPage() {
 
 function valueOrDash(value?: string | number | null) {
     return value ?? '-'
+}
+
+function renderDateTime(value?: string | number | null) {
+    return <DateTimeText value={value}/>
 }
 
 function statusColor(status: AgentConversationStatus) {

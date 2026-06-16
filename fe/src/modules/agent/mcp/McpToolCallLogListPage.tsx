@@ -2,6 +2,7 @@ import {ReloadOutlined} from '@ant-design/icons'
 import {Button, Space, Table, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback} from 'react'
+import {DateTimeText} from '../../../components/DateTimeText'
 import {PageToolbar} from '../../../components/PageToolbar'
 import {usePageData} from '../../../hooks/usePageData'
 import {voidify} from '../../../utils/async'
@@ -16,7 +17,7 @@ function McpToolCallLogListPage() {
     const {loading, records, page, size, total, load} = usePageData<McpToolCallLogResponse>(loadLogs)
 
     const columns: ColumnsType<McpToolCallLogResponse> = [
-        {title: '创建时间', dataIndex: 'createdAt', width: 190},
+        {title: '创建时间', dataIndex: 'createdAt', width: 190, render: renderDateTime},
         {
             title: '状态',
             dataIndex: 'status',
@@ -85,6 +86,10 @@ function McpToolCallLogListPage() {
 
 function valueOrDash(value?: string | number | null) {
     return value ?? '-'
+}
+
+function renderDateTime(value?: string | number | null) {
+    return <DateTimeText value={value}/>
 }
 
 function statusColor(status: McpToolCallStatus) {
