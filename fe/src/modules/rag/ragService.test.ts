@@ -41,12 +41,18 @@ describe('ragService', () => {
         const onChunk = vi.fn()
 
         void streamRagChat({
+            sessionId: 'rag-session-1',
+            memoryEnabled: true,
+            longTermExtractionEnabled: false,
             question: 'hello',
             knowledgeBaseIds: [1],
         }, signal, onChunk)
 
         expect(streamJsonLines).toHaveBeenCalledWith('/api/rag/chat/stream', {
             body: {
+                sessionId: 'rag-session-1',
+                memoryEnabled: true,
+                longTermExtractionEnabled: false,
                 question: 'hello',
                 knowledgeBaseIds: [1],
             },

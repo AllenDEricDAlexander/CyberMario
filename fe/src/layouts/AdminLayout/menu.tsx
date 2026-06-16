@@ -11,6 +11,7 @@ import {
     ExperimentOutlined,
     FileSearchOutlined,
     FileTextOutlined,
+    InboxOutlined,
     MenuOutlined,
     MessageOutlined,
     SafetyCertificateOutlined,
@@ -20,6 +21,7 @@ import {
     TeamOutlined,
     ToolOutlined,
     NodeIndexOutlined,
+    ProfileOutlined,
 } from '@ant-design/icons'
 import type {MenuProps} from 'antd'
 import type {MenuTreeResponse} from '../../modules/rbac/rbacTypes'
@@ -32,6 +34,8 @@ const menuPathByKey: Record<string, string> = {
     '/agent/debug': '/agent/debug',
     '/agent/conversation-audits': '/agent/conversation-audits',
     '/agent/run-audits': '/agent/run-audits',
+    '/agent/memory': '/agent/memory',
+    '/agent/memory/archive': '/agent/memory/archive',
     '/agent/mcp/servers': '/agent/mcp/servers',
     '/agent/mcp/tools': '/agent/mcp/tools',
     '/agent/mcp/logs': '/agent/mcp/logs',
@@ -80,6 +84,16 @@ export const adminMenuItems: AdminMenuItem[] = [
                 key: '/agent/run-audits',
                 icon: <NodeIndexOutlined/>,
                 label: '运行审计',
+            },
+            {
+                key: '/agent/memory',
+                icon: <ProfileOutlined/>,
+                label: '记忆管理',
+            },
+            {
+                key: '/agent/memory/archive',
+                icon: <InboxOutlined/>,
+                label: '归档会话',
             },
             {
                 key: '/agent/mcp/servers',

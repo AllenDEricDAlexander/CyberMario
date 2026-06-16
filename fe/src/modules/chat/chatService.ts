@@ -1,14 +1,10 @@
 import {streamJsonLines} from '../../services/request'
-import type {ChatResponse} from './chatTypes'
+import type {ChatRequest, ChatResponse} from './chatTypes'
 
 const CHAT_ENDPOINT = '/demo/chat/stream'
 
 export function streamChatResponse(
-    request: {
-        message: string
-        threadId: string
-        signal: AbortSignal
-    },
+    request: ChatRequest & { signal: AbortSignal },
     onChunk: (chunk: ChatResponse) => void,
 ) {
     return streamJsonLines<ChatResponse>(
@@ -17,6 +13,8 @@ export function streamChatResponse(
             body: {
                 message: request.message,
                 threadId: request.threadId,
+                sessionId: request.sessionId,
+                memoryEnabled: request.memoryEnabled,
             },
             signal: request.signal,
         },

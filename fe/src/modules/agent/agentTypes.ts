@@ -6,6 +6,11 @@ export type AgentConversationRole = 'USER' | 'ASSISTANT' | 'SYSTEM'
 export type AgentConversationMessageType = 'MESSAGE' | 'THINK' | 'ERROR'
 export type AgentRunAuditStatus = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED'
 export type AgentRunEventStatus = 'STARTED' | 'SUCCESS' | 'FAILED' | 'CANCELLED'
+export type AgentMemoryEntryType = 'AGENT_CHAT' | 'AGENT_DEBUG' | 'RAG_CHAT' | 'BUTLER_AGENT'
+export type AgentMemorySessionStatus = 'ACTIVE' | 'RELEASED' | 'ARCHIVED' | 'DELETED'
+export type AgentMemoryMessageRole = 'USER' | 'ASSISTANT' | 'SYSTEM'
+export type AgentMemoryMessageType = 'MESSAGE' | 'THINK' | 'ERROR' | 'RAG_SOURCES'
+export type AgentMemoryExtractionStatus = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'SKIPPED'
 export type AgentRunEventType =
     | 'RUN_STARTED'
     | 'USER_MESSAGE'
@@ -78,8 +83,90 @@ export type AgentPresetResponse = {
 export type AgentDebugChatRequest = {
     message: string
     threadId?: string
+    sessionId?: string
+    memoryEnabled?: boolean
+    longTermExtractionEnabled?: boolean
     presetId?: number
     overrides?: AgentPresetConfig
+}
+
+export type AgentMemorySessionResponse = {
+    sessionId: string
+    entryType: AgentMemoryEntryType
+    title?: string
+    status: AgentMemorySessionStatus
+    memoryEnabled: boolean
+    longTermExtractionEnabled: boolean
+    shortTermWindowTurns: number
+    lastActiveAt?: string
+    releasedAt?: string
+    archivedAt?: string
+    createdAt?: string
+    updatedAt?: string
+}
+
+export type AgentMemorySessionRequest = {
+    entryType: AgentMemoryEntryType
+    title?: string
+    memoryEnabled?: boolean
+    longTermExtractionEnabled?: boolean
+}
+
+export type AgentMemoryMessageResponse = {
+    id: number
+    sessionId: string
+    entryType: AgentMemoryEntryType
+    seqNo: number
+    turnNo: number
+    role: AgentMemoryMessageRole
+    messageType: AgentMemoryMessageType
+    content?: string
+    contentChars?: number
+    sourceRefsJson?: string
+    traceId?: string
+    requestId?: string
+    createdAt?: string
+}
+
+export type AgentLongTermMemoryResponse = {
+    scopeType?: string
+    contentMarkdown: string
+    contentChars: number
+    activeVersionId?: number
+    status: string
+    createdAt?: string
+    updatedAt?: string
+}
+
+export type AgentLongTermMemoryVersionResponse = {
+    id: number
+    memoryId: number
+    versionNo: number
+    contentMarkdown: string
+    contentChars: number
+    changeSummary?: string
+    sourceSessionIds?: string
+    sourceMessageIds?: string
+    requestId?: string
+    traceId?: string
+    createdAt?: string
+}
+
+export type AgentMemoryExtractionAuditResponse = {
+    id: number
+    sessionId?: string
+    entryType?: AgentMemoryEntryType
+    sourceMessageIds?: string
+    status: AgentMemoryExtractionStatus
+    extractedMarkdown?: string
+    mergedVersionId?: number
+    errorCode?: string
+    errorMessage?: string
+    requestId?: string
+    traceId?: string
+    startedAt?: string
+    finishedAt?: string
+    createdAt?: string
 }
 
 export type AgentConversationAuditResponse = {

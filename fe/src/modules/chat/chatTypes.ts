@@ -7,6 +7,13 @@ export type ChatMessage = {
     thinkContent?: string
 }
 
+export type ChatRequest = {
+    message: string
+    threadId?: string
+    sessionId?: string
+    memoryEnabled?: boolean
+}
+
 export type ChatResponse = {
     threadId: string
     message: string

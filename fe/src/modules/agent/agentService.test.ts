@@ -1,14 +1,25 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest'
 import {
     createAgentPreset,
+    archiveAgentMemorySession,
+    createAgentMemorySession,
     deleteAgentPreset,
+    deleteAgentMemorySession,
+    getAgentLongTermMemory,
+    getAgentLongTermMemoryVersions,
+    getAgentMemoryExtractions,
+    getAgentMemoryMessages,
+    getAgentMemorySessions,
     getAgentConversationAuditMessages,
     getAgentConversationAudits,
     getAgentRunAuditEvents,
     getAgentRunAuditDetail,
     getAgentRunAudits,
     getAgentPresets,
+    releaseAgentMemorySession,
+    restoreAgentMemorySession,
     streamAgentDebugChat,
+    updateAgentMemorySession,
     updateAgentPreset,
     updateAgentPresetStatus,
 } from './agentService'
@@ -58,6 +69,9 @@ describe('agentService', () => {
         void streamAgentDebugChat({
             message: 'hello',
             threadId: 'thread-1',
+            sessionId: 'session-1',
+            memoryEnabled: true,
+            longTermExtractionEnabled: false,
             presetId: 9,
             overrides: {systemPrompt: 'prompt'},
         }, signal, onChunk)
@@ -66,6 +80,9 @@ describe('agentService', () => {
             body: {
                 message: 'hello',
                 threadId: 'thread-1',
+                sessionId: 'session-1',
+                memoryEnabled: true,
+                longTermExtractionEnabled: false,
                 presetId: 9,
                 overrides: {systemPrompt: 'prompt'},
             },
@@ -117,6 +134,51 @@ describe('agentService', () => {
             '/api/admin/agent/conversation-audits?page=3&size=40&username=luigi&threadId=thread-1&status=SUCCESS',
         )
         expect(requestJson).toHaveBeenNthCalledWith(2, '/api/admin/agent/conversation-audits/12/messages')
+    })
+
+    test('builds memory session requests', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        void getAgentMemorySessions({page: 2, size: 30, entryType: 'AGENT_CHAT'})
+        void createAgentMemorySession({entryType: 'AGENT_CHAT', title: 'Chat'})
+        void updateAgentMemorySession('session-1', {memoryEnabled: false})
+        void releaseAgentMemorySession('session-1')
+        void restoreAgentMemorySession('session-1')
+        void archiveAgentMemorySession('session-1')
+        void deleteAgentMemorySession('session-1')
+        void getAgentMemoryMessages('session-1')
+        void getAgentLongTermMemory()
+        void getAgentLongTermMemoryVersions()
+        void getAgentMemoryExtractions()
+
+        expect(requestJson).toHaveBeenNthCalledWith(
+            1,
+            '/api/agent/memory/sessions?page=2&size=30&entryType=AGENT_CHAT',
+        )
+        expect(requestJson).toHaveBeenNthCalledWith(2, '/api/agent/memory/sessions', {
+            method: 'POST',
+            body: {entryType: 'AGENT_CHAT', title: 'Chat'},
+        })
+        expect(requestJson).toHaveBeenNthCalledWith(3, '/api/agent/memory/sessions/session-1', {
+            method: 'PATCH',
+            body: {memoryEnabled: false},
+        })
+        expect(requestJson).toHaveBeenNthCalledWith(4, '/api/agent/memory/sessions/session-1/release', {
+            method: 'POST',
+        })
+        expect(requestJson).toHaveBeenNthCalledWith(5, '/api/agent/memory/sessions/session-1/restore', {
+            method: 'POST',
+        })
+        expect(requestJson).toHaveBeenNthCalledWith(6, '/api/agent/memory/sessions/session-1/archive', {
+            method: 'POST',
+        })
+        expect(requestJson).toHaveBeenNthCalledWith(7, '/api/agent/memory/sessions/session-1', {
+            method: 'DELETE',
+        })
+        expect(requestJson).toHaveBeenNthCalledWith(8, '/api/agent/memory/sessions/session-1/messages')
+        expect(requestJson).toHaveBeenNthCalledWith(9, '/api/agent/memory/long-term')
+        expect(requestJson).toHaveBeenNthCalledWith(10, '/api/agent/memory/long-term/versions')
+        expect(requestJson).toHaveBeenNthCalledWith(11, '/api/agent/memory/extractions')
     })
 
     test('builds run audit list and event requests', async () => {

@@ -5,6 +5,14 @@ import type {
     AgentConversationMessageAuditResponse,
     AgentConversationStatus,
     AgentDebugChatRequest,
+    AgentLongTermMemoryResponse,
+    AgentLongTermMemoryVersionResponse,
+    AgentMemoryEntryType,
+    AgentMemoryExtractionAuditResponse,
+    AgentMemoryMessageResponse,
+    AgentMemorySessionRequest,
+    AgentMemorySessionResponse,
+    AgentMemorySessionStatus,
     AgentPage,
     AgentPresetRequest,
     AgentPresetResponse,
@@ -51,6 +59,72 @@ export function deleteAgentPreset(id: number) {
     return requestJson<void>(`/api/agent/presets/${id}`, {
         method: 'DELETE',
     })
+}
+
+export function getAgentMemorySessions(params: PageParams & {
+    entryType?: AgentMemoryEntryType
+    status?: AgentMemorySessionStatus
+}) {
+    return requestJson<AgentPage<AgentMemorySessionResponse>>(`/api/agent/memory/sessions?${buildSearchParams({
+        page: params.page ?? 1,
+        size: params.size ?? 20,
+        entryType: params.entryType,
+        status: params.status,
+    })}`)
+}
+
+export function createAgentMemorySession(request: AgentMemorySessionRequest) {
+    return requestJson<AgentMemorySessionResponse>('/api/agent/memory/sessions', {
+        method: 'POST',
+        body: request,
+    })
+}
+
+export function updateAgentMemorySession(sessionId: string, request: Partial<AgentMemorySessionRequest>) {
+    return requestJson<AgentMemorySessionResponse>(`/api/agent/memory/sessions/${sessionId}`, {
+        method: 'PATCH',
+        body: request,
+    })
+}
+
+export function releaseAgentMemorySession(sessionId: string) {
+    return requestJson<AgentMemorySessionResponse>(`/api/agent/memory/sessions/${sessionId}/release`, {
+        method: 'POST',
+    })
+}
+
+export function restoreAgentMemorySession(sessionId: string) {
+    return requestJson<AgentMemorySessionResponse>(`/api/agent/memory/sessions/${sessionId}/restore`, {
+        method: 'POST',
+    })
+}
+
+export function archiveAgentMemorySession(sessionId: string) {
+    return requestJson<AgentMemorySessionResponse>(`/api/agent/memory/sessions/${sessionId}/archive`, {
+        method: 'POST',
+    })
+}
+
+export function deleteAgentMemorySession(sessionId: string) {
+    return requestJson<void>(`/api/agent/memory/sessions/${sessionId}`, {
+        method: 'DELETE',
+    })
+}
+
+export function getAgentMemoryMessages(sessionId: string) {
+    return requestJson<AgentMemoryMessageResponse[]>(`/api/agent/memory/sessions/${sessionId}/messages`)
+}
+
+export function getAgentLongTermMemory() {
+    return requestJson<AgentLongTermMemoryResponse>('/api/agent/memory/long-term')
+}
+
+export function getAgentLongTermMemoryVersions() {
+    return requestJson<AgentLongTermMemoryVersionResponse[]>('/api/agent/memory/long-term/versions')
+}
+
+export function getAgentMemoryExtractions() {
+    return requestJson<AgentMemoryExtractionAuditResponse[]>('/api/agent/memory/extractions')
 }
 
 export function streamAgentDebugChat(

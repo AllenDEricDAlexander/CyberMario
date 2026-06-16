@@ -155,6 +155,8 @@ export type RetrievalSearchResponse = {
 
 export type RagChatRequest = {
     sessionId?: string
+    memoryEnabled?: boolean
+    longTermExtractionEnabled?: boolean
     question: string
     knowledgeBaseIds: number[]
     retrievalOptions?: {
@@ -168,7 +170,16 @@ export type RagChatRequest = {
 }
 
 export type RagStreamEvent =
-    | { type: 'metadata'; data: { messageId: string; traceId: string; searchMode?: RagSearchMode } }
+    | {
+    type: 'metadata'; data: {
+        messageId: string
+        traceId: string
+        searchMode?: RagSearchMode
+        sessionId?: string
+        memoryEnabled?: boolean
+        longTermExtractionEnabled?: boolean
+    }
+}
     | { type: 'retrieval'; data: { sources: SourceReferenceResponse[]; topK: number } }
     | { type: 'delta'; data: { content: string } }
     | { type: 'done'; data: { finishReason: string } }

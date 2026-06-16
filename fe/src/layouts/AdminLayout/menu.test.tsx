@@ -95,6 +95,26 @@ const menuTree: MenuTreeResponse[] = [
         children: [],
     },
     {
+        permissionId: 12,
+        permCode: 'menu:agent:memory',
+        permName: '记忆管理',
+        routePath: '/agent/memory',
+        hidden: false,
+        cacheable: true,
+        sortNo: 12,
+        children: [],
+    },
+    {
+        permissionId: 13,
+        permCode: 'menu:agent:memory-archive',
+        permName: '归档会话',
+        routePath: '/agent/memory/archive',
+        hidden: false,
+        cacheable: true,
+        sortNo: 13,
+        children: [],
+    },
+    {
         permissionId: 9,
         permCode: 'menu:agent:mcp-servers',
         permName: 'MCP 服务配置',
@@ -136,6 +156,8 @@ describe('admin menu authorization', () => {
             '/dashboard',
             '/chat',
             '/agent/debug',
+            '/agent/memory',
+            '/agent/memory/archive',
             '/agent/mcp/servers',
             '/agent/mcp/tools',
             '/agent/mcp/logs',
@@ -167,6 +189,10 @@ describe('admin menu authorization', () => {
         expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, false, ['CHAT_BASIC'])))
             .toContain('/agent/debug')
         expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, false, ['CHAT_BASIC'])))
+            .toContain('/agent/memory')
+        expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, false, ['CHAT_BASIC'])))
+            .toContain('/agent/memory/archive')
+        expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, false, ['CHAT_BASIC'])))
             .not.toContain('/agent/conversation-audits')
         expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, false, ['CHAT_BASIC'])))
             .not.toContain('/agent/run-audits')
@@ -179,6 +205,14 @@ describe('admin menu authorization', () => {
             .toContain('/agent/run-audits')
         expect(canAccessAdminPath('/agent/conversation-audits', menuTree, true, ['SUPER_ADMIN'])).toBe(true)
         expect(canAccessAdminPath('/agent/run-audits', menuTree, true, ['SUPER_ADMIN'])).toBe(true)
+    })
+
+    test('does not expose agent memory menu to rag users unless menu permission is present', () => {
+        const ragOnlyTree = menuTree.filter((menu) => !String(menu.routePath).startsWith('/agent/memory'))
+
+        expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(ragOnlyTree, false, ['RAG_USER'])))
+            .not.toContain('/agent/memory')
+        expect(canAccessAdminPath('/agent/memory', ragOnlyTree, false, ['RAG_USER'])).toBe(false)
     })
 
     test('shows MCP logs to non-super-admin users with MCP log menu permission', () => {
