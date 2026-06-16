@@ -29,14 +29,18 @@ import type {ChatMessage} from '../chat/chatTypes'
 import {canEditAgentPreset} from './agentPresetPermissions'
 import {
     createAgentPreset,
+    archiveAgentMemorySession,
+    createAgentMemorySession,
     deleteAgentPreset,
+    getAgentMemorySessions,
     getAgentPresets,
     streamAgentDebugChat,
     updateAgentPreset,
     updateAgentPresetStatus,
 } from './agentService'
 import {defaultAgentToolNames} from './agentPresetDefaults'
-import type {AgentPresetConfig, AgentPresetRequest, AgentPresetResponse} from './agentTypes'
+import type {AgentMemorySessionResponse, AgentPresetConfig, AgentPresetRequest, AgentPresetResponse} from './agentTypes'
+import {MemorySessionControls} from './memorySessionControls'
 
 type DebugFormValues = {
     presetId?: number
@@ -72,7 +76,11 @@ function AgentDebugPage() {
     const [saving, setSaving] = useState(false)
     const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
     const [input, setInput] = useState('')
-    const [threadId, setThreadId] = useState('')
+    const [sessionId, setSessionId] = useState('')
+    const [sessions, setSessions] = useState<AgentMemorySessionResponse[]>([])
+    const [sessionLoading, setSessionLoading] = useState(false)
+    const [memoryEnabled, setMemoryEnabled] = useState(true)
+    const [longTermExtractionEnabled, setLongTermExtractionEnabled] = useState(true)
     const [isSending, setIsSending] = useState(false)
     const [error, setError] = useState('')
     const abortControllerRef = useRef<AbortController | null>(null)
@@ -84,6 +92,7 @@ function AgentDebugPage() {
 
     useEffect(() => {
         void loadPresets()
+        void loadSessions()
     }, [])
 
     async function loadPresets() {
@@ -95,6 +104,18 @@ function AgentDebugPage() {
             message.error(resolveErrorMessage(requestError))
         } finally {
             setLoading(false)
+        }
+    }
+
+    async function loadSessions() {
+        setSessionLoading(true)
+        try {
+            const page = await getAgentMemorySessions({page: 1, size: 100, entryType: 'AGENT_DEBUG'})
+            setSessions(page.records)
+        } catch (requestError) {
+            message.error(resolveErrorMessage(requestError))
+        } finally {
+            setSessionLoading(false)
         }
     }
 
@@ -194,12 +215,14 @@ function AgentDebugPage() {
         try {
             await streamAgentDebugChat({
                 message: text,
-                threadId,
+                sessionId,
+                memoryEnabled,
+                longTermExtractionEnabled,
                 presetId: values.presetId,
                 overrides: toConfig(values),
             }, abortController.signal, (chunk) => {
                 if (chunk.threadId) {
-                    setThreadId(chunk.threadId)
+                    setSessionId(chunk.threadId)
                 }
                 setMessages((current) => current.map((item) =>
                     item.id === assistantMessageId ? appendChatChunk(item, chunk) : item,
@@ -225,13 +248,39 @@ function AgentDebugPage() {
         }
     }
 
-    function newConversation() {
+    async function newConversation() {
         abortControllerRef.current?.abort()
+        try {
+            const session = await createAgentMemorySession({
+                entryType: 'AGENT_DEBUG',
+                memoryEnabled,
+                longTermExtractionEnabled,
+            })
+            setSessionId(session.sessionId)
+            setSessions((current) => [session, ...current.filter((item) => item.sessionId !== session.sessionId)])
+        } catch (requestError) {
+            message.error(resolveErrorMessage(requestError))
+            setSessionId('')
+        }
         setMessages(initialMessages)
         setInput('')
-        setThreadId('')
         setError('')
         setIsSending(false)
+    }
+
+    async function archiveCurrentSession() {
+        if (!sessionId) {
+            return
+        }
+        try {
+            await archiveAgentMemorySession(sessionId)
+            message.success('会话已归档')
+            setSessionId('')
+            setMessages(initialMessages)
+            await loadSessions()
+        } catch (requestError) {
+            message.error(resolveErrorMessage(requestError))
+        }
     }
 
     return (
@@ -361,11 +410,30 @@ function AgentDebugPage() {
                         extra={(
                             <Space>
                                 <Tag color={isSending ? 'processing' : 'success'}>{isSending ? '响应中' : '就绪'}</Tag>
-                                <Tag>{threadId || 'New Session'}</Tag>
+                                <Tag>{sessionId || 'New Session'}</Tag>
                             </Space>
                         )}
                         title="调试对话"
                     >
+                        <MemorySessionControls
+                            entryType="AGENT_DEBUG"
+                            loading={sessionLoading}
+                            longTermExtractionEnabled={longTermExtractionEnabled}
+                            memoryEnabled={memoryEnabled}
+                            sessionId={sessionId || undefined}
+                            sessions={sessions}
+                            showExtractionSwitch
+                            onArchive={() => void archiveCurrentSession()}
+                            onCreate={() => void newConversation()}
+                            onExtractionChange={setLongTermExtractionEnabled}
+                            onMemoryChange={setMemoryEnabled}
+                            onReload={() => void loadSessions()}
+                            onSelect={setSessionId}
+                            onSelectSession={(session) => {
+                                setMemoryEnabled(session.memoryEnabled)
+                                setLongTermExtractionEnabled(session.longTermExtractionEnabled)
+                            }}
+                        />
                         <div className="antd-message-list" aria-live="polite">
                             {messages.map((item, index) => {
                                 const isLast = index === messages.length - 1
@@ -416,7 +484,7 @@ function AgentDebugPage() {
                             />
                             <div className="composer-actions">
                                 <Space>
-                                    <Button icon={<ReloadOutlined/>} onClick={newConversation}>新会话</Button>
+                                    <Button icon={<ReloadOutlined/>} onClick={() => void newConversation()}>新会话</Button>
                                     {isSending ? (
                                         <Button icon={<StopOutlined/>}
                                                 onClick={() => abortControllerRef.current?.abort()}

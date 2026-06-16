@@ -1,11 +1,18 @@
-import {ReloadOutlined, SendOutlined, StopOutlined} from '@ant-design/icons'
-import {Avatar, Button, Card, Input, Space, Tag, Typography} from 'antd'
-import {type FormEvent, useMemo, useRef, useState} from 'react'
+import {SendOutlined, StopOutlined} from '@ant-design/icons'
+import {App, Avatar, Button, Card, Input, Space, Tag, Typography} from 'antd'
+import {type FormEvent, useEffect, useMemo, useRef, useState} from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {PageToolbar} from '../../../components/PageToolbar'
 import {VisualBackdrop} from '../../../components/VisualBackdrop'
 import {resolveErrorMessage} from '../../../services/request'
+import {
+    archiveAgentMemorySession,
+    createAgentMemorySession,
+    getAgentMemorySessions,
+} from '../../agent/agentService'
+import type {AgentMemorySessionResponse} from '../../agent/agentTypes'
+import {MemorySessionControls} from '../../agent/memorySessionControls'
 import {appendChatChunk} from '../chatMessageStream'
 import {streamChatResponse} from '../chatService'
 import type {ChatMessage} from '../chatTypes'
@@ -21,15 +28,35 @@ const initialMessages: ChatMessage[] = [
 ]
 
 export function ChatPage() {
+    const {message: appMessage} = App.useApp()
     const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
     const [input, setInput] = useState('')
-    const [threadId, setThreadId] = useState('')
+    const [sessionId, setSessionId] = useState('')
+    const [sessions, setSessions] = useState<AgentMemorySessionResponse[]>([])
+    const [sessionLoading, setSessionLoading] = useState(false)
+    const [memoryEnabled, setMemoryEnabled] = useState(true)
     const [isSending, setIsSending] = useState(false)
     const [error, setError] = useState('')
     const abortControllerRef = useRef<AbortController | null>(null)
 
     const canSend = input.trim().length > 0 && !isSending
-    const threadLabel = useMemo(() => threadId || 'New Session', [threadId])
+    const threadLabel = useMemo(() => sessionId || 'New Session', [sessionId])
+
+    useEffect(() => {
+        void loadSessions()
+    }, [])
+
+    async function loadSessions() {
+        setSessionLoading(true)
+        try {
+            const page = await getAgentMemorySessions({page: 1, size: 100, entryType: 'AGENT_CHAT'})
+            setSessions(page.records)
+        } catch (requestError) {
+            appMessage.error(resolveErrorMessage(requestError))
+        } finally {
+            setSessionLoading(false)
+        }
+    }
 
     async function submitMessage(event: FormEvent<HTMLFormElement>) {
         event.preventDefault()
@@ -62,12 +89,13 @@ export function ChatPage() {
             await streamChatResponse(
                 {
                     message,
-                    threadId,
+                    sessionId,
+                    memoryEnabled,
                     signal: abortController.signal,
                 },
                 (chunk) => {
                     if (chunk.threadId) {
-                        setThreadId(chunk.threadId)
+                        setSessionId(chunk.threadId)
                     }
                     setMessages((currentMessages) =>
                         currentMessages.map((chatMessage) =>
@@ -113,13 +141,35 @@ export function ChatPage() {
         abortControllerRef.current?.abort()
     }
 
-    function handleNewConversation() {
+    async function handleNewConversation() {
         abortControllerRef.current?.abort()
+        try {
+            const session = await createAgentMemorySession({entryType: 'AGENT_CHAT', memoryEnabled})
+            setSessionId(session.sessionId)
+            setSessions((current) => [session, ...current.filter((item) => item.sessionId !== session.sessionId)])
+        } catch (requestError) {
+            appMessage.error(resolveErrorMessage(requestError))
+            setSessionId('')
+        }
         setMessages(initialMessages)
         setInput('')
-        setThreadId('')
         setError('')
         setIsSending(false)
+    }
+
+    async function archiveCurrentSession() {
+        if (!sessionId) {
+            return
+        }
+        try {
+            await archiveAgentMemorySession(sessionId)
+            appMessage.success('会话已归档')
+            setSessionId('')
+            setMessages(initialMessages)
+            await loadSessions()
+        } catch (requestError) {
+            appMessage.error(resolveErrorMessage(requestError))
+        }
     }
 
     return (
@@ -127,9 +177,19 @@ export function ChatPage() {
             <VisualBackdrop particleCount={12} variant="chat"/>
             <PageToolbar
                 actions={(
-                    <Button icon={<ReloadOutlined/>} onClick={handleNewConversation}>
-                        新会话
-                    </Button>
+                    <MemorySessionControls
+                        entryType="AGENT_CHAT"
+                        loading={sessionLoading}
+                        memoryEnabled={memoryEnabled}
+                        sessionId={sessionId || undefined}
+                        sessions={sessions}
+                        onArchive={() => void archiveCurrentSession()}
+                        onCreate={() => void handleNewConversation()}
+                        onMemoryChange={setMemoryEnabled}
+                        onReload={() => void loadSessions()}
+                        onSelect={setSessionId}
+                        onSelectSession={(session) => setMemoryEnabled(session.memoryEnabled)}
+                    />
                 )}
                 description="面向当前 Java agent 的对话工作台。"
                 title="Agent Chat"

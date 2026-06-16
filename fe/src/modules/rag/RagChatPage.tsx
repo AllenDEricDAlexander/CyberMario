@@ -1,10 +1,17 @@
-import {DislikeOutlined, LikeOutlined, ReloadOutlined, SendOutlined, StopOutlined, WarningOutlined} from '@ant-design/icons'
+import {DislikeOutlined, LikeOutlined, SendOutlined, StopOutlined, WarningOutlined} from '@ant-design/icons'
 import {App, Avatar, Button, Card, Checkbox, Drawer, Form, Input, InputNumber, Select, Space, Tag, Typography} from 'antd'
 import {useEffect, useRef, useState} from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {PageToolbar} from '../../components/PageToolbar'
 import {resolveErrorMessage} from '../../services/request'
+import {
+    archiveAgentMemorySession,
+    createAgentMemorySession,
+    getAgentMemorySessions,
+} from '../agent/agentService'
+import type {AgentMemorySessionResponse} from '../agent/agentTypes'
+import {MemorySessionControls} from '../agent/memorySessionControls'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {ragButtonCodes} from './ragPermissionCodes'
 import {createRagFeedback, getRagKnowledgeBases, streamRagChat} from './ragService'
@@ -36,6 +43,11 @@ function RagChatPage() {
     const {message} = App.useApp()
     const [form] = Form.useForm<RagChatFormValues>()
     const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseResponse[]>([])
+    const [sessions, setSessions] = useState<AgentMemorySessionResponse[]>([])
+    const [sessionId, setSessionId] = useState('')
+    const [sessionLoading, setSessionLoading] = useState(false)
+    const [memoryEnabled, setMemoryEnabled] = useState(true)
+    const [longTermExtractionEnabled, setLongTermExtractionEnabled] = useState(true)
     const [messages, setMessages] = useState<ChatMessage[]>([
         {id: 'welcome', role: 'assistant', content: '我是 CyberMario RAG 问答助手，请先选择知识库再提问。'},
     ])
@@ -48,7 +60,20 @@ function RagChatPage() {
 
     useEffect(() => {
         void getRagKnowledgeBases({page: 1, size: 200}).then((page) => setKnowledgeBases(page.records))
+        void loadSessions()
     }, [])
+
+    async function loadSessions() {
+        setSessionLoading(true)
+        try {
+            const page = await getAgentMemorySessions({page: 1, size: 100, entryType: 'RAG_CHAT'})
+            setSessions(page.records)
+        } catch (requestError) {
+            message.error(resolveErrorMessage(requestError))
+        } finally {
+            setSessionLoading(false)
+        }
+    }
 
     async function send() {
         const values = await form.validateFields()
@@ -70,6 +95,9 @@ function RagChatPage() {
         try {
             await streamRagChat(
                 {
+                    sessionId,
+                    memoryEnabled,
+                    longTermExtractionEnabled,
                     question,
                     knowledgeBaseIds: values.knowledgeBaseIds,
                     retrievalOptions: {
@@ -100,6 +128,9 @@ function RagChatPage() {
 
     function handleEvent(assistantId: string, event: RagStreamEvent) {
         if (event.type === 'metadata') {
+            if (event.data.sessionId) {
+                setSessionId(event.data.sessionId)
+            }
             setMessages((current) => current.map((item) => item.id === assistantId ? {
                 ...item,
                 traceId: event.data.traceId
@@ -132,11 +163,38 @@ function RagChatPage() {
         setLoading(false)
     }
 
-    function reset() {
+    async function reset() {
         abortRef.current?.abort()
+        try {
+            const session = await createAgentMemorySession({
+                entryType: 'RAG_CHAT',
+                memoryEnabled,
+                longTermExtractionEnabled,
+            })
+            setSessionId(session.sessionId)
+            setSessions((current) => [session, ...current.filter((item) => item.sessionId !== session.sessionId)])
+        } catch (requestError) {
+            message.error(resolveErrorMessage(requestError))
+            setSessionId('')
+        }
         setMessages([{id: 'welcome', role: 'assistant', content: '我是 CyberMario RAG 问答助手，请先选择知识库再提问。'}])
         setInput('')
         setLoading(false)
+    }
+
+    async function archiveCurrentSession() {
+        if (!sessionId) {
+            return
+        }
+        try {
+            await archiveAgentMemorySession(sessionId)
+            message.success('会话已归档')
+            setSessionId('')
+            setMessages([{id: 'welcome', role: 'assistant', content: '我是 CyberMario RAG 问答助手，请先选择知识库再提问。'}])
+            await loadSessions()
+        } catch (requestError) {
+            message.error(resolveErrorMessage(requestError))
+        }
     }
 
     async function submitFeedback(item: ChatMessage, feedbackType: 'HELPFUL' | 'NOT_HELPFUL' | 'BAD_SOURCE' | 'NO_ANSWER') {
@@ -154,7 +212,27 @@ function RagChatPage() {
     return (
         <>
             <PageToolbar
-                actions={<Button icon={<ReloadOutlined/>} onClick={reset}>新会话</Button>}
+                actions={(
+                    <MemorySessionControls
+                        entryType="RAG_CHAT"
+                        loading={sessionLoading}
+                        longTermExtractionEnabled={longTermExtractionEnabled}
+                        memoryEnabled={memoryEnabled}
+                        sessionId={sessionId || undefined}
+                        sessions={sessions}
+                        showExtractionSwitch
+                        onArchive={() => void archiveCurrentSession()}
+                        onCreate={() => void reset()}
+                        onExtractionChange={setLongTermExtractionEnabled}
+                        onMemoryChange={setMemoryEnabled}
+                        onReload={() => void loadSessions()}
+                        onSelect={setSessionId}
+                        onSelectSession={(session) => {
+                            setMemoryEnabled(session.memoryEnabled)
+                            setLongTermExtractionEnabled(session.longTermExtractionEnabled)
+                        }}
+                    />
+                )}
                 description="基于已入库知识库回答问题，回答来源由右侧抽屉查看。"
                 title="RAG 问答"
             />
