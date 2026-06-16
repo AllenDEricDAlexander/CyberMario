@@ -1,15 +1,17 @@
 # CyberMario
 
-CyberMario is a full-stack AI workspace built around chat agents, RAG knowledge bases, dynamic MCP tool management,
-model-call auditing, and RBAC-backed administration.
+CyberMario is a full-stack AI workspace built around chat agents, persistent Agent Memory, RAG knowledge bases, dynamic
+MCP tool management, model-call auditing, and RBAC-backed administration.
 
-The repository contains a Spring Boot WebFlux backend and a React + TypeScript + Vite admin frontend. For the exhaustive
-feature inventory, see [FEATURE_CHECKLIST.md](FEATURE_CHECKLIST.md).
+The repository contains a Spring Boot WebFlux backend and a React + TypeScript + Vite admin frontend. For a broader
+feature inventory and implementation notes, see [FEATURE_CHECKLIST.md](FEATURE_CHECKLIST.md).
 
 ## Features
 
 - AI chat and agent debugging with streaming NDJSON responses.
 - Agent preset management, conversation audit, run audit, and model-call dashboard.
+- Agent Memory for Agent Chat, Agent Debug, and RAG Chat, including user-owned sessions, recent-turn context assembly,
+  user-level Markdown long-term memory, extraction audit, archive/restore, and logical deletion.
 - Dynamic MCP server and tool policy management for Streamable HTTP and SSE transports.
 - RAG knowledge-base, document, ingestion-job, retrieval-lab, chat, feedback, and settings pages.
 - Hybrid RAG retrieval with pgvector, keyword search, optional rerank, retrieval traces, and source citations.
@@ -72,7 +74,11 @@ REDIS_PASSWORD=your-password
 JWT_SECRET=replace-with-a-local-secret-at-least-32-bytes
 SERVER_PORT=28080
 VITE_BACKEND_PORT=28080
+AGENT_MEMORY_CHECKPOINTER_ENABLED=false
 ```
+
+`AGENT_MEMORY_CHECKPOINTER_ENABLED=true` enables the Spring AI Alibaba PostgreSQL checkpointer for recoverable
+ReactAgent graph state. Agent Memory's product source of truth still lives in the Flyway-managed memory tables.
 
 ## Local Development
 
@@ -148,9 +154,17 @@ git diff --check
 - Preset roles append missing grants instead of removing manually adjusted permissions.
 - RAG knowledge-base access is enforced separately from RBAC API permissions.
 - MCP tools requiring confirmation are not exposed to the runtime agent until a confirmation workflow exists.
+- Agent Memory is user-scoped at the service layer: RBAC grants menu/API/button access, while memory services still
+  enforce current-user ownership for sessions, messages, long-term memory, versions, and extraction audits.
+- Agent Memory persistence is introduced by `V17__create_agent_memory_schema.sql`, covering memory sessions, normalized
+  messages, user Markdown long-term memory, version history, and extraction audit records.
 
 ## Further Reading
 
 - [FEATURE_CHECKLIST.md](FEATURE_CHECKLIST.md): current feature inventory and implementation notes.
 - [fe/README.md](fe/README.md): frontend scripts, proxy behavior, response contracts, and validation commands.
 - [docs/rbac-resource-sync-design.md](docs/rbac-resource-sync-design.md): RBAC resource synchronization design.
+- [docs/superpowers/specs/2026-06-16-agent-memory-design.md](docs/superpowers/specs/2026-06-16-agent-memory-design.md):
+  Agent Memory design.
+- [docs/superpowers/plans/2026-06-16-agent-memory.md](docs/superpowers/plans/2026-06-16-agent-memory.md): Agent Memory
+  implementation plan.
