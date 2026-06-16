@@ -12,7 +12,10 @@ export function subscribePermissionVersion(listener: PermissionVersionListener) 
 }
 
 export function publishResponsePermissionVersion(response: Response) {
-    const permissionVersion = response.headers.get(PERMISSION_VERSION_HEADER)
+    publishPermissionVersion(response.headers.get(PERMISSION_VERSION_HEADER))
+}
+
+export function publishPermissionVersion(permissionVersion: string | null | undefined) {
     if (!permissionVersion) {
         return
     }

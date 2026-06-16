@@ -1,10 +1,19 @@
+import axios, {type AxiosResponse} from 'axios'
 import {ApiRequestError, type ApiResponse} from '../types/api'
-import {publishResponsePermissionVersion} from './permissionVersionEvents'
+import {
+    PERMISSION_VERSION_HEADER,
+    publishPermissionVersion,
+    publishResponsePermissionVersion,
+} from './permissionVersionEvents'
 import {clearTokens, getAccessToken, getRefreshToken, saveTokens, shouldRefreshAccessToken} from './tokenStorage'
 
 export const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL ?? '')
 const TRACE_ID_HEADER = 'X-Trace-Id'
 const ACCESS_TOKEN_REFRESH_SKEW_MILLISECONDS = 60_000
+const apiClient = axios.create({
+    baseURL: API_BASE_URL || undefined,
+    validateStatus: () => true,
+})
 
 type RequestOptions = {
     method?: string
@@ -29,16 +38,17 @@ export async function requestJson<T>(endpoint: string, options: RequestOptions =
 }
 
 export async function requestFormData<T>(endpoint: string, formData: FormData, options: Omit<RequestOptions, 'body'> = {}): Promise<T> {
-    const response = await fetchWithAuthRetry(
-        () => fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await axiosWithAuthRetry(
+        () => apiClient.request<ApiResponse<T>>({
+            data: formData,
             method: options.method ?? 'POST',
             headers: buildHeaders(options, false),
-            body: formData,
+            url: endpoint,
         }),
         options,
     )
 
-    return unwrapApiResponse<T>(response)
+    return unwrapAxiosApiResponse<T>(response)
 }
 
 async function requestJsonInternal<T>(
@@ -46,17 +56,18 @@ async function requestJsonInternal<T>(
     options: RequestOptions,
     allowRefresh: boolean,
 ): Promise<T> {
-    const response = await fetchWithAuthRetry(
-        () => fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await axiosWithAuthRetry(
+        () => apiClient.request<ApiResponse<T>>({
+            data: options.body,
             method: options.method ?? 'GET',
             headers: buildHeaders(options),
-            body: options.body === undefined ? undefined : JSON.stringify(options.body),
+            url: endpoint,
         }),
         options,
         allowRefresh,
     )
 
-    return unwrapApiResponse<T>(response)
+    return unwrapAxiosApiResponse<T>(response)
 }
 
 export async function streamJsonLines<T>(
@@ -125,31 +136,34 @@ export function resolveErrorMessage(error: unknown) {
 }
 
 function buildHeaders(options: RequestOptions, includeJsonContentType = true) {
-    const headers = new Headers(options.headers)
-    if (!headers.has('Accept')) {
-        headers.set('Accept', 'application/json')
+    const headers = createHeadersRecord(options.headers)
+    if (!hasHeader(headers, 'Accept')) {
+        setHeader(headers, 'Accept', 'application/json')
     }
-    if (!headers.has(TRACE_ID_HEADER)) {
-        headers.set(TRACE_ID_HEADER, createUuidV7())
+    if (!hasHeader(headers, TRACE_ID_HEADER)) {
+        setHeader(headers, TRACE_ID_HEADER, createUuidV7())
     }
-    if (includeJsonContentType && !headers.has('Content-Type')) {
-        headers.set('Content-Type', 'application/json')
+    if (includeJsonContentType && !hasHeader(headers, 'Content-Type')) {
+        setHeader(headers, 'Content-Type', 'application/json')
     }
     const accessToken = options.auth === false ? null : getAccessToken()
     if (accessToken) {
-        headers.set('Authorization', `Bearer ${accessToken}`)
+        setHeader(headers, 'Authorization', `Bearer ${accessToken}`)
     }
     return headers
 }
 
-async function unwrapApiResponse<T>(response: Response): Promise<T> {
-    const text = await response.text()
-    const payload = parseApiResponse<T>(text)
+function unwrapAxiosApiResponse<T>(response: AxiosResponse<ApiResponse<T> | string>): T {
+    const payload = parseAxiosApiResponse<T>(response.data)
 
-    if (!response.ok) {
-        throw toApiRequestError(response, payload)
+    if (response.status < 200 || response.status >= 300) {
+        throw toApiRequestError(response.status, payload)
     }
 
+    return unwrapParsedApiResponse(response.status, payload)
+}
+
+function unwrapParsedApiResponse<T>(status: number, payload: ApiResponse<T> | null) {
     if (!payload) {
         return undefined as T
     }
@@ -157,7 +171,7 @@ async function unwrapApiResponse<T>(response: Response): Promise<T> {
     if (payload.code !== '0') {
         throw new ApiRequestError(payload.message || '请求失败', {
             code: payload.code,
-            status: response.status,
+            status,
             traceId: payload.traceId,
         })
     }
@@ -167,10 +181,10 @@ async function unwrapApiResponse<T>(response: Response): Promise<T> {
 
 async function throwApiResponseError(response: Response): Promise<never> {
     const text = await response.text()
-    throw toApiRequestError(response, parseApiResponse<unknown>(text))
+    throw toApiRequestError(response.status, parseTextApiResponse<unknown>(text))
 }
 
-function parseApiResponse<T>(text: string) {
+function parseTextApiResponse<T>(text: string) {
     if (!text) {
         return null
     }
@@ -181,10 +195,20 @@ function parseApiResponse<T>(text: string) {
     }
 }
 
-function toApiRequestError(response: Response, payload: ApiResponse<unknown> | null) {
-    return new ApiRequestError(payload?.message ?? defaultHttpErrorMessage(response.status), {
-        code: payload?.code ?? `HTTP_${response.status}`,
-        status: response.status,
+function parseAxiosApiResponse<T>(data: ApiResponse<T> | string) {
+    if (!data) {
+        return null
+    }
+    if (typeof data === 'string') {
+        return parseTextApiResponse<T>(data)
+    }
+    return data
+}
+
+function toApiRequestError(status: number, payload: ApiResponse<unknown> | null) {
+    return new ApiRequestError(payload?.message ?? defaultHttpErrorMessage(status), {
+        code: payload?.code ?? `HTTP_${status}`,
+        status,
         traceId: payload?.traceId,
     })
 }
@@ -226,6 +250,27 @@ async function fetchWithAuthRetry(
     return retryResponse
 }
 
+async function axiosWithAuthRetry<T>(
+    requester: () => Promise<AxiosResponse<ApiResponse<T> | string>>,
+    options: Pick<RequestOptions, 'auth'>,
+    allowRefresh = true,
+) {
+    if (options.auth !== false && shouldRefreshAccessToken(ACCESS_TOKEN_REFRESH_SKEW_MILLISECONDS)) {
+        await refreshAccessToken()
+    }
+
+    const response = await requester()
+    if (response.status !== 401 || options.auth === false || !allowRefresh) {
+        publishAxiosResponsePermissionVersion(response)
+        return response
+    }
+
+    const refreshed = await refreshAccessToken()
+    const retryResponse = refreshed ? await requester() : response
+    publishAxiosResponsePermissionVersion(retryResponse)
+    return retryResponse
+}
+
 async function refreshAccessToken() {
     const refreshToken = getRefreshToken()
     if (!refreshToken) {
@@ -234,13 +279,14 @@ async function refreshAccessToken() {
     }
 
     if (!refreshPromise) {
-        refreshPromise = fetch(`${API_BASE_URL}/api/auth/refresh`, {
+        refreshPromise = apiClient.request<ApiResponse<RefreshLoginResponse>>({
+            data: {refreshToken},
             method: 'POST',
             headers: buildHeaders({auth: false}),
-            body: JSON.stringify({refreshToken}),
+            url: '/api/auth/refresh',
         })
-            .then(async (response) => {
-                const data = await unwrapApiResponse<RefreshLoginResponse>(response)
+            .then((response) => {
+                const data = unwrapAxiosApiResponse<RefreshLoginResponse>(response)
                 saveTokens(data)
                 return Boolean(data.accessToken)
             })
@@ -254,6 +300,57 @@ async function refreshAccessToken() {
     }
 
     return refreshPromise
+}
+
+function createHeadersRecord(init?: HeadersInit) {
+    const headers: Record<string, string> = {}
+    if (!init) {
+        return headers
+    }
+    if (init instanceof Headers) {
+        init.forEach((value, key) => {
+            headers[key] = value
+        })
+        return headers
+    }
+    if (Array.isArray(init)) {
+        init.forEach(([key, value]) => {
+            headers[key] = value
+        })
+        return headers
+    }
+    Object.entries(init).forEach(([key, value]) => {
+        headers[key] = value
+    })
+    return headers
+}
+
+function hasHeader(headers: Record<string, string>, name: string) {
+    return Object.keys(headers).some((key) => key.toLowerCase() === name.toLowerCase())
+}
+
+function setHeader(headers: Record<string, string>, name: string, value: string) {
+    const existingKey = Object.keys(headers).find((key) => key.toLowerCase() === name.toLowerCase())
+    if (existingKey) {
+        delete headers[existingKey]
+    }
+    headers[name] = value
+}
+
+function publishAxiosResponsePermissionVersion(response: AxiosResponse<unknown>) {
+    const headers = response.headers as Record<string, string | string[] | number | boolean | null | undefined>
+    const permissionVersion = headers[PERMISSION_VERSION_HEADER] ?? headers[PERMISSION_VERSION_HEADER.toLowerCase()]
+    publishPermissionVersion(toHeaderString(permissionVersion))
+}
+
+function toHeaderString(value: string | string[] | number | boolean | null | undefined) {
+    if (Array.isArray(value)) {
+        return value.join(', ')
+    }
+    if (value === null || value === undefined) {
+        return value
+    }
+    return String(value)
 }
 
 function createUuidV7() {

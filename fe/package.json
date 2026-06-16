@@ -17,6 +17,7 @@
     "@ant-design/charts": "^2.6.7",
     "@ant-design/icons": "^6.2.5",
     "antd": "^6.4.4",
+    "axios": "^1.18.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-markdown": "^10.1.0",
