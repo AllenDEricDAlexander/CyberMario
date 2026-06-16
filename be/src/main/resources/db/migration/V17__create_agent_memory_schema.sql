@@ -66,8 +66,7 @@ CREATE TABLE agent_long_term_memory
 );
 
 CREATE UNIQUE INDEX idx_agent_long_term_memory_user_scope
-    ON agent_long_term_memory (user_id, scope_type)
-    WHERE deleted = FALSE;
+    ON agent_long_term_memory (user_id, scope_type);
 CREATE INDEX idx_agent_long_term_memory_status ON agent_long_term_memory (status);
 
 CREATE TABLE agent_long_term_memory_version

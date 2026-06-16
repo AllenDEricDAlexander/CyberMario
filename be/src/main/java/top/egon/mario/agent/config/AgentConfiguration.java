@@ -1,5 +1,6 @@
 package top.egon.mario.agent.config;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import reactor.core.scheduler.Scheduler;
@@ -20,6 +21,7 @@ import top.egon.mario.agent.tools.arxiv.ArxivToolUserContext;
  * Configures the CyberMario conversation agent and its application service.
  */
 @Configuration
+@Slf4j
 public class AgentConfiguration {
 
     /**
