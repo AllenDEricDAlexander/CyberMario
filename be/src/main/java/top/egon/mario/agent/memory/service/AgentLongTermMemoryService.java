@@ -16,5 +16,7 @@ public interface AgentLongTermMemoryService {
 
     AgentLongTermMemoryPo merge(AgentLongTermMemoryMergeRequest request);
 
+    List<AgentLongTermMemoryVersionPo> userAgentVersions(RbacPrincipal principal);
+
     List<AgentLongTermMemoryVersionPo> versions(Long userId, AgentLongTermMemoryScopeType scopeType);
 }

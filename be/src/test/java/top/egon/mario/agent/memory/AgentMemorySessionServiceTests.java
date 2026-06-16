@@ -1,6 +1,8 @@
 package top.egon.mario.agent.memory;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import top.egon.mario.agent.memory.po.AgentMemorySessionPo;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryEntryType;
 import top.egon.mario.agent.memory.po.enums.AgentMemorySessionStatus;
@@ -9,6 +11,7 @@ import top.egon.mario.agent.memory.service.impl.AgentMemorySessionServiceImpl;
 import top.egon.mario.agent.memory.service.model.AgentMemorySessionCreate;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -52,6 +55,20 @@ class AgentMemorySessionServiceTests {
 
         assertThatThrownBy(() -> service.requireOwned("session-1", principal))
                 .hasMessageContaining("memory session not found");
+    }
+
+    @Test
+    void defaultPageReturnsActiveAndReleasedSessionsForCurrentUser() {
+        AgentMemorySessionPo session = session("session-1", AgentMemorySessionStatus.RELEASED);
+        given(repository.findByUserIdAndEntryTypeAndStatusInAndDeletedFalse(
+                8L,
+                AgentMemoryEntryType.AGENT_CHAT,
+                List.of(AgentMemorySessionStatus.ACTIVE, AgentMemorySessionStatus.RELEASED),
+                PageRequest.of(0, 20))).willReturn(new PageImpl<>(List.of(session)));
+
+        var page = service.page(AgentMemoryEntryType.AGENT_CHAT, null, PageRequest.of(0, 20), principal);
+
+        assertThat(page.getContent()).containsExactly(session);
     }
 
     @Test

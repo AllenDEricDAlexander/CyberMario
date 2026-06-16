@@ -1,5 +1,7 @@
 package top.egon.mario.agent.memory.service.impl;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -15,6 +17,7 @@ import top.egon.mario.agent.memory.service.model.AgentMemorySessionUpdate;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -52,6 +55,21 @@ public class AgentMemorySessionServiceImpl implements AgentMemorySessionService 
         session.setCreatedAt(now);
         session.setUpdatedAt(now);
         return repository.save(session);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<AgentMemorySessionPo> page(AgentMemoryEntryType entryType, AgentMemorySessionStatus status,
+                                           Pageable pageable, RbacPrincipal principal) {
+        RbacPrincipal safePrincipal = requirePrincipal(principal);
+        List<AgentMemorySessionStatus> statuses = status == null
+                ? List.of(AgentMemorySessionStatus.ACTIVE, AgentMemorySessionStatus.RELEASED)
+                : List.of(status);
+        if (entryType == null) {
+            return repository.findByUserIdAndStatusInAndDeletedFalse(safePrincipal.userId(), statuses, pageable);
+        }
+        return repository.findByUserIdAndEntryTypeAndStatusInAndDeletedFalse(
+                safePrincipal.userId(), entryType, statuses, pageable);
     }
 
     @Override

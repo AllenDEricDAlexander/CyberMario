@@ -78,6 +78,15 @@ public class AgentLongTermMemoryServiceImpl implements AgentLongTermMemoryServic
 
     @Override
     @Transactional(readOnly = true)
+    public List<AgentLongTermMemoryVersionPo> userAgentVersions(RbacPrincipal principal) {
+        if (principal == null || principal.userId() == null) {
+            throw new AgentMemoryException("AGENT_MEMORY_UNAUTHENTICATED", "memory requires an authenticated user");
+        }
+        return versions(principal.userId(), AgentLongTermMemoryScopeType.USER_AGENT);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<AgentLongTermMemoryVersionPo> versions(Long userId, AgentLongTermMemoryScopeType scopeType) {
         AgentLongTermMemoryScopeType safeScopeType = scopeType == null
                 ? AgentLongTermMemoryScopeType.USER_AGENT

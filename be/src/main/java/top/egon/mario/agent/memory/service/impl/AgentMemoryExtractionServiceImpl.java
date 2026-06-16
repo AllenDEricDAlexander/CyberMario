@@ -21,6 +21,7 @@ import top.egon.mario.agent.memory.service.AgentMemoryExtractionService;
 import top.egon.mario.agent.memory.service.AgentMemoryException;
 import top.egon.mario.agent.memory.service.model.AgentLongTermMemoryMergeRequest;
 import top.egon.mario.agent.memory.service.model.AgentMemoryExtractionRequest;
+import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.time.Instant;
 import java.util.List;
@@ -120,6 +121,15 @@ public class AgentMemoryExtractionServiceImpl implements AgentMemoryExtractionSe
             auditRepository.save(audit);
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AgentMemoryExtractionAuditPo> userAudits(RbacPrincipal principal) {
+        if (principal == null || principal.userId() == null) {
+            throw new AgentMemoryException("AGENT_MEMORY_UNAUTHENTICATED", "memory requires an authenticated user");
+        }
+        return auditRepository.findByUserIdOrderByCreatedAtDesc(principal.userId());
     }
 
     private AgentMemoryExtractionAuditPo audit(AgentMemorySessionPo session, AgentMemoryExtractionRequest request) {
