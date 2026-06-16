@@ -16,6 +16,8 @@ import java.util.List;
  */
 public record RagChatRequest(
         String sessionId,
+        Boolean memoryEnabled,
+        Boolean longTermExtractionEnabled,
         @NotBlank String question,
         List<Long> knowledgeBaseIds,
         @Valid RetrievalOptions retrievalOptions,
