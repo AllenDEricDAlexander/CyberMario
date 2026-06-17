@@ -1,0 +1,38 @@
+package clocktower.board
+
+import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
+import top.egon.mario.clocktower.engine.BoardCandidateFact;
+import top.egon.mario.clocktower.engine.RuleDecisionCollector;
+
+rule "Trouble Brewing minimum player count"
+when
+    $fact : BoardCandidateFact(scriptCode == ClocktowerScriptCode.TROUBLE_BREWING, playerCount < 5)
+    $collector : RuleDecisionCollector()
+then
+    $collector.reject("BOARD_PLAYER_COUNT_TOO_LOW", "暗流涌动至少需要 5 名玩家。", "ERROR");
+end
+
+rule "Base script minimum player count"
+when
+    $fact : BoardCandidateFact(scriptCode != ClocktowerScriptCode.TROUBLE_BREWING, playerCount < 7)
+    $collector : RuleDecisionCollector()
+then
+    $collector.reject("BOARD_PLAYER_COUNT_TOO_LOW", "该剧本至少需要 7 名玩家。", "ERROR");
+end
+
+rule "Role count must match player count"
+when
+    $fact : BoardCandidateFact(roleCount != playerCount)
+    $collector : RuleDecisionCollector()
+then
+    $collector.reject("BOARD_ROLE_COUNT_MISMATCH", "角色数量必须和玩家人数一致。", "ERROR");
+end
+
+rule "Five player base shape"
+when
+    $fact : BoardCandidateFact(playerCount == 5,
+            townsfolkCount != 3 || outsiderCount != 0 || minionCount != 1 || demonCount != 1)
+    $collector : RuleDecisionCollector()
+then
+    $collector.reject("BOARD_ROLE_TYPE_SHAPE_INVALID", "5 人局需要 3 镇民、1 爪牙、1 恶魔。", "ERROR");
+end

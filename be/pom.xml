@@ -201,6 +201,16 @@
             <artifactId>spring-ai-alibaba-starter-document-reader-arxiv</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.drools</groupId>
+            <artifactId>drools-engine</artifactId>
+            <version>10.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.drools</groupId>
+            <artifactId>drools-xml-support</artifactId>
+            <version>10.0.0</version>
+        </dependency>
+        <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-resolver-dns-native-macos</artifactId>
             <!--  这个是为了防止日志爆error，适配apple m 系列新品的      -->
