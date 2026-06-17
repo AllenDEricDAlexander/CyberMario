@@ -8,7 +8,11 @@ import top.egon.mario.clocktower.engine.BoardCandidateFact;
 import top.egon.mario.clocktower.engine.ClocktowerRuleEngine;
 import top.egon.mario.clocktower.engine.RuleDecisionCollector;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.util.Map;
+
+import static org.mockito.Mockito.mock;
 
 final class ClocktowerBoardTestFactory {
 
@@ -23,7 +27,10 @@ final class ClocktowerBoardTestFactory {
                 "POISONER", ClocktowerRoleType.MINION,
                 "IMP", ClocktowerRoleType.DEMON
         );
-        return new ClocktowerBoardServiceImpl(provider, new TestClocktowerRuleEngine());
+        return new ClocktowerBoardServiceImpl(provider, new TestClocktowerRuleEngine(),
+                mock(top.egon.mario.clocktower.board.repository.ClocktowerBoardConfigRepository.class),
+                mock(top.egon.mario.clocktower.board.repository.ClocktowerBoardRoleRepository.class),
+                new ObjectMapper());
     }
 
     private static final class TestClocktowerRuleEngine extends ClocktowerRuleEngine {
