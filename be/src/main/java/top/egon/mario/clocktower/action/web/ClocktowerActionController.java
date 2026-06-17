@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
+import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.clocktower.action.dto.ClocktowerActionRequest;
 import top.egon.mario.clocktower.action.dto.ClocktowerActionResponse;
 import top.egon.mario.clocktower.action.service.ClocktowerActionService;
@@ -24,9 +25,9 @@ public class ClocktowerActionController extends ClocktowerReactiveSupport {
     private final ClocktowerActionService actionService;
 
     @PostMapping("/actions")
-    public Mono<ClocktowerActionResponse> submit(@PathVariable Long roomId,
-                                                 @RequestBody ClocktowerActionRequest request,
-                                                 @AuthenticationPrincipal RbacPrincipal principal) {
+    public Mono<ApiResponse<ClocktowerActionResponse>> submit(@PathVariable Long roomId,
+                                                              @RequestBody ClocktowerActionRequest request,
+                                                              @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> actionService.submit(roomId, request, principal));
     }
 }

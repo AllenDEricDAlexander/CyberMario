@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
+import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.clocktower.common.web.ClocktowerReactiveSupport;
 import top.egon.mario.clocktower.replay.dto.ClocktowerReplayResponse;
 import top.egon.mario.clocktower.replay.dto.ClocktowerVoteReplayResponse;
@@ -26,17 +27,17 @@ public class ClocktowerReplayController extends ClocktowerReactiveSupport {
     private final ClocktowerReplayService replayService;
 
     @GetMapping
-    public Mono<ClocktowerReplayResponse> replay(@PathVariable Long roomId,
-                                                 @RequestParam(defaultValue = "PUBLIC") String mode,
-                                                 @RequestParam(required = false) Long fromSeq,
-                                                 @RequestParam(required = false) Long toSeq,
-                                                 @AuthenticationPrincipal RbacPrincipal principal) {
+    public Mono<ApiResponse<ClocktowerReplayResponse>> replay(@PathVariable Long roomId,
+                                                              @RequestParam(defaultValue = "PUBLIC") String mode,
+                                                              @RequestParam(required = false) Long fromSeq,
+                                                              @RequestParam(required = false) Long toSeq,
+                                                              @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> replayService.replay(roomId, mode, fromSeq, toSeq, principal));
     }
 
     @GetMapping("/votes")
-    public Mono<List<ClocktowerVoteReplayResponse>> votes(@PathVariable Long roomId,
-                                                          @AuthenticationPrincipal RbacPrincipal principal) {
+    public Mono<ApiResponse<List<ClocktowerVoteReplayResponse>>> votes(@PathVariable Long roomId,
+                                                                       @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> replayService.votes(roomId, principal));
     }
 }

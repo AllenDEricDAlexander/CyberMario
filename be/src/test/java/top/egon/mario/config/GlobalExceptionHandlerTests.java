@@ -3,6 +3,7 @@ package top.egon.mario.config;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import top.egon.mario.agent.service.AgentException;
+import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.rbac.service.RbacException;
 
@@ -39,6 +40,20 @@ class GlobalExceptionHandlerTests {
         assertThat(response.getBody().code()).isEqualTo("AGENT_PRESET_FORBIDDEN");
         assertThat(response.getBody().message()).isEqualTo("preset can only be modified by creator");
         assertThat(response.getBody().traceId()).isEqualTo("trace-agent");
+    }
+
+    @Test
+    void mapsClocktowerBusinessExceptionsAsBadRequest() {
+        var response = handler.handleClocktowerException(new ClocktowerException("CLOCKTOWER_SEAT_FORBIDDEN"))
+                .contextWrite(context -> context.put(TraceContext.CONTEXT_KEY, "trace-clocktower"))
+                .block();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().code()).isEqualTo("CLOCKTOWER_SEAT_FORBIDDEN");
+        assertThat(response.getBody().message()).isEqualTo("CLOCKTOWER_SEAT_FORBIDDEN");
+        assertThat(response.getBody().traceId()).isEqualTo("trace-clocktower");
     }
 
 }

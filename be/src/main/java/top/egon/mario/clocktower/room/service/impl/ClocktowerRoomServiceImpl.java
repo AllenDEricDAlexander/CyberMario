@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import top.egon.mario.clocktower.common.ClocktowerAccess;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardValidateRequest;
 import top.egon.mario.clocktower.board.dto.response.BoardValidationResponse;
 import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
@@ -103,6 +104,7 @@ public class ClocktowerRoomServiceImpl implements ClocktowerRoomService {
     @Transactional
     public ClocktowerStartGameResponse start(Long roomId, ClocktowerRoomStartRequest request, RbacPrincipal principal) {
         ClocktowerRoomPo room = room(roomId);
+        ClocktowerAccess.requireStoryteller(room, principal);
         List<ClocktowerSeatPo> seats = seatRepository.findByRoomIdAndDeletedFalseOrderBySeatNoAsc(roomId);
         if (request.assignments().size() != seats.size()) {
             throw new ClocktowerException("CLOCKTOWER_ASSIGNMENT_COUNT_MISMATCH");
@@ -153,6 +155,7 @@ public class ClocktowerRoomServiceImpl implements ClocktowerRoomService {
     @Override
     @Transactional
     public ClocktowerSeatResponse join(Long roomId, ClocktowerRoomJoinRequest request, RbacPrincipal principal) {
+        ClocktowerAccess.requireAuthenticated(principal);
         ClocktowerRoomPo room = room(roomId);
         ClocktowerSeatPo seat = request.seatNo() == null
                 ? firstOpenSeat(roomId)
@@ -172,6 +175,7 @@ public class ClocktowerRoomServiceImpl implements ClocktowerRoomService {
     @Override
     @Transactional
     public void leave(Long roomId, RbacPrincipal principal) {
+        ClocktowerAccess.requireAuthenticated(principal);
         ClocktowerRoomPo room = room(roomId);
         ClocktowerSeatPo seat = seatRepository.findByRoomIdAndUserIdAndDeletedFalse(roomId, principal.userId())
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_SEAT_NOT_FOUND"));
@@ -189,6 +193,7 @@ public class ClocktowerRoomServiceImpl implements ClocktowerRoomService {
     public ClocktowerRoomResponse updateSeat(Long roomId, Long seatId, ClocktowerUpdateSeatRequest request,
                                              RbacPrincipal principal) {
         ClocktowerRoomPo room = room(roomId);
+        ClocktowerAccess.requireStoryteller(room, principal);
         ClocktowerSeatPo seat = seatRepository.findByIdAndRoomIdAndDeletedFalse(seatId, roomId)
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_SEAT_NOT_FOUND"));
         if (StringUtils.hasText(request.displayName())) {
@@ -218,7 +223,7 @@ public class ClocktowerRoomServiceImpl implements ClocktowerRoomService {
         List<ClocktowerSeatResponse> seats = seatRepository.findByRoomIdAndDeletedFalseOrderBySeatNoAsc(room.getId())
                 .stream()
                 .sorted(Comparator.comparingInt(ClocktowerSeatPo::getSeatNo))
-                .map(ClocktowerSeatResponse::from)
+                .map(ClocktowerSeatResponse::publicView)
                 .toList();
         return ClocktowerRoomResponse.from(room, seats);
     }

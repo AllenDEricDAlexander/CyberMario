@@ -5,6 +5,7 @@ import top.egon.mario.clocktower.common.enums.ClocktowerEventType;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.common.enums.ClocktowerVisibility;
+import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.event.dto.ClocktowerEventAppendRequest;
 import top.egon.mario.clocktower.room.ClocktowerRoomTestFactory;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomCreateRequest;
@@ -24,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ClocktowerViewServiceTests {
 
@@ -46,6 +48,16 @@ class ClocktowerViewServiceTests {
         assertThat(view.publicSeats()).allSatisfy(seat -> assertThat(seat.roleCode()).isNull());
         assertThat(view.publicSeats()).extracting(PublicSeatResponse::seatId).contains(marioSeatId);
         assertThat(view.recentEvents()).noneMatch(event -> event.visibility() == ClocktowerVisibility.STORYTELLER);
+    }
+
+    @Test
+    void playerViewRejectsSeatIdOwnedByAnotherUser() {
+        ClocktowerRoomResponse room = startedTroubleBrewingRoomWithJoinedUsers();
+        Long otherSeatId = room.seats().get(1).seatId();
+
+        assertThatThrownBy(() -> viewService.playerView(room.roomId(), otherSeatId, principal(2L, "mario")))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_SEAT_FORBIDDEN");
     }
 
     private ClocktowerRoomResponse startedTroubleBrewingRoomWithJoinedUsers() {

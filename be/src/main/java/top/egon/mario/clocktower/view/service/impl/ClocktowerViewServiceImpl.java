@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import top.egon.mario.clocktower.common.ClocktowerAccess;
 import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
 import top.egon.mario.clocktower.common.enums.ClocktowerViewerMode;
@@ -51,9 +52,9 @@ public class ClocktowerViewServiceImpl implements ClocktowerViewService {
         ClocktowerRoomPo room = roomRepository.findByIdAndDeletedFalse(roomId)
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
         List<ClocktowerSeatPo> seats = seatRepository.findByRoomIdAndDeletedFalseOrderBySeatNoAsc(roomId);
-        ClocktowerSeatPo mySeat = resolveSeat(roomId, seatId, principal);
+        ClocktowerSeatPo mySeat = resolveSeat(room, seatId, principal);
         ClocktowerRoomResponse roomResponse = ClocktowerRoomResponse.from(room, seats.stream()
-                .map(ClocktowerSeatResponse::from)
+                .map(ClocktowerSeatResponse::publicView)
                 .toList());
         List<ClocktowerEventResponse> recentEvents = visibilityFilter.visibleEvents(
                 eventRepository.findByRoomIdAndDeletedFalseOrderByEventSeqAsc(roomId).stream()
@@ -66,15 +67,17 @@ public class ClocktowerViewServiceImpl implements ClocktowerViewService {
                 GamePhaseResponse.from(room), availableActions(room.getPhase()), recentEvents, List.of());
     }
 
-    private ClocktowerSeatPo resolveSeat(Long roomId, Long seatId, RbacPrincipal principal) {
+    private ClocktowerSeatPo resolveSeat(ClocktowerRoomPo room, Long seatId, RbacPrincipal principal) {
         if (seatId != null) {
-            return seatRepository.findByIdAndRoomIdAndDeletedFalse(seatId, roomId)
+            ClocktowerSeatPo seat = seatRepository.findByIdAndRoomIdAndDeletedFalse(seatId, room.getId())
                     .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_SEAT_NOT_FOUND"));
+            ClocktowerAccess.requireSeatOwnerOrStoryteller(room, seat, principal);
+            return seat;
         }
         if (principal == null) {
             throw new ClocktowerException("CLOCKTOWER_SEAT_REQUIRED");
         }
-        return seatRepository.findByRoomIdAndUserIdAndDeletedFalse(roomId, principal.userId())
+        return seatRepository.findByRoomIdAndUserIdAndDeletedFalse(room.getId(), principal.userId())
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_SEAT_NOT_FOUND"));
     }
 

@@ -5,6 +5,7 @@ import top.egon.mario.clocktower.action.dto.ClocktowerActionRequest;
 import top.egon.mario.clocktower.action.dto.ClocktowerActionResponse;
 import top.egon.mario.clocktower.action.service.ClocktowerActionService;
 import top.egon.mario.clocktower.action.service.impl.ClocktowerActionServiceImpl;
+import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerEventType;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
@@ -23,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ClocktowerActionServiceTests {
 
@@ -59,6 +61,43 @@ class ClocktowerActionServiceTests {
 
         assertThat(response.accepted()).isFalse();
         assertThat(response.rejectedCode()).isEqualTo("NOMINATOR_NOT_ALIVE");
+    }
+
+    @Test
+    void rejectsPlayerActionForAnotherUsersSeat() {
+        ClocktowerRoomResponse room = runningDayRoom();
+        Long otherSeatId = room.seats().get(1).seatId();
+
+        assertThatThrownBy(() -> actionService.submit(room.roomId(), new ClocktowerActionRequest(
+                otherSeatId, "PUBLIC_SPEECH", List.of(), null, "代替 2 号发言。", Map.of(), "client-forbidden"),
+                principal(2L, "player-1")))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessage("CLOCKTOWER_ACTION_SEAT_FORBIDDEN");
+    }
+
+    @Test
+    void rejectsPlayerActionForUnboundSeat() {
+        ClocktowerRoomResponse room = runningDayRoom();
+        Long seatId = room.seats().getFirst().seatId();
+        context.seatRepository().findByIdAndRoomIdAndDeletedFalse(seatId, room.roomId())
+                .ifPresent(seat -> seat.setUserId(null));
+
+        assertThatThrownBy(() -> actionService.submit(room.roomId(), new ClocktowerActionRequest(
+                seatId, "PUBLIC_SPEECH", List.of(), null, "空座发言。", Map.of(), "client-empty"),
+                principal(2L, "player-1")))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessage("CLOCKTOWER_ACTION_SEAT_FORBIDDEN");
+    }
+
+    @Test
+    void rejectsPlayerActionWithoutPrincipal() {
+        ClocktowerRoomResponse room = runningDayRoom();
+        Long seatId = room.seats().getFirst().seatId();
+
+        assertThatThrownBy(() -> actionService.submit(room.roomId(), new ClocktowerActionRequest(
+                seatId, "PUBLIC_SPEECH", List.of(), null, "匿名发言。", Map.of(), "client-anonymous"), null))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessage("CLOCKTOWER_AUTH_REQUIRED");
     }
 
     private ClocktowerRoomResponse runningDayRoom() {

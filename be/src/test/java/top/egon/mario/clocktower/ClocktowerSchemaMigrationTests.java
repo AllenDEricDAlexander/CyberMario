@@ -34,4 +34,17 @@ class ClocktowerSchemaMigrationTests {
         assertThat(sql).contains("idx_clocktower_event_room_seq");
         assertThat(sql).contains("uk_clocktower_room_code");
     }
+
+    @Test
+    void migrationRemovesOldBroadRoomPermissionGrant() throws IOException {
+        String sql = Files.readString(Path.of(
+                "src/main/resources/db/migration/V19__disable_old_clocktower_room_wildcard_permission.sql"));
+
+        assertThat(sql).contains("api:clocktower:rooms:*");
+        assertThat(sql).contains("DELETE");
+        assertThat(sql).contains("FROM sys_role_permission");
+        assertThat(sql).contains("permission_version = permission_version + 1");
+        assertThat(sql).contains("UPDATE sys_permission");
+        assertThat(sql).contains("status = 0");
+    }
 }

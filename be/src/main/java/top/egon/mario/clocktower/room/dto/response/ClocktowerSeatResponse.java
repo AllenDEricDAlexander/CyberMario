@@ -19,4 +19,9 @@ public record ClocktowerSeatResponse(
         return new ClocktowerSeatResponse(seat.getId(), seat.getSeatNo(), seat.getUserId(), seat.getDisplayName(),
                 seat.getRoleCode(), seat.getRoleType(), seat.getLifeStatus(), seat.isConnected(), seat.isHasDeadVote());
     }
+
+    public static ClocktowerSeatResponse publicView(ClocktowerSeatPo seat) {
+        return new ClocktowerSeatResponse(seat.getId(), seat.getSeatNo(), seat.getUserId(), seat.getDisplayName(),
+                null, null, seat.getLifeStatus(), seat.isConnected(), seat.isHasDeadVote());
+    }
 }

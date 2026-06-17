@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
+import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.clocktower.common.web.ClocktowerReactiveSupport;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomCreateRequest;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomJoinRequest;
@@ -34,46 +35,46 @@ public class ClocktowerRoomController extends ClocktowerReactiveSupport {
     private final ClocktowerRoomService roomService;
 
     @PostMapping
-    public Mono<ClocktowerRoomResponse> create(@Valid @RequestBody ClocktowerRoomCreateRequest request,
-                                               @AuthenticationPrincipal RbacPrincipal principal) {
+    public Mono<ApiResponse<ClocktowerRoomResponse>> create(@Valid @RequestBody ClocktowerRoomCreateRequest request,
+                                                            @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> roomService.create(request, principal));
     }
 
     @GetMapping
-    public Mono<List<ClocktowerRoomResponse>> list(@AuthenticationPrincipal RbacPrincipal principal) {
+    public Mono<ApiResponse<List<ClocktowerRoomResponse>>> list(@AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> roomService.list(principal));
     }
 
     @GetMapping("/{roomId}")
-    public Mono<ClocktowerRoomResponse> get(@PathVariable Long roomId) {
+    public Mono<ApiResponse<ClocktowerRoomResponse>> get(@PathVariable Long roomId) {
         return blocking(() -> roomService.get(roomId));
     }
 
     @PostMapping("/{roomId}/start")
-    public Mono<ClocktowerStartGameResponse> start(@PathVariable Long roomId,
-                                                   @Valid @RequestBody ClocktowerRoomStartRequest request,
-                                                   @AuthenticationPrincipal RbacPrincipal principal) {
+    public Mono<ApiResponse<ClocktowerStartGameResponse>> start(@PathVariable Long roomId,
+                                                                @Valid @RequestBody ClocktowerRoomStartRequest request,
+                                                                @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> roomService.start(roomId, request, principal));
     }
 
     @PostMapping("/{roomId}/join")
-    public Mono<ClocktowerSeatResponse> join(@PathVariable Long roomId,
-                                             @Valid @RequestBody ClocktowerRoomJoinRequest request,
-                                             @AuthenticationPrincipal RbacPrincipal principal) {
+    public Mono<ApiResponse<ClocktowerSeatResponse>> join(@PathVariable Long roomId,
+                                                          @Valid @RequestBody ClocktowerRoomJoinRequest request,
+                                                          @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> roomService.join(roomId, request, principal));
     }
 
     @PostMapping("/{roomId}/leave")
-    public Mono<Void> leave(@PathVariable Long roomId,
-                            @AuthenticationPrincipal RbacPrincipal principal) {
+    public Mono<ApiResponse<Void>> leave(@PathVariable Long roomId,
+                                         @AuthenticationPrincipal RbacPrincipal principal) {
         return blockingVoid(() -> roomService.leave(roomId, principal));
     }
 
     @PatchMapping("/{roomId}/seats/{seatId}")
-    public Mono<ClocktowerRoomResponse> updateSeat(@PathVariable Long roomId,
-                                                   @PathVariable Long seatId,
-                                                   @Valid @RequestBody ClocktowerUpdateSeatRequest request,
-                                                   @AuthenticationPrincipal RbacPrincipal principal) {
+    public Mono<ApiResponse<ClocktowerRoomResponse>> updateSeat(@PathVariable Long roomId,
+                                                                @PathVariable Long seatId,
+                                                                @Valid @RequestBody ClocktowerUpdateSeatRequest request,
+                                                                @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> roomService.updateSeat(roomId, seatId, request, principal));
     }
 }

@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
+import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.clocktower.common.web.ClocktowerReactiveSupport;
 import top.egon.mario.clocktower.grimoire.dto.request.StorytellerActionRequest;
 import top.egon.mario.clocktower.grimoire.dto.response.ClocktowerGrimoireResponse;
@@ -27,21 +28,22 @@ public class ClocktowerGrimoireController extends ClocktowerReactiveSupport {
     private final ClocktowerGrimoireService grimoireService;
 
     @GetMapping("/grimoire")
-    public Mono<ClocktowerGrimoireResponse> grimoire(@PathVariable Long roomId,
-                                                     @AuthenticationPrincipal RbacPrincipal principal) {
+    public Mono<ApiResponse<ClocktowerGrimoireResponse>> grimoire(@PathVariable Long roomId,
+                                                                  @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> grimoireService.getGrimoire(roomId, principal));
     }
 
     @GetMapping("/night-checklist")
-    public Mono<NightChecklistResponse> nightChecklist(@PathVariable Long roomId,
-                                                       @AuthenticationPrincipal RbacPrincipal principal) {
+    public Mono<ApiResponse<NightChecklistResponse>> nightChecklist(@PathVariable Long roomId,
+                                                                    @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> grimoireService.nightChecklist(roomId, principal));
     }
 
     @PostMapping("/storyteller/actions")
-    public Mono<StorytellerActionResponse> storytellerAction(@PathVariable Long roomId,
-                                                             @RequestBody StorytellerActionRequest request,
-                                                             @AuthenticationPrincipal RbacPrincipal principal) {
+    public Mono<ApiResponse<StorytellerActionResponse>> storytellerAction(
+            @PathVariable Long roomId,
+            @RequestBody StorytellerActionRequest request,
+            @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> grimoireService.storytellerAction(roomId, request, principal));
     }
 }

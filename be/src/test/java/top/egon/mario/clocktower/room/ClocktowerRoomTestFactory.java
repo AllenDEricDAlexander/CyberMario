@@ -90,6 +90,9 @@ public final class ClocktowerRoomTestFactory {
         when(roomRepository.findByIdAndDeletedFalse(any())).thenAnswer(invocation -> rooms.stream()
                 .filter(room -> !room.isDeleted() && room.getId().equals(invocation.getArgument(0)))
                 .findFirst());
+        when(roomRepository.findLockedByIdAndDeletedFalse(any())).thenAnswer(invocation -> rooms.stream()
+                .filter(room -> !room.isDeleted() && room.getId().equals(invocation.getArgument(0)))
+                .findFirst());
         when(roomRepository.existsByRoomCodeAndDeletedFalse(any())).thenReturn(false);
         when(roomRepository.findByStorytellerUserIdAndDeletedFalseOrderByIdDesc(any())).thenAnswer(invocation -> rooms.stream()
                 .filter(room -> !room.isDeleted() && invocation.getArgument(0).equals(room.getStorytellerUserId()))

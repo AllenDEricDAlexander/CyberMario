@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import top.egon.mario.clocktower.action.dto.ClocktowerActionRequest;
 import top.egon.mario.clocktower.action.dto.ClocktowerActionResponse;
 import top.egon.mario.clocktower.action.service.ClocktowerActionService;
+import top.egon.mario.clocktower.common.ClocktowerAccess;
 import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerEventType;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
@@ -39,10 +40,11 @@ public class ClocktowerActionServiceImpl implements ClocktowerActionService {
     @Override
     @Transactional
     public ClocktowerActionResponse submit(Long roomId, ClocktowerActionRequest request, RbacPrincipal principal) {
+        ClocktowerAccess.requireAuthenticated(principal);
         ClocktowerRoomPo room = roomRepository.findByIdAndDeletedFalse(roomId)
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
         ClocktowerSeatPo actor = seat(roomId, request.seatId());
-        if (principal != null && actor.getUserId() != null && !actor.getUserId().equals(principal.userId())) {
+        if (actor.getUserId() == null || !actor.getUserId().equals(principal.userId())) {
             throw new ClocktowerException("CLOCKTOWER_ACTION_SEAT_FORBIDDEN");
         }
         return switch (request.actionType()) {

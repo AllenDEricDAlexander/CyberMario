@@ -4,10 +4,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.event.dto.ClocktowerEventAppendRequest;
 import top.egon.mario.clocktower.event.dto.ClocktowerEventResponse;
 import top.egon.mario.clocktower.event.po.ClocktowerEventPo;
@@ -15,6 +17,7 @@ import top.egon.mario.clocktower.event.repository.ClocktowerEventRepository;
 import top.egon.mario.clocktower.event.service.ClocktowerEventProjector;
 import top.egon.mario.clocktower.event.service.ClocktowerEventService;
 import top.egon.mario.clocktower.event.service.ClocktowerEventStreamService;
+import top.egon.mario.clocktower.room.repository.ClocktowerRoomRepository;
 
 import java.util.List;
 import java.util.Map;
@@ -23,12 +26,14 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ClocktowerEventServiceImpl implements ClocktowerEventService {
 
+    private static final int APPEND_RETRY_LIMIT = 3;
     private static final TypeReference<List<Long>> LONG_LIST_TYPE = new TypeReference<>() {
     };
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
 
     private final ClocktowerEventRepository eventRepository;
+    private final ClocktowerRoomRepository roomRepository;
     private final ClocktowerEventProjector projector;
     private final ObjectMapper objectMapper;
     private final ClocktowerEventStreamService streamService;
@@ -36,9 +41,22 @@ public class ClocktowerEventServiceImpl implements ClocktowerEventService {
     @Override
     @Transactional
     public ClocktowerEventResponse append(ClocktowerEventAppendRequest request) {
-        Long seqNo = eventRepository.findTopByRoomIdAndDeletedFalseOrderByEventSeqDesc(request.roomId())
-                .map(event -> event.getEventSeq() + 1)
-                .orElse(1L);
+        for (int attempt = 1; attempt <= APPEND_RETRY_LIMIT; attempt++) {
+            try {
+                roomRepository.findLockedByIdAndDeletedFalse(request.roomId())
+                        .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
+                return appendOnce(request);
+            } catch (DataIntegrityViolationException ex) {
+                if (attempt == APPEND_RETRY_LIMIT) {
+                    throw ex;
+                }
+            }
+        }
+        throw new IllegalStateException("CLOCKTOWER_EVENT_APPEND_RETRY_EXHAUSTED");
+    }
+
+    private ClocktowerEventResponse appendOnce(ClocktowerEventAppendRequest request) {
+        Long seqNo = nextSeqNo(request.roomId());
         ClocktowerEventPo event = new ClocktowerEventPo();
         event.setRoomId(request.roomId());
         event.setEventSeq(seqNo);
@@ -57,6 +75,12 @@ public class ClocktowerEventServiceImpl implements ClocktowerEventService {
         projector.project(response);
         publishAfterCommit(response);
         return response;
+    }
+
+    private Long nextSeqNo(Long roomId) {
+        return eventRepository.findTopByRoomIdAndDeletedFalseOrderByEventSeqDesc(roomId)
+                .map(event -> event.getEventSeq() + 1)
+                .orElse(1L);
     }
 
     private void publishAfterCommit(ClocktowerEventResponse response) {

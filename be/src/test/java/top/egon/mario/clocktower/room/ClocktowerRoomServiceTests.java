@@ -1,11 +1,15 @@
 package top.egon.mario.clocktower.room;
 
 import org.junit.jupiter.api.Test;
+import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoomStatus;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomCreateRequest;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomJoinRequest;
+import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomStartRequest;
+import top.egon.mario.clocktower.room.dto.request.ClocktowerUpdateSeatRequest;
+import top.egon.mario.clocktower.room.dto.request.RoleAssignmentRequest;
 import top.egon.mario.clocktower.room.dto.response.ClocktowerRoomResponse;
 import top.egon.mario.clocktower.room.dto.response.ClocktowerSeatResponse;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomService;
@@ -15,6 +19,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ClocktowerRoomServiceTests {
 
@@ -42,6 +47,59 @@ class ClocktowerRoomServiceTests {
         assertThat(seat.seatNo()).isEqualTo(2);
         assertThat(seat.userId()).isEqualTo(2L);
         assertThat(seat.displayName()).isEqualTo("Luigi");
+    }
+
+    @Test
+    void publicRoomResponseDoesNotExposeAssignedRoles() {
+        ClocktowerRoomResponse room = joinedFivePlayerRoom();
+        roomService.start(room.roomId(), new ClocktowerRoomStartRequest(List.of(
+                new RoleAssignmentRequest(room.seats().get(0).seatId(), "EMPATH"),
+                new RoleAssignmentRequest(room.seats().get(1).seatId(), "CHEF"),
+                new RoleAssignmentRequest(room.seats().get(2).seatId(), "MONK"),
+                new RoleAssignmentRequest(room.seats().get(3).seatId(), "POISONER"),
+                new RoleAssignmentRequest(room.seats().get(4).seatId(), "IMP")
+        ), false), principal(1L, "mario"));
+
+        ClocktowerRoomResponse publicRoom = roomService.get(room.roomId());
+
+        assertThat(publicRoom.seats()).allSatisfy(seat -> {
+            assertThat(seat.roleCode()).isNull();
+            assertThat(seat.roleType()).isNull();
+        });
+    }
+
+    @Test
+    void onlyStorytellerCanStartRoom() {
+        ClocktowerRoomResponse room = joinedFivePlayerRoom();
+
+        assertThatThrownBy(() -> roomService.start(room.roomId(), new ClocktowerRoomStartRequest(List.of(
+                new RoleAssignmentRequest(room.seats().get(0).seatId(), "EMPATH"),
+                new RoleAssignmentRequest(room.seats().get(1).seatId(), "CHEF"),
+                new RoleAssignmentRequest(room.seats().get(2).seatId(), "MONK"),
+                new RoleAssignmentRequest(room.seats().get(3).seatId(), "POISONER"),
+                new RoleAssignmentRequest(room.seats().get(4).seatId(), "IMP")
+        ), false), principal(2L, "luigi")))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_STORYTELLER_FORBIDDEN");
+    }
+
+    @Test
+    void onlyStorytellerCanUpdateSeat() {
+        ClocktowerRoomResponse room = roomService.create(createFivePlayerRequest(), principal(1L, "mario"));
+
+        assertThatThrownBy(() -> roomService.updateSeat(room.roomId(), room.seats().getFirst().seatId(),
+                new ClocktowerUpdateSeatRequest("Moved", 5), principal(2L, "luigi")))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_STORYTELLER_FORBIDDEN");
+    }
+
+    private ClocktowerRoomResponse joinedFivePlayerRoom() {
+        ClocktowerRoomResponse room = roomService.create(createFivePlayerRequest(), principal(1L, "mario"));
+        for (int i = 0; i < room.seats().size(); i++) {
+            roomService.join(room.roomId(), new ClocktowerRoomJoinRequest(i + 1, "Player " + (i + 1), null),
+                    principal((long) i + 2, "player-" + (i + 1)));
+        }
+        return roomService.get(room.roomId());
     }
 
     private static ClocktowerRoomCreateRequest createFivePlayerRequest() {

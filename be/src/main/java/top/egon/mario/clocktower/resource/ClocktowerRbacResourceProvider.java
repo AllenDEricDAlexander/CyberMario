@@ -34,7 +34,28 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
 
         resources.add(api("api:clocktower:scripts:*", "Clocktower scripts", "GET", "/api/clocktower/scripts/**", ApiRiskLevel.LOW));
         resources.add(api("api:clocktower:boards:*", "Clocktower boards", "ANY", "/api/clocktower/boards/**", ApiRiskLevel.MEDIUM));
-        resources.add(api("api:clocktower:rooms:*", "Clocktower rooms", "ANY", "/api/clocktower/rooms/**", ApiRiskLevel.MEDIUM));
+        resources.add(api("api:clocktower:rooms:read:list", "Clocktower room list", "GET",
+                "/api/clocktower/rooms", ApiRiskLevel.LOW));
+        resources.add(api("api:clocktower:rooms:read:detail", "Clocktower room detail", "GET",
+                "/api/clocktower/rooms/*", ApiRiskLevel.LOW));
+        resources.add(api("api:clocktower:rooms:player:join", "Clocktower player join", "POST",
+                "/api/clocktower/rooms/*/join", ApiRiskLevel.MEDIUM));
+        resources.add(api("api:clocktower:rooms:player:leave", "Clocktower player leave", "POST",
+                "/api/clocktower/rooms/*/leave", ApiRiskLevel.MEDIUM));
+        resources.add(api("api:clocktower:rooms:player:view", "Clocktower player view", "GET",
+                "/api/clocktower/rooms/*/view", ApiRiskLevel.MEDIUM));
+        resources.add(api("api:clocktower:rooms:player:action", "Clocktower player action", "POST",
+                "/api/clocktower/rooms/*/actions", ApiRiskLevel.MEDIUM));
+        resources.add(api("api:clocktower:rooms:storyteller:create", "Clocktower create room", "POST",
+                "/api/clocktower/rooms", ApiRiskLevel.MEDIUM));
+        resources.add(api("api:clocktower:rooms:storyteller:start", "Clocktower start room", "POST",
+                "/api/clocktower/rooms/*/start", ApiRiskLevel.HIGH));
+        resources.add(api("api:clocktower:rooms:storyteller:seat", "Clocktower update seat", "PATCH",
+                "/api/clocktower/rooms/*/seats/*", ApiRiskLevel.HIGH));
+        resources.add(api("api:clocktower:rooms:storyteller:night", "Clocktower night checklist", "GET",
+                "/api/clocktower/rooms/*/night-checklist", ApiRiskLevel.HIGH));
+        resources.add(api("api:clocktower:rooms:storyteller:action", "Clocktower storyteller action", "POST",
+                "/api/clocktower/rooms/*/storyteller/actions", ApiRiskLevel.HIGH));
         resources.add(api("api:clocktower:events:stream", "Clocktower event stream", "GET",
                 "/api/clocktower/rooms/*/events/stream", ApiRiskLevel.MEDIUM));
         resources.add(api("api:clocktower:grimoire:*", "Clocktower grimoire", "ANY",
@@ -50,7 +71,10 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
                         "System role for Clocktower players.", 40,
                         List.of(
                                 "menu:clocktower:rooms", "menu:clocktower:replays",
-                                "api:clocktower:scripts:*", "api:clocktower:rooms:*",
+                                "api:clocktower:scripts:*", "api:clocktower:rooms:read:list",
+                                "api:clocktower:rooms:read:detail", "api:clocktower:rooms:player:join",
+                                "api:clocktower:rooms:player:leave", "api:clocktower:rooms:player:view",
+                                "api:clocktower:rooms:player:action",
                                 "api:clocktower:events:stream", "api:clocktower:replays:*"
                         ), RbacResourceSource.PROVIDER),
                 new RbacRolePresetSeed(APP_CODE, "CLOCKTOWER_STORYTELLER", "Clocktower Storyteller",
@@ -58,7 +82,14 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
                         List.of(
                                 "menu:clocktower:boards", "menu:clocktower:rooms", "menu:clocktower:rules",
                                 "menu:clocktower:replays", "api:clocktower:scripts:*", "api:clocktower:boards:*",
-                                "api:clocktower:rooms:*", "api:clocktower:events:stream",
+                                "api:clocktower:rooms:read:list", "api:clocktower:rooms:read:detail",
+                                "api:clocktower:rooms:player:join", "api:clocktower:rooms:player:leave",
+                                "api:clocktower:rooms:player:view", "api:clocktower:rooms:player:action",
+                                "api:clocktower:rooms:storyteller:create",
+                                "api:clocktower:rooms:storyteller:start",
+                                "api:clocktower:rooms:storyteller:seat",
+                                "api:clocktower:rooms:storyteller:night",
+                                "api:clocktower:rooms:storyteller:action", "api:clocktower:events:stream",
                                 "api:clocktower:grimoire:*", "api:clocktower:replays:*"
                         ), RbacResourceSource.PROVIDER)
         );

@@ -1,6 +1,7 @@
 package top.egon.mario.clocktower.grimoire;
 
 import org.junit.jupiter.api.Test;
+import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.grimoire.dto.response.ClocktowerGrimoireResponse;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ClocktowerGrimoireServiceTests {
 
@@ -46,6 +48,15 @@ class ClocktowerGrimoireServiceTests {
         assertThat(started.phase()).isEqualTo(ClocktowerPhase.FIRST_NIGHT);
         assertThat(grimoire.seats()).extracting(GrimoireSeatResponse::roleCode)
                 .containsExactly("EMPATH", "CHEF", "MONK", "POISONER", "IMP");
+    }
+
+    @Test
+    void nonStorytellerCannotReadGrimoire() {
+        ClocktowerRoomResponse room = createJoinedFivePlayerRoom();
+
+        assertThatThrownBy(() -> grimoireService.getGrimoire(room.roomId(), principal(2L, "player-1")))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_STORYTELLER_FORBIDDEN");
     }
 
     private ClocktowerRoomResponse createJoinedFivePlayerRoom() {

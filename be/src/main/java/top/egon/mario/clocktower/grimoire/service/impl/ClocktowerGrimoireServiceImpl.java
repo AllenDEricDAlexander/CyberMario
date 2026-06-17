@@ -3,6 +3,7 @@ package top.egon.mario.clocktower.grimoire.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import top.egon.mario.clocktower.common.ClocktowerAccess;
 import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerEventType;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
@@ -57,6 +58,7 @@ public class ClocktowerGrimoireServiceImpl implements ClocktowerGrimoireService 
     public ClocktowerGrimoireResponse getGrimoire(Long roomId, RbacPrincipal principal) {
         ClocktowerRoomPo room = roomRepository.findByIdAndDeletedFalse(roomId)
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
+        ClocktowerAccess.requireStoryteller(room, principal);
         List<ClocktowerSeatPo> seats = seatRepository.findByRoomIdAndDeletedFalseOrderBySeatNoAsc(roomId);
         Map<Long, ClocktowerGrimoireEntryPo> entries = grimoireEntryRepository
                 .findByRoomIdAndDeletedFalseOrderBySeatIdAsc(roomId)
@@ -78,6 +80,7 @@ public class ClocktowerGrimoireServiceImpl implements ClocktowerGrimoireService 
     public NightChecklistResponse nightChecklist(Long roomId, RbacPrincipal principal) {
         ClocktowerRoomPo room = roomRepository.findByIdAndDeletedFalse(roomId)
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
+        ClocktowerAccess.requireStoryteller(room, principal);
         List<ClocktowerSeatPo> seats = seatRepository.findByRoomIdAndDeletedFalseOrderBySeatNoAsc(roomId);
         Map<String, ClocktowerSeatPo> seatByRole = seats.stream()
                 .filter(seat -> seat.getRoleCode() != null)
@@ -102,6 +105,7 @@ public class ClocktowerGrimoireServiceImpl implements ClocktowerGrimoireService 
                                                        RbacPrincipal principal) {
         ClocktowerRoomPo room = roomRepository.findByIdAndDeletedFalse(roomId)
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
+        ClocktowerAccess.requireStoryteller(room, principal);
         return switch (request.actionType()) {
             case "ADD_MARKER" -> addMarker(room, request, principal);
             case "REMOVE_MARKER" -> removeMarker(room, request, principal);
