@@ -1,13 +1,15 @@
-import {Table, Tag} from 'antd'
+import {Button, Table, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import type {ClocktowerBoardCandidateResponse} from '../clocktowerTypes'
 
 type BoardCandidateTableProps = {
     candidates: ClocktowerBoardCandidateResponse[]
     loading?: boolean
+    savingCandidateId?: string
+    onSave?: (candidate: ClocktowerBoardCandidateResponse) => Promise<void>
 }
 
-export function BoardCandidateTable({candidates, loading}: BoardCandidateTableProps) {
+export function BoardCandidateTable({candidates, loading, savingCandidateId, onSave}: BoardCandidateTableProps) {
     const columns: ColumnsType<ClocktowerBoardCandidateResponse> = [
         {title: '候选', dataIndex: 'candidateId', width: 160, render: (value) => <Tag>{value}</Tag>},
         {title: '人数', dataIndex: 'playerCount', width: 90},
@@ -38,6 +40,22 @@ export function BoardCandidateTable({candidates, loading}: BoardCandidateTablePr
             width: 120,
             render: (_, record) => record.validation.valid ? <Tag color="success">通过</Tag> : <Tag color="error">有问题</Tag>,
         },
+        {
+            title: '操作',
+            fixed: 'right',
+            width: 110,
+            render: (_, record) => (
+                <Button
+                    disabled={!onSave}
+                    loading={savingCandidateId === record.candidateId}
+                    onClick={() => void onSave?.(record)}
+                    size="small"
+                    type="primary"
+                >
+                    保存
+                </Button>
+            ),
+        },
     ]
 
     return (
@@ -47,7 +65,7 @@ export function BoardCandidateTable({candidates, loading}: BoardCandidateTablePr
             loading={loading}
             pagination={false}
             rowKey="candidateId"
-            scroll={{x: 900}}
+            scroll={{x: 1020}}
         />
     )
 }
