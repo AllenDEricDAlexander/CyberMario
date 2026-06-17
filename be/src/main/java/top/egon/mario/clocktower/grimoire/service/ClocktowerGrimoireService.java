@@ -1,7 +1,9 @@
 package top.egon.mario.clocktower.grimoire.service;
 
+import top.egon.mario.clocktower.grimoire.dto.request.StorytellerActionRequest;
 import top.egon.mario.clocktower.grimoire.dto.response.ClocktowerGrimoireResponse;
 import top.egon.mario.clocktower.grimoire.dto.response.NightChecklistResponse;
+import top.egon.mario.clocktower.grimoire.dto.response.StorytellerActionResponse;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 public interface ClocktowerGrimoireService {
@@ -9,4 +11,6 @@ public interface ClocktowerGrimoireService {
     ClocktowerGrimoireResponse getGrimoire(Long roomId, RbacPrincipal principal);
 
     NightChecklistResponse nightChecklist(Long roomId, RbacPrincipal principal);
+
+    StorytellerActionResponse storytellerAction(Long roomId, StorytellerActionRequest request, RbacPrincipal principal);
 }

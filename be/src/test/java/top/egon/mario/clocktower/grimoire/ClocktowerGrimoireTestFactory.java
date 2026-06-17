@@ -28,7 +28,7 @@ final class ClocktowerGrimoireTestFactory {
                 .thenReturn(List.of());
         ClocktowerGrimoireService grimoireService = new ClocktowerGrimoireServiceImpl(context.roomRepository(),
                 context.seatRepository(), context.grimoireEntryRepository(), markerRepository, taskRepository,
-                context.nightOrderRepository(), context.roleRepository());
+                context.nightOrderRepository(), context.roleRepository(), context.eventService());
         return new Services(context.roomService(), grimoireService);
     }
 
