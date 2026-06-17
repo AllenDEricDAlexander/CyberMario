@@ -6,6 +6,7 @@ import {useParams} from 'react-router'
 import {PageToolbar} from '../../components/PageToolbar'
 import {resolveErrorMessage} from '../../services/request'
 import {voidify} from '../../utils/async'
+import {hasAdminPermissionBypass, useAuth} from '../auth/authStore'
 import {getClocktowerReplay, getClocktowerReplayVotes} from './clocktowerService'
 import type {ClocktowerEventResponse, ClocktowerReplayResponse, ClocktowerVoteReplayResponse} from './clocktowerTypes'
 import {EventTimeline} from './components/EventTimeline'
@@ -19,12 +20,14 @@ type ReplayFormValues = {
 function ReplayPage() {
     const {roomId} = useParams()
     const {message} = App.useApp()
+    const auth = useAuth()
     const [form] = Form.useForm<ReplayFormValues>()
     const [replay, setReplay] = useState<ClocktowerReplayResponse | null>(null)
     const [votes, setVotes] = useState<ClocktowerVoteReplayResponse[]>([])
     const [selected, setSelected] = useState<ClocktowerEventResponse | null>(null)
     const [loading, setLoading] = useState(false)
     const numericRoomId = Number(roomId)
+    const canViewVoteReplay = auth.roleCodes.includes('CLOCKTOWER_STORYTELLER') || hasAdminPermissionBypass(auth)
 
     useEffect(() => {
         void loadReplay()
@@ -40,6 +43,10 @@ function ReplayPage() {
             const response = await getClocktowerReplay(numericRoomId, values)
             setReplay(response)
             setSelected(response.events[0] ?? null)
+            if (!canViewVoteReplay) {
+                setVotes([])
+                return
+            }
             try {
                 setVotes(await getClocktowerReplayVotes(numericRoomId))
             } catch (caught) {
@@ -132,16 +139,18 @@ function ReplayPage() {
                     </Card>
                 </Col>
             </Row>
-            <Card style={{marginTop: 16}} title="投票复盘">
-                <Table
-                    columns={voteColumns}
-                    dataSource={votes}
-                    loading={loading}
-                    pagination={false}
-                    rowKey="voteId"
-                    scroll={{x: 720}}
-                />
-            </Card>
+            {canViewVoteReplay && (
+                <Card style={{marginTop: 16}} title="投票复盘">
+                    <Table
+                        columns={voteColumns}
+                        dataSource={votes}
+                        loading={loading}
+                        pagination={false}
+                        rowKey="voteId"
+                        scroll={{x: 720}}
+                    />
+                </Card>
+            )}
         </>
     )
 }
