@@ -27,7 +27,8 @@ final class ClocktowerGrimoireTestFactory {
         when(taskRepository.findByRoomIdAndStatusAndDeletedFalseOrderBySortOrderAsc(any(), eq("PENDING")))
                 .thenReturn(List.of());
         ClocktowerGrimoireService grimoireService = new ClocktowerGrimoireServiceImpl(context.roomRepository(),
-                context.seatRepository(), context.grimoireEntryRepository(), markerRepository, taskRepository);
+                context.seatRepository(), context.grimoireEntryRepository(), markerRepository, taskRepository,
+                context.nightOrderRepository(), context.roleRepository());
         return new Services(context.roomService(), grimoireService);
     }
 

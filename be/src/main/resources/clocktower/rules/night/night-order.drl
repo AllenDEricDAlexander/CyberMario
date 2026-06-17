@@ -1,0 +1,4 @@
+package top.egon.mario.clocktower.rules.night;
+
+// Phase 1 keeps night wake order backed by clocktower_night_order seed data.
+// Role-specific automation rules are intentionally left for the later automation plan.

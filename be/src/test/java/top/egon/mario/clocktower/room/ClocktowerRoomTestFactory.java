@@ -10,6 +10,8 @@ import top.egon.mario.clocktower.event.service.ClocktowerEventService;
 import top.egon.mario.clocktower.grimoire.po.ClocktowerGrimoireEntryPo;
 import top.egon.mario.clocktower.grimoire.repository.ClocktowerGrimoireEntryRepository;
 import top.egon.mario.clocktower.script.po.ClocktowerRolePo;
+import top.egon.mario.clocktower.script.po.ClocktowerNightOrderPo;
+import top.egon.mario.clocktower.script.repository.ClocktowerNightOrderRepository;
 import top.egon.mario.clocktower.script.repository.ClocktowerRoleRepository;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoleType;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
@@ -23,6 +25,7 @@ import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -52,6 +55,7 @@ public final class ClocktowerRoomTestFactory {
 
         ClocktowerRoomRepository roomRepository = mock(ClocktowerRoomRepository.class);
         ClocktowerSeatRepository seatRepository = mock(ClocktowerSeatRepository.class);
+        ClocktowerNightOrderRepository nightOrderRepository = mock(ClocktowerNightOrderRepository.class);
         ClocktowerRoleRepository roleRepository = mock(ClocktowerRoleRepository.class);
         ClocktowerGrimoireEntryRepository entryRepository = mock(ClocktowerGrimoireEntryRepository.class);
 
@@ -86,8 +90,16 @@ public final class ClocktowerRoomTestFactory {
                         && seat.getRoomId().equals(invocation.getArgument(1)))
                 .findFirst());
         when(roleRepository.findByRoleCodeInAndDeletedFalse(any())).thenAnswer(invocation -> {
-            List<String> roleCodes = invocation.getArgument(0);
+            Collection<String> roleCodes = invocation.getArgument(0);
             return roleCodes.stream().map(ClocktowerRoomTestFactory::role).toList();
+        });
+        when(nightOrderRepository.findByScriptCodeAndNightTypeAndRoleCodeInAndDeletedFalseOrderBySortOrderAsc(
+                any(), any(), any())).thenAnswer(invocation -> {
+            String nightType = invocation.getArgument(1);
+            List<String> roleCodes = new ArrayList<>(invocation.getArgument(2));
+            return nightOrder(nightType).stream()
+                    .filter(order -> roleCodes.contains(order.getRoleCode()))
+                    .toList();
         });
         when(entryRepository.save(any(ClocktowerGrimoireEntryPo.class))).thenAnswer(invocation -> {
             ClocktowerGrimoireEntryPo entry = invocation.getArgument(0);
@@ -109,7 +121,8 @@ public final class ClocktowerRoomTestFactory {
                 request.payload(), Instant.now());
         ClocktowerRoomService roomService = new ClocktowerRoomServiceImpl(roomRepository, seatRepository, boardService,
                 eventService, roleRepository, entryRepository);
-        return new Context(roomService, roomRepository, seatRepository, entryRepository);
+        return new Context(roomService, roomRepository, seatRepository, entryRepository, nightOrderRepository,
+                roleRepository);
     }
 
     static ClocktowerRolePo role(String roleCode) {
@@ -130,11 +143,30 @@ public final class ClocktowerRoomTestFactory {
         return role;
     }
 
+    private static List<ClocktowerNightOrderPo> nightOrder(String nightType) {
+        ClocktowerNightOrderPo poisoner = nightOrder("POISONER", nightType, 5);
+        ClocktowerNightOrderPo empath = nightOrder("EMPATH", nightType, 20);
+        return List.of(poisoner, empath);
+    }
+
+    private static ClocktowerNightOrderPo nightOrder(String roleCode, String nightType, int orderNo) {
+        ClocktowerNightOrderPo order = new ClocktowerNightOrderPo();
+        order.setScriptCode(ClocktowerScriptCode.TROUBLE_BREWING);
+        order.setRoleCode(roleCode);
+        order.setNightType(nightType);
+        order.setOrderNo(orderNo);
+        order.setSortOrder(orderNo);
+        order.setReminderText(roleCode);
+        return order;
+    }
+
     public record Context(
             ClocktowerRoomService roomService,
             ClocktowerRoomRepository roomRepository,
             ClocktowerSeatRepository seatRepository,
-            ClocktowerGrimoireEntryRepository grimoireEntryRepository
+            ClocktowerGrimoireEntryRepository grimoireEntryRepository,
+            ClocktowerNightOrderRepository nightOrderRepository,
+            ClocktowerRoleRepository roleRepository
     ) {
     }
 
