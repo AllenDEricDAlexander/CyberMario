@@ -2,10 +2,9 @@ import {renderToStaticMarkup} from 'react-dom/server'
 import {describe, expect, test, vi} from 'vitest'
 import {Component as GameRoomPage} from './GameRoomPage'
 
-vi.mock('react-router', async () => {
-    const actual = await vi.importActual<typeof import('react-router')>('react-router')
-    return {...actual, useParams: () => ({roomId: '7'})}
-})
+vi.mock('react-router', () => ({
+    useParams: () => ({roomId: '7'}),
+}))
 
 vi.mock('./clocktowerService', () => ({
     getClocktowerPlayerView: vi.fn().mockResolvedValue({

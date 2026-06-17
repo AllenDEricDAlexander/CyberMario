@@ -7,6 +7,10 @@ vi.mock('./clocktowerService', () => ({
         {scriptCode: 'TROUBLE_BREWING', name: '暗流涌动', edition: 'BASE_3', minPlayers: 5, maxPlayers: 15, roleCount: 22, enabled: true},
     ]),
     generateClocktowerBoard: vi.fn(),
+    validateClocktowerBoard: vi.fn(),
+    saveClocktowerBoard: vi.fn(),
+    listClocktowerBoards: vi.fn().mockResolvedValue([]),
+    deleteClocktowerBoard: vi.fn(),
 }))
 
 describe('BoardBuilderPage', () => {
@@ -17,5 +21,7 @@ describe('BoardBuilderPage', () => {
         expect(markup).toContain('剧本')
         expect(markup).toContain('人数')
         expect(markup).toContain('生成配板')
+        expect(markup).toContain('手动校验')
+        expect(markup).toContain('已保存配板')
     })
 })

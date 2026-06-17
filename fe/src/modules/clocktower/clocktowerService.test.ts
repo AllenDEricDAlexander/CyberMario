@@ -1,10 +1,13 @@
 import {describe, expect, it, vi} from 'vitest'
 import {
     generateClocktowerBoard,
+    getClocktowerJinxRules,
+    getClocktowerReplayVotes,
     joinClocktowerRoom,
     saveClocktowerBoard,
     submitClocktowerStorytellerAction,
     getClocktowerScripts,
+    getClocktowerTerms,
     streamClocktowerEvents,
 } from './clocktowerService'
 
@@ -18,6 +21,22 @@ describe('clocktowerService', () => {
         const {requestJson} = await import('../../services/request')
         await getClocktowerScripts()
         expect(requestJson).toHaveBeenCalledWith('/api/clocktower/scripts')
+    })
+
+    it('loads terms with optional filters', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await getClocktowerTerms({keyword: 'poison', category: 'status'})
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/terms?keyword=poison&category=status')
+    })
+
+    it('loads jinx rules with optional filters', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await getClocktowerJinxRules({roleCode: 'washerwoman', severity: 'INFO'})
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/jinx-rules?roleCode=washerwoman&severity=INFO')
     })
 
     it('generates boards with POST body', async () => {
@@ -84,6 +103,14 @@ describe('clocktowerService', () => {
             method: 'POST',
             body: request,
         })
+    })
+
+    it('loads replay votes for a room', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await getClocktowerReplayVotes(7)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/replays/7/votes')
     })
 
     it('streams room events with query parameters', async () => {

@@ -17,6 +17,7 @@ import {
     NodeIndexOutlined,
     PlayCircleOutlined,
     ProfileOutlined,
+    ReadOutlined,
     SafetyCertificateOutlined,
     SearchOutlined,
     SettingOutlined,
@@ -49,12 +50,19 @@ const menuPathByKey: Record<string, string> = {
     '/rag/settings': '/rag/settings',
     '/clocktower/boards': '/clocktower/boards',
     '/clocktower/rooms': '/clocktower/rooms',
+    '/clocktower/rules': '/clocktower/rules',
+    '/clocktower/replays': '/clocktower/replays',
     '/rbac/users': '/rbac/users',
     '/rbac/roles': '/rbac/roles',
     '/rbac/permissions': '/rbac/permissions',
     '/rbac/menus': '/rbac/menus',
     '/rbac/buttons': '/rbac/buttons',
     '/rbac/apis': '/rbac/apis',
+}
+
+const compatibilityMenuPathAliases: Record<string, string> = {
+    '/clocktower/rule': '/clocktower/rules',
+    '/clocktower/replay': '/clocktower/replays',
 }
 
 export const adminMenuItems: AdminMenuItem[] = [
@@ -172,6 +180,16 @@ export const adminMenuItems: AdminMenuItem[] = [
                 icon: <TeamOutlined/>,
                 label: '钟楼房间',
             },
+            {
+                key: '/clocktower/rules',
+                icon: <ReadOutlined/>,
+                label: '钟楼规则',
+            },
+            {
+                key: '/clocktower/replays',
+                icon: <FileSearchOutlined/>,
+                label: '钟楼回放',
+            },
         ],
     },
     {
@@ -253,14 +271,19 @@ export function selectedAdminMenuKey(pathname: string, menuKeys: string[]) {
 }
 
 export function canAccessAdminPath(pathname: string, menus: MenuTreeResponse[], canBypass: boolean, roleCodes: string[] = []) {
-    if (isSuperAdminOnlyPath(pathname) && !isSuperAdmin(roleCodes)) {
+    const canonicalPathname = canonicalAdminPath(pathname)
+    if (isSuperAdminOnlyPath(canonicalPathname) && !isSuperAdmin(roleCodes)) {
         return false
     }
-    if (canBypass || pathname === '/' || pathname === '/account/settings') {
+    if (canBypass || canonicalPathname === '/' || canonicalPathname === '/account/settings') {
         return true
     }
     return flattenMenuKeys(buildAuthorizedAdminMenuItems(menus, canBypass, roleCodes))
-        .some((key) => pathname === key || pathname.startsWith(`${key}/`))
+        .some((key) => canonicalPathname === key || canonicalPathname.startsWith(`${key}/`))
+}
+
+function canonicalAdminPath(pathname: string) {
+    return compatibilityMenuPathAliases[pathname] ?? pathname
 }
 
 function filterMenuItems(

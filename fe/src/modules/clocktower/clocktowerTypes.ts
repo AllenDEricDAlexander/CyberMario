@@ -398,3 +398,12 @@ export type ClocktowerReplayResponse = {
     mode: string
     events: ClocktowerEventResponse[]
 }
+
+export type ClocktowerVoteReplayResponse = {
+    voteId: number
+    nominationId: number
+    voterSeatId: number
+    voteValue: boolean
+    usedDeadVote: boolean
+    eventId?: number | null
+}

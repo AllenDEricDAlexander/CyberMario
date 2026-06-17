@@ -33,6 +33,10 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
         resources.add(menu("menu:clocktower:replays", "钟楼回放", null, "/clocktower/replays", 40));
 
         resources.add(api("api:clocktower:scripts:*", "Clocktower scripts", "GET", "/api/clocktower/scripts/**", ApiRiskLevel.LOW));
+        resources.add(api("api:clocktower:terms:read", "Clocktower terms", "GET",
+                "/api/clocktower/terms", ApiRiskLevel.LOW));
+        resources.add(api("api:clocktower:jinx-rules:read", "Clocktower jinx rules", "GET",
+                "/api/clocktower/jinx-rules", ApiRiskLevel.LOW));
         resources.add(api("api:clocktower:boards:*", "Clocktower boards", "ANY", "/api/clocktower/boards/**", ApiRiskLevel.MEDIUM));
         resources.add(api("api:clocktower:rooms:read:list", "Clocktower room list", "GET",
                 "/api/clocktower/rooms", ApiRiskLevel.LOW));
@@ -71,7 +75,8 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
                         "System role for Clocktower players.", 40,
                         List.of(
                                 "menu:clocktower:rooms", "menu:clocktower:replays",
-                                "api:clocktower:scripts:*", "api:clocktower:rooms:read:list",
+                                "api:clocktower:scripts:*", "api:clocktower:terms:read",
+                                "api:clocktower:jinx-rules:read", "api:clocktower:rooms:read:list",
                                 "api:clocktower:rooms:read:detail", "api:clocktower:rooms:player:join",
                                 "api:clocktower:rooms:player:leave", "api:clocktower:rooms:player:view",
                                 "api:clocktower:rooms:player:action",
@@ -81,7 +86,8 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
                         "System role for Clocktower storytellers.", 30,
                         List.of(
                                 "menu:clocktower:boards", "menu:clocktower:rooms", "menu:clocktower:rules",
-                                "menu:clocktower:replays", "api:clocktower:scripts:*", "api:clocktower:boards:*",
+                                "menu:clocktower:replays", "api:clocktower:scripts:*", "api:clocktower:terms:read",
+                                "api:clocktower:jinx-rules:read", "api:clocktower:boards:*",
                                 "api:clocktower:rooms:read:list", "api:clocktower:rooms:read:detail",
                                 "api:clocktower:rooms:player:join", "api:clocktower:rooms:player:leave",
                                 "api:clocktower:rooms:player:view", "api:clocktower:rooms:player:action",

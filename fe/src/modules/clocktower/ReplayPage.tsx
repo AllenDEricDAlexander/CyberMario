@@ -1,12 +1,14 @@
 import {SearchOutlined} from '@ant-design/icons'
-import {App, Button, Card, Col, Form, InputNumber, Row, Select, Space, Tag, Typography} from 'antd'
+import {App, Button, Card, Col, Form, InputNumber, Row, Select, Space, Table, Tag, Typography} from 'antd'
+import type {ColumnsType} from 'antd/es/table'
 import {useEffect, useState} from 'react'
 import {useParams} from 'react-router'
 import {PageToolbar} from '../../components/PageToolbar'
 import {resolveErrorMessage} from '../../services/request'
 import {voidify} from '../../utils/async'
-import {getClocktowerReplay} from './clocktowerService'
-import type {ClocktowerEventResponse, ClocktowerReplayResponse} from './clocktowerTypes'
+import {hasAdminPermissionBypass, useAuth} from '../auth/authStore'
+import {getClocktowerReplay, getClocktowerReplayVotes} from './clocktowerService'
+import type {ClocktowerEventResponse, ClocktowerReplayResponse, ClocktowerVoteReplayResponse} from './clocktowerTypes'
 import {EventTimeline} from './components/EventTimeline'
 
 type ReplayFormValues = {
@@ -18,11 +20,14 @@ type ReplayFormValues = {
 function ReplayPage() {
     const {roomId} = useParams()
     const {message} = App.useApp()
+    const auth = useAuth()
     const [form] = Form.useForm<ReplayFormValues>()
     const [replay, setReplay] = useState<ClocktowerReplayResponse | null>(null)
+    const [votes, setVotes] = useState<ClocktowerVoteReplayResponse[]>([])
     const [selected, setSelected] = useState<ClocktowerEventResponse | null>(null)
     const [loading, setLoading] = useState(false)
     const numericRoomId = Number(roomId)
+    const canViewVoteReplay = auth.roleCodes.includes('CLOCKTOWER_STORYTELLER') || hasAdminPermissionBypass(auth)
 
     useEffect(() => {
         void loadReplay()
@@ -38,12 +43,44 @@ function ReplayPage() {
             const response = await getClocktowerReplay(numericRoomId, values)
             setReplay(response)
             setSelected(response.events[0] ?? null)
+            if (!canViewVoteReplay) {
+                setVotes([])
+                return
+            }
+            try {
+                setVotes(await getClocktowerReplayVotes(numericRoomId))
+            } catch (caught) {
+                setVotes([])
+                message.error(resolveErrorMessage(caught))
+            }
         } catch (caught) {
+            setReplay(null)
+            setVotes([])
+            setSelected(null)
             message.error(resolveErrorMessage(caught))
         } finally {
             setLoading(false)
         }
     }
+
+    const voteColumns: ColumnsType<ClocktowerVoteReplayResponse> = [
+        {title: '投票 ID', dataIndex: 'voteId', width: 120},
+        {title: '提名 ID', dataIndex: 'nominationId', width: 120},
+        {title: '投票座位', dataIndex: 'voterSeatId', width: 120},
+        {
+            title: '投票',
+            dataIndex: 'voteValue',
+            width: 120,
+            render: (value: boolean) => <Tag color={value ? 'success' : 'default'}>{value ? '赞成' : '反对'}</Tag>,
+        },
+        {
+            title: '使用死票',
+            dataIndex: 'usedDeadVote',
+            width: 120,
+            render: (value: boolean) => <Tag color={value ? 'warning' : 'default'}>{value ? '是' : '否'}</Tag>,
+        },
+        {title: '事件 ID', dataIndex: 'eventId', width: 120, render: (value?: number | null) => value ?? '-'},
+    ]
 
     return (
         <>
@@ -102,6 +139,18 @@ function ReplayPage() {
                     </Card>
                 </Col>
             </Row>
+            {canViewVoteReplay && (
+                <Card style={{marginTop: 16}} title="投票复盘">
+                    <Table
+                        columns={voteColumns}
+                        dataSource={votes}
+                        loading={loading}
+                        pagination={false}
+                        rowKey="voteId"
+                        scroll={{x: 720}}
+                    />
+                </Card>
+            )}
         </>
     )
 }

@@ -285,6 +285,26 @@ describe('admin menu authorization', () => {
                 sortNo: 21,
                 children: [],
             },
+            {
+                permissionId: 22,
+                permCode: 'menu:clocktower:rules',
+                permName: '钟楼规则',
+                routePath: '/clocktower/rules',
+                hidden: false,
+                cacheable: true,
+                sortNo: 22,
+                children: [],
+            },
+            {
+                permissionId: 23,
+                permCode: 'menu:clocktower:replays',
+                permName: '钟楼回放',
+                routePath: '/clocktower/replays',
+                hidden: false,
+                cacheable: true,
+                sortNo: 23,
+                children: [],
+            },
         ]
 
         const clocktowerKeys = flattenMenuKeys(buildAuthorizedAdminMenuItems(
@@ -295,7 +315,15 @@ describe('admin menu authorization', () => {
 
         expect(clocktowerKeys).toContain('/clocktower/boards')
         expect(clocktowerKeys).toContain('/clocktower/rooms')
+        expect(clocktowerKeys).toContain('/clocktower/rules')
+        expect(clocktowerKeys).toContain('/clocktower/replays')
+        expect(canAccessAdminPath('/clocktower/rule', clocktowerMenuTree, false, ['CLOCKTOWER_STORYTELLER']))
+            .toBe(true)
+        expect(canAccessAdminPath('/clocktower/replay', clocktowerMenuTree, false, ['CLOCKTOWER_STORYTELLER']))
+            .toBe(true)
         expect(canAccessAdminPath('/clocktower/rooms/7/play', clocktowerMenuTree, false, ['CLOCKTOWER_STORYTELLER']))
+            .toBe(true)
+        expect(canAccessAdminPath('/clocktower/replays/7', clocktowerMenuTree, false, ['CLOCKTOWER_STORYTELLER']))
             .toBe(true)
     })
 })
