@@ -1,5 +1,5 @@
-import {LoginOutlined, PlayCircleOutlined, ReloadOutlined} from '@ant-design/icons'
-import {App, Button, Card, Col, Empty, Form, Input, InputNumber, List, Row, Space, Tag, Typography} from 'antd'
+import {EditOutlined, LoginOutlined, LogoutOutlined, PlayCircleOutlined, ReloadOutlined} from '@ant-design/icons'
+import {App, Button, Card, Col, Empty, Form, Input, InputNumber, List, Modal, Row, Space, Tag, Typography} from 'antd'
 import {useEffect, useMemo, useState} from 'react'
 import {useNavigate, useParams} from 'react-router'
 import {PageToolbar} from '../../components/PageToolbar'
@@ -8,9 +8,11 @@ import {voidify} from '../../utils/async'
 import {
     getClocktowerRoom,
     joinClocktowerRoom,
+    leaveClocktowerRoom,
     startClocktowerGame,
+    updateClocktowerSeat,
 } from './clocktowerService'
-import type {ClocktowerRoomResponse, ClocktowerSeatResponse} from './clocktowerTypes'
+import type {ClocktowerRoomResponse, ClocktowerSeatResponse, ClocktowerUpdateSeatRequest} from './clocktowerTypes'
 import {RoleTypeTag} from './components/RoleTypeTag'
 
 type JoinFormValues = {
@@ -19,15 +21,22 @@ type JoinFormValues = {
     inviteCode?: string
 }
 
+type SeatFormValues = ClocktowerUpdateSeatRequest
+
 function RoomLobbyPage() {
     const {roomId} = useParams()
     const navigate = useNavigate()
     const {message} = App.useApp()
     const [form] = Form.useForm<JoinFormValues>()
+    const [seatForm] = Form.useForm<SeatFormValues>()
     const [room, setRoom] = useState<ClocktowerRoomResponse | null>(null)
+    const [selectedSeat, setSelectedSeat] = useState<ClocktowerSeatResponse | null>(null)
+    const [seatEditorOpen, setSeatEditorOpen] = useState(false)
     const [loading, setLoading] = useState(false)
     const [joining, setJoining] = useState(false)
     const [starting, setStarting] = useState(false)
+    const [updatingSeat, setUpdatingSeat] = useState(false)
+    const [leaving, setLeaving] = useState(false)
     const numericRoomId = Number(roomId)
 
     useEffect(() => {
@@ -65,6 +74,52 @@ function RoomLobbyPage() {
         }
     }
 
+    async function leaveRoom() {
+        if (!Number.isFinite(numericRoomId)) {
+            return
+        }
+        setLeaving(true)
+        try {
+            await leaveClocktowerRoom(numericRoomId)
+            message.success('已离开房间')
+            await loadRoom()
+        } catch (caught) {
+            message.error(resolveErrorMessage(caught))
+        } finally {
+            setLeaving(false)
+        }
+    }
+
+    function openSeatEditor(seat: ClocktowerSeatResponse) {
+        setSelectedSeat(seat)
+        seatForm.setFieldsValue({displayName: seat.displayName, seatNo: seat.seatNo})
+        setSeatEditorOpen(true)
+    }
+
+    function closeSeatEditor() {
+        setSeatEditorOpen(false)
+        setSelectedSeat(null)
+        seatForm.resetFields()
+    }
+
+    async function saveSeatUpdate() {
+        if (!selectedSeat || !Number.isFinite(numericRoomId)) {
+            return
+        }
+        const values = await seatForm.validateFields()
+        setUpdatingSeat(true)
+        try {
+            await updateClocktowerSeat(numericRoomId, selectedSeat.seatId, values)
+            message.success('座位已更新')
+            closeSeatEditor()
+            await loadRoom()
+        } catch (caught) {
+            message.error(resolveErrorMessage(caught))
+        } finally {
+            setUpdatingSeat(false)
+        }
+    }
+
     async function startGame() {
         if (!room || !Number.isFinite(numericRoomId)) {
             return
@@ -96,6 +151,14 @@ function RoomLobbyPage() {
                     <Space wrap>
                         <Button icon={<ReloadOutlined/>} loading={loading} onClick={voidify(loadRoom)}>刷新</Button>
                         <Button
+                            danger
+                            icon={<LogoutOutlined/>}
+                            loading={leaving}
+                            onClick={voidify(leaveRoom)}
+                        >
+                            离开房间
+                        </Button>
+                        <Button
                             icon={<PlayCircleOutlined/>}
                             loading={starting}
                             onClick={voidify(startGame)}
@@ -116,7 +179,11 @@ function RoomLobbyPage() {
                         loading={loading}
                         title="座位"
                     >
-                        {room ? <SeatList seats={room.seats}/> : <Empty description="暂无房间数据"/>}
+                        {room ? (
+                            <SeatList seats={room.seats} onEdit={openSeatEditor}/>
+                        ) : (
+                            <Empty description="暂无房间数据"/>
+                        )}
                     </Card>
                 </Col>
                 <Col lg={8} xs={24}>
@@ -154,17 +221,39 @@ function RoomLobbyPage() {
                     </Card>
                 </Col>
             </Row>
+            <Modal
+                confirmLoading={updatingSeat}
+                onCancel={closeSeatEditor}
+                onOk={voidify(saveSeatUpdate)}
+                open={seatEditorOpen}
+                title="调整座位"
+            >
+                <Form form={seatForm} layout="vertical">
+                    <Form.Item label="显示名称" name="displayName" rules={[{required: true, message: '请输入显示名称'}]}>
+                        <Input/>
+                    </Form.Item>
+                    <Form.Item label="座位号" name="seatNo">
+                        <InputNumber min={1} max={room?.playerCount ?? 15} style={{width: '100%'}}/>
+                    </Form.Item>
+                </Form>
+            </Modal>
         </>
     )
 }
 
-function SeatList({seats}: { seats: ClocktowerSeatResponse[] }) {
+export function SeatList({seats, onEdit}: { seats: ClocktowerSeatResponse[]; onEdit: (seat: ClocktowerSeatResponse) => void }) {
     return (
         <List
             dataSource={seats}
             locale={{emptyText: <Empty description="暂无座位"/>}}
             renderItem={(seat) => (
-                <List.Item>
+                <List.Item
+                    actions={[
+                        <Button key="edit" icon={<EditOutlined/>} onClick={() => onEdit(seat)}>
+                            调整座位
+                        </Button>,
+                    ]}
+                >
                     <Space align="center" wrap>
                         <Button aria-label={`选择 ${seat.seatNo} 号座位 ${seat.displayName}`} shape="circle">
                             {seat.seatNo}
