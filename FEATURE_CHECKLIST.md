@@ -304,6 +304,16 @@
 - arXiv 工具日志状态包含搜索、导入 pending/running/success/failed/skipped 等过程信息。
 - arXiv 日志页面和接口只允许 `SUPER_ADMIN` 访问。
 
+## Clocktower Phase 1
+
+- [x] Script, role, night-order, term, and jinx query APIs.
+- [x] Board generation and validation.
+- [x] Room, seat, start-game, and role assignment flow.
+- [x] Storyteller grimoire, markers, and night checklist.
+- [x] Player view, actions, nomination, vote, execution basics.
+- [x] SSE room event stream and basic replay.
+- [x] RBAC resource provider and frontend route shells.
+
 ## 13. 数据权限与边界
 
 - RBAC API 权限控制“能不能调用接口”。

@@ -1,4 +1,4 @@
-package clocktower.board
+package clocktower.rules.board
 
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.engine.BoardCandidateFact;

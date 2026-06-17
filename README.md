@@ -16,6 +16,7 @@ feature inventory and implementation notes, see [FEATURE_CHECKLIST.md](FEATURE_C
 - RAG knowledge-base, document, ingestion-job, retrieval-lab, chat, feedback, and settings pages.
 - Hybrid RAG retrieval with pgvector, keyword search, optional rerank, retrieval traces, and source citations.
 - arXiv search tooling with protected background import into the RAG document pipeline.
+- Clocktower Phase 1 game support with script data, board validation, rooms, grimoire, player actions, event stream, and basic replay.
 - RBAC user, role, permission, menu, button, API-rule, role-inheritance, and permission-version management.
 - JWT access/refresh token flow, public registration, account settings, and frontend auth retry handling.
 - PostgreSQL + Flyway schema management and Redis-backed RBAC/API/token cache support.
