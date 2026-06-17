@@ -9,6 +9,7 @@ import type {
     ClocktowerBoardValidateRequest,
     ClocktowerEventResponse,
     ClocktowerGrimoireResponse,
+    ClocktowerJinxRuleResponse,
     ClocktowerNightChecklistResponse,
     ClocktowerNightOrderResponse,
     ClocktowerPlayerActionRequest,
@@ -25,8 +26,10 @@ import type {
     ClocktowerSeatResponse,
     ClocktowerStartGameResponse,
     ClocktowerStorytellerActionRequest,
+    ClocktowerTermResponse,
     ClocktowerActionResponse,
     ClocktowerUpdateSeatRequest,
+    ClocktowerVoteReplayResponse,
     StorytellerActionResponse,
 } from './clocktowerTypes'
 
@@ -49,6 +52,16 @@ export function getClocktowerRoles(
 export function getClocktowerNightOrder(scriptCode: ClocktowerScriptCode, params: { nightType?: string } = {}) {
     const search = buildSearchParams(params)
     return requestJson<ClocktowerNightOrderResponse[]>(`/api/clocktower/scripts/${scriptCode}/night-order${suffix(search)}`)
+}
+
+export function getClocktowerTerms(params: { keyword?: string; category?: string } = {}) {
+    const search = buildSearchParams(params)
+    return requestJson<ClocktowerTermResponse[]>(`/api/clocktower/terms${suffix(search)}`)
+}
+
+export function getClocktowerJinxRules(params: { roleCode?: string; severity?: string } = {}) {
+    const search = buildSearchParams(params)
+    return requestJson<ClocktowerJinxRuleResponse[]>(`/api/clocktower/jinx-rules${suffix(search)}`)
 }
 
 export function generateClocktowerBoard(request: ClocktowerBoardGenerateRequest) {
@@ -150,6 +163,10 @@ export function submitClocktowerStorytellerAction(roomId: number, request: Clock
 export function getClocktowerReplay(roomId: number, params: { mode?: string; fromSeq?: number; toSeq?: number } = {}) {
     const search = buildSearchParams(params)
     return requestJson<ClocktowerReplayResponse>(`/api/clocktower/replays/${roomId}${suffix(search)}`)
+}
+
+export function getClocktowerReplayVotes(roomId: number) {
+    return requestJson<ClocktowerVoteReplayResponse[]>(`/api/clocktower/replays/${roomId}/votes`)
 }
 
 export function streamClocktowerEvents(
