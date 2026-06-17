@@ -1,11 +1,15 @@
 package top.egon.mario.clocktower.room;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.mockito.stubbing.Answer;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardValidateRequest;
 import top.egon.mario.clocktower.board.dto.response.BoardValidationResponse;
 import top.egon.mario.clocktower.board.dto.response.ClocktowerRoleTypeCountResponse;
 import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
 import top.egon.mario.clocktower.event.dto.ClocktowerEventResponse;
+import top.egon.mario.clocktower.event.po.ClocktowerEventPo;
+import top.egon.mario.clocktower.event.repository.ClocktowerEventRepository;
 import top.egon.mario.clocktower.event.service.ClocktowerEventService;
 import top.egon.mario.clocktower.grimoire.po.ClocktowerGrimoireEntryPo;
 import top.egon.mario.clocktower.grimoire.repository.ClocktowerGrimoireEntryRepository;
@@ -49,12 +53,16 @@ public final class ClocktowerRoomTestFactory {
         List<ClocktowerRoomPo> rooms = new ArrayList<>();
         List<ClocktowerSeatPo> seats = new ArrayList<>();
         List<ClocktowerGrimoireEntryPo> entries = new ArrayList<>();
+        List<ClocktowerEventPo> events = new ArrayList<>();
         AtomicLong roomId = new AtomicLong(1L);
         AtomicLong seatId = new AtomicLong(1L);
         AtomicLong entryId = new AtomicLong(1L);
+        AtomicLong eventId = new AtomicLong(1L);
+        ObjectMapper objectMapper = new ObjectMapper();
 
         ClocktowerRoomRepository roomRepository = mock(ClocktowerRoomRepository.class);
         ClocktowerSeatRepository seatRepository = mock(ClocktowerSeatRepository.class);
+        ClocktowerEventRepository eventRepository = mock(ClocktowerEventRepository.class);
         ClocktowerNightOrderRepository nightOrderRepository = mock(ClocktowerNightOrderRepository.class);
         ClocktowerRoleRepository roleRepository = mock(ClocktowerRoleRepository.class);
         ClocktowerGrimoireEntryRepository entryRepository = mock(ClocktowerGrimoireEntryRepository.class);
@@ -113,16 +121,46 @@ public final class ClocktowerRoomTestFactory {
                 .filter(entry -> !entry.isDeleted() && entry.getRoomId().equals(invocation.getArgument(0)))
                 .sorted(Comparator.comparing(ClocktowerGrimoireEntryPo::getSeatId))
                 .toList());
+        when(eventRepository.save(any(ClocktowerEventPo.class))).thenAnswer(saveEvent(events, eventId));
+        when(eventRepository.findTopByRoomIdAndDeletedFalseOrderByEventSeqDesc(any())).thenAnswer(invocation -> events.stream()
+                .filter(event -> !event.isDeleted() && event.getRoomId().equals(invocation.getArgument(0)))
+                .max(Comparator.comparing(ClocktowerEventPo::getEventSeq)));
+        when(eventRepository.findByRoomIdAndDeletedFalseOrderByEventSeqAsc(any())).thenAnswer(invocation -> events.stream()
+                .filter(event -> !event.isDeleted() && event.getRoomId().equals(invocation.getArgument(0)))
+                .sorted(Comparator.comparing(ClocktowerEventPo::getEventSeq))
+                .toList());
 
         ClocktowerBoardService boardService = new AlwaysValidBoardService();
-        ClocktowerEventService eventService = request -> new ClocktowerEventResponse(1L, request.roomId(), 1L,
-                request.eventType(), request.phase(), request.dayNo(), request.nightNo(), request.actorUserId(),
-                request.actorSeatId(), request.targetSeatId(), request.visibility(), request.visibleSeatIds(),
-                request.payload(), Instant.now());
+        ClocktowerEventService eventService = request -> {
+            ClocktowerEventPo event = new ClocktowerEventPo();
+            event.setRoomId(request.roomId());
+            event.setEventSeq(events.stream()
+                    .filter(saved -> saved.getRoomId().equals(request.roomId()))
+                    .map(ClocktowerEventPo::getEventSeq)
+                    .max(Long::compareTo)
+                    .orElse(0L) + 1);
+            event.setEventType(request.eventType());
+            event.setPhase(request.phase());
+            event.setDayNo(request.dayNo());
+            event.setNightNo(request.nightNo());
+            event.setActorUserId(request.actorUserId());
+            event.setActorSeatId(request.actorSeatId());
+            event.setTargetSeatId(request.targetSeatId());
+            event.setVisibility(request.visibility());
+            List<Long> visibleSeatIds = request.visibleSeatIds() == null ? List.of() : request.visibleSeatIds();
+            java.util.Map<String, Object> payload = request.payload() == null ? java.util.Map.of() : request.payload();
+            event.setVisibleSeatIdsJson(writeJson(objectMapper, visibleSeatIds));
+            event.setPayloadJson(writeJson(objectMapper, payload));
+            ClocktowerEventPo saved = eventRepository.save(event);
+            return new ClocktowerEventResponse(saved.getId(), saved.getRoomId(), saved.getEventSeq(),
+                    saved.getEventType(), saved.getPhase(), saved.getDayNo(), saved.getNightNo(),
+                    saved.getActorUserId(), saved.getActorSeatId(), saved.getTargetSeatId(), saved.getVisibility(),
+                    visibleSeatIds, payload, saved.getCreatedAt());
+        };
         ClocktowerRoomService roomService = new ClocktowerRoomServiceImpl(roomRepository, seatRepository, boardService,
                 eventService, roleRepository, entryRepository);
         return new Context(roomService, roomRepository, seatRepository, entryRepository, nightOrderRepository,
-                roleRepository);
+                roleRepository, eventRepository, eventService, objectMapper);
     }
 
     static ClocktowerRolePo role(String roleCode) {
@@ -166,7 +204,10 @@ public final class ClocktowerRoomTestFactory {
             ClocktowerSeatRepository seatRepository,
             ClocktowerGrimoireEntryRepository grimoireEntryRepository,
             ClocktowerNightOrderRepository nightOrderRepository,
-            ClocktowerRoleRepository roleRepository
+            ClocktowerRoleRepository roleRepository,
+            ClocktowerEventRepository eventRepository,
+            ClocktowerEventService eventService,
+            ObjectMapper objectMapper
     ) {
     }
 
@@ -190,6 +231,26 @@ public final class ClocktowerRoomTestFactory {
             }
             return seat;
         };
+    }
+
+    private static Answer<ClocktowerEventPo> saveEvent(List<ClocktowerEventPo> events, AtomicLong nextId) {
+        return invocation -> {
+            ClocktowerEventPo event = invocation.getArgument(0);
+            if (event.getId() == null) {
+                event.setId(nextId.getAndIncrement());
+                event.setCreatedAt(Instant.now());
+                events.add(event);
+            }
+            return event;
+        };
+    }
+
+    private static String writeJson(ObjectMapper objectMapper, Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("CLOCKTOWER_EVENT_JSON_INVALID", e);
+        }
     }
 
     private static final class AlwaysValidBoardService implements ClocktowerBoardService {
