@@ -261,4 +261,41 @@ describe('admin menu authorization', () => {
         expect(superAdminKeys).toContain('/agent/mcp/logs')
         expect(canAccessAdminPath('/agent/mcp/logs', menuTree, true, ['SUPER_ADMIN'])).toBe(true)
     })
+
+    test('shows clocktower pages when clocktower menu permissions are present', () => {
+        const clocktowerMenuTree: MenuTreeResponse[] = [
+            ...menuTree,
+            {
+                permissionId: 20,
+                permCode: 'menu:clocktower:boards',
+                permName: '钟楼配板',
+                routePath: '/clocktower/boards',
+                hidden: false,
+                cacheable: true,
+                sortNo: 20,
+                children: [],
+            },
+            {
+                permissionId: 21,
+                permCode: 'menu:clocktower:rooms',
+                permName: '钟楼房间',
+                routePath: '/clocktower/rooms',
+                hidden: false,
+                cacheable: true,
+                sortNo: 21,
+                children: [],
+            },
+        ]
+
+        const clocktowerKeys = flattenMenuKeys(buildAuthorizedAdminMenuItems(
+            clocktowerMenuTree,
+            false,
+            ['CLOCKTOWER_STORYTELLER'],
+        ))
+
+        expect(clocktowerKeys).toContain('/clocktower/boards')
+        expect(clocktowerKeys).toContain('/clocktower/rooms')
+        expect(canAccessAdminPath('/clocktower/rooms/7/play', clocktowerMenuTree, false, ['CLOCKTOWER_STORYTELLER']))
+            .toBe(true)
+    })
 })
