@@ -19,6 +19,7 @@ import top.egon.mario.clocktower.board.dto.response.BoardValidationResponse;
 import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardConfigResponse;
 import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardGenerateResponse;
 import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
+import top.egon.mario.clocktower.common.web.ClocktowerReactiveSupport;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.util.List;
@@ -27,35 +28,35 @@ import java.util.List;
 @RequiredArgsConstructor
 @RequestMapping("/api/clocktower/boards")
 @Validated
-public class ClocktowerBoardController {
+public class ClocktowerBoardController extends ClocktowerReactiveSupport {
 
     private final ClocktowerBoardService boardService;
 
     @PostMapping("/generate")
     public Mono<ClocktowerBoardGenerateResponse> generate(@Valid @RequestBody Mono<ClocktowerBoardGenerateRequest> request,
                                                           @AuthenticationPrincipal RbacPrincipal principal) {
-        return request.map(body -> boardService.generate(body, principal));
+        return request.flatMap(body -> blocking(() -> boardService.generate(body, principal)));
     }
 
     @PostMapping("/validate")
     public Mono<BoardValidationResponse> validate(@Valid @RequestBody Mono<ClocktowerBoardValidateRequest> request) {
-        return request.map(boardService::validate);
+        return request.flatMap(body -> blocking(() -> boardService.validate(body)));
     }
 
     @PostMapping("/save")
     public Mono<ClocktowerBoardConfigResponse> save(@Valid @RequestBody Mono<ClocktowerBoardSaveRequest> request,
                                                     @AuthenticationPrincipal RbacPrincipal principal) {
-        return request.map(body -> boardService.save(body, principal));
+        return request.flatMap(body -> blocking(() -> boardService.save(body, principal)));
     }
 
     @GetMapping
     public Mono<List<ClocktowerBoardConfigResponse>> list() {
-        return Mono.fromSupplier(boardService::list);
+        return blocking(boardService::list);
     }
 
     @DeleteMapping("/{boardId}")
     public Mono<Void> delete(@PathVariable Long boardId,
                              @AuthenticationPrincipal RbacPrincipal principal) {
-        return Mono.fromRunnable(() -> boardService.delete(boardId, principal));
+        return blockingVoid(() -> boardService.delete(boardId, principal));
     }
 }

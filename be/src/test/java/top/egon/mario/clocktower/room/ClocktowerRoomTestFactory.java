@@ -148,6 +148,13 @@ public final class ClocktowerRoomTestFactory {
                 .filter(event -> !event.isDeleted() && event.getRoomId().equals(invocation.getArgument(0)))
                 .sorted(Comparator.comparing(ClocktowerEventPo::getEventSeq))
                 .toList());
+        when(eventRepository.findByRoomIdAndEventSeqGreaterThanAndDeletedFalseOrderByEventSeqAsc(any(), any()))
+                .thenAnswer(invocation -> events.stream()
+                        .filter(event -> !event.isDeleted()
+                                && event.getRoomId().equals(invocation.getArgument(0))
+                                && event.getEventSeq() > (Long) invocation.getArgument(1))
+                        .sorted(Comparator.comparing(ClocktowerEventPo::getEventSeq))
+                        .toList());
         when(nominationRepository.save(any(ClocktowerNominationPo.class)))
                 .thenAnswer(saveNomination(nominations, nominationId));
         when(nominationRepository.findByRoomIdAndDeletedFalseOrderByIdAsc(any())).thenAnswer(invocation -> nominations.stream()

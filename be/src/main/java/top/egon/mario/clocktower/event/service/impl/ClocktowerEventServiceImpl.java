@@ -6,12 +6,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import top.egon.mario.clocktower.event.dto.ClocktowerEventAppendRequest;
 import top.egon.mario.clocktower.event.dto.ClocktowerEventResponse;
 import top.egon.mario.clocktower.event.po.ClocktowerEventPo;
 import top.egon.mario.clocktower.event.repository.ClocktowerEventRepository;
 import top.egon.mario.clocktower.event.service.ClocktowerEventProjector;
 import top.egon.mario.clocktower.event.service.ClocktowerEventService;
+import top.egon.mario.clocktower.event.service.ClocktowerEventStreamService;
 
 import java.util.List;
 import java.util.Map;
@@ -28,6 +31,7 @@ public class ClocktowerEventServiceImpl implements ClocktowerEventService {
     private final ClocktowerEventRepository eventRepository;
     private final ClocktowerEventProjector projector;
     private final ObjectMapper objectMapper;
+    private final ClocktowerEventStreamService streamService;
 
     @Override
     @Transactional
@@ -51,7 +55,22 @@ public class ClocktowerEventServiceImpl implements ClocktowerEventService {
         ClocktowerEventPo saved = eventRepository.save(event);
         ClocktowerEventResponse response = toResponse(saved);
         projector.project(response);
+        publishAfterCommit(response);
         return response;
+    }
+
+    private void publishAfterCommit(ClocktowerEventResponse response) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            streamService.publish(response);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+
+            @Override
+            public void afterCommit() {
+                streamService.publish(response);
+            }
+        });
     }
 
     private ClocktowerEventResponse toResponse(ClocktowerEventPo event) {

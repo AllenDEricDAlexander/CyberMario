@@ -12,13 +12,14 @@ import reactor.core.publisher.Mono;
 import top.egon.mario.clocktower.action.dto.ClocktowerActionRequest;
 import top.egon.mario.clocktower.action.dto.ClocktowerActionResponse;
 import top.egon.mario.clocktower.action.service.ClocktowerActionService;
+import top.egon.mario.clocktower.common.web.ClocktowerReactiveSupport;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/clocktower/rooms/{roomId}")
 @Validated
-public class ClocktowerActionController {
+public class ClocktowerActionController extends ClocktowerReactiveSupport {
 
     private final ClocktowerActionService actionService;
 
@@ -26,6 +27,6 @@ public class ClocktowerActionController {
     public Mono<ClocktowerActionResponse> submit(@PathVariable Long roomId,
                                                  @RequestBody ClocktowerActionRequest request,
                                                  @AuthenticationPrincipal RbacPrincipal principal) {
-        return Mono.fromSupplier(() -> actionService.submit(roomId, request, principal));
+        return blocking(() -> actionService.submit(roomId, request, principal));
     }
 }
