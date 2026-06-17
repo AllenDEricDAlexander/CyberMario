@@ -23,6 +23,7 @@ type RequestOptions = {
 }
 
 type JsonLineHandler<T> = (chunk: T) => void
+type ServerSentEventHandler<T> = (event: T) => void
 
 type RefreshLoginResponse = {
     accessToken?: string | null
@@ -98,6 +99,32 @@ export async function streamJsonLines<T>(
     await readJsonLines(response.body, onChunk)
 }
 
+export async function streamServerSentEvents<T>(
+    endpoint: string,
+    request: {
+        signal: AbortSignal
+    },
+    onEvent: ServerSentEventHandler<T>,
+) {
+    const response = await fetchWithAuthRetry(
+        () => fetch(`${API_BASE_URL}${endpoint}`, {
+            method: 'GET',
+            headers: buildHeaders({headers: {Accept: 'text/event-stream'}}, false),
+            signal: request.signal,
+        }),
+        {},
+    )
+
+    if (!response.ok) {
+        await throwApiResponseError(response)
+    }
+    if (!response.body) {
+        throw new Error('后端没有返回可读取的响应流')
+    }
+
+    await readServerSentEvents(response.body, onEvent)
+}
+
 async function readJsonLines<T>(body: ReadableStream<Uint8Array>, onChunk: JsonLineHandler<T>) {
     const reader = body.getReader()
     const decoder = new TextDecoder()
@@ -123,6 +150,42 @@ async function readJsonLines<T>(body: ReadableStream<Uint8Array>, onChunk: JsonL
     if (buffer.trim()) {
         onChunk(JSON.parse(buffer.trim()) as T)
     }
+}
+
+async function readServerSentEvents<T>(body: ReadableStream<Uint8Array>, onEvent: ServerSentEventHandler<T>) {
+    const reader = body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+        const {done, value} = await reader.read()
+        if (done) {
+            break
+        }
+
+        buffer += decoder.decode(value, {stream: true})
+        const events = buffer.split(/\r?\n\r?\n/)
+        buffer = events.pop() ?? ''
+
+        events.forEach((eventBlock) => emitServerSentEvent(eventBlock, onEvent))
+    }
+
+    if (buffer.trim()) {
+        emitServerSentEvent(buffer, onEvent)
+    }
+}
+
+function emitServerSentEvent<T>(eventBlock: string, onEvent: ServerSentEventHandler<T>) {
+    const data = eventBlock
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith('data:'))
+        .map((line) => line.slice('data:'.length).trimStart())
+        .join('\n')
+        .trim()
+    if (!data) {
+        return
+    }
+    onEvent(JSON.parse(data) as T)
 }
 
 export function resolveErrorMessage(error: unknown) {

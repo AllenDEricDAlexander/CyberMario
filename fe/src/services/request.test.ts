@@ -1,6 +1,6 @@
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest'
 import {ApiRequestError} from '../types/api'
-import {requestFormData, requestJson, streamJsonLines} from './request'
+import {requestFormData, requestJson, streamJsonLines, streamServerSentEvents} from './request'
 
 const {axiosRequestMock} = vi.hoisted(() => ({
     axiosRequestMock: vi.fn(),
@@ -39,6 +39,16 @@ function axiosResponse(body: unknown, init: { status?: number; headers?: Record<
 }
 
 function ndjsonResponse(chunks: string[]) {
+    return new Response(new ReadableStream({
+        start(controller) {
+            const encoder = new TextEncoder()
+            chunks.forEach((chunk) => controller.enqueue(encoder.encode(chunk)))
+            controller.close()
+        },
+    }))
+}
+
+function streamResponse(chunks: string[]) {
     return new Response(new ReadableStream({
         start(controller) {
             const encoder = new TextEncoder()
@@ -230,5 +240,43 @@ describe('streamJsonLines', () => {
             status: 503,
             traceId: 'trace-stream',
         } satisfies Partial<ApiRequestError>)
+    })
+})
+
+describe('streamServerSentEvents', () => {
+    beforeEach(() => {
+        axiosRequestMock.mockReset()
+        installLocalStorage()
+    })
+
+    afterEach(() => {
+        vi.unstubAllGlobals()
+    })
+
+    test('reads fragmented server-sent event data from streaming responses', async () => {
+        const fetchMock = vi.fn((..._args: Parameters<typeof fetch>): ReturnType<typeof fetch> => Promise.resolve(streamResponse([
+            'id: 1\nevent: ROOM_CREATED\ndata: {"seqNo":1,',
+            '"eventType":"ROOM_CREATED"}\n\n',
+            'id: 2\nevent: PLAYER_JOINED\ndata: {"seqNo":2,"eventType":"PLAYER_JOINED"}\n\n',
+        ])))
+        vi.stubGlobal('fetch', fetchMock)
+        const events: unknown[] = []
+
+        await streamServerSentEvents('/api/clocktower/rooms/7/events/stream?seatId=3', {
+            signal: new AbortController().signal,
+        }, (event) => events.push(event))
+
+        expect(axiosRequestMock).not.toHaveBeenCalled()
+        expect(events).toEqual([
+            {seqNo: 1, eventType: 'ROOM_CREATED'},
+            {seqNo: 2, eventType: 'PLAYER_JOINED'},
+        ])
+        expect(fetchMock).toHaveBeenCalledWith('/api/clocktower/rooms/7/events/stream?seatId=3', expect.objectContaining({
+            method: 'GET',
+            signal: expect.any(AbortSignal),
+        }))
+        const request = fetchMock.mock.calls[0][1] as { headers: Record<string, string> }
+        expect(request.headers).toMatchObject({Accept: 'text/event-stream'})
+        expect(request.headers).not.toHaveProperty('Content-Type')
     })
 })
