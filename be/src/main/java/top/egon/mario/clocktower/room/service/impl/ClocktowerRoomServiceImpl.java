@@ -14,22 +14,31 @@ import top.egon.mario.clocktower.common.enums.ClocktowerRoomStatus;
 import top.egon.mario.clocktower.common.enums.ClocktowerVisibility;
 import top.egon.mario.clocktower.event.dto.ClocktowerEventAppendRequest;
 import top.egon.mario.clocktower.event.service.ClocktowerEventService;
+import top.egon.mario.clocktower.grimoire.po.ClocktowerGrimoireEntryPo;
+import top.egon.mario.clocktower.grimoire.repository.ClocktowerGrimoireEntryRepository;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomCreateRequest;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomJoinRequest;
+import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomStartRequest;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerUpdateSeatRequest;
+import top.egon.mario.clocktower.room.dto.request.RoleAssignmentRequest;
 import top.egon.mario.clocktower.room.dto.response.ClocktowerRoomResponse;
 import top.egon.mario.clocktower.room.dto.response.ClocktowerSeatResponse;
+import top.egon.mario.clocktower.room.dto.response.ClocktowerStartGameResponse;
 import top.egon.mario.clocktower.room.po.ClocktowerRoomPo;
 import top.egon.mario.clocktower.room.po.ClocktowerSeatPo;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomRepository;
 import top.egon.mario.clocktower.room.repository.ClocktowerSeatRepository;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomService;
+import top.egon.mario.clocktower.script.po.ClocktowerRolePo;
+import top.egon.mario.clocktower.script.repository.ClocktowerRoleRepository;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.security.SecureRandom;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -42,6 +51,8 @@ public class ClocktowerRoomServiceImpl implements ClocktowerRoomService {
     private final ClocktowerSeatRepository seatRepository;
     private final ClocktowerBoardService boardService;
     private final ClocktowerEventService eventService;
+    private final ClocktowerRoleRepository roleRepository;
+    private final ClocktowerGrimoireEntryRepository grimoireEntryRepository;
 
     @Override
     @Transactional
@@ -86,6 +97,57 @@ public class ClocktowerRoomServiceImpl implements ClocktowerRoomService {
     @Override
     public ClocktowerRoomResponse get(Long roomId) {
         return toResponse(room(roomId));
+    }
+
+    @Override
+    @Transactional
+    public ClocktowerStartGameResponse start(Long roomId, ClocktowerRoomStartRequest request, RbacPrincipal principal) {
+        ClocktowerRoomPo room = room(roomId);
+        List<ClocktowerSeatPo> seats = seatRepository.findByRoomIdAndDeletedFalseOrderBySeatNoAsc(roomId);
+        if (request.assignments().size() != seats.size()) {
+            throw new ClocktowerException("CLOCKTOWER_ASSIGNMENT_COUNT_MISMATCH");
+        }
+        if (seats.stream().anyMatch(seat -> seat.getUserId() == null)) {
+            throw new ClocktowerException("CLOCKTOWER_ROOM_HAS_EMPTY_SEAT");
+        }
+        Map<Long, ClocktowerSeatPo> seatById = seats.stream()
+                .collect(Collectors.toMap(ClocktowerSeatPo::getId, Function.identity()));
+        Map<String, ClocktowerRolePo> roleByCode = roleRepository.findByRoleCodeInAndDeletedFalse(
+                        request.assignments().stream().map(RoleAssignmentRequest::roleCode).toList())
+                .stream()
+                .collect(Collectors.toMap(ClocktowerRolePo::getRoleCode, Function.identity(), (left, right) -> left));
+
+        for (RoleAssignmentRequest assignment : request.assignments()) {
+            ClocktowerSeatPo seat = seatById.get(assignment.seatId());
+            ClocktowerRolePo role = roleByCode.get(assignment.roleCode());
+            if (seat == null || role == null) {
+                throw new ClocktowerException("CLOCKTOWER_ASSIGNMENT_INVALID");
+            }
+            seat.setRoleCode(role.getRoleCode());
+            seat.setRoleType(role.getRoleType());
+            seat.setAlignment(role.getAlignment());
+            seatRepository.save(seat);
+
+            ClocktowerGrimoireEntryPo entry = new ClocktowerGrimoireEntryPo();
+            entry.setRoomId(roomId);
+            entry.setSeatId(seat.getId());
+            entry.setRoleCode(role.getRoleCode());
+            entry.setRoleType(role.getRoleType());
+            entry.setAlignment(role.getAlignment());
+            grimoireEntryRepository.save(entry);
+
+            eventService.append(new ClocktowerEventAppendRequest(roomId, ClocktowerEventType.ROLE_ASSIGNED,
+                    ClocktowerPhase.FIRST_NIGHT, 0, 1, principal == null ? null : principal.userId(), null,
+                    seat.getId(), ClocktowerVisibility.PRIVATE, List.of(seat.getId()),
+                    Map.of("roleCode", role.getRoleCode())));
+        }
+
+        room.setStatus(ClocktowerRoomStatus.RUNNING);
+        room.setPhase(ClocktowerPhase.FIRST_NIGHT);
+        room.setCurrentNightNo(1);
+        roomRepository.save(room);
+        appendRoomEvent(room, ClocktowerEventType.PHASE_CHANGED, principal, Map.of("phase", "FIRST_NIGHT"));
+        return new ClocktowerStartGameResponse(room.getId(), room.getStatus(), room.getPhase());
     }
 
     @Override

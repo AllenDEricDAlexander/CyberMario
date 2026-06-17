@@ -7,6 +7,12 @@ import top.egon.mario.clocktower.board.dto.response.ClocktowerRoleTypeCountRespo
 import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
 import top.egon.mario.clocktower.event.dto.ClocktowerEventResponse;
 import top.egon.mario.clocktower.event.service.ClocktowerEventService;
+import top.egon.mario.clocktower.grimoire.po.ClocktowerGrimoireEntryPo;
+import top.egon.mario.clocktower.grimoire.repository.ClocktowerGrimoireEntryRepository;
+import top.egon.mario.clocktower.script.po.ClocktowerRolePo;
+import top.egon.mario.clocktower.script.repository.ClocktowerRoleRepository;
+import top.egon.mario.clocktower.common.enums.ClocktowerRoleType;
+import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.room.po.ClocktowerRoomPo;
 import top.egon.mario.clocktower.room.po.ClocktowerSeatPo;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomRepository;
@@ -27,19 +33,27 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-final class ClocktowerRoomTestFactory {
+public final class ClocktowerRoomTestFactory {
 
     private ClocktowerRoomTestFactory() {
     }
 
-    static ClocktowerRoomService service() {
+    public static ClocktowerRoomService service() {
+        return context().roomService();
+    }
+
+    public static Context context() {
         List<ClocktowerRoomPo> rooms = new ArrayList<>();
         List<ClocktowerSeatPo> seats = new ArrayList<>();
+        List<ClocktowerGrimoireEntryPo> entries = new ArrayList<>();
         AtomicLong roomId = new AtomicLong(1L);
         AtomicLong seatId = new AtomicLong(1L);
+        AtomicLong entryId = new AtomicLong(1L);
 
         ClocktowerRoomRepository roomRepository = mock(ClocktowerRoomRepository.class);
         ClocktowerSeatRepository seatRepository = mock(ClocktowerSeatRepository.class);
+        ClocktowerRoleRepository roleRepository = mock(ClocktowerRoleRepository.class);
+        ClocktowerGrimoireEntryRepository entryRepository = mock(ClocktowerGrimoireEntryRepository.class);
 
         when(roomRepository.save(any(ClocktowerRoomPo.class))).thenAnswer(saveRoom(rooms, roomId));
         when(roomRepository.findByIdAndDeletedFalse(any())).thenAnswer(invocation -> rooms.stream()
@@ -71,13 +85,57 @@ final class ClocktowerRoomTestFactory {
                         && seat.getId().equals(invocation.getArgument(0))
                         && seat.getRoomId().equals(invocation.getArgument(1)))
                 .findFirst());
+        when(roleRepository.findByRoleCodeInAndDeletedFalse(any())).thenAnswer(invocation -> {
+            List<String> roleCodes = invocation.getArgument(0);
+            return roleCodes.stream().map(ClocktowerRoomTestFactory::role).toList();
+        });
+        when(entryRepository.save(any(ClocktowerGrimoireEntryPo.class))).thenAnswer(invocation -> {
+            ClocktowerGrimoireEntryPo entry = invocation.getArgument(0);
+            if (entry.getId() == null) {
+                entry.setId(entryId.getAndIncrement());
+                entries.add(entry);
+            }
+            return entry;
+        });
+        when(entryRepository.findByRoomIdAndDeletedFalseOrderBySeatIdAsc(any())).thenAnswer(invocation -> entries.stream()
+                .filter(entry -> !entry.isDeleted() && entry.getRoomId().equals(invocation.getArgument(0)))
+                .sorted(Comparator.comparing(ClocktowerGrimoireEntryPo::getSeatId))
+                .toList());
 
         ClocktowerBoardService boardService = new AlwaysValidBoardService();
         ClocktowerEventService eventService = request -> new ClocktowerEventResponse(1L, request.roomId(), 1L,
                 request.eventType(), request.phase(), request.dayNo(), request.nightNo(), request.actorUserId(),
                 request.actorSeatId(), request.targetSeatId(), request.visibility(), request.visibleSeatIds(),
                 request.payload(), Instant.now());
-        return new ClocktowerRoomServiceImpl(roomRepository, seatRepository, boardService, eventService);
+        ClocktowerRoomService roomService = new ClocktowerRoomServiceImpl(roomRepository, seatRepository, boardService,
+                eventService, roleRepository, entryRepository);
+        return new Context(roomService, roomRepository, seatRepository, entryRepository);
+    }
+
+    static ClocktowerRolePo role(String roleCode) {
+        ClocktowerRolePo role = new ClocktowerRolePo();
+        role.setScriptCode(ClocktowerScriptCode.TROUBLE_BREWING);
+        role.setRoleCode(roleCode);
+        role.setName(roleCode);
+        role.setAbilityText(roleCode);
+        role.setAlignment(switch (roleCode) {
+            case "POISONER", "IMP" -> "EVIL";
+            default -> "GOOD";
+        });
+        role.setRoleType(switch (roleCode) {
+            case "POISONER" -> ClocktowerRoleType.MINION;
+            case "IMP" -> ClocktowerRoleType.DEMON;
+            default -> ClocktowerRoleType.TOWNSFOLK;
+        });
+        return role;
+    }
+
+    public record Context(
+            ClocktowerRoomService roomService,
+            ClocktowerRoomRepository roomRepository,
+            ClocktowerSeatRepository seatRepository,
+            ClocktowerGrimoireEntryRepository grimoireEntryRepository
+    ) {
     }
 
     private static Answer<ClocktowerRoomPo> saveRoom(List<ClocktowerRoomPo> rooms, AtomicLong nextId) {

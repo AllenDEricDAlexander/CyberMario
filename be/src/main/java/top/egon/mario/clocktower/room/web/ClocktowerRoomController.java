@@ -14,9 +14,11 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomCreateRequest;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomJoinRequest;
+import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomStartRequest;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerUpdateSeatRequest;
 import top.egon.mario.clocktower.room.dto.response.ClocktowerRoomResponse;
 import top.egon.mario.clocktower.room.dto.response.ClocktowerSeatResponse;
+import top.egon.mario.clocktower.room.dto.response.ClocktowerStartGameResponse;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
@@ -44,6 +46,13 @@ public class ClocktowerRoomController {
     @GetMapping("/{roomId}")
     public Mono<ClocktowerRoomResponse> get(@PathVariable Long roomId) {
         return Mono.fromSupplier(() -> roomService.get(roomId));
+    }
+
+    @PostMapping("/{roomId}/start")
+    public Mono<ClocktowerStartGameResponse> start(@PathVariable Long roomId,
+                                                   @Valid @RequestBody ClocktowerRoomStartRequest request,
+                                                   @AuthenticationPrincipal RbacPrincipal principal) {
+        return Mono.fromSupplier(() -> roomService.start(roomId, request, principal));
     }
 
     @PostMapping("/{roomId}/join")
