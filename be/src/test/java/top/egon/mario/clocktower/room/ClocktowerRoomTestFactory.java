@@ -59,6 +59,10 @@ public final class ClocktowerRoomTestFactory {
     }
 
     public static Context context() {
+        return context(new AlwaysValidBoardService());
+    }
+
+    static Context context(ClocktowerBoardService boardService) {
         List<ClocktowerRoomPo> rooms = new ArrayList<>();
         List<ClocktowerSeatPo> seats = new ArrayList<>();
         List<ClocktowerGrimoireEntryPo> entries = new ArrayList<>();
@@ -210,7 +214,6 @@ public final class ClocktowerRoomTestFactory {
                         .sorted(Comparator.comparing(ClocktowerStorytellerTaskPo::getSortOrder))
                         .toList());
 
-        ClocktowerBoardService boardService = new AlwaysValidBoardService();
         ClocktowerEventService eventService = request -> {
             ClocktowerEventPo event = new ClocktowerEventPo();
             event.setRoomId(request.roomId());

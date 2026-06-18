@@ -4,10 +4,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import top.egon.mario.clocktower.common.ClocktowerAccess;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardValidateRequest;
 import top.egon.mario.clocktower.board.dto.response.BoardValidationResponse;
 import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
+import top.egon.mario.clocktower.common.ClocktowerAccess;
 import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerEventType;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
@@ -58,10 +58,13 @@ public class ClocktowerRoomServiceImpl implements ClocktowerRoomService {
     @Override
     @Transactional
     public ClocktowerRoomResponse create(ClocktowerRoomCreateRequest request, RbacPrincipal principal) {
-        BoardValidationResponse validation = boardService.validate(new ClocktowerBoardValidateRequest(
-                request.scriptCode(), request.playerCount(), request.roleCodes()));
-        if (!validation.valid()) {
-            throw new ClocktowerException("CLOCKTOWER_BOARD_INVALID");
+        List<String> roleCodes = request.roleCodes() == null ? List.of() : request.roleCodes();
+        if (!roleCodes.isEmpty()) {
+            BoardValidationResponse validation = boardService.validate(new ClocktowerBoardValidateRequest(
+                    request.scriptCode(), request.playerCount(), roleCodes));
+            if (!validation.valid()) {
+                throw new ClocktowerException("CLOCKTOWER_BOARD_INVALID");
+            }
         }
         ClocktowerRoomPo room = new ClocktowerRoomPo();
         room.setRoomCode(nextRoomCode());

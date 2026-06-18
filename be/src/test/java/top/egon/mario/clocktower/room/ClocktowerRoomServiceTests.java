@@ -1,6 +1,14 @@
 package top.egon.mario.clocktower.room;
 
 import org.junit.jupiter.api.Test;
+import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardGenerateRequest;
+import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardSaveRequest;
+import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardValidateRequest;
+import top.egon.mario.clocktower.board.dto.response.BoardValidationResponse;
+import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardConfigResponse;
+import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardGenerateResponse;
+import top.egon.mario.clocktower.board.dto.response.ClocktowerRoleTypeCountResponse;
+import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
 import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoomStatus;
@@ -35,6 +43,19 @@ class ClocktowerRoomServiceTests {
         assertThat(room.phase()).isEqualTo(ClocktowerPhase.LOBBY);
         assertThat(room.seats()).hasSize(5);
         assertThat(room.roomCode()).hasSize(6);
+    }
+
+    @Test
+    void createRoomAllowsLobbyWithoutPresetRoles() {
+        ClocktowerRoomService service = ClocktowerRoomTestFactory.context(new RejectEmptyBoardService()).roomService();
+        ClocktowerRoomCreateRequest request = new ClocktowerRoomCreateRequest(
+                "周五暗流", ClocktowerScriptCode.TROUBLE_BREWING, 5, null, null,
+                List.of(), "HUMAN", false, true, 0);
+
+        ClocktowerRoomResponse room = service.create(request, principal(1L, "mario"));
+
+        assertThat(room.status()).isEqualTo(ClocktowerRoomStatus.LOBBY);
+        assertThat(room.seats()).hasSize(5);
     }
 
     @Test
@@ -111,5 +132,37 @@ class ClocktowerRoomServiceTests {
 
     private static RbacPrincipal principal(Long userId, String username) {
         return new RbacPrincipal(userId, username, Set.of("CLOCKTOWER_STORYTELLER"), Set.of(), "v1");
+    }
+
+    private static final class RejectEmptyBoardService implements ClocktowerBoardService {
+
+        @Override
+        public BoardValidationResponse validate(ClocktowerBoardValidateRequest request) {
+            if (request.roleCodes().isEmpty()) {
+                return new BoardValidationResponse(false, new ClocktowerRoleTypeCountResponse(0, 0, 0, 0, 0, 0),
+                        List.of(), List.of());
+            }
+            return new BoardValidationResponse(true, new ClocktowerRoleTypeCountResponse(3, 0, 1, 1, 0, 0),
+                    List.of(), List.of());
+        }
+
+        @Override
+        public ClocktowerBoardGenerateResponse generate(ClocktowerBoardGenerateRequest request, RbacPrincipal principal) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ClocktowerBoardConfigResponse save(ClocktowerBoardSaveRequest request, RbacPrincipal principal) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<ClocktowerBoardConfigResponse> list() {
+            return List.of();
+        }
+
+        @Override
+        public void delete(Long boardId, RbacPrincipal principal) {
+        }
     }
 }
