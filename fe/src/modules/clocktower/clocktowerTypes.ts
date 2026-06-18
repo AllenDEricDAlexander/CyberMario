@@ -46,6 +46,8 @@ export type ClocktowerRulingType =
     | 'VOID_NOMINATION'
     | 'UNDO_RULING'
 
+export type ClocktowerRulingCreateType = Exclude<ClocktowerRulingType, 'ADVANCE_PHASE' | 'UNDO_RULING'>
+
 export type ClocktowerRulingReason =
     | 'VOTE_EXECUTION'
     | 'ROLE_ABILITY'
@@ -56,13 +58,14 @@ export type ClocktowerRulingReason =
     | 'OTHER'
 
 export type ClocktowerRulingStatus = 'APPLIED' | 'REVOKED'
+export type ClocktowerLifeStatus = 'ALIVE' | 'DEAD'
 
 export type ClocktowerRulingCreateRequest = {
-    rulingType: ClocktowerRulingType
+    rulingType: ClocktowerRulingCreateType
     targetSeatId?: number | null
     nominationId?: number | null
     targetPhase?: ClocktowerPhase | null
-    publicLifeStatus?: string | null
+    publicLifeStatus?: ClocktowerLifeStatus | null
     winner?: 'GOOD' | 'EVIL' | null
     reason: ClocktowerRulingReason
     note: string
