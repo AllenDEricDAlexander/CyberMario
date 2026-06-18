@@ -1,6 +1,6 @@
 import {CheckOutlined, ReloadOutlined, SendOutlined} from '@ant-design/icons'
 import {App, Button, Card, Col, Empty, Form, Input, List, Popconfirm, Row, Select, Space, Tabs, Tag, Typography} from 'antd'
-import {useCallback, useEffect, useState} from 'react'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import {useParams} from 'react-router'
 import {PageToolbar} from '../../components/PageToolbar'
 import {resolveErrorMessage} from '../../services/request'
@@ -38,7 +38,9 @@ function StorytellerGrimoirePage() {
     const [resolvingTaskId, setResolvingTaskId] = useState<number | null>(null)
     const [rulingLoadingKey, setRulingLoadingKey] = useState<string | null>(null)
     const [undoingRulingId, setUndoingRulingId] = useState<number | null>(null)
+    const rulingMutationInFlight = useRef(false)
     const numericRoomId = Number(roomId)
+    const rulingBusy = rulingLoadingKey !== null || undoingRulingId !== null
 
     const load = useCallback(async () => {
         if (!Number.isFinite(numericRoomId)) {
@@ -110,19 +112,25 @@ function StorytellerGrimoirePage() {
     }
 
     async function submitRuling(request: ClocktowerRulingCreateRequest, loadingKey: string) {
-        if (!Number.isFinite(numericRoomId)) {
+        if (!Number.isFinite(numericRoomId) || rulingMutationInFlight.current) {
             return
         }
+        rulingMutationInFlight.current = true
         setRulingLoadingKey(loadingKey)
         try {
             const response = await createClocktowerRuling(numericRoomId, request)
-            const rulingRows = await listClocktowerRulings(numericRoomId)
             setGrimoire(response.grimoire)
-            setRulings(rulingRows)
-            message.success('裁定已生效')
+            try {
+                const rulingRows = await listClocktowerRulings(numericRoomId)
+                setRulings(rulingRows)
+                message.success('裁定已生效')
+            } catch (caught) {
+                message.warning(`裁定已生效，裁定历史刷新失败：${resolveErrorMessage(caught)}`)
+            }
         } catch (caught) {
             message.error(resolveErrorMessage(caught))
         } finally {
+            rulingMutationInFlight.current = false
             setRulingLoadingKey(null)
         }
     }
@@ -140,19 +148,25 @@ function StorytellerGrimoirePage() {
     }
 
     async function undoRuling(rulingId: number) {
-        if (!Number.isFinite(numericRoomId)) {
+        if (!Number.isFinite(numericRoomId) || rulingMutationInFlight.current) {
             return
         }
+        rulingMutationInFlight.current = true
         setUndoingRulingId(rulingId)
         try {
-            const response = await undoClocktowerRuling(numericRoomId, rulingId, {note: '撤销裁定', force: true})
-            const rulingRows = await listClocktowerRulings(numericRoomId)
+            const response = await undoClocktowerRuling(numericRoomId, rulingId, {note: '撤销裁定', force: false})
             setGrimoire(response.grimoire)
-            setRulings(rulingRows)
-            message.success('裁定已撤销')
+            try {
+                const rulingRows = await listClocktowerRulings(numericRoomId)
+                setRulings(rulingRows)
+                message.success('裁定已撤销')
+            } catch (caught) {
+                message.warning(`裁定已撤销，裁定历史刷新失败：${resolveErrorMessage(caught)}`)
+            }
         } catch (caught) {
             message.error(resolveErrorMessage(caught))
         } finally {
+            rulingMutationInFlight.current = false
             setUndoingRulingId(null)
         }
     }
@@ -170,6 +184,7 @@ function StorytellerGrimoirePage() {
                         <GrimoireSeatList
                             grimoire={grimoire}
                             onQuickRuling={quickSeatRuling}
+                            rulingBusy={rulingBusy}
                             rulingLoadingKey={rulingLoadingKey}
                         />
                     </Card>
@@ -200,6 +215,7 @@ function StorytellerGrimoirePage() {
                                     children: (
                                         <RulingHistory
                                             onUndo={undoRuling}
+                                            rulingBusy={rulingBusy}
                                             rulings={rulings}
                                             undoingRulingId={undoingRulingId}
                                         />
@@ -234,10 +250,12 @@ function StorytellerGrimoirePage() {
 export function GrimoireSeatList({
     grimoire,
     onQuickRuling,
+    rulingBusy,
     rulingLoadingKey,
 }: {
     grimoire: ClocktowerGrimoireResponse | null
     onQuickRuling: (seatId: number, rulingType: QuickSeatRulingType) => Promise<void>
+    rulingBusy: boolean
     rulingLoadingKey: string | null
 }) {
     if (!grimoire || grimoire.seats.length === 0) {
@@ -252,6 +270,7 @@ export function GrimoireSeatList({
                         <Popconfirm
                             cancelText="取消"
                             description="会记录为公开裁定，可在裁定历史中撤销。"
+                            disabled={rulingBusy}
                             key="dead"
                             okText="确认"
                             onConfirm={voidify(() => onQuickRuling(seat.seatId, 'MARK_DEAD'))}
@@ -259,6 +278,7 @@ export function GrimoireSeatList({
                         >
                             <Button
                                 autoInsertSpace={false}
+                                disabled={rulingBusy}
                                 loading={rulingLoadingKey === `MARK_DEAD:${seat.seatId}`}
                                 size="small"
                             >
@@ -268,6 +288,7 @@ export function GrimoireSeatList({
                         <Popconfirm
                             cancelText="取消"
                             description="会记录为公开裁定，可在裁定历史中撤销。"
+                            disabled={rulingBusy}
                             key="alive"
                             okText="确认"
                             onConfirm={voidify(() => onQuickRuling(seat.seatId, 'RESTORE_ALIVE'))}
@@ -275,6 +296,7 @@ export function GrimoireSeatList({
                         >
                             <Button
                                 autoInsertSpace={false}
+                                disabled={rulingBusy}
                                 loading={rulingLoadingKey === `RESTORE_ALIVE:${seat.seatId}`}
                                 size="small"
                             >
@@ -306,10 +328,12 @@ export function GrimoireSeatList({
 export function RulingHistory({
     rulings,
     onUndo,
+    rulingBusy,
     undoingRulingId,
 }: {
     rulings: ClocktowerRulingResponse[]
     onUndo: (rulingId: number) => Promise<void>
+    rulingBusy: boolean
     undoingRulingId: number | null
 }) {
     if (rulings.length === 0) {
@@ -321,17 +345,25 @@ export function RulingHistory({
             renderItem={(ruling) => (
                 <List.Item
                     actions={[
-                        <Button
-                            autoInsertSpace={false}
-                            disabled={ruling.status === 'REVOKED'}
+                        <Popconfirm
+                            cancelText="取消"
+                            description="会恢复此裁定前的状态；若已有后续相关裁定，后端会拒绝撤销。"
+                            disabled={ruling.status === 'REVOKED' || rulingBusy}
                             key="undo"
-                            loading={undoingRulingId === ruling.rulingId}
-                            onClick={voidify(() => onUndo(ruling.rulingId))}
-                            size="small"
-                            type="link"
+                            okText="确认"
+                            onConfirm={voidify(() => onUndo(ruling.rulingId))}
+                            title="确认撤销裁定？"
                         >
-                            撤销
-                        </Button>,
+                            <Button
+                                autoInsertSpace={false}
+                                disabled={ruling.status === 'REVOKED' || rulingBusy}
+                                loading={undoingRulingId === ruling.rulingId}
+                                size="small"
+                                type="link"
+                            >
+                                撤销
+                            </Button>
+                        </Popconfirm>,
                     ]}
                 >
                     <Space wrap>

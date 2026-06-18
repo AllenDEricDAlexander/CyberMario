@@ -128,6 +128,7 @@ describe('StorytellerGrimoirePage', () => {
                 }}
                 onQuickRuling={async () => {
                 }}
+                rulingBusy={false}
                 rulingLoadingKey={null}
             />,
         )
@@ -143,6 +144,7 @@ describe('StorytellerGrimoirePage', () => {
             <RulingHistory
                 onUndo={async () => {
                 }}
+                rulingBusy={false}
                 rulings={[
                     {
                         rulingId: 5,
