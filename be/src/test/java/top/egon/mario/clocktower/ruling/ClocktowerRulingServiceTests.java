@@ -100,7 +100,13 @@ class ClocktowerRulingServiceTests {
                 storytellerPrincipal());
 
         assertThat(response.grimoire().seats()).filteredOn(seat -> seat.seatId().equals(targetSeatId))
-                .allMatch(seat -> seat.alive() && !seat.publicAlive());
+                .singleElement()
+                .satisfies(seat -> {
+                    assertThat(seat.alive()).isTrue();
+                    assertThat(seat.publicAlive()).isFalse();
+                    assertThat(seat.lifeStatus()).isEqualTo("ALIVE");
+                    assertThat(seat.publicLifeStatus()).isEqualTo("DEAD");
+                });
     }
 
     @Test

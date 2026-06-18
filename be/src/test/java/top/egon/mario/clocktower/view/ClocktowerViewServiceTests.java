@@ -66,8 +66,15 @@ class ClocktowerViewServiceTests {
 
         assertThat(view.mySeat().lifeStatus()).isEqualTo("ALIVE");
         assertThat(view.mySeat().publicLifeStatus()).isEqualTo("DEAD");
+        assertThat(view.room().seats()).filteredOn(publicSeat -> publicSeat.seatId().equals(marioSeatId))
+                .singleElement()
+                .satisfies(publicSeat -> {
+                    assertThat(publicSeat.lifeStatus()).isEqualTo("DEAD");
+                    assertThat(publicSeat.publicLifeStatus()).isEqualTo("DEAD");
+                });
         assertThat(view.publicSeats()).filteredOn(publicSeat -> publicSeat.seatId().equals(marioSeatId))
-                .allMatch(publicSeat -> "DEAD".equals(publicSeat.lifeStatus()));
+                .singleElement()
+                .satisfies(publicSeat -> assertThat(publicSeat.lifeStatus()).isEqualTo("DEAD"));
     }
 
     @Test
