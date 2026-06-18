@@ -97,6 +97,10 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
         if (!supported(request.rulingType())) {
             throw new ClocktowerException("CLOCKTOWER_RULING_TYPE_NOT_SUPPORTED");
         }
+        if (request.rulingType() == ClocktowerRulingType.SET_PUBLIC_LIFE) {
+            validatePublicLifeStatus(request.publicLifeStatus());
+        }
+        validateWinner(request.winner());
         boolean highRisk = request.rulingType() == ClocktowerRulingType.SET_PUBLIC_LIFE
                 || request.rulingType() == ClocktowerRulingType.END_GAME;
         if (highRisk && !StringUtils.hasText(request.note())) {
@@ -109,6 +113,21 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
                 || rulingType == ClocktowerRulingType.RESTORE_ALIVE
                 || rulingType == ClocktowerRulingType.SET_PUBLIC_LIFE
                 || rulingType == ClocktowerRulingType.END_GAME;
+    }
+
+    private void validatePublicLifeStatus(String publicLifeStatus) {
+        if (!StringUtils.hasText(publicLifeStatus)) {
+            throw new ClocktowerException("CLOCKTOWER_PUBLIC_LIFE_STATUS_REQUIRED");
+        }
+        if (!"ALIVE".equals(publicLifeStatus) && !"DEAD".equals(publicLifeStatus)) {
+            throw new ClocktowerException("CLOCKTOWER_PUBLIC_LIFE_STATUS_INVALID");
+        }
+    }
+
+    private void validateWinner(String winner) {
+        if (StringUtils.hasText(winner) && !"GOOD".equals(winner) && !"EVIL".equals(winner)) {
+            throw new ClocktowerException("CLOCKTOWER_RULING_WINNER_INVALID");
+        }
     }
 
     private ClocktowerRulingPo newRuling(ClocktowerRoomPo room, ClocktowerRulingCreateRequest request) {
@@ -175,10 +194,16 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
     private ClocktowerEventResponse append(ClocktowerRoomPo room, RbacPrincipal principal, Long targetSeatId,
                                            ClocktowerEventType eventType, ClocktowerRulingPo ruling) {
         Map<String, Object> payload = new HashMap<>();
-        payload.put("rulingType", ruling.getRulingType().name());
-        payload.put("reason", ruling.getReason().name());
         payload.put("publicNote", publicText(ruling));
-        payload.put("winner", ruling.getWinner());
+        if (ruling.getVisibility() == ClocktowerVisibility.PUBLIC) {
+            if (StringUtils.hasText(ruling.getWinner())) {
+                payload.put("winner", ruling.getWinner());
+            }
+        } else {
+            payload.put("rulingType", ruling.getRulingType().name());
+            payload.put("reason", ruling.getReason().name());
+            payload.put("winner", ruling.getWinner());
+        }
         return eventService.append(new ClocktowerEventAppendRequest(room.getId(), eventType, room.getPhase(),
                 room.getCurrentDayNo(), room.getCurrentNightNo(), principal == null ? null : principal.userId(),
                 null, targetSeatId, ruling.getVisibility(), List.of(), payload));

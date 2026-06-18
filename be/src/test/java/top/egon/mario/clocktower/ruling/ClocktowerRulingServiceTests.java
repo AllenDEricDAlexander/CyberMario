@@ -23,6 +23,7 @@ import top.egon.mario.clocktower.ruling.service.impl.ClocktowerRulingServiceImpl
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -71,6 +72,44 @@ class ClocktowerRulingServiceTests {
                 .getLifeStatus()).isEqualTo("ALIVE");
         assertThat(context.seatRepository().findByIdAndRoomIdAndDeletedFalse(targetSeatId, room.roomId()).orElseThrow()
                 .getPublicLifeStatus()).isEqualTo("DEAD");
+    }
+
+    @Test
+    void publicLifePublicEventHidesInternalRulingMetadata() {
+        ClocktowerRoomResponse room = startedRoom();
+        Long targetSeatId = room.seats().getFirst().seatId();
+
+        ClocktowerRulingApplyResponse response = rulingService.create(room.roomId(), new ClocktowerRulingCreateRequest(
+                ClocktowerRulingType.SET_PUBLIC_LIFE, targetSeatId, null, null, "DEAD", null,
+                ClocktowerRulingReason.STORYTELLER_RULING, "假死", "一名玩家死亡", ClocktowerVisibility.PUBLIC, false),
+                storytellerPrincipal());
+
+        Map<String, Object> payload = response.events().getFirst().payload();
+        assertThat(payload).containsEntry("publicNote", "一名玩家死亡");
+        assertThat(payload).doesNotContainKeys("rulingType", "reason");
+    }
+
+    @Test
+    void setPublicLifeRejectsInvalidPublicLifeStatus() {
+        ClocktowerRoomResponse room = startedRoom();
+        Long targetSeatId = room.seats().getFirst().seatId();
+
+        assertThatThrownBy(() -> rulingService.create(room.roomId(), new ClocktowerRulingCreateRequest(
+                ClocktowerRulingType.SET_PUBLIC_LIFE, targetSeatId, null, null, "UNKNOWN", null,
+                ClocktowerRulingReason.STORYTELLER_RULING, "假死", "一名玩家死亡", ClocktowerVisibility.PUBLIC, false),
+                storytellerPrincipal())).isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_PUBLIC_LIFE_STATUS_INVALID");
+    }
+
+    @Test
+    void rejectsInvalidNonblankWinner() {
+        ClocktowerRoomResponse room = startedRoom();
+
+        assertThatThrownBy(() -> rulingService.create(room.roomId(), new ClocktowerRulingCreateRequest(
+                ClocktowerRulingType.END_GAME, null, null, null, null, "UNKNOWN",
+                ClocktowerRulingReason.STORYTELLER_RULING, "测试局结束", "游戏结束", ClocktowerVisibility.PUBLIC, false),
+                storytellerPrincipal())).isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_RULING_WINNER_INVALID");
     }
 
     @Test
