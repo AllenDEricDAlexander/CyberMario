@@ -1,6 +1,13 @@
 import {renderToStaticMarkup} from 'react-dom/server'
 import {describe, expect, test, vi} from 'vitest'
-import {Component as StorytellerGrimoirePage, GrimoireSeatList, RulingHistory, TaskList} from './StorytellerGrimoirePage'
+import {
+    Component as StorytellerGrimoirePage,
+    GrimoireSeatList,
+    RulingForm,
+    RulingHistory,
+    TaskList,
+    rulingTypeOptions,
+} from './StorytellerGrimoirePage'
 import {NightChecklist} from './components/NightChecklist'
 
 vi.mock('react-router', () => ({
@@ -165,5 +172,55 @@ describe('StorytellerGrimoirePage', () => {
         expect(markup).toContain('MARK_DEAD')
         expect(markup).toContain('NIGHT_DEATH')
         expect(markup).toContain('撤销')
+    })
+
+    test('renders full ruling form controls', () => {
+        const markup = renderToStaticMarkup(
+            <RulingForm
+                grimoire={{
+                    roomId: 7,
+                    phase: {phase: 'DAY', dayNo: 1, nightNo: 1},
+                    seats: [
+                        {
+                            seatId: 3,
+                            seatNo: 1,
+                            displayName: 'Alice',
+                            roleCode: 'EMPATH',
+                            roleType: 'TOWNSFOLK',
+                            alignment: 'GOOD',
+                            alive: true,
+                            publicAlive: true,
+                            lifeStatus: 'ALIVE',
+                            publicLifeStatus: 'ALIVE',
+                            hasDeadVote: true,
+                            connected: true,
+                        },
+                    ],
+                    markers: [],
+                    reminders: [],
+                    pendingTasks: [],
+                    ruleTraceEnabled: false,
+                }}
+                loading={false}
+                onSubmit={() => Promise.resolve(true)}
+            />,
+        )
+
+        expect(markup).toContain('裁定类型')
+        expect(markup).toContain('设置公开生死')
+        expect(markup).toContain('提名 ID')
+        expect(markup).toContain('裁定原因')
+        expect(markup).toContain('提交裁定')
+        expect(rulingTypeOptions.map((option) => option.label)).toEqual([
+            '判死亡',
+            '复活',
+            '设置公开生死',
+            '处决玩家',
+            '跳过处决',
+            '结束游戏',
+            '关闭提名',
+            '重开提名',
+            '作废提名',
+        ])
     })
 })

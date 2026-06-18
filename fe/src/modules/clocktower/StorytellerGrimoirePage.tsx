@@ -1,5 +1,23 @@
 import {CheckOutlined, ReloadOutlined, SendOutlined} from '@ant-design/icons'
-import {App, Button, Card, Col, Empty, Form, Input, List, Popconfirm, Row, Select, Space, Tabs, Tag, Typography} from 'antd'
+import {
+    App,
+    Button,
+    Card,
+    Col,
+    Empty,
+    Form,
+    Input,
+    InputNumber,
+    List,
+    Popconfirm,
+    Row,
+    Select,
+    Space,
+    Switch,
+    Tabs,
+    Tag,
+    Typography,
+} from 'antd'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {useParams} from 'react-router'
 import {PageToolbar} from '../../components/PageToolbar'
@@ -25,6 +43,48 @@ import {NightChecklist} from './components/NightChecklist'
 import {RoleTypeTag} from './components/RoleTypeTag'
 
 type QuickSeatRulingType = Extract<ClocktowerRulingCreateRequest['rulingType'], 'MARK_DEAD' | 'RESTORE_ALIVE'>
+
+type RulingFormValues = {
+    rulingType: ClocktowerRulingCreateRequest['rulingType']
+    targetSeatId?: number | null
+    nominationId?: number | null
+    publicLifeStatus?: ClocktowerRulingCreateRequest['publicLifeStatus']
+    winner?: ClocktowerRulingCreateRequest['winner']
+    reason: ClocktowerRulingCreateRequest['reason']
+    note: string
+    publicNote?: string | null
+    visibility: ClocktowerRulingCreateRequest['visibility']
+    force?: boolean
+}
+
+export const rulingTypeOptions: { label: string, value: ClocktowerRulingCreateRequest['rulingType'] }[] = [
+    {label: '判死亡', value: 'MARK_DEAD'},
+    {label: '复活', value: 'RESTORE_ALIVE'},
+    {label: '设置公开生死', value: 'SET_PUBLIC_LIFE'},
+    {label: '处决玩家', value: 'EXECUTE_PLAYER'},
+    {label: '跳过处决', value: 'SKIP_EXECUTION'},
+    {label: '结束游戏', value: 'END_GAME'},
+    {label: '关闭提名', value: 'CLOSE_NOMINATION'},
+    {label: '重开提名', value: 'REOPEN_NOMINATION'},
+    {label: '作废提名', value: 'VOID_NOMINATION'},
+]
+
+const rulingReasonOptions: { label: string, value: ClocktowerRulingCreateRequest['reason'] }[] = [
+    {label: '投票处决', value: 'VOTE_EXECUTION'},
+    {label: '角色能力', value: 'ROLE_ABILITY'},
+    {label: '夜晚死亡', value: 'NIGHT_DEATH'},
+    {label: '说书人裁定', value: 'STORYTELLER_RULING'},
+    {label: '玩家请求', value: 'PLAYER_REQUEST'},
+    {label: '误操作修正', value: 'MISTAKE_FIX'},
+    {label: '其他', value: 'OTHER'},
+]
+
+const rulingVisibilityOptions: { label: string, value: ClocktowerRulingCreateRequest['visibility'] }[] = [
+    {label: '公开', value: 'PUBLIC'},
+    {label: '仅说书人', value: 'STORYTELLER'},
+    {label: '私密', value: 'PRIVATE'},
+    {label: '审计', value: 'AUDIT'},
+]
 
 function StorytellerGrimoirePage() {
     const {roomId} = useParams()
@@ -111,9 +171,9 @@ function StorytellerGrimoirePage() {
         }
     }
 
-    async function submitRuling(request: ClocktowerRulingCreateRequest, loadingKey: string) {
+    async function submitRuling(request: ClocktowerRulingCreateRequest, loadingKey: string): Promise<boolean> {
         if (!Number.isFinite(numericRoomId) || rulingMutationInFlight.current) {
-            return
+            return false
         }
         rulingMutationInFlight.current = true
         setRulingLoadingKey(loadingKey)
@@ -127,8 +187,10 @@ function StorytellerGrimoirePage() {
             } catch (caught) {
                 message.warning(`裁定已生效，裁定历史刷新失败：${resolveErrorMessage(caught)}`)
             }
+            return true
         } catch (caught) {
             message.error(resolveErrorMessage(caught))
+            return false
         } finally {
             rulingMutationInFlight.current = false
             setRulingLoadingKey(null)
@@ -208,6 +270,17 @@ function StorytellerGrimoirePage() {
                                     key: 'night',
                                     label: '夜晚顺序',
                                     children: <NightChecklist checklist={checklist} loading={loading}/>,
+                                },
+                                {
+                                    key: 'ruling-form',
+                                    label: '裁定',
+                                    children: (
+                                        <RulingForm
+                                            grimoire={grimoire}
+                                            loading={rulingBusy}
+                                            onSubmit={submitRuling}
+                                        />
+                                    ),
                                 },
                                 {
                                     key: 'rulings',
@@ -431,6 +504,106 @@ function taskStatusText(status: string) {
         return '待处理'
     }
     return status === 'DONE' ? '已完成' : status
+}
+
+export function RulingForm({
+    grimoire,
+    loading,
+    onSubmit,
+}: {
+    grimoire: ClocktowerGrimoireResponse | null
+    loading: boolean
+    onSubmit: (request: ClocktowerRulingCreateRequest, loadingKey: string) => Promise<boolean>
+}) {
+    const [form] = Form.useForm<RulingFormValues>()
+
+    async function submit() {
+        const values = await form.validateFields()
+        const success = await onSubmit({
+            rulingType: values.rulingType,
+            targetSeatId: values.targetSeatId ?? null,
+            nominationId: values.nominationId ?? null,
+            publicLifeStatus: values.publicLifeStatus ?? null,
+            winner: values.winner ?? null,
+            reason: values.reason,
+            note: values.note.trim(),
+            publicNote: values.publicNote?.trim() || null,
+            visibility: values.visibility,
+            force: values.force ?? false,
+        }, `FORM:${values.rulingType}`)
+        if (success) {
+            form.resetFields(['note', 'publicNote'])
+        }
+    }
+
+    return (
+        <Form
+            form={form}
+            initialValues={{
+                rulingType: 'SET_PUBLIC_LIFE',
+                publicLifeStatus: 'DEAD',
+                reason: 'STORYTELLER_RULING',
+                visibility: 'PUBLIC',
+                force: false,
+            }}
+            layout="vertical"
+        >
+            <Form.Item label="裁定类型" name="rulingType" rules={[{required: true, message: '请选择裁定类型'}]}>
+                <Select options={rulingTypeOptions}/>
+            </Form.Item>
+            <Form.Item label="目标座位" name="targetSeatId">
+                <Select
+                    allowClear
+                    options={(grimoire?.seats ?? []).map((seat) => ({
+                        label: `${seat.seatNo} ${seat.displayName}`,
+                        value: seat.seatId,
+                    }))}
+                    placeholder="可选"
+                />
+            </Form.Item>
+            <Form.Item label="提名 ID" name="nominationId">
+                <InputNumber min={1} style={{width: '100%'}}/>
+            </Form.Item>
+            <Form.Item label="公开生死" name="publicLifeStatus">
+                <Select
+                    allowClear
+                    options={[
+                        {label: '公开存活', value: 'ALIVE'},
+                        {label: '公开死亡', value: 'DEAD'},
+                    ]}
+                    placeholder="设置公开生死时填写"
+                />
+            </Form.Item>
+            <Form.Item label="获胜阵营" name="winner">
+                <Select
+                    allowClear
+                    options={[
+                        {label: '善良', value: 'GOOD'},
+                        {label: '邪恶', value: 'EVIL'},
+                    ]}
+                    placeholder="结束游戏时填写"
+                />
+            </Form.Item>
+            <Form.Item label="裁定原因" name="reason" rules={[{required: true, message: '请选择裁定原因'}]}>
+                <Select options={rulingReasonOptions}/>
+            </Form.Item>
+            <Form.Item label="可见范围" name="visibility" rules={[{required: true, message: '请选择可见范围'}]}>
+                <Select options={rulingVisibilityOptions}/>
+            </Form.Item>
+            <Form.Item label="内部记录" name="note" rules={[{required: true, message: '请填写内部记录'}]}>
+                <Input.TextArea rows={3}/>
+            </Form.Item>
+            <Form.Item label="公开记录" name="publicNote">
+                <Input.TextArea rows={2}/>
+            </Form.Item>
+            <Form.Item label="强制裁定" name="force" valuePropName="checked">
+                <Switch/>
+            </Form.Item>
+            <Button icon={<SendOutlined/>} loading={loading} onClick={voidify(submit)} type="primary">
+                提交裁定
+            </Button>
+        </Form>
+    )
 }
 
 function StorytellerActionForm({

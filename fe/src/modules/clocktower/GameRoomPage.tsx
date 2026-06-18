@@ -156,7 +156,7 @@ function GameRoomPage() {
     )
 }
 
-function SeatPublicList({seats}: { seats: ClocktowerPlayerViewResponse['publicSeats'] }) {
+export function SeatPublicList({seats}: { seats: ClocktowerPlayerViewResponse['publicSeats'] }) {
     if (seats.length === 0) {
         return <Empty description="暂无座位"/>
     }
