@@ -11,17 +11,20 @@ public record ClocktowerSeatResponse(
         String roleCode,
         ClocktowerRoleType roleType,
         String lifeStatus,
+        String publicLifeStatus,
         boolean connected,
         boolean hasDeadVote
 ) {
 
     public static ClocktowerSeatResponse from(ClocktowerSeatPo seat) {
         return new ClocktowerSeatResponse(seat.getId(), seat.getSeatNo(), seat.getUserId(), seat.getDisplayName(),
-                seat.getRoleCode(), seat.getRoleType(), seat.getLifeStatus(), seat.isConnected(), seat.isHasDeadVote());
+                seat.getRoleCode(), seat.getRoleType(), seat.getLifeStatus(), seat.getPublicLifeStatus(),
+                seat.isConnected(), seat.isHasDeadVote());
     }
 
     public static ClocktowerSeatResponse publicView(ClocktowerSeatPo seat) {
         return new ClocktowerSeatResponse(seat.getId(), seat.getSeatNo(), seat.getUserId(), seat.getDisplayName(),
-                null, null, seat.getLifeStatus(), seat.isConnected(), seat.isHasDeadVote());
+                null, null, seat.getPublicLifeStatus(), seat.getPublicLifeStatus(), seat.isConnected(),
+                seat.isHasDeadVote());
     }
 }

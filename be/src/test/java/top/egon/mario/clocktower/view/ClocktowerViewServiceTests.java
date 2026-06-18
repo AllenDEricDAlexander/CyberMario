@@ -13,6 +13,7 @@ import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomJoinRequest;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomStartRequest;
 import top.egon.mario.clocktower.room.dto.request.RoleAssignmentRequest;
 import top.egon.mario.clocktower.room.dto.response.ClocktowerRoomResponse;
+import top.egon.mario.clocktower.room.po.ClocktowerSeatPo;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomService;
 import top.egon.mario.clocktower.view.dto.ClocktowerPlayerViewResponse;
 import top.egon.mario.clocktower.view.dto.PublicSeatResponse;
@@ -48,6 +49,25 @@ class ClocktowerViewServiceTests {
         assertThat(view.publicSeats()).allSatisfy(seat -> assertThat(seat.roleCode()).isNull());
         assertThat(view.publicSeats()).extracting(PublicSeatResponse::seatId).contains(marioSeatId);
         assertThat(view.recentEvents()).noneMatch(event -> event.visibility() == ClocktowerVisibility.STORYTELLER);
+    }
+
+    @Test
+    void playerViewProjectsPublicLifeSeparatelyFromRealLife() {
+        ClocktowerRoomResponse room = startedTroubleBrewingRoomWithJoinedUsers();
+        Long marioSeatId = room.seats().getFirst().seatId();
+        ClocktowerSeatPo seat = context.seatRepository()
+                .findByIdAndRoomIdAndDeletedFalse(marioSeatId, room.roomId())
+                .orElseThrow();
+        seat.setLifeStatus("ALIVE");
+        seat.setPublicLifeStatus("DEAD");
+        context.seatRepository().save(seat);
+
+        ClocktowerPlayerViewResponse view = viewService.playerView(room.roomId(), marioSeatId, principal(2L, "mario"));
+
+        assertThat(view.mySeat().lifeStatus()).isEqualTo("ALIVE");
+        assertThat(view.mySeat().publicLifeStatus()).isEqualTo("DEAD");
+        assertThat(view.publicSeats()).filteredOn(publicSeat -> publicSeat.seatId().equals(marioSeatId))
+                .allMatch(publicSeat -> "DEAD".equals(publicSeat.lifeStatus()));
     }
 
     @Test

@@ -14,6 +14,9 @@ public record GrimoireSeatResponse(
         ClocktowerRoleType roleType,
         ClocktowerAlignment alignment,
         boolean alive,
+        boolean publicAlive,
+        String lifeStatus,
+        String publicLifeStatus,
         boolean hasDeadVote,
         boolean connected,
         String notes
@@ -24,7 +27,8 @@ public record GrimoireSeatResponse(
                 entry == null ? seat.getRoleCode() : entry.getRoleCode(),
                 entry == null ? seat.getRoleType() : entry.getRoleType(),
                 entry == null ? seat.getAlignment() : entry.getAlignment(),
-                "ALIVE".equals(seat.getLifeStatus()), seat.isHasDeadVote(), seat.isConnected(),
+                "ALIVE".equals(seat.getLifeStatus()), "ALIVE".equals(seat.getPublicLifeStatus()),
+                seat.getLifeStatus(), seat.getPublicLifeStatus(), seat.isHasDeadVote(), seat.isConnected(),
                 entry == null ? null : entry.getNotes());
     }
 }

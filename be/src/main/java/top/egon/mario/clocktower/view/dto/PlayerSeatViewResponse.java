@@ -12,11 +12,13 @@ public record PlayerSeatViewResponse(
         ClocktowerRoleType roleType,
         ClocktowerAlignment alignment,
         String lifeStatus,
+        String publicLifeStatus,
         boolean hasDeadVote
 ) {
 
     public static PlayerSeatViewResponse from(ClocktowerSeatPo seat) {
         return new PlayerSeatViewResponse(seat.getId(), seat.getSeatNo(), seat.getDisplayName(), seat.getRoleCode(),
-                seat.getRoleType(), seat.getAlignment(), seat.getLifeStatus(), seat.isHasDeadVote());
+                seat.getRoleType(), seat.getAlignment(), seat.getLifeStatus(), seat.getPublicLifeStatus(),
+                seat.isHasDeadVote());
     }
 }

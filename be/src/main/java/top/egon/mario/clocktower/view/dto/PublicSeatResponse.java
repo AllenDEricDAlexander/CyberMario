@@ -14,6 +14,6 @@ public record PublicSeatResponse(
 
     public static PublicSeatResponse from(ClocktowerSeatPo seat) {
         return new PublicSeatResponse(seat.getId(), seat.getSeatNo(), seat.getDisplayName(), null,
-                seat.getLifeStatus(), seat.isConnected(), seat.isHasDeadVote());
+                seat.getPublicLifeStatus(), seat.isConnected(), seat.isHasDeadVote());
     }
 }

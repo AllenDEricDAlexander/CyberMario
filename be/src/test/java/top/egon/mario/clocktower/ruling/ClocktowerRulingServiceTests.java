@@ -90,6 +90,20 @@ class ClocktowerRulingServiceTests {
     }
 
     @Test
+    void grimoireShowsRealAndPublicLifeAfterFakeDeath() {
+        ClocktowerRoomResponse room = startedRoom();
+        Long targetSeatId = room.seats().getFirst().seatId();
+
+        ClocktowerRulingApplyResponse response = rulingService.create(room.roomId(), new ClocktowerRulingCreateRequest(
+                ClocktowerRulingType.SET_PUBLIC_LIFE, targetSeatId, null, null, "DEAD", null,
+                ClocktowerRulingReason.STORYTELLER_RULING, "假死", "一名玩家死亡", ClocktowerVisibility.PUBLIC, false),
+                storytellerPrincipal());
+
+        assertThat(response.grimoire().seats()).filteredOn(seat -> seat.seatId().equals(targetSeatId))
+                .allMatch(seat -> seat.alive() && !seat.publicAlive());
+    }
+
+    @Test
     void publicLifePublicEventHidesInternalRulingMetadata() {
         ClocktowerRoomResponse room = startedRoom();
         Long targetSeatId = room.seats().getFirst().seatId();
