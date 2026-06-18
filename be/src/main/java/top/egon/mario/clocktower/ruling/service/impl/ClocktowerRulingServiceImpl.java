@@ -92,8 +92,14 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
         ClocktowerAccess.requireStoryteller(room, principal);
         ClocktowerRulingPo original = rulingRepository.findByIdAndRoomIdAndDeletedFalse(rulingId, roomId)
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_RULING_NOT_FOUND"));
+        if (original.getRulingType() == ClocktowerRulingType.UNDO_RULING) {
+            throw new ClocktowerException("CLOCKTOWER_RULING_UNDO_OF_UNDO_NOT_ALLOWED");
+        }
         if (original.getStatus() == ClocktowerRulingStatus.REVOKED) {
             throw new ClocktowerException("CLOCKTOWER_RULING_ALREADY_REVOKED");
+        }
+        if (!force(request) && hasLaterAppliedRelatedRuling(roomId, original)) {
+            throw new ClocktowerException("CLOCKTOWER_RULING_UNDO_OUT_OF_ORDER");
         }
         restoreSnapshot(room, original);
         original.setStatus(ClocktowerRulingStatus.REVOKED);
@@ -287,10 +293,39 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
             payload.put("rulingType", ruling.getRulingType().name());
             payload.put("reason", ruling.getReason().name());
             payload.put("winner", ruling.getWinner());
+            if (ruling.getUndoOfRulingId() != null) {
+                payload.put("undoOfRulingId", ruling.getUndoOfRulingId());
+            }
         }
         return eventService.append(new ClocktowerEventAppendRequest(room.getId(), eventType, room.getPhase(),
                 room.getCurrentDayNo(), room.getCurrentNightNo(), principal == null ? null : principal.userId(),
                 null, targetSeatId, ruling.getVisibility(), List.of(), payload));
+    }
+
+    private boolean force(ClocktowerRulingUndoRequest request) {
+        return request != null && request.force();
+    }
+
+    private boolean hasLaterAppliedRelatedRuling(Long roomId, ClocktowerRulingPo original) {
+        return rulingRepository.findByRoomIdAndDeletedFalseOrderByIdDesc(roomId).stream()
+                .anyMatch(later -> later.getId() != null
+                        && original.getId() != null
+                        && later.getId() > original.getId()
+                        && later.getStatus() == ClocktowerRulingStatus.APPLIED
+                        && related(original, later));
+    }
+
+    private boolean related(ClocktowerRulingPo original, ClocktowerRulingPo later) {
+        if (original.getTargetSeatId() != null && original.getTargetSeatId().equals(later.getTargetSeatId())) {
+            return true;
+        }
+        if (original.getNominationId() != null && original.getNominationId().equals(later.getNominationId())) {
+            return true;
+        }
+        return original.getTargetSeatId() == null
+                && original.getNominationId() == null
+                && later.getTargetSeatId() == null
+                && later.getNominationId() == null;
     }
 
     private String snapshot(ClocktowerRoomPo room, ClocktowerRulingCreateRequest request) {

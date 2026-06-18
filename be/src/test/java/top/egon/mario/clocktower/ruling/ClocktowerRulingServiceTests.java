@@ -151,10 +151,57 @@ class ClocktowerRulingServiceTests {
         assertThat(context.rulingRepository().findByIdAndRoomIdAndDeletedFalse(applied.ruling().rulingId(), room.roomId())
                 .orElseThrow().getStatus()).isEqualTo(ClocktowerRulingStatus.REVOKED);
         assertThat(undone.ruling().rulingType()).isEqualTo(ClocktowerRulingType.UNDO_RULING);
+        assertThat(undone.events().getFirst().visibility()).isEqualTo(ClocktowerVisibility.STORYTELLER);
+        assertThat(undone.events().getFirst().payload()).containsEntry("undoOfRulingId", applied.ruling().rulingId());
         assertThat(context.seatRepository().findByIdAndRoomIdAndDeletedFalse(targetSeatId, room.roomId()).orElseThrow()
                 .getLifeStatus()).isEqualTo("ALIVE");
         assertThat(context.seatRepository().findByIdAndRoomIdAndDeletedFalse(targetSeatId, room.roomId()).orElseThrow()
                 .getPublicLifeStatus()).isEqualTo("ALIVE");
+    }
+
+    @Test
+    void undoRulingRejectsOutOfOrderUndoUnlessForced() {
+        ClocktowerRoomResponse room = startedRoom();
+        Long targetSeatId = room.seats().getFirst().seatId();
+        ClocktowerRulingApplyResponse publicLife = rulingService.create(room.roomId(), new ClocktowerRulingCreateRequest(
+                ClocktowerRulingType.SET_PUBLIC_LIFE, targetSeatId, null, null, "DEAD", null,
+                ClocktowerRulingReason.STORYTELLER_RULING, "假死", "一名玩家死亡", ClocktowerVisibility.PUBLIC, false),
+                storytellerPrincipal());
+        rulingService.create(room.roomId(), new ClocktowerRulingCreateRequest(
+                ClocktowerRulingType.MARK_DEAD, targetSeatId, null, null, null, null,
+                ClocktowerRulingReason.NIGHT_DEATH, "夜晚死亡", "一名玩家死亡", ClocktowerVisibility.PUBLIC, false),
+                storytellerPrincipal());
+
+        assertThatThrownBy(() -> rulingService.undo(room.roomId(), publicLife.ruling().rulingId(),
+                new ClocktowerRulingUndoRequest("误操作撤销", false), storytellerPrincipal()))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_RULING_UNDO_OUT_OF_ORDER");
+        assertThat(context.seatRepository().findByIdAndRoomIdAndDeletedFalse(targetSeatId, room.roomId()).orElseThrow()
+                .getLifeStatus()).isEqualTo("DEAD");
+        assertThat(context.seatRepository().findByIdAndRoomIdAndDeletedFalse(targetSeatId, room.roomId()).orElseThrow()
+                .getPublicLifeStatus()).isEqualTo("DEAD");
+
+        ClocktowerRulingApplyResponse undone = rulingService.undo(room.roomId(), publicLife.ruling().rulingId(),
+                new ClocktowerRulingUndoRequest("强制撤销", true), storytellerPrincipal());
+
+        assertThat(undone.ruling().rulingType()).isEqualTo(ClocktowerRulingType.UNDO_RULING);
+    }
+
+    @Test
+    void undoRulingRejectsUndoOfUndo() {
+        ClocktowerRoomResponse room = startedRoom();
+        Long targetSeatId = room.seats().getFirst().seatId();
+        ClocktowerRulingApplyResponse applied = rulingService.create(room.roomId(), new ClocktowerRulingCreateRequest(
+                ClocktowerRulingType.MARK_DEAD, targetSeatId, null, null, null, null,
+                ClocktowerRulingReason.NIGHT_DEATH, "夜晚死亡", "一名玩家死亡", ClocktowerVisibility.PUBLIC, false),
+                storytellerPrincipal());
+        ClocktowerRulingApplyResponse undone = rulingService.undo(room.roomId(), applied.ruling().rulingId(),
+                new ClocktowerRulingUndoRequest("误操作撤销", true), storytellerPrincipal());
+
+        assertThatThrownBy(() -> rulingService.undo(room.roomId(), undone.ruling().rulingId(),
+                new ClocktowerRulingUndoRequest("再次撤销", true), storytellerPrincipal()))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_RULING_UNDO_OF_UNDO_NOT_ALLOWED");
     }
 
     @Test
