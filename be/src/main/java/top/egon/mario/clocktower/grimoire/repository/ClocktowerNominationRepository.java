@@ -10,5 +10,7 @@ public interface ClocktowerNominationRepository extends JpaRepository<Clocktower
 
     List<ClocktowerNominationPo> findByRoomIdAndDeletedFalseOrderByIdAsc(Long roomId);
 
+    Optional<ClocktowerNominationPo> findByIdAndRoomIdAndDeletedFalse(Long id, Long roomId);
+
     Optional<ClocktowerNominationPo> findTopByRoomIdAndStatusAndDeletedFalseOrderByIdDesc(Long roomId, String status);
 }

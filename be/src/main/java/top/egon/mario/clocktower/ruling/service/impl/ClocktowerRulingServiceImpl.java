@@ -19,6 +19,7 @@ import top.egon.mario.clocktower.event.dto.ClocktowerEventAppendRequest;
 import top.egon.mario.clocktower.event.dto.ClocktowerEventResponse;
 import top.egon.mario.clocktower.event.service.ClocktowerEventService;
 import top.egon.mario.clocktower.grimoire.dto.response.ClocktowerGrimoireResponse;
+import top.egon.mario.clocktower.grimoire.po.ClocktowerNominationPo;
 import top.egon.mario.clocktower.grimoire.repository.ClocktowerNominationRepository;
 import top.egon.mario.clocktower.grimoire.service.ClocktowerGrimoireService;
 import top.egon.mario.clocktower.room.po.ClocktowerRoomPo;
@@ -34,6 +35,7 @@ import top.egon.mario.clocktower.ruling.repository.ClocktowerRulingRepository;
 import top.egon.mario.clocktower.ruling.service.ClocktowerRulingService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -112,7 +114,12 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
         return rulingType == ClocktowerRulingType.MARK_DEAD
                 || rulingType == ClocktowerRulingType.RESTORE_ALIVE
                 || rulingType == ClocktowerRulingType.SET_PUBLIC_LIFE
-                || rulingType == ClocktowerRulingType.END_GAME;
+                || rulingType == ClocktowerRulingType.EXECUTE_PLAYER
+                || rulingType == ClocktowerRulingType.SKIP_EXECUTION
+                || rulingType == ClocktowerRulingType.END_GAME
+                || rulingType == ClocktowerRulingType.CLOSE_NOMINATION
+                || rulingType == ClocktowerRulingType.REOPEN_NOMINATION
+                || rulingType == ClocktowerRulingType.VOID_NOMINATION;
     }
 
     private void validatePublicLifeStatus(String publicLifeStatus) {
@@ -154,7 +161,16 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
             case RESTORE_ALIVE -> applyLife(room, ruling, principal, "ALIVE", "ALIVE",
                     ClocktowerEventType.STORYTELLER_RULING);
             case SET_PUBLIC_LIFE -> applyPublicLife(room, ruling, request, principal);
+            case EXECUTE_PLAYER -> applyExecution(room, ruling, principal);
+            case SKIP_EXECUTION -> applyNominationStatus(room, ruling, principal, "CLOSED",
+                    ClocktowerEventType.STORYTELLER_RULING);
             case END_GAME -> applyEndGame(room, ruling, principal);
+            case CLOSE_NOMINATION -> applyNominationStatus(room, ruling, principal, "CLOSED",
+                    ClocktowerEventType.STORYTELLER_RULING);
+            case REOPEN_NOMINATION -> applyNominationStatus(room, ruling, principal, "OPEN",
+                    ClocktowerEventType.STORYTELLER_RULING);
+            case VOID_NOMINATION -> applyNominationStatus(room, ruling, principal, "VOID",
+                    ClocktowerEventType.STORYTELLER_RULING);
             default -> throw new ClocktowerException("CLOCKTOWER_RULING_TYPE_NOT_SUPPORTED");
         };
     }
@@ -181,6 +197,38 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
         seat.setPublicLifeStatus(request.publicLifeStatus());
         seatRepository.save(seat);
         return List.of(append(room, principal, ruling.getTargetSeatId(), ClocktowerEventType.STORYTELLER_RULING, ruling));
+    }
+
+    private List<ClocktowerEventResponse> applyExecution(ClocktowerRoomPo room, ClocktowerRulingPo ruling,
+                                                         RbacPrincipal principal) {
+        ClocktowerSeatPo seat = seatRepository.findByIdAndRoomIdAndDeletedFalse(ruling.getTargetSeatId(), room.getId())
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_SEAT_NOT_FOUND"));
+        seat.setLifeStatus("DEAD");
+        seat.setPublicLifeStatus("DEAD");
+        seatRepository.save(seat);
+        if (ruling.getNominationId() != null) {
+            ClocktowerNominationPo nomination = nominationRepository
+                    .findByIdAndRoomIdAndDeletedFalse(ruling.getNominationId(), room.getId())
+                    .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_NOMINATION_NOT_FOUND"));
+            nomination.setExecuted(true);
+            nomination.setStatus("CLOSED");
+            nominationRepository.save(nomination);
+        }
+        List<ClocktowerEventResponse> events = new ArrayList<>();
+        events.add(append(room, principal, seat.getId(), ClocktowerEventType.PLAYER_EXECUTED, ruling));
+        events.add(append(room, principal, seat.getId(), ClocktowerEventType.PLAYER_DIED, ruling));
+        return events;
+    }
+
+    private List<ClocktowerEventResponse> applyNominationStatus(ClocktowerRoomPo room, ClocktowerRulingPo ruling,
+                                                                RbacPrincipal principal, String status,
+                                                                ClocktowerEventType eventType) {
+        ClocktowerNominationPo nomination = nominationRepository
+                .findByIdAndRoomIdAndDeletedFalse(ruling.getNominationId(), room.getId())
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_NOMINATION_NOT_FOUND"));
+        nomination.setStatus(status);
+        nominationRepository.save(nomination);
+        return List.of(append(room, principal, nomination.getNomineeSeatId(), eventType, ruling));
     }
 
     private List<ClocktowerEventResponse> applyEndGame(ClocktowerRoomPo room, ClocktowerRulingPo ruling,

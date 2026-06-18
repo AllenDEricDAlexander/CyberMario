@@ -177,6 +177,15 @@ public final class ClocktowerRoomTestFactory {
                 .filter(nomination -> !nomination.isDeleted() && nomination.getRoomId().equals(invocation.getArgument(0)))
                 .sorted(Comparator.comparing(ClocktowerNominationPo::getId))
                 .toList());
+        when(nominationRepository.findById(any())).thenAnswer(invocation -> nominations.stream()
+                .filter(nomination -> !nomination.isDeleted()
+                        && nomination.getId().equals(invocation.getArgument(0)))
+                .findFirst());
+        when(nominationRepository.findByIdAndRoomIdAndDeletedFalse(any(), any())).thenAnswer(invocation -> nominations.stream()
+                .filter(nomination -> !nomination.isDeleted()
+                        && nomination.getId().equals(invocation.getArgument(0))
+                        && nomination.getRoomId().equals(invocation.getArgument(1)))
+                .findFirst());
         when(nominationRepository.findTopByRoomIdAndStatusAndDeletedFalseOrderByIdDesc(any(), any()))
                 .thenAnswer(invocation -> nominations.stream()
                         .filter(nomination -> !nomination.isDeleted()
