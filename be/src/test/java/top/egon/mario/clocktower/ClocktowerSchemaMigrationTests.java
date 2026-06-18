@@ -101,6 +101,18 @@ class ClocktowerSchemaMigrationTests {
     }
 
     @Test
+    void rulingMigrationAddsPublicLifeAndRulingTable() throws Exception {
+        Path migration = Path.of("src/main/resources/db/migration/V21__create_clocktower_ruling_system.sql");
+
+        String sql = Files.readString(migration);
+
+        assertThat(sql).contains("ALTER TABLE clocktower_seat");
+        assertThat(sql).contains("public_life_status");
+        assertThat(sql).contains("CREATE TABLE clocktower_ruling");
+        assertThat(sql).contains("snapshot_json");
+    }
+
+    @Test
     void completeClocktowerRuleDataMigrationAppliesReviewedBaseScriptRows() {
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setDriverClassName("org.h2.Driver");

@@ -2,11 +2,15 @@ package top.egon.mario.clocktower;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import org.junit.jupiter.api.Test;
 import top.egon.mario.clocktower.common.enums.ClocktowerAlignment;
 import top.egon.mario.clocktower.common.enums.ClocktowerNightType;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
+import top.egon.mario.clocktower.common.enums.ClocktowerRulingReason;
+import top.egon.mario.clocktower.common.enums.ClocktowerRulingStatus;
+import top.egon.mario.clocktower.common.enums.ClocktowerRulingType;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoleCode;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoleType;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoomStatus;
@@ -15,6 +19,7 @@ import top.egon.mario.clocktower.converter.jpa.ClocktowerAlignmentConverter;
 import top.egon.mario.clocktower.converter.jpa.ClocktowerNightTypeConverter;
 import top.egon.mario.clocktower.converter.jpa.ClocktowerRoleTypeConverter;
 import top.egon.mario.clocktower.room.po.ClocktowerRoomPo;
+import top.egon.mario.clocktower.room.po.ClocktowerSeatPo;
 import top.egon.mario.clocktower.script.po.ClocktowerNightOrderPo;
 import top.egon.mario.clocktower.script.po.ClocktowerRolePo;
 import top.egon.mario.clocktower.script.po.ClocktowerScriptPo;
@@ -30,6 +35,20 @@ class ClocktowerJpaMappingTests {
         assertThat(ClocktowerScriptCode.valueOf("TROUBLE_BREWING")).isEqualTo(ClocktowerScriptCode.TROUBLE_BREWING);
         assertThat(ClocktowerRoomStatus.valueOf("LOBBY")).isEqualTo(ClocktowerRoomStatus.LOBBY);
         assertThat(ClocktowerPhase.valueOf("FIRST_NIGHT")).isEqualTo(ClocktowerPhase.FIRST_NIGHT);
+    }
+
+    @Test
+    void rulingEnumsAndSeatPublicLifeStatusExposePhaseOneContracts() throws Exception {
+        assertThat(ClocktowerRulingType.valueOf("MARK_DEAD")).isEqualTo(ClocktowerRulingType.MARK_DEAD);
+        assertThat(ClocktowerRulingReason.valueOf("ROLE_ABILITY")).isEqualTo(ClocktowerRulingReason.ROLE_ABILITY);
+        assertThat(ClocktowerRulingStatus.valueOf("APPLIED")).isEqualTo(ClocktowerRulingStatus.APPLIED);
+
+        Field publicLifeStatus = ClocktowerSeatPo.class.getDeclaredField("publicLifeStatus");
+        assertThat(publicLifeStatus.getAnnotation(Column.class).name()).isEqualTo("public_life_status");
+
+        ClocktowerSeatPo seat = new ClocktowerSeatPo();
+        assertThat(seat.getLifeStatus()).isEqualTo("ALIVE");
+        assertThat(seat.getPublicLifeStatus()).isEqualTo("ALIVE");
     }
 
     @Test

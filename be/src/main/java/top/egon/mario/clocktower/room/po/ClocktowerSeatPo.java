@@ -44,6 +44,9 @@ public class ClocktowerSeatPo extends BaseAuditablePo {
     @Column(name = "life_status", nullable = false, length = 32)
     private String lifeStatus = "ALIVE";
 
+    @Column(name = "public_life_status", nullable = false, length = 32)
+    private String publicLifeStatus = "ALIVE";
+
     @Column(name = "connected", nullable = false)
     private boolean connected;
 
