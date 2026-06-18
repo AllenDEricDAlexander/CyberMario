@@ -25,6 +25,8 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.verify;
 
 class ClocktowerActionServiceTests {
 
@@ -47,6 +49,19 @@ class ClocktowerActionServiceTests {
         assertThat(context.eventRepository().findByRoomIdAndDeletedFalseOrderByEventSeqAsc(room.roomId()))
                 .extracting(ClocktowerEventPo::getEventType)
                 .contains(ClocktowerEventType.PUBLIC_MESSAGE_SENT);
+    }
+
+    @Test
+    void submitLoadsRoomWithWriteLock() {
+        ClocktowerRoomResponse room = runningDayRoom();
+        Long seatId = room.seats().getFirst().seatId();
+        clearInvocations(context.roomRepository());
+
+        actionService.submit(room.roomId(), new ClocktowerActionRequest(
+                seatId, "PUBLIC_SPEECH", List.of(), null, "白天发言。", Map.of(), "client-lock"),
+                principal(2L, "mario"));
+
+        verify(context.roomRepository()).findLockedByIdAndDeletedFalse(room.roomId());
     }
 
     @Test

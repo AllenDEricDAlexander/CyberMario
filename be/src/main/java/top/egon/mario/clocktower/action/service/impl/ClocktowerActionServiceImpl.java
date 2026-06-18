@@ -41,7 +41,7 @@ public class ClocktowerActionServiceImpl implements ClocktowerActionService {
     @Transactional
     public ClocktowerActionResponse submit(Long roomId, ClocktowerActionRequest request, RbacPrincipal principal) {
         ClocktowerAccess.requireAuthenticated(principal);
-        ClocktowerRoomPo room = roomRepository.findByIdAndDeletedFalse(roomId)
+        ClocktowerRoomPo room = roomRepository.findLockedByIdAndDeletedFalse(roomId)
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
         ClocktowerSeatPo actor = seat(roomId, request.seatId());
         if (actor.getUserId() == null || !actor.getUserId().equals(principal.userId())) {

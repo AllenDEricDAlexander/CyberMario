@@ -203,13 +203,19 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
                                                          RbacPrincipal principal) {
         ClocktowerSeatPo seat = seatRepository.findByIdAndRoomIdAndDeletedFalse(ruling.getTargetSeatId(), room.getId())
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_SEAT_NOT_FOUND"));
+        ClocktowerNominationPo nomination = null;
+        if (ruling.getNominationId() != null) {
+            nomination = nominationRepository
+                    .findByIdAndRoomIdAndDeletedFalse(ruling.getNominationId(), room.getId())
+                    .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_NOMINATION_NOT_FOUND"));
+            if (!seat.getId().equals(nomination.getNomineeSeatId())) {
+                throw new ClocktowerException("CLOCKTOWER_RULING_NOMINATION_TARGET_MISMATCH");
+            }
+        }
         seat.setLifeStatus("DEAD");
         seat.setPublicLifeStatus("DEAD");
         seatRepository.save(seat);
-        if (ruling.getNominationId() != null) {
-            ClocktowerNominationPo nomination = nominationRepository
-                    .findByIdAndRoomIdAndDeletedFalse(ruling.getNominationId(), room.getId())
-                    .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_NOMINATION_NOT_FOUND"));
+        if (nomination != null) {
             nomination.setExecuted(true);
             nomination.setStatus("CLOSED");
             nominationRepository.save(nomination);

@@ -8,6 +8,7 @@ import top.egon.mario.clocktower.common.enums.ClocktowerRulingType;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoomStatus;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.common.enums.ClocktowerVisibility;
+import top.egon.mario.clocktower.grimoire.po.ClocktowerNominationPo;
 import top.egon.mario.clocktower.grimoire.po.ClocktowerVotePo;
 import top.egon.mario.clocktower.grimoire.service.impl.ClocktowerGrimoireServiceImpl;
 import top.egon.mario.clocktower.room.ClocktowerRoomTestFactory;
@@ -147,6 +148,60 @@ class ClocktowerRulingServiceTests {
                 .contains(ClocktowerEventType.PLAYER_EXECUTED, ClocktowerEventType.PLAYER_DIED);
         assertThat(context.seatRepository().findByIdAndRoomIdAndDeletedFalse(targetSeatId, room.roomId()).orElseThrow()
                 .getLifeStatus()).isEqualTo("DEAD");
+    }
+
+    @Test
+    void executePlayerWithMatchingNominationClosesNominationAndPreservesVotes() {
+        ClocktowerRoomResponse room = startedRoom();
+        Long nominator = room.seats().getFirst().seatId();
+        Long nominee = room.seats().get(1).seatId();
+        submitPlayerAction(room.roomId(), nominator, "NOMINATE", List.of(nominee));
+        Long nominationId = context.nominationRepository().findByRoomIdAndDeletedFalseOrderByIdAsc(room.roomId())
+                .getFirst().getId();
+        submitPlayerAction(room.roomId(), nominator, "VOTE", List.of());
+        List<ClocktowerVotePo> votesBeforeExecution = context.voteRepository()
+                .findByNominationIdAndDeletedFalseOrderByIdAsc(nominationId);
+        assertThat(votesBeforeExecution).hasSize(1);
+
+        ClocktowerRulingApplyResponse response = rulingService.create(room.roomId(), new ClocktowerRulingCreateRequest(
+                ClocktowerRulingType.EXECUTE_PLAYER, nominee, nominationId, null, null, null,
+                ClocktowerRulingReason.STORYTELLER_RULING, "处决投票目标", "一名玩家被处决",
+                ClocktowerVisibility.PUBLIC, false), storytellerPrincipal());
+
+        assertThat(response.events()).extracting(event -> event.eventType())
+                .contains(ClocktowerEventType.PLAYER_EXECUTED, ClocktowerEventType.PLAYER_DIED);
+        assertThat(context.seatRepository().findByIdAndRoomIdAndDeletedFalse(nominee, room.roomId()).orElseThrow()
+                .getLifeStatus()).isEqualTo("DEAD");
+        ClocktowerNominationPo nomination = context.nominationRepository().findById(nominationId).orElseThrow();
+        assertThat(nomination.getStatus()).isEqualTo("CLOSED");
+        assertThat(nomination.isExecuted()).isTrue();
+        assertThat(context.voteRepository().findByNominationIdAndDeletedFalseOrderByIdAsc(nominationId))
+                .extracting(ClocktowerVotePo::getId)
+                .containsExactly(votesBeforeExecution.getFirst().getId());
+    }
+
+    @Test
+    void executePlayerRejectsNominationTargetMismatchBeforeMutation() {
+        ClocktowerRoomResponse room = startedRoom();
+        Long nominator = room.seats().getFirst().seatId();
+        Long nominee = room.seats().get(1).seatId();
+        Long executionTarget = room.seats().get(2).seatId();
+        submitPlayerAction(room.roomId(), nominator, "NOMINATE", List.of(nominee));
+        Long nominationId = context.nominationRepository().findByRoomIdAndDeletedFalseOrderByIdAsc(room.roomId())
+                .getFirst().getId();
+
+        assertThatThrownBy(() -> rulingService.create(room.roomId(), new ClocktowerRulingCreateRequest(
+                ClocktowerRulingType.EXECUTE_PLAYER, executionTarget, nominationId, null, null, null,
+                ClocktowerRulingReason.STORYTELLER_RULING, "错误处决目标", "一名玩家被处决",
+                ClocktowerVisibility.PUBLIC, false), storytellerPrincipal()))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_RULING_NOMINATION_TARGET_MISMATCH");
+
+        assertThat(context.seatRepository().findByIdAndRoomIdAndDeletedFalse(executionTarget, room.roomId()).orElseThrow()
+                .getLifeStatus()).isEqualTo("ALIVE");
+        ClocktowerNominationPo nomination = context.nominationRepository().findById(nominationId).orElseThrow();
+        assertThat(nomination.getStatus()).isEqualTo("OPEN");
+        assertThat(nomination.isExecuted()).isFalse();
     }
 
     @Test
