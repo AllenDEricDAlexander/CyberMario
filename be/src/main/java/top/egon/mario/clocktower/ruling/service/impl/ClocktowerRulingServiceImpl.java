@@ -84,9 +84,39 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
     }
 
     @Override
+    @Transactional
     public ClocktowerRulingApplyResponse undo(Long roomId, Long rulingId, ClocktowerRulingUndoRequest request,
                                               RbacPrincipal principal) {
-        throw new ClocktowerException("CLOCKTOWER_RULING_UNDO_NOT_READY");
+        ClocktowerRoomPo room = roomRepository.findLockedByIdAndDeletedFalse(roomId)
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
+        ClocktowerAccess.requireStoryteller(room, principal);
+        ClocktowerRulingPo original = rulingRepository.findByIdAndRoomIdAndDeletedFalse(rulingId, roomId)
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_RULING_NOT_FOUND"));
+        if (original.getStatus() == ClocktowerRulingStatus.REVOKED) {
+            throw new ClocktowerException("CLOCKTOWER_RULING_ALREADY_REVOKED");
+        }
+        restoreSnapshot(room, original);
+        original.setStatus(ClocktowerRulingStatus.REVOKED);
+        original.setRevokedBy(principal == null ? null : principal.userId());
+        original.setRevokedAt(java.time.Instant.now());
+        rulingRepository.save(original);
+
+        ClocktowerRulingPo undo = new ClocktowerRulingPo();
+        undo.setRoomId(roomId);
+        undo.setRulingType(ClocktowerRulingType.UNDO_RULING);
+        undo.setStatus(ClocktowerRulingStatus.APPLIED);
+        undo.setReason(top.egon.mario.clocktower.common.enums.ClocktowerRulingReason.MISTAKE_FIX);
+        undo.setNote(text(request == null ? null : request.note()));
+        undo.setPublicNote("撤销一条说书人裁定");
+        undo.setVisibility(ClocktowerVisibility.STORYTELLER);
+        undo.setUndoOfRulingId(original.getId());
+        undo.setSnapshotJson("{}");
+        ClocktowerEventResponse event = append(room, principal, original.getTargetSeatId(),
+                ClocktowerEventType.STORYTELLER_RULING, undo);
+        undo.setEventIdsJson(writeJson(List.of(event.eventId())));
+        ClocktowerRulingPo savedUndo = rulingRepository.save(undo);
+        return new ClocktowerRulingApplyResponse(ClocktowerRulingResponse.from(savedUndo),
+                grimoireService.getGrimoire(roomId, principal), List.of(event));
     }
 
     private void validate(ClocktowerRulingCreateRequest request) {
@@ -288,6 +318,36 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
                     });
         }
         return writeJson(snapshot);
+    }
+
+    private void restoreSnapshot(ClocktowerRoomPo room, ClocktowerRulingPo ruling) {
+        Map<String, Object> snapshot = readSnapshot(ruling);
+        if (snapshot.containsKey("roomStatus")) {
+            room.setStatus(ClocktowerRoomStatus.valueOf(snapshot.get("roomStatus").toString()));
+            room.setPhase(ClocktowerPhase.valueOf(snapshot.get("roomPhase").toString()));
+            room.setCurrentDayNo(((Number) snapshot.get("currentDayNo")).intValue());
+            room.setCurrentNightNo(((Number) snapshot.get("currentNightNo")).intValue());
+            roomRepository.save(room);
+        }
+        if (snapshot.containsKey("seatId")) {
+            Long seatId = ((Number) snapshot.get("seatId")).longValue();
+            ClocktowerSeatPo seat = seatRepository.findByIdAndRoomIdAndDeletedFalse(seatId, room.getId())
+                    .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_SEAT_NOT_FOUND"));
+            seat.setLifeStatus(snapshot.get("lifeStatus").toString());
+            seat.setPublicLifeStatus(snapshot.get("publicLifeStatus").toString());
+            seat.setHasDeadVote((Boolean) snapshot.get("hasDeadVote"));
+            seatRepository.save(seat);
+        }
+        if (snapshot.containsKey("nominationId")) {
+            Long nominationId = ((Number) snapshot.get("nominationId")).longValue();
+            ClocktowerNominationPo nomination = nominationRepository
+                    .findByIdAndRoomIdAndDeletedFalse(nominationId, room.getId())
+                    .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_NOMINATION_NOT_FOUND"));
+            nomination.setStatus(snapshot.get("nominationStatus").toString());
+            nomination.setVoteCount(((Number) snapshot.get("voteCount")).intValue());
+            nomination.setExecuted((Boolean) snapshot.get("executed"));
+            nominationRepository.save(nomination);
+        }
     }
 
     private String publicText(ClocktowerRulingPo ruling) {

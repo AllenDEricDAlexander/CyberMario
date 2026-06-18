@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerEventType;
 import top.egon.mario.clocktower.common.enums.ClocktowerRulingReason;
+import top.egon.mario.clocktower.common.enums.ClocktowerRulingStatus;
 import top.egon.mario.clocktower.common.enums.ClocktowerRulingType;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoomStatus;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
@@ -20,6 +21,7 @@ import top.egon.mario.clocktower.room.dto.response.ClocktowerRoomResponse;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomService;
 import top.egon.mario.clocktower.ruling.dto.ClocktowerRulingApplyResponse;
 import top.egon.mario.clocktower.ruling.dto.ClocktowerRulingCreateRequest;
+import top.egon.mario.clocktower.ruling.dto.ClocktowerRulingUndoRequest;
 import top.egon.mario.clocktower.ruling.service.ClocktowerRulingService;
 import top.egon.mario.clocktower.ruling.service.impl.ClocktowerRulingServiceImpl;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
@@ -128,6 +130,27 @@ class ClocktowerRulingServiceTests {
                 ClocktowerRulingReason.ROLE_ABILITY, "角色能力复活", "一名玩家复活", ClocktowerVisibility.PUBLIC, false),
                 storytellerPrincipal());
 
+        assertThat(context.seatRepository().findByIdAndRoomIdAndDeletedFalse(targetSeatId, room.roomId()).orElseThrow()
+                .getLifeStatus()).isEqualTo("ALIVE");
+        assertThat(context.seatRepository().findByIdAndRoomIdAndDeletedFalse(targetSeatId, room.roomId()).orElseThrow()
+                .getPublicLifeStatus()).isEqualTo("ALIVE");
+    }
+
+    @Test
+    void undoRulingRevokesOriginalAndRestoresSnapshot() {
+        ClocktowerRoomResponse room = startedRoom();
+        Long targetSeatId = room.seats().getFirst().seatId();
+        ClocktowerRulingApplyResponse applied = rulingService.create(room.roomId(), new ClocktowerRulingCreateRequest(
+                ClocktowerRulingType.MARK_DEAD, targetSeatId, null, null, null, null,
+                ClocktowerRulingReason.NIGHT_DEATH, "夜晚死亡", "一名玩家死亡", ClocktowerVisibility.PUBLIC, false),
+                storytellerPrincipal());
+
+        ClocktowerRulingApplyResponse undone = rulingService.undo(room.roomId(), applied.ruling().rulingId(),
+                new ClocktowerRulingUndoRequest("误操作撤销", true), storytellerPrincipal());
+
+        assertThat(context.rulingRepository().findByIdAndRoomIdAndDeletedFalse(applied.ruling().rulingId(), room.roomId())
+                .orElseThrow().getStatus()).isEqualTo(ClocktowerRulingStatus.REVOKED);
+        assertThat(undone.ruling().rulingType()).isEqualTo(ClocktowerRulingType.UNDO_RULING);
         assertThat(context.seatRepository().findByIdAndRoomIdAndDeletedFalse(targetSeatId, room.roomId()).orElseThrow()
                 .getLifeStatus()).isEqualTo("ALIVE");
         assertThat(context.seatRepository().findByIdAndRoomIdAndDeletedFalse(targetSeatId, room.roomId()).orElseThrow()
