@@ -8,6 +8,7 @@ import top.egon.mario.clocktower.common.enums.ClocktowerRulingType;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoomStatus;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.common.enums.ClocktowerVisibility;
+import top.egon.mario.clocktower.grimoire.po.ClocktowerVotePo;
 import top.egon.mario.clocktower.grimoire.service.impl.ClocktowerGrimoireServiceImpl;
 import top.egon.mario.clocktower.room.ClocktowerRoomTestFactory;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomCreateRequest;
@@ -156,24 +157,37 @@ class ClocktowerRulingServiceTests {
         submitPlayerAction(room.roomId(), nominator, "NOMINATE", List.of(nominee));
         Long nominationId = context.nominationRepository().findByRoomIdAndDeletedFalseOrderByIdAsc(room.roomId())
                 .getFirst().getId();
+        submitPlayerAction(room.roomId(), nominator, "VOTE", List.of());
+        List<ClocktowerVotePo> votesBeforeRulings = context.voteRepository()
+                .findByNominationIdAndDeletedFalseOrderByIdAsc(nominationId);
+        assertThat(votesBeforeRulings).hasSize(1);
 
         rulingService.create(room.roomId(), new ClocktowerRulingCreateRequest(
                 ClocktowerRulingType.CLOSE_NOMINATION, null, nominationId, null, null, null,
                 ClocktowerRulingReason.STORYTELLER_RULING, "关闭投票", "提名关闭", ClocktowerVisibility.PUBLIC, false),
                 storytellerPrincipal());
         assertThat(context.nominationRepository().findById(nominationId).orElseThrow().getStatus()).isEqualTo("CLOSED");
+        assertThat(context.voteRepository().findByNominationIdAndDeletedFalseOrderByIdAsc(nominationId))
+                .extracting(ClocktowerVotePo::getId)
+                .containsExactly(votesBeforeRulings.getFirst().getId());
 
         rulingService.create(room.roomId(), new ClocktowerRulingCreateRequest(
                 ClocktowerRulingType.REOPEN_NOMINATION, null, nominationId, null, null, null,
                 ClocktowerRulingReason.MISTAKE_FIX, "误关，重开", "提名重开", ClocktowerVisibility.PUBLIC, false),
                 storytellerPrincipal());
         assertThat(context.nominationRepository().findById(nominationId).orElseThrow().getStatus()).isEqualTo("OPEN");
+        assertThat(context.voteRepository().findByNominationIdAndDeletedFalseOrderByIdAsc(nominationId))
+                .extracting(ClocktowerVotePo::getId)
+                .containsExactly(votesBeforeRulings.getFirst().getId());
 
         rulingService.create(room.roomId(), new ClocktowerRulingCreateRequest(
                 ClocktowerRulingType.VOID_NOMINATION, null, nominationId, null, null, null,
                 ClocktowerRulingReason.MISTAKE_FIX, "误提名，撤销", "提名撤销", ClocktowerVisibility.PUBLIC, false),
                 storytellerPrincipal());
         assertThat(context.nominationRepository().findById(nominationId).orElseThrow().getStatus()).isEqualTo("VOID");
+        assertThat(context.voteRepository().findByNominationIdAndDeletedFalseOrderByIdAsc(nominationId))
+                .extracting(ClocktowerVotePo::getId)
+                .containsExactly(votesBeforeRulings.getFirst().getId());
     }
 
     @Test
