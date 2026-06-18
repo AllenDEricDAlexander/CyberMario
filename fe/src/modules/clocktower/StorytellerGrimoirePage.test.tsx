@@ -1,6 +1,6 @@
 import {renderToStaticMarkup} from 'react-dom/server'
 import {describe, expect, test, vi} from 'vitest'
-import {Component as StorytellerGrimoirePage, TaskList} from './StorytellerGrimoirePage'
+import {Component as StorytellerGrimoirePage, GrimoireSeatList, RulingHistory, TaskList} from './StorytellerGrimoirePage'
 import {NightChecklist} from './components/NightChecklist'
 
 vi.mock('react-router', () => ({
@@ -24,6 +24,9 @@ vi.mock('./clocktowerService', () => ({
         completed: false
     }),
     submitClocktowerStorytellerAction: vi.fn(),
+    createClocktowerRuling: vi.fn(),
+    listClocktowerRulings: vi.fn().mockResolvedValue([]),
+    undoClocktowerRuling: vi.fn(),
 }))
 
 describe('StorytellerGrimoirePage', () => {
@@ -94,5 +97,71 @@ describe('StorytellerGrimoirePage', () => {
         expect(markup).toContain('待处理')
         expect(markup).toContain('POISONER')
         expect(markup).toContain('完成')
+    })
+
+    test('renders grimoire seats with real and public life status plus ruling actions', () => {
+        const markup = renderToStaticMarkup(
+            <GrimoireSeatList
+                grimoire={{
+                    roomId: 7,
+                    phase: {phase: 'DAY', dayNo: 1, nightNo: 1},
+                    seats: [
+                        {
+                            seatId: 3,
+                            seatNo: 1,
+                            displayName: 'Alice',
+                            roleCode: 'EMPATH',
+                            roleType: 'TOWNSFOLK',
+                            alignment: 'GOOD',
+                            alive: true,
+                            publicAlive: false,
+                            lifeStatus: 'ALIVE',
+                            publicLifeStatus: 'DEAD',
+                            hasDeadVote: true,
+                            connected: true,
+                        },
+                    ],
+                    markers: [],
+                    reminders: [],
+                    pendingTasks: [],
+                    ruleTraceEnabled: false,
+                }}
+                onQuickRuling={async () => {
+                }}
+                rulingLoadingKey={null}
+            />,
+        )
+
+        expect(markup).toContain('真实存活')
+        expect(markup).toContain('公开死亡')
+        expect(markup).toContain('判死亡')
+        expect(markup).toContain('复活')
+    })
+
+    test('renders ruling history with undo state', () => {
+        const markup = renderToStaticMarkup(
+            <RulingHistory
+                onUndo={async () => {
+                }}
+                rulings={[
+                    {
+                        rulingId: 5,
+                        roomId: 7,
+                        rulingType: 'MARK_DEAD',
+                        status: 'APPLIED',
+                        targetSeatId: 3,
+                        reason: 'NIGHT_DEATH',
+                        note: '夜晚死亡',
+                        publicNote: '一名玩家死亡',
+                        visibility: 'PUBLIC',
+                    },
+                ]}
+                undoingRulingId={null}
+            />,
+        )
+
+        expect(markup).toContain('MARK_DEAD')
+        expect(markup).toContain('NIGHT_DEATH')
+        expect(markup).toContain('撤销')
     })
 })
