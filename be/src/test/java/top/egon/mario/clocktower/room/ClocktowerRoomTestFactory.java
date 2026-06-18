@@ -31,6 +31,8 @@ import top.egon.mario.clocktower.room.repository.ClocktowerRoomRepository;
 import top.egon.mario.clocktower.room.repository.ClocktowerSeatRepository;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomService;
 import top.egon.mario.clocktower.room.service.impl.ClocktowerRoomServiceImpl;
+import top.egon.mario.clocktower.ruling.po.ClocktowerRulingPo;
+import top.egon.mario.clocktower.ruling.repository.ClocktowerRulingRepository;
 import top.egon.mario.clocktower.script.po.ClocktowerNightOrderPo;
 import top.egon.mario.clocktower.script.po.ClocktowerRolePo;
 import top.egon.mario.clocktower.script.repository.ClocktowerNightOrderRepository;
@@ -71,6 +73,7 @@ public final class ClocktowerRoomTestFactory {
         List<ClocktowerVotePo> votes = new ArrayList<>();
         List<ClocktowerStatusMarkerPo> markers = new ArrayList<>();
         List<ClocktowerStorytellerTaskPo> tasks = new ArrayList<>();
+        List<ClocktowerRulingPo> rulings = new ArrayList<>();
         AtomicLong roomId = new AtomicLong(1L);
         AtomicLong seatId = new AtomicLong(1L);
         AtomicLong entryId = new AtomicLong(1L);
@@ -79,6 +82,7 @@ public final class ClocktowerRoomTestFactory {
         AtomicLong voteId = new AtomicLong(1L);
         AtomicLong markerId = new AtomicLong(1L);
         AtomicLong taskId = new AtomicLong(1L);
+        AtomicLong rulingId = new AtomicLong(1L);
         ObjectMapper objectMapper = new ObjectMapper();
 
         ClocktowerRoomRepository roomRepository = mock(ClocktowerRoomRepository.class);
@@ -91,6 +95,7 @@ public final class ClocktowerRoomTestFactory {
         ClocktowerVoteRepository voteRepository = mock(ClocktowerVoteRepository.class);
         ClocktowerStatusMarkerRepository markerRepository = mock(ClocktowerStatusMarkerRepository.class);
         ClocktowerStorytellerTaskRepository taskRepository = mock(ClocktowerStorytellerTaskRepository.class);
+        ClocktowerRulingRepository rulingRepository = mock(ClocktowerRulingRepository.class);
 
         when(roomRepository.save(any(ClocktowerRoomPo.class))).thenAnswer(saveRoom(rooms, roomId));
         when(roomRepository.findByIdAndDeletedFalse(any())).thenAnswer(invocation -> rooms.stream()
@@ -224,6 +229,16 @@ public final class ClocktowerRoomTestFactory {
                                 && task.getStatus().equals(invocation.getArgument(1)))
                         .sorted(Comparator.comparing(ClocktowerStorytellerTaskPo::getSortOrder))
                         .toList());
+        when(rulingRepository.save(any(ClocktowerRulingPo.class))).thenAnswer(saveRuling(rulings, rulingId));
+        when(rulingRepository.findByRoomIdAndDeletedFalseOrderByIdDesc(any())).thenAnswer(invocation -> rulings.stream()
+                .filter(ruling -> !ruling.isDeleted() && ruling.getRoomId().equals(invocation.getArgument(0)))
+                .sorted(Comparator.comparing(ClocktowerRulingPo::getId).reversed())
+                .toList());
+        when(rulingRepository.findByIdAndRoomIdAndDeletedFalse(any(), any())).thenAnswer(invocation -> rulings.stream()
+                .filter(ruling -> !ruling.isDeleted()
+                        && ruling.getId().equals(invocation.getArgument(0))
+                        && ruling.getRoomId().equals(invocation.getArgument(1)))
+                .findFirst());
 
         ClocktowerEventService eventService = request -> {
             ClocktowerEventPo event = new ClocktowerEventPo();
@@ -255,7 +270,7 @@ public final class ClocktowerRoomTestFactory {
                 eventService, roleRepository, entryRepository);
         return new Context(roomService, roomRepository, seatRepository, entryRepository, nightOrderRepository,
                 roleRepository, eventRepository, eventService, objectMapper, nominationRepository, voteRepository,
-                markerRepository, taskRepository);
+                markerRepository, taskRepository, rulingRepository);
     }
 
     static ClocktowerRolePo role(String roleCode) {
@@ -306,7 +321,8 @@ public final class ClocktowerRoomTestFactory {
             ClocktowerNominationRepository nominationRepository,
             ClocktowerVoteRepository voteRepository,
             ClocktowerStatusMarkerRepository markerRepository,
-            ClocktowerStorytellerTaskRepository storytellerTaskRepository
+            ClocktowerStorytellerTaskRepository storytellerTaskRepository,
+            ClocktowerRulingRepository rulingRepository
     ) {
     }
 
@@ -388,6 +404,17 @@ public final class ClocktowerRoomTestFactory {
                 tasks.add(task);
             }
             return task;
+        };
+    }
+
+    private static Answer<ClocktowerRulingPo> saveRuling(List<ClocktowerRulingPo> rulings, AtomicLong nextId) {
+        return invocation -> {
+            ClocktowerRulingPo ruling = invocation.getArgument(0);
+            if (ruling.getId() == null) {
+                ruling.setId(nextId.getAndIncrement());
+                rulings.add(ruling);
+            }
+            return ruling;
         };
     }
 
