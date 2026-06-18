@@ -45,6 +45,17 @@ class ClocktowerRulingServiceTests {
             context.eventService()));
 
     @Test
+    void nonStorytellerCannotCreateRuling() {
+        ClocktowerRoomResponse room = startedRoom();
+
+        assertThatThrownBy(() -> rulingService.create(room.roomId(), new ClocktowerRulingCreateRequest(
+                ClocktowerRulingType.MARK_DEAD, room.seats().getFirst().seatId(), null, null, null, null,
+                ClocktowerRulingReason.NIGHT_DEATH, "夜晚死亡", "一名玩家死亡", ClocktowerVisibility.PUBLIC, false),
+                principal(99L, "not-storyteller"))).isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_STORYTELLER_FORBIDDEN");
+    }
+
+    @Test
     void markDeadUpdatesRealAndPublicLife() {
         ClocktowerRoomResponse room = startedRoom();
         Long targetSeatId = room.seats().getFirst().seatId();
