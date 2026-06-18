@@ -1,5 +1,6 @@
 package top.egon.mario.clocktower.view.dto;
 
+import top.egon.mario.clocktower.common.enums.ClocktowerAlignment;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoleType;
 import top.egon.mario.clocktower.room.po.ClocktowerSeatPo;
 
@@ -9,7 +10,7 @@ public record PlayerSeatViewResponse(
         String displayName,
         String roleCode,
         ClocktowerRoleType roleType,
-        String alignment,
+        ClocktowerAlignment alignment,
         String lifeStatus,
         boolean hasDeadVote
 ) {

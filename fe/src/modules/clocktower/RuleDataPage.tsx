@@ -5,25 +5,28 @@ import {useEffect, useMemo, useRef, useState} from 'react'
 import {PageToolbar} from '../../components/PageToolbar'
 import {resolveErrorMessage} from '../../services/request'
 import {voidify} from '../../utils/async'
+import {enumCode, enumDesc} from '../../utils/enum'
 import {
+    getClocktowerGroupedNightOrder,
     getClocktowerJinxRules,
-    getClocktowerNightOrder,
     getClocktowerRoles,
     getClocktowerScripts,
     getClocktowerTerms,
 } from './clocktowerService'
 import type {
     ClocktowerJinxRuleResponse,
+    ClocktowerNightOrderGroupResponse,
     ClocktowerNightOrderResponse,
     ClocktowerRoleResponse,
     ClocktowerRoleType,
+    ClocktowerRoleTypeCode,
     ClocktowerScriptCode,
     ClocktowerScriptResponse,
     ClocktowerTermResponse,
 } from './clocktowerTypes'
 import {RoleTypeTag} from './components/RoleTypeTag'
 
-const roleTypeOptions: Array<{ label: string; value: ClocktowerRoleType }> = [
+const roleTypeOptions: Array<{ label: string; value: ClocktowerRoleTypeCode }> = [
     {label: '镇民', value: 'TOWNSFOLK'},
     {label: '外来者', value: 'OUTSIDER'},
     {label: '爪牙', value: 'MINION'},
@@ -31,6 +34,8 @@ const roleTypeOptions: Array<{ label: string; value: ClocktowerRoleType }> = [
     {label: '旅行者', value: 'TRAVELER'},
     {label: '传奇', value: 'FABLED'},
 ]
+
+const emptyNightOrderGroup: ClocktowerNightOrderGroupResponse = {firstNight: [], otherNight: []}
 
 type TermFilterValues = {
     keyword?: string
@@ -48,11 +53,11 @@ function RuleDataPage() {
     const [jinxRuleForm] = Form.useForm<JinxRuleFilterValues>()
     const [scripts, setScripts] = useState<ClocktowerScriptResponse[]>([])
     const [roles, setRoles] = useState<ClocktowerRoleResponse[]>([])
-    const [nightOrder, setNightOrder] = useState<ClocktowerNightOrderResponse[]>([])
+    const [nightOrder, setNightOrder] = useState<ClocktowerNightOrderGroupResponse>(emptyNightOrderGroup)
     const [terms, setTerms] = useState<ClocktowerTermResponse[]>([])
     const [jinxRules, setJinxRules] = useState<ClocktowerJinxRuleResponse[]>([])
     const [scriptCode, setScriptCode] = useState<ClocktowerScriptCode>()
-    const [roleType, setRoleType] = useState<ClocktowerRoleType>()
+    const [roleType, setRoleType] = useState<ClocktowerRoleTypeCode>()
     const [initialLoading, setInitialLoading] = useState(false)
     const [scriptLoading, setScriptLoading] = useState(false)
     const [roleLoading, setRoleLoading] = useState(false)
@@ -155,9 +160,9 @@ function RuleDataPage() {
 
     async function loadNightOrderData(selectedScriptCode = scriptCode) {
         if (!selectedScriptCode) {
-            return []
+            return emptyNightOrderGroup
         }
-        return getClocktowerNightOrder(selectedScriptCode)
+        return getClocktowerGroupedNightOrder(selectedScriptCode)
     }
 
     async function loadTerms() {
@@ -327,11 +332,11 @@ function JinxRulePanel({form, jinxRules, loading, onSearch}: JinxRulePanelProps)
 
 type ScriptRulePanelProps = {
     nightOrderLoading: boolean
-    nightOrder: ClocktowerNightOrderResponse[]
-    onRoleTypeChange: (value?: ClocktowerRoleType) => void
+    nightOrder: ClocktowerNightOrderGroupResponse
+    onRoleTypeChange: (value?: ClocktowerRoleTypeCode) => void
     onScriptChange: (value: ClocktowerScriptCode) => void
     roleLoading: boolean
-    roleType?: ClocktowerRoleType
+    roleType?: ClocktowerRoleTypeCode
     roles: ClocktowerRoleResponse[]
     scriptCode?: ClocktowerScriptCode
     scripts: ClocktowerScriptResponse[]
@@ -339,17 +344,17 @@ type ScriptRulePanelProps = {
 }
 
 function ScriptRulePanel({
-    nightOrderLoading,
-    nightOrder,
-    onRoleTypeChange,
-    onScriptChange,
-    roleLoading,
-    roleType,
-    roles,
-    scriptCode,
-    scripts,
-    scriptOptions,
-}: ScriptRulePanelProps) {
+                             nightOrderLoading,
+                             nightOrder,
+                             onRoleTypeChange,
+                             onScriptChange,
+                             roleLoading,
+                             roleType,
+                             roles,
+                             scriptCode,
+                             scripts,
+                             scriptOptions,
+                         }: ScriptRulePanelProps) {
     const selectedScript = scripts.find((script) => script.scriptCode === scriptCode)
 
     return (
@@ -391,7 +396,7 @@ function ScriptRulePanel({
                 <RoleTable loading={roleLoading} roles={roles}/>
             </Card>
             <Card size="small" title="夜晚顺序">
-                <NightOrderTable loading={nightOrderLoading} nightOrder={nightOrder}/>
+                <NightOrderTables loading={nightOrderLoading} nightOrder={nightOrder}/>
             </Card>
         </Space>
     )
@@ -400,13 +405,19 @@ function ScriptRulePanel({
 function RoleTable({loading, roles}: { loading: boolean; roles: ClocktowerRoleResponse[] }) {
     const columns: ColumnsType<ClocktowerRoleResponse> = [
         {title: '角色代码', dataIndex: 'roleCode', width: 160},
-        {title: '名称', dataIndex: 'name', width: 140},
+        {
+            title: '名称',
+            dataIndex: 'roleName',
+            width: 140,
+            render: (_, record) => nullableText(record.roleName ?? record.name)
+        },
         {
             title: '类型',
             dataIndex: 'roleType',
             width: 120,
             render: (value: ClocktowerRoleType) => <RoleTypeTag value={value}/>,
         },
+        {title: '阵营', dataIndex: 'alignment', width: 100, render: (value) => <Tag>{enumDesc(value)}</Tag>},
         {title: '能力', dataIndex: 'abilityText'},
         {
             title: '首夜',
@@ -441,15 +452,24 @@ function RoleTable({loading, roles}: { loading: boolean; roles: ClocktowerRoleRe
     )
 }
 
+function NightOrderTables({loading, nightOrder}: { loading: boolean; nightOrder: ClocktowerNightOrderGroupResponse }) {
+    return (
+        <Space direction="vertical" size="large" style={{width: '100%'}}>
+            <Space direction="vertical" size="small" style={{width: '100%'}}>
+                <Typography.Text strong>首夜</Typography.Text>
+                <NightOrderTable loading={loading} nightOrder={nightOrder.firstNight}/>
+            </Space>
+            <Space direction="vertical" size="small" style={{width: '100%'}}>
+                <Typography.Text strong>其他夜晚</Typography.Text>
+                <NightOrderTable loading={loading} nightOrder={nightOrder.otherNight}/>
+            </Space>
+        </Space>
+    )
+}
+
 function NightOrderTable({loading, nightOrder}: { loading: boolean; nightOrder: ClocktowerNightOrderResponse[] }) {
     const columns: ColumnsType<ClocktowerNightOrderResponse> = [
-        {title: '顺序', dataIndex: 'sortOrder', width: 90},
-        {
-            title: '夜晚',
-            dataIndex: 'nightType',
-            width: 120,
-            render: nightTypeLabel,
-        },
+        {title: '顺序', dataIndex: 'orderNo', width: 90, render: (_, record) => record.orderNo ?? record.sortOrder},
         {title: '角色代码', dataIndex: 'roleCode', width: 160},
         {title: '名称', dataIndex: 'roleName', width: 140},
         {
@@ -468,8 +488,8 @@ function NightOrderTable({loading, nightOrder}: { loading: boolean; nightOrder: 
             loading={loading}
             locale={{emptyText: <Empty description="暂无夜晚顺序"/>}}
             pagination={false}
-            rowKey={(record) => `${record.nightType}-${record.sortOrder}-${record.roleCode}`}
-            scroll={{x: 900}}
+            rowKey={(record) => `${enumCode(record.nightType)}-${record.orderNo ?? record.sortOrder}-${record.roleCode}`}
+            scroll={{x: 780}}
         />
     )
 }
@@ -533,14 +553,6 @@ function nullableNumber(value?: number | null) {
 
 function nullableText(value?: string | null) {
     return value || '-'
-}
-
-function nightTypeLabel(value: string) {
-    const labels: Record<string, string> = {
-        FIRST_NIGHT: '首夜',
-        OTHER_NIGHT: '其他夜',
-    }
-    return <Tag color="blue">{labels[value] ?? value}</Tag>
 }
 
 function severityTag(value: string) {

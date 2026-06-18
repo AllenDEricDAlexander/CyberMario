@@ -15,7 +15,7 @@ vi.mock('./clocktowerService', () => ({
         },
     ]),
     getClocktowerRoles: vi.fn().mockResolvedValue([]),
-    getClocktowerNightOrder: vi.fn().mockResolvedValue([]),
+    getClocktowerGroupedNightOrder: vi.fn().mockResolvedValue({firstNight: [], otherNight: []}),
     getClocktowerTerms: vi.fn().mockResolvedValue([]),
     getClocktowerJinxRules: vi.fn().mockResolvedValue([]),
 }))
@@ -33,5 +33,7 @@ describe('RuleDataPage', () => {
         expect(markup).toContain('角色代码')
         expect(markup).toContain('严重级别')
         expect(markup).toContain('查询')
+        expect(markup).toContain('首夜')
+        expect(markup).toContain('其他夜晚')
     })
 })

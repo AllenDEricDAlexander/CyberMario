@@ -3,9 +3,11 @@ package top.egon.mario.clocktower.script.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import top.egon.mario.clocktower.common.enums.ClocktowerNightType;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoleType;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.script.dto.response.ClocktowerJinxRuleResponse;
+import top.egon.mario.clocktower.script.dto.response.ClocktowerNightOrderGroupResponse;
 import top.egon.mario.clocktower.script.dto.response.ClocktowerNightOrderResponse;
 import top.egon.mario.clocktower.script.dto.response.ClocktowerRoleResponse;
 import top.egon.mario.clocktower.script.dto.response.ClocktowerScriptResponse;
@@ -54,7 +56,7 @@ public class ClocktowerScriptServiceImpl implements ClocktowerScriptService {
 
     @Override
     public List<ClocktowerRoleResponse> listRoles(ClocktowerScriptCode scriptCode, String roleType, Boolean enabled) {
-        ClocktowerRoleType parsedRoleType = StringUtils.hasText(roleType) ? ClocktowerRoleType.valueOf(roleType) : null;
+        ClocktowerRoleType parsedRoleType = StringUtils.hasText(roleType) ? ClocktowerRoleType.fromJson(roleType) : null;
         List<ClocktowerRolePo> roles;
         if (parsedRoleType != null && enabled != null) {
             roles = roleRepository.findByScriptCodeAndRoleTypeAndEnabledAndDeletedFalseOrderBySortOrderAsc(
@@ -71,20 +73,33 @@ public class ClocktowerScriptServiceImpl implements ClocktowerScriptService {
 
     @Override
     public List<ClocktowerNightOrderResponse> nightOrder(ClocktowerScriptCode scriptCode, String nightType) {
-        List<ClocktowerNightOrderPo> orders = StringUtils.hasText(nightType)
-                ? nightOrderRepository.findByScriptCodeAndNightTypeAndDeletedFalseOrderBySortOrderAsc(scriptCode, nightType)
+        ClocktowerNightType parsedNightType = StringUtils.hasText(nightType) ? ClocktowerNightType.fromJson(nightType) : null;
+        List<ClocktowerNightOrderPo> orders = parsedNightType != null
+                ? nightOrderRepository.findByScriptCodeAndNightTypeAndDeletedFalseOrderBySortOrderAsc(scriptCode,
+                parsedNightType)
                 : nightOrderRepository.findByScriptCodeAndDeletedFalseOrderBySortOrderAsc(scriptCode);
+        return toNightOrderResponses(scriptCode, orders);
+    }
+
+    @Override
+    public ClocktowerNightOrderGroupResponse groupedNightOrder(ClocktowerScriptCode scriptCode) {
+        List<ClocktowerNightOrderResponse> orders = nightOrder(scriptCode, null);
+        return new ClocktowerNightOrderGroupResponse(
+                orders.stream()
+                        .filter(order -> order.nightType() == ClocktowerNightType.FIRST_NIGHT)
+                        .toList(),
+                orders.stream()
+                        .filter(order -> order.nightType() == ClocktowerNightType.OTHER_NIGHT)
+                        .toList());
+    }
+
+    private List<ClocktowerNightOrderResponse> toNightOrderResponses(ClocktowerScriptCode scriptCode,
+                                                                     List<ClocktowerNightOrderPo> orders) {
         Map<String, ClocktowerRolePo> roles = roleRepository.findByScriptCodeAndDeletedFalseOrderBySortOrderAsc(scriptCode)
                 .stream()
                 .collect(Collectors.toMap(ClocktowerRolePo::getRoleCode, Function.identity(), (left, right) -> left));
         return orders.stream()
-                .map(order -> {
-                    ClocktowerRolePo role = roles.get(order.getRoleCode());
-                    return new ClocktowerNightOrderResponse(order.getScriptCode(), order.getRoleCode(),
-                            role == null ? order.getRoleCode() : role.getName(),
-                            role == null ? null : role.getRoleType(), order.getNightType(), order.getSortOrder(),
-                            order.getReminderText());
-                })
+                .map(order -> ClocktowerNightOrderResponse.from(order, roles.get(order.getRoleCode())))
                 .toList();
     }
 

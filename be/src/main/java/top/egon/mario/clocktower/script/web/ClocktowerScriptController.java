@@ -8,15 +8,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
-import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.common.web.ClocktowerReactiveSupport;
 import top.egon.mario.clocktower.script.dto.response.ClocktowerJinxRuleResponse;
+import top.egon.mario.clocktower.script.dto.response.ClocktowerNightOrderGroupResponse;
 import top.egon.mario.clocktower.script.dto.response.ClocktowerNightOrderResponse;
 import top.egon.mario.clocktower.script.dto.response.ClocktowerRoleResponse;
 import top.egon.mario.clocktower.script.dto.response.ClocktowerScriptResponse;
 import top.egon.mario.clocktower.script.dto.response.ClocktowerTermResponse;
 import top.egon.mario.clocktower.script.service.ClocktowerScriptService;
+import top.egon.mario.common.api.ApiResponse;
 
 import java.util.List;
 
@@ -50,6 +51,12 @@ public class ClocktowerScriptController extends ClocktowerReactiveSupport {
             @PathVariable ClocktowerScriptCode scriptCode,
             @RequestParam(required = false) String nightType) {
         return blocking(() -> scriptService.nightOrder(scriptCode, nightType));
+    }
+
+    @GetMapping("/scripts/{scriptCode}/night-order/grouped")
+    public Mono<ApiResponse<ClocktowerNightOrderGroupResponse>> groupedNightOrder(
+            @PathVariable ClocktowerScriptCode scriptCode) {
+        return blocking(() -> scriptService.groupedNightOrder(scriptCode));
     }
 
     @GetMapping("/terms")

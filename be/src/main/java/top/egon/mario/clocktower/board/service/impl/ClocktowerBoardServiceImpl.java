@@ -1,8 +1,8 @@
 package top.egon.mario.clocktower.board.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,7 +48,7 @@ public class ClocktowerBoardServiceImpl implements ClocktowerBoardService {
 
     @Override
     public BoardValidationResponse validate(ClocktowerBoardValidateRequest request) {
-        Map<String, ClocktowerRoleType> roleTypes = roleMetadataProvider.roleTypes();
+        Map<String, ClocktowerRoleType> roleTypes = roleMetadataProvider.roleTypes(request.scriptCode());
         ClocktowerRoleTypeCountResponse typeCounts = countRoleTypes(request.roleCodes(), roleTypes);
         BoardCandidateFact fact = new BoardCandidateFact(request.scriptCode(), request.playerCount(), request.roleCodes(),
                 typeCounts.townsfolk(), typeCounts.outsider(), typeCounts.minion(), typeCounts.demon());
@@ -86,7 +86,7 @@ public class ClocktowerBoardServiceImpl implements ClocktowerBoardService {
         config.setValidationJson(writeJson(request.validation()));
         ClocktowerBoardConfigPo saved = boardConfigRepository.save(config);
 
-        Map<String, ClocktowerRoleType> roleTypes = roleMetadataProvider.roleTypes();
+        Map<String, ClocktowerRoleType> roleTypes = roleMetadataProvider.roleTypes(request.scriptCode());
         for (int i = 0; i < request.roleCodes().size(); i++) {
             ClocktowerBoardRolePo role = new ClocktowerBoardRolePo();
             role.setBoardConfigId(saved.getId());
@@ -132,27 +132,30 @@ public class ClocktowerBoardServiceImpl implements ClocktowerBoardService {
                 request.scriptCode(),
                 request.playerCount(),
                 roles,
+                roleMetadataProvider.roleSummaries(request.scriptCode(), roles),
                 boardValidation,
                 validation.scores()
         );
     }
 
     private List<String> candidateRoles(ClocktowerBoardGenerateRequest request, int index) {
+        Map<String, ClocktowerRoleType> roleTypes = roleMetadataProvider.roleTypes(request.scriptCode());
         Map<ClocktowerRoleType, Integer> shape = shape(request.playerCount());
         List<String> roles = new ArrayList<>();
         List<String> banned = request.bannedRoleCodes() == null ? List.of() : request.bannedRoleCodes();
         if (request.lockedRoleCodes() != null) {
             request.lockedRoleCodes().stream()
                     .filter(roleCode -> !banned.contains(roleCode))
+                    .filter(roleTypes::containsKey)
                     .forEach(roles::add);
         }
         for (Map.Entry<ClocktowerRoleType, Integer> entry : shape.entrySet()) {
-            List<String> available = roleMetadataProvider.roleCodes(entry.getKey()).stream()
+            List<String> available = roleMetadataProvider.roleCodes(request.scriptCode(), entry.getKey()).stream()
                     .filter(roleCode -> !banned.contains(roleCode))
                     .filter(roleCode -> !roles.contains(roleCode))
                     .toList();
             for (String roleCode : rotate(available, index)) {
-                if (countType(roles, entry.getKey()) >= entry.getValue()) {
+                if (countType(roles, entry.getKey(), roleTypes) >= entry.getValue()) {
                     break;
                 }
                 roles.add(roleCode);
@@ -181,26 +184,27 @@ public class ClocktowerBoardServiceImpl implements ClocktowerBoardService {
         return shape;
     }
 
-    private int countType(List<String> roleCodes, ClocktowerRoleType roleType) {
-        Map<String, ClocktowerRoleType> roleTypes = roleMetadataProvider.roleTypes();
+    private int countType(List<String> roleCodes, ClocktowerRoleType roleType,
+                          Map<String, ClocktowerRoleType> roleTypes) {
         return (int) roleCodes.stream().filter(roleCode -> roleTypes.get(roleCode) == roleType).count();
     }
 
-    private Map<ClocktowerRoleType, Integer> roleTypeCountMap(ClocktowerRoleTypeCountResponse typeCounts) {
-        Map<ClocktowerRoleType, Integer> counts = new EnumMap<>(ClocktowerRoleType.class);
-        counts.put(ClocktowerRoleType.TOWNSFOLK, typeCounts.townsfolk());
-        counts.put(ClocktowerRoleType.OUTSIDER, typeCounts.outsider());
-        counts.put(ClocktowerRoleType.MINION, typeCounts.minion());
-        counts.put(ClocktowerRoleType.DEMON, typeCounts.demon());
-        counts.put(ClocktowerRoleType.TRAVELER, typeCounts.traveler());
-        counts.put(ClocktowerRoleType.FABLED, typeCounts.fabled());
+    private Map<String, Integer> roleTypeCountMap(ClocktowerRoleTypeCountResponse typeCounts) {
+        Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+        counts.put(ClocktowerRoleType.TOWNSFOLK.name(), typeCounts.townsfolk());
+        counts.put(ClocktowerRoleType.OUTSIDER.name(), typeCounts.outsider());
+        counts.put(ClocktowerRoleType.MINION.name(), typeCounts.minion());
+        counts.put(ClocktowerRoleType.DEMON.name(), typeCounts.demon());
+        counts.put(ClocktowerRoleType.TRAVELER.name(), typeCounts.traveler());
+        counts.put(ClocktowerRoleType.FABLED.name(), typeCounts.fabled());
         return counts;
     }
 
     private ClocktowerBoardConfigResponse toResponse(ClocktowerBoardConfigPo config, List<String> roleCodes,
                                                      ClocktowerBoardValidationResponse validation) {
         return new ClocktowerBoardConfigResponse(config.getId(), config.getBoardCode(), config.getScriptCode(),
-                config.getPlayerCount(), roleCodes, validation);
+                config.getPlayerCount(), roleCodes, roleMetadataProvider.roleSummaries(config.getScriptCode(), roleCodes),
+                validation);
     }
 
     private String writeJson(Object value) {

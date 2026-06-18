@@ -7,6 +7,10 @@ import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardValidateReques
 import top.egon.mario.clocktower.board.dto.response.BoardValidationResponse;
 import top.egon.mario.clocktower.board.dto.response.ClocktowerRoleTypeCountResponse;
 import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
+import top.egon.mario.clocktower.common.enums.ClocktowerAlignment;
+import top.egon.mario.clocktower.common.enums.ClocktowerNightType;
+import top.egon.mario.clocktower.common.enums.ClocktowerRoleType;
+import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.event.dto.ClocktowerEventResponse;
 import top.egon.mario.clocktower.event.po.ClocktowerEventPo;
 import top.egon.mario.clocktower.event.repository.ClocktowerEventRepository;
@@ -21,18 +25,16 @@ import top.egon.mario.clocktower.grimoire.repository.ClocktowerNominationReposit
 import top.egon.mario.clocktower.grimoire.repository.ClocktowerStatusMarkerRepository;
 import top.egon.mario.clocktower.grimoire.repository.ClocktowerStorytellerTaskRepository;
 import top.egon.mario.clocktower.grimoire.repository.ClocktowerVoteRepository;
-import top.egon.mario.clocktower.script.po.ClocktowerRolePo;
-import top.egon.mario.clocktower.script.po.ClocktowerNightOrderPo;
-import top.egon.mario.clocktower.script.repository.ClocktowerNightOrderRepository;
-import top.egon.mario.clocktower.script.repository.ClocktowerRoleRepository;
-import top.egon.mario.clocktower.common.enums.ClocktowerRoleType;
-import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.room.po.ClocktowerRoomPo;
 import top.egon.mario.clocktower.room.po.ClocktowerSeatPo;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomRepository;
 import top.egon.mario.clocktower.room.repository.ClocktowerSeatRepository;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomService;
 import top.egon.mario.clocktower.room.service.impl.ClocktowerRoomServiceImpl;
+import top.egon.mario.clocktower.script.po.ClocktowerNightOrderPo;
+import top.egon.mario.clocktower.script.po.ClocktowerRolePo;
+import top.egon.mario.clocktower.script.repository.ClocktowerNightOrderRepository;
+import top.egon.mario.clocktower.script.repository.ClocktowerRoleRepository;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.time.Instant;
@@ -40,7 +42,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -125,7 +126,7 @@ public final class ClocktowerRoomTestFactory {
         });
         when(nightOrderRepository.findByScriptCodeAndNightTypeAndRoleCodeInAndDeletedFalseOrderBySortOrderAsc(
                 any(), any(), any())).thenAnswer(invocation -> {
-            String nightType = invocation.getArgument(1);
+            ClocktowerNightType nightType = invocation.getArgument(1);
             List<String> roleCodes = new ArrayList<>(invocation.getArgument(2));
             return nightOrder(nightType).stream()
                     .filter(order -> roleCodes.contains(order.getRoleCode()))
@@ -250,8 +251,8 @@ public final class ClocktowerRoomTestFactory {
         role.setName(roleCode);
         role.setAbilityText(roleCode);
         role.setAlignment(switch (roleCode) {
-            case "POISONER", "IMP" -> "EVIL";
-            default -> "GOOD";
+            case "POISONER", "IMP" -> ClocktowerAlignment.EVIL;
+            default -> ClocktowerAlignment.GOOD;
         });
         role.setRoleType(switch (roleCode) {
             case "POISONER" -> ClocktowerRoleType.MINION;
@@ -261,13 +262,13 @@ public final class ClocktowerRoomTestFactory {
         return role;
     }
 
-    private static List<ClocktowerNightOrderPo> nightOrder(String nightType) {
+    private static List<ClocktowerNightOrderPo> nightOrder(ClocktowerNightType nightType) {
         ClocktowerNightOrderPo poisoner = nightOrder("POISONER", nightType, 5);
         ClocktowerNightOrderPo empath = nightOrder("EMPATH", nightType, 20);
         return List.of(poisoner, empath);
     }
 
-    private static ClocktowerNightOrderPo nightOrder(String roleCode, String nightType, int orderNo) {
+    private static ClocktowerNightOrderPo nightOrder(String roleCode, ClocktowerNightType nightType, int orderNo) {
         ClocktowerNightOrderPo order = new ClocktowerNightOrderPo();
         order.setScriptCode(ClocktowerScriptCode.TROUBLE_BREWING);
         order.setRoleCode(roleCode);

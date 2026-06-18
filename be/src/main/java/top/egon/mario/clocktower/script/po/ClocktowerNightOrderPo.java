@@ -1,13 +1,16 @@
 package top.egon.mario.clocktower.script.po;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
+import top.egon.mario.clocktower.common.enums.ClocktowerNightType;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
+import top.egon.mario.clocktower.converter.jpa.ClocktowerNightTypeConverter;
 import top.egon.mario.common.entity.BaseAuditablePo;
 
 @Getter
@@ -23,8 +26,9 @@ public class ClocktowerNightOrderPo extends BaseAuditablePo {
     @Column(name = "role_code", nullable = false, length = 64)
     private String roleCode;
 
-    @Column(name = "night_type", nullable = false, length = 32)
-    private String nightType;
+    @Convert(converter = ClocktowerNightTypeConverter.class)
+    @Column(name = "night_type", nullable = false)
+    private ClocktowerNightType nightType;
 
     @Column(name = "order_no", nullable = false)
     private int orderNo;

@@ -2,6 +2,7 @@ import {requestJson, streamServerSentEvents} from '../../services/request'
 import {buildSearchParams} from '../../services/urlSearch'
 import type {
     BoardValidationResponse,
+    ClocktowerActionResponse,
     ClocktowerBoardConfigResponse,
     ClocktowerBoardGenerateRequest,
     ClocktowerBoardGenerateResponse,
@@ -11,12 +12,13 @@ import type {
     ClocktowerGrimoireResponse,
     ClocktowerJinxRuleResponse,
     ClocktowerNightChecklistResponse,
+    ClocktowerNightOrderGroupResponse,
     ClocktowerNightOrderResponse,
     ClocktowerPlayerActionRequest,
     ClocktowerPlayerViewResponse,
     ClocktowerReplayResponse,
     ClocktowerRoleResponse,
-    ClocktowerRoleType,
+    ClocktowerRoleTypeCode,
     ClocktowerRoomCreateRequest,
     ClocktowerRoomJoinRequest,
     ClocktowerRoomResponse,
@@ -27,7 +29,6 @@ import type {
     ClocktowerStartGameResponse,
     ClocktowerStorytellerActionRequest,
     ClocktowerTermResponse,
-    ClocktowerActionResponse,
     ClocktowerUpdateSeatRequest,
     ClocktowerVoteReplayResponse,
     StorytellerActionResponse,
@@ -43,7 +44,7 @@ export function getClocktowerScript(scriptCode: ClocktowerScriptCode) {
 
 export function getClocktowerRoles(
     scriptCode: ClocktowerScriptCode,
-    params: { roleType?: ClocktowerRoleType; enabled?: boolean } = {},
+    params: { roleType?: ClocktowerRoleTypeCode; enabled?: boolean } = {},
 ) {
     const search = buildSearchParams(params)
     return requestJson<ClocktowerRoleResponse[]>(`/api/clocktower/scripts/${scriptCode}/roles${suffix(search)}`)
@@ -52,6 +53,10 @@ export function getClocktowerRoles(
 export function getClocktowerNightOrder(scriptCode: ClocktowerScriptCode, params: { nightType?: string } = {}) {
     const search = buildSearchParams(params)
     return requestJson<ClocktowerNightOrderResponse[]>(`/api/clocktower/scripts/${scriptCode}/night-order${suffix(search)}`)
+}
+
+export function getClocktowerGroupedNightOrder(scriptCode: ClocktowerScriptCode) {
+    return requestJson<ClocktowerNightOrderGroupResponse>(`/api/clocktower/scripts/${scriptCode}/night-order/grouped`)
 }
 
 export function getClocktowerTerms(params: { keyword?: string; category?: string } = {}) {

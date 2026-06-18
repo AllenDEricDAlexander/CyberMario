@@ -1,14 +1,15 @@
 import {describe, expect, it, vi} from 'vitest'
 import {
     generateClocktowerBoard,
+    getClocktowerGroupedNightOrder,
     getClocktowerJinxRules,
     getClocktowerReplayVotes,
-    joinClocktowerRoom,
-    saveClocktowerBoard,
-    submitClocktowerStorytellerAction,
     getClocktowerScripts,
     getClocktowerTerms,
+    joinClocktowerRoom,
+    saveClocktowerBoard,
     streamClocktowerEvents,
+    submitClocktowerStorytellerAction,
 } from './clocktowerService'
 
 vi.mock('../../services/request', () => ({
@@ -34,9 +35,17 @@ describe('clocktowerService', () => {
     it('loads jinx rules with optional filters', async () => {
         const {requestJson} = await import('../../services/request')
 
-        await getClocktowerJinxRules({roleCode: 'washerwoman', severity: 'INFO'})
+        await getClocktowerJinxRules({roleCode: 'CHEF', severity: 'INFO'})
 
-        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/jinx-rules?roleCode=washerwoman&severity=INFO')
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/jinx-rules?roleCode=CHEF&severity=INFO')
+    })
+
+    it('loads grouped night order for a script', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await getClocktowerGroupedNightOrder('TROUBLE_BREWING')
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/scripts/TROUBLE_BREWING/night-order/grouped')
     })
 
     it('generates boards with POST body', async () => {
@@ -49,8 +58,8 @@ describe('clocktowerService', () => {
             evilPressure: 2,
             newbieFriendly: true,
             candidateCount: 2,
-            lockedRoleCodes: ['washerwoman'],
-            bannedRoleCodes: ['baron'],
+            lockedRoleCodes: ['CHEF'],
+            bannedRoleCodes: ['POISONER'],
             seed: 'seed-1',
         }
         await generateClocktowerBoard(request)
@@ -70,7 +79,7 @@ describe('clocktowerService', () => {
             evilPressure: 2,
             newbieFriendly: true,
             seed: 'seed-1',
-            roleCodes: ['washerwoman', 'imp'],
+            roleCodes: ['CHEF', 'IMP'],
             validation: {
                 valid: true,
                 roleTypeCounts: {TOWNSFOLK: 3, OUTSIDER: 0, MINION: 1, DEMON: 1},

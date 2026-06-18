@@ -1,16 +1,18 @@
 package top.egon.mario.clocktower.board;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
 import top.egon.mario.clocktower.board.service.RoleMetadataProvider;
 import top.egon.mario.clocktower.board.service.impl.ClocktowerBoardServiceImpl;
+import top.egon.mario.clocktower.common.enums.ClocktowerAlignment;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoleType;
+import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.engine.BoardCandidateFact;
 import top.egon.mario.clocktower.engine.ClocktowerRuleEngine;
 import top.egon.mario.clocktower.engine.RuleDecisionCollector;
+import top.egon.mario.clocktower.script.dto.response.ClocktowerRoleSummaryResponse;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import java.util.Map;
+import java.util.List;
 
 import static org.mockito.Mockito.mock;
 
@@ -20,17 +22,36 @@ final class ClocktowerBoardTestFactory {
     }
 
     static ClocktowerBoardService service() {
-        RoleMetadataProvider provider = () -> Map.of(
-                "EMPATH", ClocktowerRoleType.TOWNSFOLK,
-                "CHEF", ClocktowerRoleType.TOWNSFOLK,
-                "MONK", ClocktowerRoleType.TOWNSFOLK,
-                "POISONER", ClocktowerRoleType.MINION,
-                "IMP", ClocktowerRoleType.DEMON
-        );
+        RoleMetadataProvider provider = scriptCode -> {
+            if (scriptCode == ClocktowerScriptCode.TROUBLE_BREWING) {
+                return List.of(
+                        summary(scriptCode, "EMPATH", "共情者", ClocktowerRoleType.TOWNSFOLK, ClocktowerAlignment.GOOD),
+                        summary(scriptCode, "CHEF", "厨师", ClocktowerRoleType.TOWNSFOLK, ClocktowerAlignment.GOOD),
+                        summary(scriptCode, "MONK", "僧侣", ClocktowerRoleType.TOWNSFOLK, ClocktowerAlignment.GOOD),
+                        summary(scriptCode, "POISONER", "投毒者", ClocktowerRoleType.MINION, ClocktowerAlignment.EVIL),
+                        summary(scriptCode, "IMP", "小恶魔", ClocktowerRoleType.DEMON, ClocktowerAlignment.EVIL));
+            }
+            return List.of(
+                    summary(scriptCode, "BMR_TOWNSFOLK", "黯月镇民", ClocktowerRoleType.TOWNSFOLK,
+                            ClocktowerAlignment.GOOD),
+                    summary(scriptCode, "BMR_MINION", "黯月爪牙", ClocktowerRoleType.MINION,
+                            ClocktowerAlignment.EVIL),
+                    summary(scriptCode, "BMR_DEMON", "黯月恶魔", ClocktowerRoleType.DEMON, ClocktowerAlignment.EVIL));
+        };
         return new ClocktowerBoardServiceImpl(provider, new TestClocktowerRuleEngine(),
                 mock(top.egon.mario.clocktower.board.repository.ClocktowerBoardConfigRepository.class),
                 mock(top.egon.mario.clocktower.board.repository.ClocktowerBoardRoleRepository.class),
                 new ObjectMapper());
+    }
+
+    static ClocktowerRuleEngine ruleEngine() {
+        return new TestClocktowerRuleEngine();
+    }
+
+    private static ClocktowerRoleSummaryResponse summary(ClocktowerScriptCode scriptCode, String roleCode,
+                                                         String roleName, ClocktowerRoleType roleType,
+                                                         ClocktowerAlignment alignment) {
+        return new ClocktowerRoleSummaryResponse(scriptCode, roleCode, roleName, roleType, alignment);
     }
 
     private static final class TestClocktowerRuleEngine extends ClocktowerRuleEngine {

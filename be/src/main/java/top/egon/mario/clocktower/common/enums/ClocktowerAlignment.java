@@ -8,18 +8,15 @@ import top.egon.mario.common.enums.CodedEnum;
 import java.util.Map;
 
 @Getter
-public enum ClocktowerRoleType implements CodedEnum {
-    TOWNSFOLK(1, "镇民"),
-    OUTSIDER(2, "外来者"),
-    MINION(3, "爪牙"),
-    DEMON(4, "恶魔"),
-    TRAVELER(5, "旅行者"),
-    FABLED(6, "传奇");
+public enum ClocktowerAlignment implements CodedEnum {
+    GOOD(1, "善良"),
+    EVIL(2, "邪恶"),
+    NEUTRAL(3, "中立");
 
     private final int code;
     private final String desc;
 
-    ClocktowerRoleType(int code, String desc) {
+    ClocktowerAlignment(int code, String desc) {
         this.code = code;
         this.desc = desc;
     }
@@ -30,7 +27,7 @@ public enum ClocktowerRoleType implements CodedEnum {
     }
 
     @JsonCreator(mode = JsonCreator.Mode.DELEGATING)
-    public static ClocktowerRoleType fromJson(Object input) {
-        return ClocktowerEnumJsonSupport.fromJson(ClocktowerRoleType.class, input);
+    public static ClocktowerAlignment fromJson(Object input) {
+        return ClocktowerEnumJsonSupport.fromJson(ClocktowerAlignment.class, input);
     }
 }

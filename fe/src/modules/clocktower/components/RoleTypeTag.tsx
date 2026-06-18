@@ -1,7 +1,8 @@
 import {Tag} from 'antd'
-import type {ClocktowerRoleType} from '../clocktowerTypes'
+import {enumCode, enumDesc} from '../../../utils/enum'
+import type {ClocktowerRoleType, ClocktowerRoleTypeCode} from '../clocktowerTypes'
 
-const roleTypeLabels: Record<ClocktowerRoleType, string> = {
+const roleTypeLabels: Record<ClocktowerRoleTypeCode, string> = {
     TOWNSFOLK: '镇民',
     OUTSIDER: '外来者',
     MINION: '爪牙',
@@ -10,13 +11,19 @@ const roleTypeLabels: Record<ClocktowerRoleType, string> = {
     FABLED: '传奇',
 }
 
-const roleTypeColors: Record<ClocktowerRoleType, string> = {
+const roleTypeColors: Record<ClocktowerRoleTypeCode | number, string> = {
     TOWNSFOLK: 'blue',
     OUTSIDER: 'cyan',
     MINION: 'volcano',
     DEMON: 'red',
     TRAVELER: 'purple',
     FABLED: 'gold',
+    1: 'blue',
+    2: 'cyan',
+    3: 'volcano',
+    4: 'red',
+    5: 'purple',
+    6: 'gold',
 }
 
 type RoleTypeTagProps = {
@@ -27,5 +34,7 @@ export function RoleTypeTag({value}: RoleTypeTagProps) {
     if (!value) {
         return <Tag>未定</Tag>
     }
-    return <Tag color={roleTypeColors[value]}>{roleTypeLabels[value]}</Tag>
+    const code = enumCode(value)
+    const label = typeof value === 'string' ? roleTypeLabels[value] ?? enumDesc(value) : enumDesc(value)
+    return <Tag color={roleTypeColors[code as ClocktowerRoleTypeCode | number]}>{label}</Tag>
 }

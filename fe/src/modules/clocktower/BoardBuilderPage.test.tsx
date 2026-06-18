@@ -1,6 +1,7 @@
 import {renderToStaticMarkup} from 'react-dom/server'
 import {describe, expect, test, vi} from 'vitest'
-import {Component as BoardBuilderPage} from './BoardBuilderPage'
+import {Component as BoardBuilderPage, savedBoardColumns} from './BoardBuilderPage'
+import {Table} from 'antd'
 
 vi.mock('./clocktowerService', () => ({
     getClocktowerScripts: vi.fn().mockResolvedValue([
@@ -23,5 +24,29 @@ describe('BoardBuilderPage', () => {
         expect(markup).toContain('生成配板')
         expect(markup).toContain('手动校验')
         expect(markup).toContain('已保存配板')
+    })
+
+    test('renders saved board localized role names with official codes', () => {
+        const markup = renderToStaticMarkup(
+            <Table
+                columns={savedBoardColumns(vi.fn())}
+                dataSource={[
+                    {
+                        boardId: 1,
+                        boardCode: 'board-1',
+                        scriptCode: 'TROUBLE_BREWING',
+                        playerCount: 5,
+                        roleCodes: ['CHEF'],
+                        roles: [{roleCode: 'CHEF', roleName: '厨师', roleType: {code: 1, desc: '镇民'}}],
+                        validation: {valid: true, roleTypeCounts: {}, violations: [], scores: []},
+                    },
+                ]}
+                pagination={false}
+                rowKey="boardId"
+            />,
+        )
+
+        expect(markup).toContain('厨师')
+        expect(markup).toContain('CHEF')
     })
 })

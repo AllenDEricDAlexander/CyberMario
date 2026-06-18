@@ -1,6 +1,8 @@
 package top.egon.mario.clocktower.grimoire;
 
 import org.junit.jupiter.api.Test;
+import top.egon.mario.clocktower.common.enums.ClocktowerNightType;
+import top.egon.mario.clocktower.common.enums.ClocktowerRoleType;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.grimoire.dto.response.NightChecklistResponse;
 import top.egon.mario.clocktower.grimoire.dto.response.NightStepResponse;
@@ -17,6 +19,9 @@ import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 
 class ClocktowerNightChecklistServiceTests {
 
@@ -31,10 +36,16 @@ class ClocktowerNightChecklistServiceTests {
 
         NightChecklistResponse checklist = grimoireService.nightChecklist(room.roomId(), storytellerPrincipal());
 
-        assertThat(checklist.nightType()).isEqualTo("FIRST_NIGHT");
+        assertThat(checklist.nightType()).isEqualTo(ClocktowerNightType.FIRST_NIGHT);
         assertThat(checklist.steps()).extracting(NightStepResponse::roleCode)
                 .contains("POISONER", "EMPATH");
+        assertThat(checklist.steps()).filteredOn(step -> step.roleCode().equals("POISONER"))
+                .extracting(NightStepResponse::roleType)
+                .containsExactly(ClocktowerRoleType.MINION);
         assertThat(checklist.completed()).isFalse();
+        verify(services.nightOrderRepository())
+                .findByScriptCodeAndNightTypeAndRoleCodeInAndDeletedFalseOrderBySortOrderAsc(
+                        eq(ClocktowerScriptCode.TROUBLE_BREWING), eq(ClocktowerNightType.FIRST_NIGHT), any());
     }
 
     private ClocktowerRoomResponse startedTroubleBrewingRoomWithRoles(String... roleCodes) {

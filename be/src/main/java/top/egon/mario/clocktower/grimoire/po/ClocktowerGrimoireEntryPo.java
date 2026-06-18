@@ -1,15 +1,17 @@
 package top.egon.mario.clocktower.grimoire.po;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import top.egon.mario.clocktower.common.enums.ClocktowerAlignment;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoleType;
+import top.egon.mario.clocktower.converter.jpa.ClocktowerAlignmentConverter;
+import top.egon.mario.clocktower.converter.jpa.ClocktowerRoleTypeConverter;
 import top.egon.mario.common.entity.BaseAuditablePo;
 
 @Getter
@@ -27,12 +29,13 @@ public class ClocktowerGrimoireEntryPo extends BaseAuditablePo {
     @Column(name = "role_code", nullable = false, length = 64)
     private String roleCode;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "role_type", nullable = false, length = 32)
+    @Convert(converter = ClocktowerRoleTypeConverter.class)
+    @Column(name = "role_type", nullable = false)
     private ClocktowerRoleType roleType;
 
-    @Column(name = "alignment", nullable = false, length = 32)
-    private String alignment;
+    @Convert(converter = ClocktowerAlignmentConverter.class)
+    @Column(name = "alignment", nullable = false)
+    private ClocktowerAlignment alignment;
 
     @Column(name = "token_status", nullable = false, length = 32)
     private String tokenStatus = "ACTIVE";

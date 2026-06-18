@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import top.egon.mario.clocktower.common.ClocktowerAccess;
 import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerEventType;
+import top.egon.mario.clocktower.common.enums.ClocktowerNightType;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
 import top.egon.mario.clocktower.common.enums.ClocktowerVisibility;
 import top.egon.mario.clocktower.event.dto.ClocktowerEventAppendRequest;
@@ -85,7 +86,8 @@ public class ClocktowerGrimoireServiceImpl implements ClocktowerGrimoireService 
         Map<String, ClocktowerSeatPo> seatByRole = seats.stream()
                 .filter(seat -> seat.getRoleCode() != null)
                 .collect(Collectors.toMap(ClocktowerSeatPo::getRoleCode, Function.identity(), (left, right) -> left));
-        String nightType = room.getCurrentNightNo() <= 1 ? "FIRST_NIGHT" : "OTHER_NIGHT";
+        ClocktowerNightType nightType = room.getCurrentNightNo() <= 1
+                ? ClocktowerNightType.FIRST_NIGHT : ClocktowerNightType.OTHER_NIGHT;
         List<ClocktowerNightOrderPo> orders = nightOrderRepository
                 .findByScriptCodeAndNightTypeAndRoleCodeInAndDeletedFalseOrderBySortOrderAsc(
                         room.getScriptCode(), nightType, seatByRole.keySet());
@@ -124,7 +126,8 @@ public class ClocktowerGrimoireServiceImpl implements ClocktowerGrimoireService 
     private static NightStepResponse toNightStep(ClocktowerNightOrderPo order, ClocktowerSeatPo seat,
                                                  ClocktowerRolePo role) {
         return new NightStepResponse(order.getOrderNo(), seat == null ? null : seat.getId(), order.getRoleCode(),
-                role == null ? order.getRoleCode() : role.getName(), true, null, false);
+                role == null ? order.getRoleCode() : role.getName(), role == null ? null : role.getRoleType(),
+                true, null, false);
     }
 
     private StorytellerActionResponse addMarker(ClocktowerRoomPo room, StorytellerActionRequest request,

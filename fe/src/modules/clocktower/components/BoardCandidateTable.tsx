@@ -1,6 +1,7 @@
 import {Button, Table, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import type {ClocktowerBoardCandidateResponse} from '../clocktowerTypes'
+import {RoleSummaryTags} from './RoleSummaryTags'
 
 type BoardCandidateTableProps = {
     candidates: ClocktowerBoardCandidateResponse[]
@@ -16,11 +17,7 @@ export function BoardCandidateTable({candidates, loading, savingCandidateId, onS
         {
             title: '角色',
             dataIndex: 'roleCodes',
-            render: (roleCodes: string[]) => (
-                <span>
-                    {roleCodes.map((roleCode) => <Tag key={roleCode}>{roleCode}</Tag>)}
-                </span>
-            ),
+            render: (roleCodes: string[], record) => <RoleSummaryTags roleCodes={roleCodes} roles={record.roles}/>,
         },
         {
             title: '评分',

@@ -27,6 +27,9 @@ class ClocktowerBoardControllerTests {
         assertThat(response.candidates()).allSatisfy(candidate -> {
             assertThat(candidate.playerCount()).isEqualTo(5);
             assertThat(candidate.validation().valid()).isTrue();
+            assertThat(candidate.roleCodes()).doesNotContain("BMR_TOWNSFOLK", "BMR_MINION", "BMR_DEMON");
+            assertThat(candidate.roles()).extracting(role -> role.roleCode())
+                    .containsExactlyElementsOf(candidate.roleCodes());
         });
     }
 

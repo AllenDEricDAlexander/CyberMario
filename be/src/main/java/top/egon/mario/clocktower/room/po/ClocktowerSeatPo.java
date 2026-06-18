@@ -1,13 +1,15 @@
 package top.egon.mario.clocktower.room.po;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
+import top.egon.mario.clocktower.common.enums.ClocktowerAlignment;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoleType;
+import top.egon.mario.clocktower.converter.jpa.ClocktowerAlignmentConverter;
+import top.egon.mario.clocktower.converter.jpa.ClocktowerRoleTypeConverter;
 import top.egon.mario.common.entity.BaseAuditablePo;
 
 @Getter
@@ -31,12 +33,13 @@ public class ClocktowerSeatPo extends BaseAuditablePo {
     @Column(name = "role_code", length = 64)
     private String roleCode;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "role_type", length = 32)
+    @Convert(converter = ClocktowerRoleTypeConverter.class)
+    @Column(name = "role_type")
     private ClocktowerRoleType roleType;
 
-    @Column(name = "alignment", length = 32)
-    private String alignment;
+    @Convert(converter = ClocktowerAlignmentConverter.class)
+    @Column(name = "alignment")
+    private ClocktowerAlignment alignment;
 
     @Column(name = "life_status", nullable = false, length = 32)
     private String lifeStatus = "ALIVE";

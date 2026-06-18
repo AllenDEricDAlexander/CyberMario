@@ -1,5 +1,12 @@
+import type {CodedEnum} from '../../utils/enum'
+
 export type ClocktowerScriptCode = 'TROUBLE_BREWING' | 'BAD_MOON_RISING' | 'SECTS_AND_VIOLETS'
-export type ClocktowerRoleType = 'TOWNSFOLK' | 'OUTSIDER' | 'MINION' | 'DEMON' | 'TRAVELER' | 'FABLED'
+export type ClocktowerRoleTypeCode = 'TOWNSFOLK' | 'OUTSIDER' | 'MINION' | 'DEMON' | 'TRAVELER' | 'FABLED'
+export type ClocktowerRoleType = ClocktowerRoleTypeCode | CodedEnum
+export type ClocktowerAlignmentCode = 'GOOD' | 'EVIL' | 'NEUTRAL'
+export type ClocktowerAlignment = ClocktowerAlignmentCode | CodedEnum
+export type ClocktowerNightTypeCode = 'FIRST_NIGHT' | 'OTHER_NIGHT'
+export type ClocktowerNightType = ClocktowerNightTypeCode | CodedEnum
 export type ClocktowerRoomStatus = 'LOBBY' | 'SETUP' | 'RUNNING' | 'ENDED' | 'ARCHIVED'
 export type ClocktowerPhase = 'LOBBY' | 'SETUP' | 'FIRST_NIGHT' | 'DAY' | 'NOMINATION' | 'EXECUTION' | 'NIGHT' | 'ENDED'
 export type ClocktowerVisibility = 'PUBLIC' | 'PRIVATE' | 'STORYTELLER' | 'AUDIT'
@@ -41,7 +48,9 @@ export type ClocktowerRoleResponse = {
     scriptCode: ClocktowerScriptCode
     roleCode: string
     roleType: ClocktowerRoleType
+    roleName: string
     name: string
+    alignment: ClocktowerAlignment
     abilityText: string
     firstNightOrder?: number | null
     otherNightOrder?: number | null
@@ -56,9 +65,23 @@ export type ClocktowerNightOrderResponse = {
     roleCode: string
     roleName: string
     roleType: ClocktowerRoleType
-    nightType: string
+    nightType: ClocktowerNightType
+    orderNo: number
     sortOrder: number
     reminderText?: string | null
+}
+
+export type ClocktowerNightOrderGroupResponse = {
+    firstNight: ClocktowerNightOrderResponse[]
+    otherNight: ClocktowerNightOrderResponse[]
+}
+
+export type ClocktowerRoleSummaryResponse = {
+    scriptCode?: ClocktowerScriptCode
+    roleCode: string
+    roleName: string
+    roleType?: ClocktowerRoleType | null
+    alignment?: ClocktowerAlignment | null
 }
 
 export type ClocktowerTermResponse = {
@@ -118,6 +141,7 @@ export type ClocktowerBoardCandidateResponse = {
     scriptCode: ClocktowerScriptCode
     playerCount: number
     roleCodes: string[]
+    roles?: ClocktowerRoleSummaryResponse[]
     validation: ClocktowerBoardValidationResponse
     scores: ClocktowerScoreResponse[]
 }
@@ -131,7 +155,7 @@ export type BoardValidationResponse = {
 
 export type ClocktowerBoardValidationResponse = {
     valid: boolean
-    roleTypeCounts: Partial<Record<ClocktowerRoleType, number>>
+    roleTypeCounts: Partial<Record<ClocktowerRoleTypeCode, number>>
     violations: ClocktowerRuleViolationResponse[]
     scores: ClocktowerScoreResponse[]
 }
@@ -163,6 +187,7 @@ export type ClocktowerBoardConfigResponse = {
     scriptCode: ClocktowerScriptCode
     playerCount: number
     roleCodes: string[]
+    roles?: ClocktowerRoleSummaryResponse[]
     validation: ClocktowerBoardValidationResponse
 }
 
@@ -257,7 +282,7 @@ export type GrimoireSeatResponse = {
     displayName: string
     roleCode?: string | null
     roleType?: ClocktowerRoleType | null
-    alignment?: string | null
+    alignment?: ClocktowerAlignment | null
     alive: boolean
     hasDeadVote: boolean
     connected: boolean
@@ -284,7 +309,7 @@ export type StorytellerTaskResponse = {
 
 export type ClocktowerNightChecklistResponse = {
     nightNo: number
-    nightType: string
+    nightType: ClocktowerNightType
     steps: NightStepResponse[]
     completed: boolean
 }
@@ -294,6 +319,7 @@ export type NightStepResponse = {
     seatId?: number | null
     roleCode: string
     roleName: string
+    roleType?: ClocktowerRoleType | null
     wakeRequired: boolean
     skipReason?: string | null
     completed: boolean
@@ -333,7 +359,7 @@ export type PlayerSeatViewResponse = {
     displayName: string
     roleCode?: string | null
     roleType?: ClocktowerRoleType | null
-    alignment?: string | null
+    alignment?: ClocktowerAlignment | null
     lifeStatus: string
     hasDeadVote: boolean
 }

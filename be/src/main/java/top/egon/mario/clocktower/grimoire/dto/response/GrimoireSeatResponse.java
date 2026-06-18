@@ -1,5 +1,6 @@
 package top.egon.mario.clocktower.grimoire.dto.response;
 
+import top.egon.mario.clocktower.common.enums.ClocktowerAlignment;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoleType;
 import top.egon.mario.clocktower.grimoire.po.ClocktowerGrimoireEntryPo;
 import top.egon.mario.clocktower.room.po.ClocktowerSeatPo;
@@ -11,7 +12,7 @@ public record GrimoireSeatResponse(
         String displayName,
         String roleCode,
         ClocktowerRoleType roleType,
-        String alignment,
+        ClocktowerAlignment alignment,
         boolean alive,
         boolean hasDeadVote,
         boolean connected,

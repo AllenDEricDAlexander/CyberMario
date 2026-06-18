@@ -22,6 +22,7 @@ import type {
     ClocktowerScriptResponse,
 } from './clocktowerTypes'
 import {BoardCandidateTable} from './components/BoardCandidateTable'
+import {RoleSummaryTags} from './components/RoleSummaryTags'
 
 type ValidateFormValues = {
     scriptCode: ClocktowerScriptCode
@@ -193,7 +194,8 @@ function BoardBuilderPage() {
                         <Form.Item label="随机种子" name="seed">
                             <Input style={{width: 160}}/>
                         </Form.Item>
-                        <Button icon={<ExperimentOutlined/>} loading={loading} onClick={voidify(generate)} type="primary">
+                        <Button icon={<ExperimentOutlined/>} loading={loading} onClick={voidify(generate)}
+                                type="primary">
                             生成配板
                         </Button>
                     </Space>
@@ -221,7 +223,7 @@ function BoardBuilderPage() {
                         <Form.Item label="角色代码" name="roleCodesText">
                             <Input.TextArea
                                 autoSize={{minRows: 2, maxRows: 4}}
-                                placeholder="washerwoman,librarian,investigator,chef,empath"
+                                placeholder="CHEF,EMPATH,MONK,POISONER,IMP"
                                 style={{width: 520}}
                             />
                         </Form.Item>
@@ -287,7 +289,7 @@ function countSummary(counts: BoardValidationResponse['typeCounts']) {
     return `镇民 ${counts.townsfolk} / 外来者 ${counts.outsider} / 爪牙 ${counts.minion} / 恶魔 ${counts.demon} / 旅行者 ${counts.traveler} / 传奇 ${counts.fabled}`
 }
 
-function savedBoardColumns(onDelete: (boardId: number) => Promise<void>): ColumnsType<ClocktowerBoardConfigResponse> {
+export function savedBoardColumns(onDelete: (boardId: number) => Promise<void>): ColumnsType<ClocktowerBoardConfigResponse> {
     return [
         {title: '编号', dataIndex: 'boardCode', width: 180, render: (value) => <Tag>{value}</Tag>},
         {title: '剧本', dataIndex: 'scriptCode', width: 160},
@@ -295,13 +297,14 @@ function savedBoardColumns(onDelete: (boardId: number) => Promise<void>): Column
         {
             title: '角色',
             dataIndex: 'roleCodes',
-            render: (roleCodes: string[]) => roleCodes.map((roleCode) => <Tag key={roleCode}>{roleCode}</Tag>),
+            render: (roleCodes: string[], record) => <RoleSummaryTags roleCodes={roleCodes} roles={record.roles}/>,
         },
         {
             title: '校验',
             dataIndex: 'validation',
             width: 120,
-            render: (_, record) => record.validation.valid ? <Tag color="success">通过</Tag> : <Tag color="error">有问题</Tag>,
+            render: (_, record) => record.validation.valid ? <Tag color="success">通过</Tag> :
+                <Tag color="error">有问题</Tag>,
         },
         {
             title: '操作',
