@@ -39,10 +39,10 @@ class ClocktowerRulingServiceTests {
     private final ClocktowerRoomService roomService = context.roomService();
     private final ClocktowerRulingService rulingService = new ClocktowerRulingServiceImpl(context.roomRepository(),
             context.seatRepository(), context.nominationRepository(), context.rulingRepository(),
-            context.eventService(), context.objectMapper(), new ClocktowerGrimoireServiceImpl(context.roomRepository(),
-            context.seatRepository(), context.grimoireEntryRepository(), context.markerRepository(),
-            context.storytellerTaskRepository(), context.nightOrderRepository(), context.roleRepository(),
-            context.eventService()));
+            context.eventRepository(), context.eventService(), context.objectMapper(),
+            new ClocktowerGrimoireServiceImpl(context.roomRepository(), context.seatRepository(),
+                    context.grimoireEntryRepository(), context.markerRepository(), context.storytellerTaskRepository(),
+                    context.nightOrderRepository(), context.roleRepository(), context.eventService()));
 
     @Test
     void nonStorytellerCannotCreateRuling() {
@@ -134,6 +134,28 @@ class ClocktowerRulingServiceTests {
                 ClocktowerRulingReason.STORYTELLER_RULING, "假死", "一名玩家死亡", ClocktowerVisibility.PUBLIC, false),
                 storytellerPrincipal())).isInstanceOf(ClocktowerException.class)
                 .hasMessageContaining("CLOCKTOWER_PUBLIC_LIFE_STATUS_INVALID");
+    }
+
+    @Test
+    void createRulingValidatesRequiredTargetBeforeLookup() {
+        ClocktowerRoomResponse room = startedRoom();
+
+        assertThatThrownBy(() -> rulingService.create(room.roomId(), new ClocktowerRulingCreateRequest(
+                ClocktowerRulingType.MARK_DEAD, null, null, null, null, null,
+                ClocktowerRulingReason.NIGHT_DEATH, "夜晚死亡", "一名玩家死亡", ClocktowerVisibility.PUBLIC, false),
+                storytellerPrincipal())).isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_RULING_TARGET_SEAT_REQUIRED");
+    }
+
+    @Test
+    void createRulingValidatesRequiredNominationBeforeLookup() {
+        ClocktowerRoomResponse room = startedRoom();
+
+        assertThatThrownBy(() -> rulingService.create(room.roomId(), new ClocktowerRulingCreateRequest(
+                ClocktowerRulingType.CLOSE_NOMINATION, null, null, null, null, null,
+                ClocktowerRulingReason.STORYTELLER_RULING, "关闭投票", "提名关闭", ClocktowerVisibility.PUBLIC, false),
+                storytellerPrincipal())).isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_RULING_NOMINATION_REQUIRED");
     }
 
     @Test
@@ -233,6 +255,26 @@ class ClocktowerRulingServiceTests {
                 new ClocktowerRulingUndoRequest("再次撤销", true), storytellerPrincipal()))
                 .isInstanceOf(ClocktowerException.class)
                 .hasMessageContaining("CLOCKTOWER_RULING_UNDO_OF_UNDO_NOT_ALLOWED");
+    }
+
+    @Test
+    void undoRulingRejectsLaterRelatedPlayerActionUnlessForced() {
+        ClocktowerRoomResponse room = startedRoom();
+        Long voterSeatId = room.seats().getFirst().seatId();
+        Long nomineeSeatId = room.seats().get(1).seatId();
+        submitPlayerAction(room.roomId(), voterSeatId, "NOMINATE", List.of(nomineeSeatId));
+        ClocktowerRulingApplyResponse applied = rulingService.create(room.roomId(), new ClocktowerRulingCreateRequest(
+                ClocktowerRulingType.MARK_DEAD, voterSeatId, null, null, null, null,
+                ClocktowerRulingReason.NIGHT_DEATH, "夜晚死亡", "一名玩家死亡", ClocktowerVisibility.PUBLIC, false),
+                storytellerPrincipal());
+        submitPlayerAction(room.roomId(), voterSeatId, "VOTE", List.of());
+
+        assertThatThrownBy(() -> rulingService.undo(room.roomId(), applied.ruling().rulingId(),
+                new ClocktowerRulingUndoRequest("误操作撤销", false), storytellerPrincipal()))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_RULING_UNDO_OUT_OF_ORDER");
+        assertThat(context.seatRepository().findByIdAndRoomIdAndDeletedFalse(voterSeatId, room.roomId()).orElseThrow()
+                .isHasDeadVote()).isFalse();
     }
 
     @Test

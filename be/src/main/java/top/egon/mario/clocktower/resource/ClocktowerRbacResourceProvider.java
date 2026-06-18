@@ -60,6 +60,10 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
                 "/api/clocktower/rooms/*/night-checklist", ApiRiskLevel.HIGH));
         resources.add(api("api:clocktower:rooms:storyteller:action", "Clocktower storyteller action", "POST",
                 "/api/clocktower/rooms/*/storyteller/actions", ApiRiskLevel.HIGH));
+        resources.add(api("api:clocktower:rooms:storyteller:ruling", "Clocktower storyteller rulings", "ANY",
+                "/api/clocktower/rooms/*/rulings", ApiRiskLevel.HIGH));
+        resources.add(api("api:clocktower:rooms:storyteller:ruling:detail", "Clocktower storyteller ruling detail", "ANY",
+                "/api/clocktower/rooms/*/rulings/**", ApiRiskLevel.HIGH));
         resources.add(api("api:clocktower:events:stream", "Clocktower event stream", "GET",
                 "/api/clocktower/rooms/*/events/stream", ApiRiskLevel.MEDIUM));
         resources.add(api("api:clocktower:grimoire:*", "Clocktower grimoire", "ANY",
@@ -95,7 +99,9 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
                                 "api:clocktower:rooms:storyteller:start",
                                 "api:clocktower:rooms:storyteller:seat",
                                 "api:clocktower:rooms:storyteller:night",
-                                "api:clocktower:rooms:storyteller:action", "api:clocktower:events:stream",
+                                "api:clocktower:rooms:storyteller:action",
+                                "api:clocktower:rooms:storyteller:ruling",
+                                "api:clocktower:rooms:storyteller:ruling:detail", "api:clocktower:events:stream",
                                 "api:clocktower:grimoire:*", "api:clocktower:replays:*"
                         ), RbacResourceSource.PROVIDER)
         );

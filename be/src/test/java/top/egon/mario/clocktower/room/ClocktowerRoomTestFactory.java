@@ -164,6 +164,12 @@ public final class ClocktowerRoomTestFactory {
                 .filter(event -> !event.isDeleted() && event.getRoomId().equals(invocation.getArgument(0)))
                 .sorted(Comparator.comparing(ClocktowerEventPo::getEventSeq))
                 .toList());
+        when(eventRepository.findAllById(any())).thenAnswer(invocation -> {
+            Collection<Long> ids = invocation.getArgument(0);
+            return events.stream()
+                    .filter(event -> ids.contains(event.getId()))
+                    .toList();
+        });
         when(eventRepository.findByRoomIdAndEventSeqGreaterThanAndDeletedFalseOrderByEventSeqAsc(any(), any()))
                 .thenAnswer(invocation -> events.stream()
                         .filter(event -> !event.isDeleted()

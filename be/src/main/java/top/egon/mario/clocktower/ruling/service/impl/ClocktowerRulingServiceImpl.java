@@ -17,6 +17,8 @@ import top.egon.mario.clocktower.common.enums.ClocktowerRulingType;
 import top.egon.mario.clocktower.common.enums.ClocktowerVisibility;
 import top.egon.mario.clocktower.event.dto.ClocktowerEventAppendRequest;
 import top.egon.mario.clocktower.event.dto.ClocktowerEventResponse;
+import top.egon.mario.clocktower.event.po.ClocktowerEventPo;
+import top.egon.mario.clocktower.event.repository.ClocktowerEventRepository;
 import top.egon.mario.clocktower.event.service.ClocktowerEventService;
 import top.egon.mario.clocktower.grimoire.dto.response.ClocktowerGrimoireResponse;
 import top.egon.mario.clocktower.grimoire.po.ClocktowerNominationPo;
@@ -46,11 +48,14 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
 
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
+    private static final TypeReference<List<Long>> LONG_LIST_TYPE = new TypeReference<>() {
+    };
 
     private final ClocktowerRoomRepository roomRepository;
     private final ClocktowerSeatRepository seatRepository;
     private final ClocktowerNominationRepository nominationRepository;
     private final ClocktowerRulingRepository rulingRepository;
+    private final ClocktowerEventRepository eventRepository;
     private final ClocktowerEventService eventService;
     private final ObjectMapper objectMapper;
     private final ClocktowerGrimoireService grimoireService;
@@ -98,7 +103,7 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
         if (original.getStatus() == ClocktowerRulingStatus.REVOKED) {
             throw new ClocktowerException("CLOCKTOWER_RULING_ALREADY_REVOKED");
         }
-        if (!force(request) && hasLaterAppliedRelatedRuling(roomId, original)) {
+        if (!force(request) && hasLaterRelatedStateChange(roomId, original)) {
             throw new ClocktowerException("CLOCKTOWER_RULING_UNDO_OUT_OF_ORDER");
         }
         restoreSnapshot(room, original);
@@ -126,6 +131,9 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
     }
 
     private void validate(ClocktowerRulingCreateRequest request) {
+        if (request == null) {
+            throw new ClocktowerException("CLOCKTOWER_RULING_REQUEST_REQUIRED");
+        }
         if (request.rulingType() == null) {
             throw new ClocktowerException("CLOCKTOWER_RULING_TYPE_REQUIRED");
         }
@@ -134,6 +142,12 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
         }
         if (!supported(request.rulingType())) {
             throw new ClocktowerException("CLOCKTOWER_RULING_TYPE_NOT_SUPPORTED");
+        }
+        if (requiresTargetSeat(request.rulingType()) && request.targetSeatId() == null) {
+            throw new ClocktowerException("CLOCKTOWER_RULING_TARGET_SEAT_REQUIRED");
+        }
+        if (requiresNomination(request.rulingType()) && request.nominationId() == null) {
+            throw new ClocktowerException("CLOCKTOWER_RULING_NOMINATION_REQUIRED");
         }
         if (request.rulingType() == ClocktowerRulingType.SET_PUBLIC_LIFE) {
             validatePublicLifeStatus(request.publicLifeStatus());
@@ -153,6 +167,20 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
                 || rulingType == ClocktowerRulingType.EXECUTE_PLAYER
                 || rulingType == ClocktowerRulingType.SKIP_EXECUTION
                 || rulingType == ClocktowerRulingType.END_GAME
+                || rulingType == ClocktowerRulingType.CLOSE_NOMINATION
+                || rulingType == ClocktowerRulingType.REOPEN_NOMINATION
+                || rulingType == ClocktowerRulingType.VOID_NOMINATION;
+    }
+
+    private boolean requiresTargetSeat(ClocktowerRulingType rulingType) {
+        return rulingType == ClocktowerRulingType.MARK_DEAD
+                || rulingType == ClocktowerRulingType.RESTORE_ALIVE
+                || rulingType == ClocktowerRulingType.SET_PUBLIC_LIFE
+                || rulingType == ClocktowerRulingType.EXECUTE_PLAYER;
+    }
+
+    private boolean requiresNomination(ClocktowerRulingType rulingType) {
+        return rulingType == ClocktowerRulingType.SKIP_EXECUTION
                 || rulingType == ClocktowerRulingType.CLOSE_NOMINATION
                 || rulingType == ClocktowerRulingType.REOPEN_NOMINATION
                 || rulingType == ClocktowerRulingType.VOID_NOMINATION;
@@ -306,6 +334,10 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
         return request != null && request.force();
     }
 
+    private boolean hasLaterRelatedStateChange(Long roomId, ClocktowerRulingPo original) {
+        return hasLaterAppliedRelatedRuling(roomId, original) || hasLaterRelatedEvent(roomId, original);
+    }
+
     private boolean hasLaterAppliedRelatedRuling(Long roomId, ClocktowerRulingPo original) {
         return rulingRepository.findByRoomIdAndDeletedFalseOrderByIdDesc(roomId).stream()
                 .anyMatch(later -> later.getId() != null
@@ -326,6 +358,50 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
                 && original.getNominationId() == null
                 && later.getTargetSeatId() == null
                 && later.getNominationId() == null;
+    }
+
+    private boolean hasLaterRelatedEvent(Long roomId, ClocktowerRulingPo original) {
+        Long eventSeq = latestEventSeq(original);
+        if (eventSeq == null) {
+            return false;
+        }
+        return eventRepository.findByRoomIdAndEventSeqGreaterThanAndDeletedFalseOrderByEventSeqAsc(roomId, eventSeq)
+                .stream()
+                .anyMatch(event -> related(original, event));
+    }
+
+    private Long latestEventSeq(ClocktowerRulingPo ruling) {
+        List<Long> eventIds = readEventIds(ruling);
+        if (eventIds.isEmpty()) {
+            return null;
+        }
+        return eventRepository.findAllById(eventIds).stream()
+                .filter(event -> !event.isDeleted())
+                .map(ClocktowerEventPo::getEventSeq)
+                .max(Long::compareTo)
+                .orElse(null);
+    }
+
+    private boolean related(ClocktowerRulingPo original, ClocktowerEventPo event) {
+        if (original.getTargetSeatId() != null
+                && (original.getTargetSeatId().equals(event.getActorSeatId())
+                || original.getTargetSeatId().equals(event.getTargetSeatId()))) {
+            return true;
+        }
+        return original.getNominationId() != null && payloadContainsNomination(event, original.getNominationId());
+    }
+
+    private boolean payloadContainsNomination(ClocktowerEventPo event, Long nominationId) {
+        if (!StringUtils.hasText(event.getPayloadJson())) {
+            return false;
+        }
+        try {
+            Map<String, Object> payload = objectMapper.readValue(event.getPayloadJson(), MAP_TYPE);
+            Object value = payload.get("nominationId");
+            return value instanceof Number number && number.longValue() == nominationId;
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("CLOCKTOWER_EVENT_JSON_INVALID", e);
+        }
     }
 
     private String snapshot(ClocktowerRoomPo room, ClocktowerRulingCreateRequest request) {
@@ -408,6 +484,17 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
     private Map<String, Object> readSnapshot(ClocktowerRulingPo ruling) {
         try {
             return objectMapper.readValue(ruling.getSnapshotJson(), MAP_TYPE);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("CLOCKTOWER_RULING_JSON_INVALID", e);
+        }
+    }
+
+    private List<Long> readEventIds(ClocktowerRulingPo ruling) {
+        if (!StringUtils.hasText(ruling.getEventIdsJson())) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(ruling.getEventIdsJson(), LONG_LIST_TYPE);
         } catch (JsonProcessingException e) {
             throw new IllegalArgumentException("CLOCKTOWER_RULING_JSON_INVALID", e);
         }
