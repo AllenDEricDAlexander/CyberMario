@@ -1,36 +1,36 @@
-import {DeleteOutlined, EditOutlined, ReloadOutlined, SaveOutlined, SendOutlined, StopOutlined} from '@ant-design/icons'
+import {DeleteOutlined, EditOutlined, ReloadOutlined, SaveOutlined} from '@ant-design/icons'
 import {
     App,
-    Avatar,
     Button,
-    Card,
     Checkbox,
-    Col,
     Form,
     Input,
     InputNumber,
     Popconfirm,
-    Row,
     Select,
     Space,
     Switch,
     Tag,
     Typography,
 } from 'antd'
-import {type FormEvent, useEffect, useMemo, useRef, useState} from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import {PageToolbar} from '../../components/PageToolbar'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {
+    applyAgentChunkToMessage,
+    ChatSettingsModal,
+    ChatWorkspace,
+    type ChatWorkspaceMessage,
+    type ChatWorkspaceRequest,
+    mapSessionToConversation,
+    markMessageSucceeded,
+    useXChatWorkspace,
+} from '../../components/chat-workspace'
 import {resolveErrorMessage} from '../../services/request'
-import {voidify} from '../../utils/async'
 import {useAuth} from '../auth/authStore'
-import {appendChatChunk} from '../chat/chatMessageStream'
-import type {ChatMessage} from '../chat/chatTypes'
 import {canEditAgentPreset} from './agentPresetPermissions'
 import {
-    createAgentPreset,
     archiveAgentMemorySession,
     createAgentMemorySession,
+    createAgentPreset,
     deleteAgentPreset,
     getAgentMemorySessions,
     getAgentPresets,
@@ -40,7 +40,6 @@ import {
 } from './agentService'
 import {defaultAgentToolNames} from './agentPresetDefaults'
 import type {AgentMemorySessionResponse, AgentPresetConfig, AgentPresetRequest, AgentPresetResponse} from './agentTypes'
-import {MemorySessionControls} from './memorySessionControls'
 
 type DebugFormValues = {
     presetId?: number
@@ -62,62 +61,76 @@ type DebugFormValues = {
     toolExecutionTimeoutSeconds?: number
 }
 
-const markdownPlugins = [remarkGfm]
-const initialMessages: ChatMessage[] = [
-    {id: 'welcome', role: 'assistant', content: '这里是 Agent 调试工作台。选择预设或调整参数后发起一轮测试对话。'},
+type UpdateAssistantMessage = (
+    assistantId: string,
+    updater: (message: ChatWorkspaceMessage) => ChatWorkspaceMessage
+) => boolean
+
+const initialMessages: ChatWorkspaceMessage[] = [
+    {
+        id: 'welcome',
+        role: 'assistant',
+        content: '这里是 Agent 调试工作台。选择预设或调整参数后发起一轮测试对话。',
+        status: 'success',
+    },
 ]
 
 function AgentDebugPage() {
-    const {message} = App.useApp()
+    const {message: appMessage} = App.useApp()
     const auth = useAuth()
     const [form] = Form.useForm<DebugFormValues>()
     const [presets, setPresets] = useState<AgentPresetResponse[]>([])
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
-    const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
     const [input, setInput] = useState('')
+    const [settingsOpen, setSettingsOpen] = useState(false)
     const [sessionId, setSessionId] = useState('')
     const [sessions, setSessions] = useState<AgentMemorySessionResponse[]>([])
     const [sessionLoading, setSessionLoading] = useState(false)
     const [memoryEnabled, setMemoryEnabled] = useState(true)
     const [longTermExtractionEnabled, setLongTermExtractionEnabled] = useState(true)
-    const [isSending, setIsSending] = useState(false)
     const [error, setError] = useState('')
     const abortControllerRef = useRef<AbortController | null>(null)
+    const updateAssistantMessageRef = useRef<UpdateAssistantMessage | null>(null)
 
     const selectedPresetId = Form.useWatch('presetId', form)
     const selectedPreset = useMemo(() => presets.find((item) => item.id === selectedPresetId), [presets, selectedPresetId])
     const canEditSelectedPreset = canEditAgentPreset(selectedPreset, auth.user?.id)
-    const canSend = input.trim().length > 0 && !isSending
+    const conversations = useMemo(
+        () => sessions.map(mapSessionToConversation),
+        [sessions]
+    )
+    const sessionLabel = useMemo(() => sessionId || 'New Debug Session', [sessionId])
 
-    useEffect(() => {
-        void loadPresets()
-        void loadSessions()
-    }, [])
-
-    async function loadPresets() {
+    const loadPresets = useCallback(async () => {
         setLoading(true)
         try {
             const page = await getAgentPresets({page: 1, size: 200})
             setPresets(page.records)
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            appMessage.error(resolveErrorMessage(requestError))
         } finally {
             setLoading(false)
         }
-    }
+    }, [appMessage])
 
-    async function loadSessions() {
+    const loadSessions = useCallback(async () => {
         setSessionLoading(true)
         try {
             const page = await getAgentMemorySessions({page: 1, size: 100, entryType: 'AGENT_DEBUG'})
             setSessions(page.records)
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            appMessage.error(resolveErrorMessage(requestError))
         } finally {
             setSessionLoading(false)
         }
-    }
+    }, [appMessage])
+
+    useEffect(() => {
+        form.setFieldsValue(defaultFormValues())
+        void loadPresets()
+        void loadSessions()
+    }, [form, loadPresets, loadSessions])
 
     function applyPreset(id?: number) {
         const preset = presets.find((item) => item.id === id)
@@ -131,7 +144,7 @@ function AgentDebugPage() {
     async function savePreset() {
         const values = await form.validateFields()
         if (!canEditSelectedPreset) {
-            message.warning('只能编辑自己创建的预设')
+            appMessage.warning('只能编辑自己创建的预设')
             return
         }
         setSaving(true)
@@ -140,11 +153,11 @@ function AgentDebugPage() {
             const saved = values.presetId
                 ? await updateAgentPreset(values.presetId, request)
                 : await createAgentPreset(request)
-            message.success('预设已保存')
+            appMessage.success('预设已保存')
             await loadPresets()
             form.setFieldsValue(toFormValues(saved))
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            appMessage.error(resolveErrorMessage(requestError))
         } finally {
             setSaving(false)
         }
@@ -156,18 +169,18 @@ function AgentDebugPage() {
             return
         }
         if (!canEditSelectedPreset) {
-            message.warning('只能编辑自己创建的预设')
+            appMessage.warning('只能编辑自己创建的预设')
             form.setFieldValue('enabled', selectedPreset?.enabled ?? true)
             return
         }
         setSaving(true)
         try {
             const saved = await updateAgentPresetStatus(selectedPresetId, enabled)
-            message.success(enabled ? '预设已启用' : '预设已停用')
+            appMessage.success(enabled ? '预设已启用' : '预设已停用')
             await loadPresets()
             form.setFieldsValue(toFormValues(saved))
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            appMessage.error(resolveErrorMessage(requestError))
         } finally {
             setSaving(false)
         }
@@ -178,44 +191,34 @@ function AgentDebugPage() {
             return
         }
         if (!canEditSelectedPreset) {
-            message.warning('只能删除自己创建的预设')
+            appMessage.warning('只能删除自己创建的预设')
             return
         }
         setSaving(true)
         try {
             await deleteAgentPreset(selectedPresetId)
-            message.success('预设已删除')
+            appMessage.success('预设已删除')
             form.setFieldsValue(defaultFormValues())
             await loadPresets()
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            appMessage.error(resolveErrorMessage(requestError))
         } finally {
             setSaving(false)
         }
     }
 
-    async function submitMessage(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault()
-        const text = input.trim()
-        if (!text || isSending) {
-            return
-        }
-        const values = form.getFieldsValue()
-        const assistantMessageId = crypto.randomUUID()
-        setMessages((current) => [
-            ...current,
-            {id: crypto.randomUUID(), role: 'user', content: text},
-            {id: assistantMessageId, role: 'assistant', content: ''},
-        ])
-        setInput('')
-        setError('')
-        setIsSending(true)
+    const handleWorkspaceRequest = useCallback(async (
+        requestParams: ChatWorkspaceRequest,
+        assistantId: string
+    ) => {
+        const values = form.getFieldsValue(true) as DebugFormValues
         const abortController = new AbortController()
         abortControllerRef.current = abortController
+
         try {
             await streamAgentDebugChat({
-                message: text,
-                sessionId,
+                message: requestParams.message,
+                sessionId: requestParams.conversationKey,
                 memoryEnabled,
                 longTermExtractionEnabled,
                 presetId: values.presetId,
@@ -224,32 +227,67 @@ function AgentDebugPage() {
                 if (chunk.threadId) {
                     setSessionId(chunk.threadId)
                 }
-                setMessages((current) => current.map((item) =>
-                    item.id === assistantMessageId ? appendChatChunk(item, chunk) : item,
-                ))
+                updateAssistantMessageRef.current?.(
+                    assistantId,
+                    current => applyAgentChunkToMessage(current, chunk)
+                )
             })
+            updateAssistantMessageRef.current?.(assistantId, markMessageSucceeded)
         } catch (requestError) {
             if (abortController.signal.aborted) {
-                setMessages((current) => current.map((item) =>
-                    item.id === assistantMessageId && !item.content ? {...item, content: 'Stopped.'} : item,
-                ))
-            } else {
-                setError(resolveErrorMessage(requestError))
-                setMessages((current) => current.map((item) =>
-                    item.id === assistantMessageId && !item.content ? {
-                        ...item,
-                        content: '调试请求失败，请检查参数后重试。'
-                    } : item,
-                ))
+                return
             }
+
+            const errorMessage = resolveErrorMessage(requestError)
+            setError(errorMessage)
+            throw new Error(errorMessage, {cause: requestError})
         } finally {
-            abortControllerRef.current = null
-            setIsSending(false)
+            if (abortControllerRef.current === abortController) {
+                abortControllerRef.current = null
+            }
         }
+    }, [form, longTermExtractionEnabled, memoryEnabled])
+
+    const handleWorkspaceAbort = useCallback(() => {
+        abortControllerRef.current?.abort()
+        abortControllerRef.current = null
+    }, [])
+
+    const {
+        messages,
+        setMessages,
+        updateAssistantMessage,
+        request,
+        abort,
+        isRequesting,
+    } = useXChatWorkspace({
+        conversationKey: sessionId || undefined,
+        defaultMessages: initialMessages,
+        onRequest: handleWorkspaceRequest,
+        onAbort: handleWorkspaceAbort,
+    })
+
+    useEffect(() => {
+        updateAssistantMessageRef.current = updateAssistantMessage
+    }, [updateAssistantMessage])
+
+    function handleSend(message: string) {
+        const nextMessage = message.trim()
+        if (!nextMessage || isRequesting) {
+            return
+        }
+
+        setInput('')
+        setError('')
+        request({
+            message: nextMessage,
+            conversationKey: sessionId || undefined,
+            entryType: 'AGENT_DEBUG',
+        })
     }
 
     async function newConversation() {
-        abortControllerRef.current?.abort()
+        abort()
         try {
             const session = await createAgentMemorySession({
                 entryType: 'AGENT_DEBUG',
@@ -259,263 +297,284 @@ function AgentDebugPage() {
             setSessionId(session.sessionId)
             setSessions((current) => [session, ...current.filter((item) => item.sessionId !== session.sessionId)])
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            appMessage.error(resolveErrorMessage(requestError))
             setSessionId('')
         }
         setMessages(initialMessages)
         setInput('')
         setError('')
-        setIsSending(false)
     }
 
-    async function archiveCurrentSession() {
-        if (!sessionId) {
+    async function archiveCurrentSession(conversationKey = sessionId) {
+        if (!conversationKey) {
             return
         }
+
+        abort()
         try {
-            await archiveAgentMemorySession(sessionId)
-            message.success('会话已归档')
-            setSessionId('')
-            setMessages(initialMessages)
+            await archiveAgentMemorySession(conversationKey)
+            appMessage.success('会话已归档')
+            if (conversationKey === sessionId) {
+                setSessionId('')
+                setMessages(initialMessages)
+                setInput('')
+                setError('')
+            }
             await loadSessions()
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            appMessage.error(resolveErrorMessage(requestError))
         }
     }
 
+    function handleConversationChange(conversationKey: string) {
+        abort()
+        setSessionId(conversationKey)
+        const session = sessions.find((item) => item.sessionId === conversationKey)
+        if (session) {
+            setMemoryEnabled(session.memoryEnabled)
+            setLongTermExtractionEnabled(session.longTermExtractionEnabled)
+        }
+        setMessages(initialMessages)
+        setInput('')
+        setError('')
+    }
+
+    async function handleCopyMessage(message: ChatWorkspaceMessage) {
+        const content = message.content.trim()
+        if (!content) {
+            return
+        }
+
+        try {
+            if (!navigator.clipboard?.writeText) {
+                throw new Error('Clipboard is unavailable.')
+            }
+            await navigator.clipboard.writeText(content)
+            appMessage.success('已复制')
+        } catch {
+            appMessage.error('复制失败')
+        }
+    }
+
+    function handleReloadMessage(message: ChatWorkspaceMessage) {
+        const question = typeof message.question === 'string'
+            ? message.question.trim()
+            : message.role === 'user'
+                ? message.content.trim()
+                : ''
+
+        if (!question || isRequesting) {
+            return
+        }
+
+        setError('')
+        request({
+            message: question,
+            conversationKey: sessionId || undefined,
+            entryType: 'AGENT_DEBUG',
+        })
+    }
+
+    const subtitle = error ? (
+        <Space direction="vertical" size={0}>
+            <span>通过预设和临时覆盖参数验证 Agent 行为。</span>
+            <Typography.Text type="danger">{error}</Typography.Text>
+        </Space>
+    ) : '通过预设和临时覆盖参数验证 Agent 行为。'
+
     return (
-        <>
-            <PageToolbar
-                actions={<Button icon={<ReloadOutlined/>} loading={loading}
-                                 onClick={() => void loadPresets()}>刷新预设</Button>}
-                description="通过预设和临时覆盖参数验证 Agent 行为，模型选择保留为后续扩展。"
-                title="Agent 调试"
-            />
-            <Row gutter={[16, 16]}>
-                <Col lg={10} xs={24}>
-                    <Card className="dashboard-filter-card" title="预设与参数">
-                        <Form form={form} initialValues={defaultFormValues()} layout="vertical">
-                            <Form.Item label="预设" name="presetId">
-                                <Select
-                                    allowClear
-                                    loading={loading}
-                                    onChange={(id) => applyPreset(id)}
-                                    options={presets.map((item) => ({
-                                        label: `${item.name}${item.enabled ? '' : '（停用）'}`,
-                                        value: item.id,
-                                    }))}
-                                    placeholder="选择已有预设"
+        <ChatWorkspace
+            activeConversationKey={sessionId || undefined}
+            brandDescription="Agent debug memory sessions"
+            brandTitle="Agent Debug"
+            conversations={conversations}
+            headerActions={(
+                <Space wrap>
+                    <Switch
+                        checked={memoryEnabled}
+                        checkedChildren="记忆"
+                        unCheckedChildren="记忆"
+                        onChange={setMemoryEnabled}
+                    />
+                    <Switch
+                        checked={longTermExtractionEnabled}
+                        checkedChildren="长期提取"
+                        unCheckedChildren="长期提取"
+                        onChange={setLongTermExtractionEnabled}
+                    />
+                    <Tag>{sessionLabel}</Tag>
+                    <Button
+                        icon={<ReloadOutlined/>}
+                        loading={loading}
+                        onClick={() => void loadPresets()}
+                    >
+                        刷新预设
+                    </Button>
+                </Space>
+            )}
+            input={input}
+            messages={messages}
+            sending={isRequesting}
+            settings={(
+                <ChatSettingsModal
+                    footer={(
+                        <Space wrap>
+                            <Button
+                                onClick={() => applyPreset(selectedPresetId)}
+                            >
+                                重置
+                            </Button>
+                            <Popconfirm
+                                disabled={!selectedPresetId}
+                                title="删除这个预设？"
+                                onConfirm={() => void removePreset()}
+                            >
+                                <Button
+                                    danger
+                                    disabled={!selectedPresetId || !canEditSelectedPreset}
+                                    icon={<DeleteOutlined/>}
+                                    loading={saving}
+                                >
+                                    删除
+                                </Button>
+                            </Popconfirm>
+                            <Button
+                                disabled={!canEditSelectedPreset}
+                                icon={selectedPreset ? <EditOutlined/> : <SaveOutlined/>}
+                                loading={saving}
+                                type="primary"
+                                onClick={() => void savePreset()}
+                            >
+                                {selectedPreset ? '更新预设' : '创建预设'}
+                            </Button>
+                        </Space>
+                    )}
+                    open={settingsOpen}
+                    title="Agent 调试设置"
+                    onClose={() => setSettingsOpen(false)}
+                >
+                    <Form form={form} initialValues={defaultFormValues()} layout="vertical">
+                        <Form.Item label="预设" name="presetId">
+                            <Select<number>
+                                allowClear
+                                loading={loading}
+                                onChange={(id) => applyPreset(id)}
+                                options={presets.map((item) => ({
+                                    label: `${item.name}${item.enabled ? '' : '（停用）'}`,
+                                    value: item.id,
+                                }))}
+                                placeholder="选择已有预设"
+                            />
+                        </Form.Item>
+                        <Space wrap align="start">
+                            <Form.Item
+                                label="名称"
+                                name="name"
+                                rules={[{required: true, message: '请输入名称'}]}
+                            >
+                                <Input maxLength={128} style={{minWidth: 260}}/>
+                            </Form.Item>
+                            <Form.Item label="启用" name="enabled" valuePropName="checked">
+                                <Switch
+                                    disabled={saving || !canEditSelectedPreset}
+                                    onChange={(checked) => void togglePreset(checked)}
                                 />
                             </Form.Item>
-                            <Row gutter={12}>
-                                <Col md={16} xs={24}>
-                                    <Form.Item label="名称" name="name"
-                                               rules={[{required: true, message: '请输入名称'}]}>
-                                        <Input maxLength={128}/>
-                                    </Form.Item>
-                                </Col>
-                                <Col md={8} xs={24}>
-                                    <Form.Item label="启用" name="enabled" valuePropName="checked">
-                                        <Switch disabled={saving || !canEditSelectedPreset}
-                                                onChange={(checked) => void togglePreset(checked)}/>
-                                    </Form.Item>
-                                </Col>
-                            </Row>
-                            <Form.Item label="描述" name="description">
-                                <Input maxLength={512}/>
+                        </Space>
+                        <Form.Item label="描述" name="description">
+                            <Input maxLength={512}/>
+                        </Form.Item>
+                        <Form.Item label="系统提示词" name="systemPrompt">
+                            <Input.TextArea rows={5}/>
+                        </Form.Item>
+                        <Space wrap align="start">
+                            <Form.Item label="Temperature" name="temperature">
+                                <InputNumber max={2} min={0} step={0.1}/>
                             </Form.Item>
-                            <Form.Item label="系统提示词" name="systemPrompt">
-                                <Input.TextArea rows={5}/>
+                            <Form.Item label="Top P" name="topP">
+                                <InputNumber max={1} min={0} step={0.05}/>
                             </Form.Item>
-                            <Row gutter={12}>
-                                <Col md={8} xs={12}>
-                                    <Form.Item label="Temperature" name="temperature">
-                                        <InputNumber max={2} min={0} step={0.1} style={{width: '100%'}}/>
-                                    </Form.Item>
-                                </Col>
-                                <Col md={8} xs={12}>
-                                    <Form.Item label="Top P" name="topP">
-                                        <InputNumber max={1} min={0} step={0.05} style={{width: '100%'}}/>
-                                    </Form.Item>
-                                </Col>
-                                <Col md={8} xs={12}>
-                                    <Form.Item label="Max Tokens" name="maxTokens">
-                                        <InputNumber min={1} style={{width: '100%'}}/>
-                                    </Form.Item>
-                                </Col>
-                                <Col md={8} xs={12}>
-                                    <Form.Item label="Top K" name="topK">
-                                        <InputNumber min={1} style={{width: '100%'}}/>
-                                    </Form.Item>
-                                </Col>
-                                <Col md={8} xs={12}>
-                                    <Form.Item label="Thinking Budget" name="thinkingBudget">
-                                        <InputNumber min={1} style={{width: '100%'}}/>
-                                    </Form.Item>
-                                </Col>
-                                <Col md={8} xs={12}>
-                                    <Form.Item label="Tool Timeout" name="toolExecutionTimeoutSeconds">
-                                        <InputNumber min={1} style={{width: '100%'}}/>
-                                    </Form.Item>
-                                </Col>
-                            </Row>
-                            <Space wrap>
-                                <Form.Item name="enableThinking" valuePropName="checked">
-                                    <Checkbox>思考</Checkbox>
-                                </Form.Item>
-                                <Form.Item name="enableSearch" valuePropName="checked">
-                                    <Checkbox>搜索</Checkbox>
-                                </Form.Item>
-                                <Form.Item name="multiModel" valuePropName="checked">
-                                    <Checkbox>Multi Model</Checkbox>
-                                </Form.Item>
-                                <Form.Item name="parallelToolExecution" valuePropName="checked">
-                                    <Checkbox>并行工具</Checkbox>
-                                </Form.Item>
-                            </Space>
-                            <Row gutter={12}>
-                                <Col md={12} xs={24}>
-                                    <Form.Item label="Max Parallel Tools" name="maxParallelTools">
-                                        <InputNumber min={1} style={{width: '100%'}}/>
-                                    </Form.Item>
-                                </Col>
-                                <Col md={12} xs={24}>
-                                    <Form.Item label="启用工具" name="enabledToolNames">
-                                        <Select mode="tags" options={defaultAgentToolNames.map((tool) => ({
-                                            label: tool,
-                                            value: tool
-                                        }))}/>
-                                    </Form.Item>
-                                </Col>
-                            </Row>
-                            <Space wrap>
-                                <Button icon={selectedPreset ? <EditOutlined/> : <SaveOutlined/>} loading={saving}
-                                        disabled={!canEditSelectedPreset} onClick={voidify(savePreset)} type="primary">
-                                    {selectedPreset ? '更新预设' : '创建预设'}
-                                </Button>
-                                <Popconfirm disabled={!selectedPresetId} title="删除这个预设？"
-                                            onConfirm={voidify(removePreset)}>
-                                    <Button danger disabled={!selectedPresetId || !canEditSelectedPreset}
-                                            icon={<DeleteOutlined/>} loading={saving}>
-                                        删除
-                                    </Button>
-                                </Popconfirm>
-                            </Space>
-                        </Form>
-                    </Card>
-                </Col>
-                <Col lg={14} xs={24}>
-                    <Card
-                        className="chat-card"
-                        extra={(
-                            <Space>
-                                <Tag color={isSending ? 'processing' : 'success'}>{isSending ? '响应中' : '就绪'}</Tag>
-                                <Tag>{sessionId || 'New Session'}</Tag>
-                            </Space>
-                        )}
-                        title="调试对话"
-                    >
-                        <MemorySessionControls
-                            entryType="AGENT_DEBUG"
-                            loading={sessionLoading}
-                            longTermExtractionEnabled={longTermExtractionEnabled}
-                            memoryEnabled={memoryEnabled}
-                            sessionId={sessionId || undefined}
-                            sessions={sessions}
-                            showExtractionSwitch
-                            onArchive={() => void archiveCurrentSession()}
-                            onCreate={() => void newConversation()}
-                            onExtractionChange={setLongTermExtractionEnabled}
-                            onMemoryChange={setMemoryEnabled}
-                            onReload={() => void loadSessions()}
-                            onSelect={setSessionId}
-                            onSelectSession={(session) => {
-                                setMemoryEnabled(session.memoryEnabled)
-                                setLongTermExtractionEnabled(session.longTermExtractionEnabled)
-                            }}
-                        />
-                        <div className="antd-message-list" aria-live="polite">
-                            {messages.map((item, index) => {
-                                const isLast = index === messages.length - 1
-                                const isStreaming = isLast && item.role === 'assistant' && isSending
-                                const hasContent = item.content.length > 0
-                                return (
-                                    <article className={`antd-message-row ${item.role}`} key={item.id}>
-                                        <Avatar
-                                            className="antd-message-avatar">{item.role === 'assistant' ? 'A' : '你'}</Avatar>
-                                        <div className="antd-message-bubble">
-                                            {item.thinkContent && (
-                                                <details className="think-block" open={isStreaming && !hasContent}>
-                                                    <summary className="think-summary">
-                                                        {isStreaming && !hasContent ? 'Thinking...' : '思考过程'}
-                                                    </summary>
-                                                    <div className="think-content">
-                                                        <ReactMarkdown
-                                                            remarkPlugins={markdownPlugins}>{item.thinkContent}</ReactMarkdown>
-                                                    </div>
-                                                </details>
-                                            )}
-                                            {hasContent ? (
-                                                <div className="message-content">
-                                                    <ReactMarkdown
-                                                        remarkPlugins={markdownPlugins}>{item.content}</ReactMarkdown>
-                                                </div>
-                                            ) : isStreaming ? (
-                                                <Typography.Text type="secondary">正在生成...</Typography.Text>
-                                            ) : null}
-                                        </div>
-                                    </article>
-                                )
-                            })}
-                        </div>
-                        {error && <Typography.Text type="danger">{error}</Typography.Text>}
-                        <form className="antd-composer" onSubmit={(event) => void submitMessage(event)}>
-                            <Input.TextArea
-                                onChange={(event) => setInput(event.target.value)}
-                                onKeyDown={(event) => {
-                                    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-                                        event.preventDefault()
-                                        event.currentTarget.form?.requestSubmit()
-                                    }
-                                }}
-                                placeholder="输入调试消息..."
-                                rows={3}
-                                value={input}
-                            />
-                            <div className="composer-actions">
-                                <Space>
-                                    <Button icon={<ReloadOutlined/>} onClick={() => void newConversation()}>新会话</Button>
-                                    {isSending ? (
-                                        <Button icon={<StopOutlined/>}
-                                                onClick={() => abortControllerRef.current?.abort()}
-                                                type="primary">停止</Button>
-                                    ) : (
-                                        <Button disabled={!canSend} htmlType="submit" icon={<SendOutlined/>}
-                                                type="primary">发送</Button>
-                                    )}
-                                </Space>
-                            </div>
-                        </form>
-                    </Card>
-                </Col>
-            </Row>
-        </>
+                            <Form.Item label="Max Tokens" name="maxTokens">
+                                <InputNumber min={1}/>
+                            </Form.Item>
+                            <Form.Item label="Top K" name="topK">
+                                <InputNumber min={1}/>
+                            </Form.Item>
+                            <Form.Item label="Thinking Budget" name="thinkingBudget">
+                                <InputNumber min={1}/>
+                            </Form.Item>
+                            <Form.Item label="Tool Timeout" name="toolExecutionTimeoutSeconds">
+                                <InputNumber min={1}/>
+                            </Form.Item>
+                        </Space>
+                        <Space wrap>
+                            <Form.Item name="enableThinking" valuePropName="checked">
+                                <Checkbox>思考</Checkbox>
+                            </Form.Item>
+                            <Form.Item name="enableSearch" valuePropName="checked">
+                                <Checkbox>搜索</Checkbox>
+                            </Form.Item>
+                            <Form.Item name="multiModel" valuePropName="checked">
+                                <Checkbox>Multi Model</Checkbox>
+                            </Form.Item>
+                            <Form.Item name="parallelToolExecution" valuePropName="checked">
+                                <Checkbox>并行工具</Checkbox>
+                            </Form.Item>
+                        </Space>
+                        <Space wrap align="start">
+                            <Form.Item label="Max Parallel Tools" name="maxParallelTools">
+                                <InputNumber min={1}/>
+                            </Form.Item>
+                            <Form.Item label="启用工具" name="enabledToolNames">
+                                <Select
+                                    mode="tags"
+                                    options={defaultAgentToolNames.map((tool) => ({
+                                        label: tool,
+                                        value: tool,
+                                    }))}
+                                    style={{minWidth: 260}}
+                                />
+                            </Form.Item>
+                        </Space>
+                    </Form>
+                </ChatSettingsModal>
+            )}
+            sidebarLoading={sessionLoading}
+            subtitle={subtitle}
+            title="Agent 调试"
+            onArchiveConversation={(conversationKey) => void archiveCurrentSession(conversationKey)}
+            onConversationChange={handleConversationChange}
+            onCopyMessage={(message) => void handleCopyMessage(message)}
+            onInputChange={setInput}
+            onNewConversation={() => void newConversation()}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onReloadConversations={() => void loadSessions()}
+            onReloadMessage={handleReloadMessage}
+            onSend={handleSend}
+            onStop={abort}
+        />
     )
 }
 
 function defaultFormValues(): DebugFormValues {
     return {
+        presetId: undefined,
         name: '',
+        description: undefined,
         enabled: true,
+        systemPrompt: undefined,
         temperature: 0.7,
+        maxTokens: undefined,
         topP: 0.9,
+        topK: undefined,
         enableThinking: true,
+        thinkingBudget: undefined,
         enableSearch: false,
         multiModel: false,
+        enabledToolNames: defaultAgentToolNames,
         parallelToolExecution: false,
         maxParallelTools: 5,
         toolExecutionTimeoutSeconds: 300,
-        enabledToolNames: defaultAgentToolNames,
     }
 }
 
