@@ -26,6 +26,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 class ClocktowerActionServiceTests {
@@ -62,6 +63,7 @@ class ClocktowerActionServiceTests {
                 principal(2L, "mario"));
 
         verify(context.roomRepository()).findLockedByIdAndDeletedFalse(room.roomId());
+        verify(context.roomRepository(), never()).findByIdAndDeletedFalse(room.roomId());
     }
 
     @Test
