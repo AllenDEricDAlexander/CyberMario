@@ -2,11 +2,15 @@ package top.egon.mario.clocktower.board;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardGenerateRequest;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardSaveRequest;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardValidateRequest;
 import top.egon.mario.clocktower.board.dto.response.BoardValidationResponse;
+import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardCandidateResponse;
 import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardConfigResponse;
+import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardGenerateResponse;
 import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardValidationResponse;
+import top.egon.mario.clocktower.board.dto.response.ClocktowerScoreResponse;
 import top.egon.mario.clocktower.board.po.ClocktowerBoardConfigPo;
 import top.egon.mario.clocktower.board.repository.ClocktowerBoardConfigRepository;
 import top.egon.mario.clocktower.board.repository.ClocktowerBoardRoleRepository;
@@ -57,6 +61,90 @@ class ClocktowerBoardServiceTests {
         assertThat(response.typeCounts().townsfolk()).isEqualTo(3);
         assertThat(response.typeCounts().minion()).isEqualTo(1);
         assertThat(response.typeCounts().demon()).isEqualTo(1);
+    }
+
+    @Test
+    void generateTenPlayerTroubleBrewingUsesOneRolePerPlayerAndOfficialShape() {
+        ClocktowerBoardGenerateResponse response = boardService.generate(new ClocktowerBoardGenerateRequest(
+                ClocktowerScriptCode.TROUBLE_BREWING,
+                10,
+                2,
+                2,
+                2,
+                true,
+                1,
+                List.of(),
+                List.of(),
+                "seed-10"
+        ), principal(1L));
+
+        ClocktowerBoardCandidateResponse candidate = response.candidates().getFirst();
+
+        assertThat(candidate.roleCodes()).hasSize(10);
+        assertThat(candidate.validation().valid()).isTrue();
+        assertThat(candidate.validation().roleTypeCounts())
+                .containsEntry("TOWNSFOLK", 7)
+                .containsEntry("OUTSIDER", 0)
+                .containsEntry("MINION", 2)
+                .containsEntry("DEMON", 1);
+    }
+
+    @Test
+    void generateUsesPreferenceParametersWhenOrderingCandidates() {
+        ClocktowerBoardGenerateRequest easyRequest = new ClocktowerBoardGenerateRequest(
+                ClocktowerScriptCode.TROUBLE_BREWING,
+                10,
+                1,
+                1,
+                1,
+                true,
+                1,
+                List.of(),
+                List.of(),
+                "same-seed"
+        );
+        ClocktowerBoardGenerateRequest hardRequest = new ClocktowerBoardGenerateRequest(
+                ClocktowerScriptCode.TROUBLE_BREWING,
+                10,
+                5,
+                5,
+                5,
+                false,
+                1,
+                List.of(),
+                List.of(),
+                "same-seed"
+        );
+
+        ClocktowerBoardCandidateResponse easy = boardService.generate(easyRequest, principal(1L))
+                .candidates().getFirst();
+        ClocktowerBoardCandidateResponse hard = boardService.generate(hardRequest, principal(1L))
+                .candidates().getFirst();
+
+        assertThat(hard.roleCodes()).isNotEqualTo(easy.roleCodes());
+        assertThat(hard.scores()).extracting(ClocktowerScoreResponse::scoreType)
+                .contains("difficulty", "chaos", "evilPressure");
+    }
+
+    @Test
+    void generateReturnsDistinctCandidatesWhenAlternativesAreAvailable() {
+        ClocktowerBoardGenerateResponse response = boardService.generate(new ClocktowerBoardGenerateRequest(
+                ClocktowerScriptCode.TROUBLE_BREWING,
+                10,
+                2,
+                2,
+                2,
+                true,
+                3,
+                List.of(),
+                List.of(),
+                "same-seed"
+        ), principal(1L));
+
+        assertThat(response.candidates()).hasSize(3);
+        assertThat(response.candidates().stream()
+                .map(candidate -> Set.copyOf(candidate.roleCodes()))
+                .toList()).doesNotHaveDuplicates();
     }
 
     @Test
