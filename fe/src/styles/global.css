@@ -276,8 +276,12 @@ textarea {
 
 .auth-alert {
     margin-bottom: 18px;
-    border-color: rgba(222, 73, 108, 0.42);
-    background: rgba(222, 73, 108, 0.12);
+    color: #ffeef4 !important;
+    border-color: rgba(255, 107, 148, 0.72) !important;
+    background: rgba(70, 21, 36, 0.92) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    line-height: 1.55;
+    word-break: break-word;
 }
 
 .auth-switch {
@@ -290,9 +294,14 @@ textarea {
     font-weight: 700;
 }
 
-.auth-card .ant-alert-message,
-.auth-card .ant-alert-description {
-    color: var(--text-inverse);
+.auth-alert .ant-alert-message,
+.auth-alert .ant-alert-description,
+.auth-alert .ant-alert-content {
+    color: #ffeef4 !important;
+}
+
+.auth-alert .ant-alert-icon {
+    color: #ff6b94 !important;
 }
 
 .visual-backdrop {

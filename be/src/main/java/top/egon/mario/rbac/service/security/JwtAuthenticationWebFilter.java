@@ -29,7 +29,6 @@ import top.egon.mario.rbac.service.RbacException;
 @Slf4j
 public class JwtAuthenticationWebFilter implements WebFilter {
 
-    private static final String AUTH_TOKEN_EXPIRED = "AUTH_TOKEN_EXPIRED";
     public static final String PERMISSION_VERSION_HEADER = "X-Rbac-Permission-Version";
     private final RbacAuthApplication authApplication;
     private final ObjectMapper objectMapper;
@@ -54,12 +53,7 @@ public class JwtAuthenticationWebFilter implements WebFilter {
                     .doOnError(error -> TraceContext.withMdc(traceId,
                             () -> LogUtil.warn(log).log("bearer token authentication failed, path={}",
                                     exchange.getRequest().getPath().value())))
-                    .onErrorResume(RbacException.class, error -> {
-                        if (!AUTH_TOKEN_EXPIRED.equals(error.getCode())) {
-                            return Mono.error(error);
-                        }
-                        return writeExpiredAccessTokenResponse(exchange, traceId, error);
-                    });
+                    .onErrorResume(RbacException.class, error -> writeRejectedAccessTokenResponse(exchange, traceId, error));
         });
     }
 
@@ -78,10 +72,11 @@ public class JwtAuthenticationWebFilter implements WebFilter {
         }
     }
 
-    private Mono<Void> writeExpiredAccessTokenResponse(ServerWebExchange exchange, String traceId, RbacException error) {
+    private Mono<Void> writeRejectedAccessTokenResponse(ServerWebExchange exchange, String traceId, RbacException error) {
         try {
-            byte[] body = objectMapper.writeValueAsBytes(ApiResponse.fail(error.getCode(), error.getMessage(), traceId));
+            byte[] body = objectMapper.writeValueAsBytes(ApiResponse.fail(error.getCode(), error.getDetailMessage(), traceId));
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+            exchange.getResponse().getHeaders().remove(HttpHeaders.WWW_AUTHENTICATE);
             exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
             return exchange.getResponse().writeWith(Mono.just(exchange.getResponse().bufferFactory().wrap(body)));
         } catch (JsonProcessingException ex) {

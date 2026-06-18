@@ -79,7 +79,7 @@ class JwtAuthenticationWebFilterTests {
     }
 
     @Test
-    void keepsNonExpiredBearerTokenFailuresOutOfUnauthorizedRefreshSignal() {
+    void writesUnauthorizedResponseForInvalidBearerTokenWithoutBasicChallenge() {
         given(authApplication.authenticateAccessToken("invalid-access"))
                 .willThrow(new RbacException("AUTH_TOKEN_INVALID", "access token is inactive"));
         MockServerWebExchange exchange = bearerExchange("invalid-access");
@@ -90,13 +90,15 @@ class JwtAuthenticationWebFilterTests {
                             return Mono.empty();
                         })
                         .contextWrite(context -> context.put(TraceContext.CONTEXT_KEY, "trace-1")))
-                .expectErrorSatisfies(error -> assertThat(error)
-                        .isInstanceOf(RbacException.class)
-                        .hasMessageContaining("AUTH_TOKEN_INVALID"))
-                .verify();
+                .verifyComplete();
 
         assertThat(chainCalled).isFalse();
-        assertThat(exchange.getResponse().getStatusCode()).isNotEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(exchange.getResponse().getHeaders()).doesNotContainKey(HttpHeaders.WWW_AUTHENTICATE);
+        assertThat(exchange.getResponse().getBodyAsString().block())
+                .contains("\"code\":\"AUTH_TOKEN_INVALID\"")
+                .contains("\"message\":\"access token is inactive\"")
+                .contains("\"traceId\":\"trace-1\"");
     }
 
     private MockServerWebExchange bearerExchange(String token) {

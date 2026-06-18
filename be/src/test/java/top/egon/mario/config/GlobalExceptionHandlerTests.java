@@ -26,6 +26,7 @@ class GlobalExceptionHandlerTests {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().code()).isEqualTo("AUTH_TOKEN_EXPIRED");
+        assertThat(response.getBody().message()).isEqualTo("token expired");
     }
 
     @Test

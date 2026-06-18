@@ -20,4 +20,13 @@ describe('admin layout styles', () => {
         expect(cssRule('.admin-content')).toContain('height: calc(100svh - 60px)')
         expect(cssRule('.admin-content')).toContain('overflow-y: auto')
     })
+
+    test('keeps auth error alert readable on the dark glass panel', () => {
+        expect(cssRule('.auth-alert')).toContain('background: rgba(70, 21, 36, 0.92)')
+        expect(cssRule('.auth-alert')).toContain('color: #ffeef4 !important')
+        expect(css).toContain('.auth-alert .ant-alert-message,')
+        expect(css).toContain('color: #ffeef4 !important')
+        expect(css).toContain('.auth-alert .ant-alert-icon')
+        expect(css).toContain('color: #ff6b94 !important')
+    })
 })

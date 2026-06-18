@@ -74,7 +74,7 @@ public class GlobalExceptionHandler {
             String traceId = TraceContext.traceId(contextView);
             return Mono.just(TraceContext.withMdc(traceId, () -> {
                 LogUtil.warn(log).log("rbac request rejected, code={}", ex.getCode());
-                return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getCode(), ex.getMessage(), traceId));
+                return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getCode(), ex.getDetailMessage(), traceId));
             }));
         });
     }
