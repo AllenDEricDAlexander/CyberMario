@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
-import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.clocktower.common.web.ClocktowerReactiveSupport;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomCreateRequest;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomJoinRequest;
@@ -22,6 +21,7 @@ import top.egon.mario.clocktower.room.dto.response.ClocktowerRoomResponse;
 import top.egon.mario.clocktower.room.dto.response.ClocktowerSeatResponse;
 import top.egon.mario.clocktower.room.dto.response.ClocktowerStartGameResponse;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomService;
+import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.util.List;
@@ -46,8 +46,9 @@ public class ClocktowerRoomController extends ClocktowerReactiveSupport {
     }
 
     @GetMapping("/{roomId}")
-    public Mono<ApiResponse<ClocktowerRoomResponse>> get(@PathVariable Long roomId) {
-        return blocking(() -> roomService.get(roomId));
+    public Mono<ApiResponse<ClocktowerRoomResponse>> get(@PathVariable Long roomId,
+                                                         @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> roomService.get(roomId, principal));
     }
 
     @PostMapping("/{roomId}/start")

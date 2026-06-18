@@ -1,19 +1,41 @@
 import {EditOutlined, LoginOutlined, LogoutOutlined, PlayCircleOutlined, ReloadOutlined} from '@ant-design/icons'
-import {App, Button, Card, Col, Empty, Form, Input, InputNumber, List, Modal, Row, Space, Tag, Typography} from 'antd'
-import {useEffect, useMemo, useState} from 'react'
+import {
+    App,
+    Button,
+    Card,
+    Col,
+    Empty,
+    Form,
+    Input,
+    InputNumber,
+    List,
+    Modal,
+    Row,
+    Select,
+    Space,
+    Tag,
+    Typography
+} from 'antd'
+import {useCallback, useEffect, useMemo, useState} from 'react'
 import {useNavigate, useParams} from 'react-router'
 import {PageToolbar} from '../../components/PageToolbar'
 import {resolveErrorMessage} from '../../services/request'
 import {voidify} from '../../utils/async'
 import {hasAdminPermissionBypass, useAuth} from '../auth/authStore'
 import {
+    getClocktowerRoles,
     getClocktowerRoom,
     joinClocktowerRoom,
     leaveClocktowerRoom,
     startClocktowerGame,
     updateClocktowerSeat,
 } from './clocktowerService'
-import type {ClocktowerRoomResponse, ClocktowerSeatResponse, ClocktowerUpdateSeatRequest} from './clocktowerTypes'
+import type {
+    ClocktowerRoleResponse,
+    ClocktowerRoomResponse,
+    ClocktowerSeatResponse,
+    ClocktowerUpdateSeatRequest
+} from './clocktowerTypes'
 import {RoleTypeTag} from './components/RoleTypeTag'
 
 type JoinFormValues = {
@@ -32,6 +54,7 @@ function RoomLobbyPage() {
     const [form] = Form.useForm<JoinFormValues>()
     const [seatForm] = Form.useForm<SeatFormValues>()
     const [room, setRoom] = useState<ClocktowerRoomResponse | null>(null)
+    const [roles, setRoles] = useState<ClocktowerRoleResponse[]>([])
     const [selectedSeat, setSelectedSeat] = useState<ClocktowerSeatResponse | null>(null)
     const [seatEditorOpen, setSeatEditorOpen] = useState(false)
     const [loading, setLoading] = useState(false)
@@ -39,25 +62,42 @@ function RoomLobbyPage() {
     const [starting, setStarting] = useState(false)
     const [updatingSeat, setUpdatingSeat] = useState(false)
     const [leaving, setLeaving] = useState(false)
+    const [roleLoading, setRoleLoading] = useState(false)
     const numericRoomId = Number(roomId)
+    const canManageRoom = auth.roleCodes.includes('CLOCKTOWER_STORYTELLER') || hasAdminPermissionBypass(auth)
 
-    useEffect(() => {
-        void loadRoom()
-    }, [roomId])
+    const loadRoles = useCallback(async (scriptCode: ClocktowerRoomResponse['scriptCode']) => {
+        setRoleLoading(true)
+        try {
+            setRoles(await getClocktowerRoles(scriptCode, {enabled: true}))
+        } catch (caught) {
+            message.error(resolveErrorMessage(caught))
+        } finally {
+            setRoleLoading(false)
+        }
+    }, [message])
 
-    async function loadRoom() {
+    const loadRoom = useCallback(async () => {
         if (!Number.isFinite(numericRoomId)) {
             return
         }
         setLoading(true)
         try {
-            setRoom(await getClocktowerRoom(numericRoomId))
+            const nextRoom = await getClocktowerRoom(numericRoomId)
+            setRoom(nextRoom)
+            if (canManageRoom) {
+                await loadRoles(nextRoom.scriptCode)
+            }
         } catch (caught) {
             message.error(resolveErrorMessage(caught))
         } finally {
             setLoading(false)
         }
-    }
+    }, [canManageRoom, loadRoles, message, numericRoomId])
+
+    useEffect(() => {
+        void loadRoom()
+    }, [loadRoom])
 
     async function joinSeat() {
         if (!Number.isFinite(numericRoomId)) {
@@ -94,7 +134,11 @@ function RoomLobbyPage() {
 
     function openSeatEditor(seat: ClocktowerSeatResponse) {
         setSelectedSeat(seat)
-        seatForm.setFieldsValue({displayName: seat.displayName, seatNo: seat.seatNo})
+        seatForm.setFieldsValue({
+            displayName: seat.displayName,
+            seatNo: seat.seatNo,
+            roleCode: seat.roleCode ?? undefined
+        })
         setSeatEditorOpen(true)
     }
 
@@ -111,7 +155,7 @@ function RoomLobbyPage() {
         const values = await seatForm.validateFields()
         setUpdatingSeat(true)
         try {
-            await updateClocktowerSeat(numericRoomId, selectedSeat.seatId, values)
+            await updateClocktowerSeat(numericRoomId, selectedSeat.seatId, {...values, roleCode: values.roleCode ?? ''})
             message.success('座位已更新')
             closeSeatEditor()
             await loadRoom()
@@ -133,7 +177,7 @@ function RoomLobbyPage() {
         try {
             await startClocktowerGame(numericRoomId, {assignments, randomize: false})
             message.success('游戏已开始')
-            navigate(`/clocktower/rooms/${numericRoomId}/grimoire`)
+            void navigate(`/clocktower/rooms/${numericRoomId}/grimoire`)
         } catch (caught) {
             message.error(resolveErrorMessage(caught))
         } finally {
@@ -144,7 +188,6 @@ function RoomLobbyPage() {
     const filledCount = useMemo(() => room?.seats.filter((seat) => seat.userId).length ?? 0, [room])
     const seatsFilled = room?.seats.every((seat) => seat.userId) ?? false
     const rolesAssigned = room?.seats.every((seat) => seat.roleCode) ?? false
-    const canManageRoom = auth.roleCodes.includes('CLOCKTOWER_STORYTELLER') || hasAdminPermissionBypass(auth)
     const canStart = (room?.status === 'LOBBY' || room?.status === 'SETUP') && seatsFilled && rolesAssigned
 
     return (
@@ -197,7 +240,8 @@ function RoomLobbyPage() {
                             <Form.Item label="座位号" name="seatNo">
                                 <InputNumber min={1} max={room?.playerCount ?? 15} style={{width: '100%'}}/>
                             </Form.Item>
-                            <Form.Item label="显示名称" name="displayName" rules={[{required: true, message: '请输入显示名称'}]}>
+                            <Form.Item label="显示名称" name="displayName"
+                                       rules={[{required: true, message: '请输入显示名称'}]}>
                                 <Input/>
                             </Form.Item>
                             <Form.Item label="邀请码" name="inviteCode">
@@ -216,7 +260,8 @@ function RoomLobbyPage() {
                     </Card>
                     <Card style={{marginTop: 16}} title="房间状态">
                         <Space orientation="vertical">
-                            <Tag color={room?.status === 'RUNNING' ? 'processing' : 'default'}>{room?.status ?? '-'}</Tag>
+                            <Tag
+                                color={room?.status === 'RUNNING' ? 'processing' : 'default'}>{room?.status ?? '-'}</Tag>
                             <Tag color="blue">{room?.phase ?? '-'}</Tag>
                             <Typography.Text type="secondary">说书人：{room?.storytellerUserId ?? '-'}</Typography.Text>
                             <Typography.Text type="secondary">
@@ -234,16 +279,44 @@ function RoomLobbyPage() {
                 title="调整座位"
             >
                 <Form form={seatForm} layout="vertical">
-                    <Form.Item label="显示名称" name="displayName" rules={[{required: true, message: '请输入显示名称'}]}>
-                        <Input/>
-                    </Form.Item>
-                    <Form.Item label="座位号" name="seatNo">
-                        <InputNumber min={1} max={room?.playerCount ?? 15} style={{width: '100%'}}/>
-                    </Form.Item>
+                    <SeatEditorFields roleLoading={roleLoading} roles={roles} maxSeatNo={room?.playerCount ?? 15}/>
                 </Form>
             </Modal>
         </>
     )
+}
+
+export function SeatEditorFields({roleLoading, roles, maxSeatNo = 15}: {
+    roleLoading: boolean
+    roles: ClocktowerRoleResponse[]
+    maxSeatNo?: number
+}) {
+    return (
+        <>
+            <Form.Item label="显示名称" name="displayName" rules={[{required: true, message: '请输入显示名称'}]}>
+                <Input/>
+            </Form.Item>
+            <Form.Item label="座位号" name="seatNo">
+                <InputNumber min={1} max={maxSeatNo} style={{width: '100%'}}/>
+            </Form.Item>
+            <Form.Item label="角色" name="roleCode">
+                <Select
+                    allowClear
+                    loading={roleLoading}
+                    options={roleSelectOptions(roles)}
+                    placeholder="选择角色"
+                    showSearch={{optionFilterProp: 'label'}}
+                />
+            </Form.Item>
+        </>
+    )
+}
+
+export function roleSelectOptions(roles: ClocktowerRoleResponse[]) {
+    return roles.map((role) => ({
+        label: `${role.roleName} (${role.roleCode})`,
+        value: role.roleCode,
+    }))
 }
 
 export function SeatList({canEdit = false, seats, onEdit}: {

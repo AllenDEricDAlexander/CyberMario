@@ -1,6 +1,7 @@
 import {renderToStaticMarkup} from 'react-dom/server'
+import {Form} from 'antd'
 import {beforeEach, describe, expect, test, vi} from 'vitest'
-import {Component as RoomLobbyPage, SeatList} from './RoomLobbyPage'
+import {Component as RoomLobbyPage, roleSelectOptions, SeatEditorFields, SeatList} from './RoomLobbyPage'
 
 type MockAuthState = {
     roleCodes: string[]
@@ -37,6 +38,7 @@ vi.mock('./clocktowerService', () => ({
         playerCount: 5,
         seats: [],
     }),
+    getClocktowerRoles: vi.fn().mockResolvedValue([]),
     joinClocktowerRoom: vi.fn(),
     leaveClocktowerRoom: vi.fn(),
     startClocktowerGame: vi.fn(),
@@ -107,5 +109,42 @@ describe('RoomLobbyPage', () => {
         )
 
         expect(markup).toContain('调整座位')
+    })
+
+    test('renders role assignment field in the seat editor', () => {
+        const markup = renderToStaticMarkup(
+            <Form layout="vertical">
+                <SeatEditorFields
+                    roleLoading={false}
+                    roles={[{
+                        scriptCode: 'TROUBLE_BREWING',
+                        roleCode: 'EMPATH',
+                        roleName: '共情者',
+                        name: '共情者',
+                        roleType: {code: 1, desc: '镇民'},
+                        alignment: {code: 1, desc: '善良'},
+                        abilityText: '每晚得知邻近存活玩家中有几名邪恶玩家。',
+                        enabled: true,
+                    }]}
+                />
+            </Form>,
+        )
+
+        expect(markup).toContain('角色')
+    })
+
+    test('maps script roles to role select options', () => {
+        const options = roleSelectOptions([{
+            scriptCode: 'TROUBLE_BREWING',
+            roleCode: 'EMPATH',
+            roleName: '共情者',
+            name: '共情者',
+            roleType: {code: 1, desc: '镇民'},
+            alignment: {code: 1, desc: '善良'},
+            abilityText: '每晚得知邻近存活玩家中有几名邪恶玩家。',
+            enabled: true,
+        }])
+
+        expect(options).toContainEqual({label: '共情者 (EMPATH)', value: 'EMPATH'})
     })
 })

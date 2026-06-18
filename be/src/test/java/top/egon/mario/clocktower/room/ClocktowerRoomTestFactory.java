@@ -128,6 +128,8 @@ public final class ClocktowerRoomTestFactory {
             Collection<String> roleCodes = invocation.getArgument(0);
             return roleCodes.stream().map(ClocktowerRoomTestFactory::role).toList();
         });
+        when(roleRepository.findByRoleCodeAndDeletedFalse(any())).thenAnswer(invocation ->
+                java.util.Optional.of(role(invocation.getArgument(0))));
         when(nightOrderRepository.findByScriptCodeAndNightTypeAndRoleCodeInAndDeletedFalseOrderBySortOrderAsc(
                 any(), any(), any())).thenAnswer(invocation -> {
             ClocktowerNightType nightType = invocation.getArgument(1);

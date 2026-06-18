@@ -217,6 +217,7 @@ export type ClocktowerJoinRoomRequest = ClocktowerRoomJoinRequest
 export type ClocktowerUpdateSeatRequest = {
     displayName?: string | null
     seatNo?: number | null
+    roleCode?: string | null
 }
 
 export type ClocktowerRoomStartRequest = {

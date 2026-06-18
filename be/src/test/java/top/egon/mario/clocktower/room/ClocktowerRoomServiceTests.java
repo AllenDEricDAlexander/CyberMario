@@ -11,6 +11,7 @@ import top.egon.mario.clocktower.board.dto.response.ClocktowerRoleTypeCountRespo
 import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
 import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
+import top.egon.mario.clocktower.common.enums.ClocktowerRoleType;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoomStatus;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomCreateRequest;
@@ -109,9 +110,27 @@ class ClocktowerRoomServiceTests {
         ClocktowerRoomResponse room = roomService.create(createFivePlayerRequest(), principal(1L, "mario"));
 
         assertThatThrownBy(() -> roomService.updateSeat(room.roomId(), room.seats().getFirst().seatId(),
-                new ClocktowerUpdateSeatRequest("Moved", 5), principal(2L, "luigi")))
+                new ClocktowerUpdateSeatRequest("Moved", 5, null), principal(2L, "luigi")))
                 .isInstanceOf(ClocktowerException.class)
                 .hasMessageContaining("CLOCKTOWER_STORYTELLER_FORBIDDEN");
+    }
+
+    @Test
+    void storytellerCanAssignLobbySeatRoleAndSeeIt() {
+        RbacPrincipal storyteller = principal(1L, "mario");
+        ClocktowerRoomResponse room = roomService.create(createFivePlayerRequest(), storyteller);
+
+        ClocktowerRoomResponse updated = roomService.updateSeat(room.roomId(), room.seats().getFirst().seatId(),
+                new ClocktowerUpdateSeatRequest("Seat 1", 1, "EMPATH"), storyteller);
+
+        assertThat(updated.seats().getFirst().roleCode()).isEqualTo("EMPATH");
+        assertThat(updated.seats().getFirst().roleType()).isEqualTo(ClocktowerRoleType.TOWNSFOLK);
+        ClocktowerRoomResponse storytellerRoom = roomService.get(room.roomId(), storyteller);
+        assertThat(storytellerRoom.seats().getFirst().roleCode()).isEqualTo("EMPATH");
+
+        ClocktowerRoomResponse publicRoom = roomService.get(room.roomId());
+        assertThat(publicRoom.seats().getFirst().roleCode()).isNull();
+        assertThat(publicRoom.seats().getFirst().roleType()).isNull();
     }
 
     private ClocktowerRoomResponse joinedFivePlayerRoom() {

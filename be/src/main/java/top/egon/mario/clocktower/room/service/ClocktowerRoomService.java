@@ -19,6 +19,8 @@ public interface ClocktowerRoomService {
 
     ClocktowerRoomResponse get(Long roomId);
 
+    ClocktowerRoomResponse get(Long roomId, RbacPrincipal principal);
+
     ClocktowerStartGameResponse start(Long roomId, ClocktowerRoomStartRequest request, RbacPrincipal principal);
 
     ClocktowerSeatResponse join(Long roomId, ClocktowerRoomJoinRequest request, RbacPrincipal principal);

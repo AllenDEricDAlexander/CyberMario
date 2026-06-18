@@ -104,6 +104,11 @@ public class ClocktowerRoomServiceImpl implements ClocktowerRoomService {
     }
 
     @Override
+    public ClocktowerRoomResponse get(Long roomId, RbacPrincipal principal) {
+        return toResponse(room(roomId), principal);
+    }
+
+    @Override
     @Transactional
     public ClocktowerStartGameResponse start(Long roomId, ClocktowerRoomStartRequest request, RbacPrincipal principal) {
         ClocktowerRoomPo room = room(roomId);
@@ -205,9 +210,12 @@ public class ClocktowerRoomServiceImpl implements ClocktowerRoomService {
         if (request.seatNo() != null) {
             seat.setSeatNo(request.seatNo());
         }
+        if (request.roleCode() != null) {
+            updateSeatRole(room, seat, request.roleCode());
+        }
         seatRepository.save(seat);
         appendRoomEvent(room, ClocktowerEventType.SEAT_UPDATED, principal, Map.of("seatId", seatId));
-        return toResponse(room);
+        return toResponse(room, principal);
     }
 
     private ClocktowerRoomPo room(Long roomId) {
@@ -223,12 +231,36 @@ public class ClocktowerRoomServiceImpl implements ClocktowerRoomService {
     }
 
     private ClocktowerRoomResponse toResponse(ClocktowerRoomPo room) {
+        return toResponse(room, null);
+    }
+
+    private ClocktowerRoomResponse toResponse(ClocktowerRoomPo room, RbacPrincipal principal) {
+        boolean revealRoles = ClocktowerAccess.isStoryteller(room, principal);
         List<ClocktowerSeatResponse> seats = seatRepository.findByRoomIdAndDeletedFalseOrderBySeatNoAsc(room.getId())
                 .stream()
                 .sorted(Comparator.comparingInt(ClocktowerSeatPo::getSeatNo))
-                .map(ClocktowerSeatResponse::publicView)
+                .map(seat -> revealRoles ? ClocktowerSeatResponse.from(seat) : ClocktowerSeatResponse.publicView(seat))
                 .toList();
         return ClocktowerRoomResponse.from(room, seats);
+    }
+
+    private void updateSeatRole(ClocktowerRoomPo room, ClocktowerSeatPo seat, String roleCode) {
+        if (room.getStatus() == ClocktowerRoomStatus.RUNNING || room.getStatus() == ClocktowerRoomStatus.ENDED
+                || room.getStatus() == ClocktowerRoomStatus.ARCHIVED) {
+            throw new ClocktowerException("CLOCKTOWER_ROOM_ALREADY_STARTED");
+        }
+        if (!StringUtils.hasText(roleCode)) {
+            seat.setRoleCode(null);
+            seat.setRoleType(null);
+            seat.setAlignment(null);
+            return;
+        }
+        ClocktowerRolePo role = roleRepository.findByRoleCodeAndDeletedFalse(roleCode)
+                .filter(candidate -> candidate.getScriptCode() == room.getScriptCode())
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ASSIGNMENT_INVALID"));
+        seat.setRoleCode(role.getRoleCode());
+        seat.setRoleType(role.getRoleType());
+        seat.setAlignment(role.getAlignment());
     }
 
     private String nextRoomCode() {
