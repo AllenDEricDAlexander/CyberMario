@@ -1,5 +1,6 @@
 import {describe, expect, it, vi} from 'vitest'
 import {
+    createClocktowerRuling,
     generateClocktowerBoard,
     getClocktowerGroupedNightOrder,
     getClocktowerJinxRules,
@@ -7,9 +8,11 @@ import {
     getClocktowerScripts,
     getClocktowerTerms,
     joinClocktowerRoom,
+    listClocktowerRulings,
     saveClocktowerBoard,
     streamClocktowerEvents,
     submitClocktowerStorytellerAction,
+    undoClocktowerRuling,
 } from './clocktowerService'
 
 vi.mock('../../services/request', () => ({
@@ -120,6 +123,39 @@ describe('clocktowerService', () => {
         await getClocktowerReplayVotes(7)
 
         expect(requestJson).toHaveBeenCalledWith('/api/clocktower/replays/7/votes')
+    })
+
+    it('creates room rulings through the ruling endpoint', async () => {
+        const {requestJson} = await import('../../services/request')
+        const request = {
+            rulingType: 'MARK_DEAD' as const,
+            targetSeatId: 3,
+            reason: 'NIGHT_DEATH' as const,
+            note: '夜晚死亡',
+            publicNote: '一名玩家死亡',
+            visibility: 'PUBLIC' as const,
+            force: false,
+        }
+
+        await createClocktowerRuling(7, request)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/rulings', {
+            method: 'POST',
+            body: request,
+        })
+    })
+
+    it('loads and undoes room rulings', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await listClocktowerRulings(7)
+        await undoClocktowerRuling(7, 9, {note: '误操作撤销', force: true})
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/rulings')
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/rulings/9/undo', {
+            method: 'POST',
+            body: {note: '误操作撤销', force: true},
+        })
     })
 
     it('streams room events with query parameters', async () => {

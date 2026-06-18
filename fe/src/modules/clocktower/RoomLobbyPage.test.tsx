@@ -79,6 +79,7 @@ describe('RoomLobbyPage', () => {
                     roleCode: 'washerwoman',
                     roleType: 'TOWNSFOLK',
                     lifeStatus: 'ALIVE',
+                    publicLifeStatus: 'ALIVE',
                     connected: true,
                     hasDeadVote: true,
                 }]}
@@ -101,6 +102,7 @@ describe('RoomLobbyPage', () => {
                     roleCode: 'washerwoman',
                     roleType: 'TOWNSFOLK',
                     lifeStatus: 'ALIVE',
+                    publicLifeStatus: 'ALIVE',
                     connected: true,
                     hasDeadVote: true,
                 }]}

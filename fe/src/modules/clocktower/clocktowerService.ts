@@ -23,6 +23,10 @@ import type {
     ClocktowerRoomJoinRequest,
     ClocktowerRoomResponse,
     ClocktowerRoomStartRequest,
+    ClocktowerRulingApplyResponse,
+    ClocktowerRulingCreateRequest,
+    ClocktowerRulingResponse,
+    ClocktowerRulingUndoRequest,
     ClocktowerScriptCode,
     ClocktowerScriptResponse,
     ClocktowerSeatResponse,
@@ -144,6 +148,24 @@ export function getClocktowerGrimoire(roomId: number) {
 
 export function getClocktowerNightChecklist(roomId: number) {
     return requestJson<ClocktowerNightChecklistResponse>(`/api/clocktower/rooms/${roomId}/night-checklist`)
+}
+
+export function createClocktowerRuling(roomId: number, request: ClocktowerRulingCreateRequest) {
+    return requestJson<ClocktowerRulingApplyResponse>(`/api/clocktower/rooms/${roomId}/rulings`, {
+        method: 'POST',
+        body: request,
+    })
+}
+
+export function listClocktowerRulings(roomId: number) {
+    return requestJson<ClocktowerRulingResponse[]>(`/api/clocktower/rooms/${roomId}/rulings`)
+}
+
+export function undoClocktowerRuling(roomId: number, rulingId: number, request: ClocktowerRulingUndoRequest) {
+    return requestJson<ClocktowerRulingApplyResponse>(`/api/clocktower/rooms/${roomId}/rulings/${rulingId}/undo`, {
+        method: 'POST',
+        body: request,
+    })
 }
 
 export function getClocktowerPlayerView(roomId: number, params: { seatId?: number } = {}) {

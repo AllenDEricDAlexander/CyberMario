@@ -33,6 +33,72 @@ export type ClocktowerEventType =
     | 'GAME_ENDED'
     | 'ACTION_REJECTED'
 
+export type ClocktowerRulingType =
+    | 'MARK_DEAD'
+    | 'RESTORE_ALIVE'
+    | 'SET_PUBLIC_LIFE'
+    | 'EXECUTE_PLAYER'
+    | 'SKIP_EXECUTION'
+    | 'END_GAME'
+    | 'ADVANCE_PHASE'
+    | 'CLOSE_NOMINATION'
+    | 'REOPEN_NOMINATION'
+    | 'VOID_NOMINATION'
+    | 'UNDO_RULING'
+
+export type ClocktowerRulingReason =
+    | 'VOTE_EXECUTION'
+    | 'ROLE_ABILITY'
+    | 'NIGHT_DEATH'
+    | 'STORYTELLER_RULING'
+    | 'PLAYER_REQUEST'
+    | 'MISTAKE_FIX'
+    | 'OTHER'
+
+export type ClocktowerRulingStatus = 'APPLIED' | 'REVOKED'
+
+export type ClocktowerRulingCreateRequest = {
+    rulingType: ClocktowerRulingType
+    targetSeatId?: number | null
+    nominationId?: number | null
+    targetPhase?: ClocktowerPhase | null
+    publicLifeStatus?: string | null
+    winner?: 'GOOD' | 'EVIL' | null
+    reason: ClocktowerRulingReason
+    note: string
+    publicNote?: string | null
+    visibility: ClocktowerVisibility
+    force: boolean
+}
+
+export type ClocktowerRulingUndoRequest = {
+    note: string
+    force: boolean
+}
+
+export type ClocktowerRulingResponse = {
+    rulingId: number
+    roomId: number
+    rulingType: ClocktowerRulingType
+    status: ClocktowerRulingStatus
+    targetSeatId?: number | null
+    nominationId?: number | null
+    targetPhase?: ClocktowerPhase | null
+    publicLifeStatus?: string | null
+    winner?: string | null
+    reason: ClocktowerRulingReason
+    note: string
+    publicNote?: string | null
+    visibility: ClocktowerVisibility
+    undoOfRulingId?: number | null
+}
+
+export type ClocktowerRulingApplyResponse = {
+    ruling: ClocktowerRulingResponse
+    grimoire: ClocktowerGrimoireResponse
+    events: ClocktowerEventResponse[]
+}
+
 export type ClocktowerScriptResponse = {
     scriptCode: ClocktowerScriptCode
     name: string
@@ -250,6 +316,7 @@ export type ClocktowerSeatResponse = {
     roleCode?: string | null
     roleType?: ClocktowerRoleType | null
     lifeStatus: string
+    publicLifeStatus: string
     connected: boolean
     hasDeadVote: boolean
 }
@@ -285,6 +352,9 @@ export type GrimoireSeatResponse = {
     roleType?: ClocktowerRoleType | null
     alignment?: ClocktowerAlignment | null
     alive: boolean
+    publicAlive: boolean
+    lifeStatus: string
+    publicLifeStatus: string
     hasDeadVote: boolean
     connected: boolean
     notes?: string | null
@@ -362,6 +432,7 @@ export type PlayerSeatViewResponse = {
     roleType?: ClocktowerRoleType | null
     alignment?: ClocktowerAlignment | null
     lifeStatus: string
+    publicLifeStatus: string
     hasDeadVote: boolean
 }
 
