@@ -1,6 +1,6 @@
-import {ReloadOutlined, SendOutlined} from '@ant-design/icons'
+import {CheckOutlined, ReloadOutlined, SendOutlined} from '@ant-design/icons'
 import {App, Button, Card, Col, Empty, Form, Input, List, Row, Select, Space, Tabs, Tag, Typography} from 'antd'
-import {useEffect, useState} from 'react'
+import {useCallback, useEffect, useState} from 'react'
 import {useParams} from 'react-router'
 import {PageToolbar} from '../../components/PageToolbar'
 import {resolveErrorMessage} from '../../services/request'
@@ -27,13 +27,10 @@ function StorytellerGrimoirePage() {
     const [checklist, setChecklist] = useState<ClocktowerNightChecklistResponse | null>(null)
     const [loading, setLoading] = useState(false)
     const [submitting, setSubmitting] = useState(false)
+    const [resolvingTaskId, setResolvingTaskId] = useState<number | null>(null)
     const numericRoomId = Number(roomId)
 
-    useEffect(() => {
-        void load()
-    }, [roomId])
-
-    async function load() {
+    const load = useCallback(async () => {
         if (!Number.isFinite(numericRoomId)) {
             return
         }
@@ -50,7 +47,11 @@ function StorytellerGrimoirePage() {
         } finally {
             setLoading(false)
         }
-    }
+    }, [message, numericRoomId])
+
+    useEffect(() => {
+        void load()
+    }, [load])
 
     async function submitAction() {
         if (!Number.isFinite(numericRoomId)) {
@@ -70,6 +71,29 @@ function StorytellerGrimoirePage() {
             message.error(resolveErrorMessage(caught))
         } finally {
             setSubmitting(false)
+        }
+    }
+
+    async function resolveTask(taskId: number) {
+        if (!Number.isFinite(numericRoomId)) {
+            return
+        }
+        setResolvingTaskId(taskId)
+        try {
+            const response = await submitClocktowerStorytellerAction(numericRoomId, {
+                actionType: 'RESOLVE_TASK',
+                targetSeatIds: [],
+                note: null,
+                payload: {taskId},
+            })
+            const checklistResponse = await getClocktowerNightChecklist(numericRoomId)
+            setGrimoire(response.grimoire)
+            setChecklist(checklistResponse)
+            message.success(response.accepted ? '任务已处理' : `操作被拒绝：${response.rejectedCode ?? '-'}`)
+        } catch (caught) {
+            message.error(resolveErrorMessage(caught))
+        } finally {
+            setResolvingTaskId(null)
         }
     }
 
@@ -93,7 +117,13 @@ function StorytellerGrimoirePage() {
                                 {
                                     key: 'tasks',
                                     label: '待处理任务',
-                                    children: <TaskList grimoire={grimoire}/>,
+                                    children: (
+                                        <TaskList
+                                            grimoire={grimoire}
+                                            onResolve={resolveTask}
+                                            resolvingTaskId={resolvingTaskId}
+                                        />
+                                    ),
                                 },
                                 {
                                     key: 'night',
@@ -152,7 +182,15 @@ function GrimoireSeatList({grimoire}: { grimoire: ClocktowerGrimoireResponse | n
     )
 }
 
-function TaskList({grimoire}: { grimoire: ClocktowerGrimoireResponse | null }) {
+export function TaskList({
+                             grimoire,
+                             onResolve,
+                             resolvingTaskId,
+                         }: {
+    grimoire: ClocktowerGrimoireResponse | null
+    onResolve: (taskId: number) => Promise<void>
+    resolvingTaskId: number | null
+}) {
     if (!grimoire || grimoire.pendingTasks.length === 0) {
         return <Empty description="暂无待处理任务"/>
     }
@@ -160,10 +198,24 @@ function TaskList({grimoire}: { grimoire: ClocktowerGrimoireResponse | null }) {
         <List
             dataSource={grimoire.pendingTasks}
             renderItem={(task) => (
-                <List.Item>
+                <List.Item
+                    actions={[
+                        <Button
+                            disabled={task.status !== 'PENDING'}
+                            icon={<CheckOutlined/>}
+                            key="resolve"
+                            loading={resolvingTaskId === task.taskId}
+                            onClick={voidify(() => onResolve(task.taskId))}
+                            size="small"
+                            type="link"
+                        >
+                            完成
+                        </Button>,
+                    ]}
+                >
                     <Space wrap>
-                        <Tag>{task.taskType}</Tag>
-                        <Tag color={task.status === 'DONE' ? 'success' : 'warning'}>{task.status}</Tag>
+                        <Tag>{taskTypeText(task.taskType)}</Tag>
+                        <Tag color={task.status === 'DONE' ? 'success' : 'warning'}>{taskStatusText(task.status)}</Tag>
                         <Typography.Text>{task.roleCode ?? '-'}</Typography.Text>
                         {task.note && <Typography.Text type="secondary">{task.note}</Typography.Text>}
                     </Space>
@@ -173,12 +225,23 @@ function TaskList({grimoire}: { grimoire: ClocktowerGrimoireResponse | null }) {
     )
 }
 
+function taskTypeText(taskType: string) {
+    return taskType === 'WAKE_ROLE' ? '唤醒角色' : taskType
+}
+
+function taskStatusText(status: string) {
+    if (status === 'PENDING') {
+        return '待处理'
+    }
+    return status === 'DONE' ? '已完成' : status
+}
+
 function StorytellerActionForm({
-    form,
-    grimoire,
-    loading,
-    onSubmit,
-}: {
+                                   form,
+                                   grimoire,
+                                   loading,
+                                   onSubmit,
+                               }: {
     form: ReturnType<typeof Form.useForm<ClocktowerStorytellerActionRequest>>[0]
     grimoire: ClocktowerGrimoireResponse | null
     loading: boolean

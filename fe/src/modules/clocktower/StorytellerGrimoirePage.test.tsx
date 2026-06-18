@@ -1,6 +1,6 @@
 import {renderToStaticMarkup} from 'react-dom/server'
 import {describe, expect, test, vi} from 'vitest'
-import {Component as StorytellerGrimoirePage} from './StorytellerGrimoirePage'
+import {Component as StorytellerGrimoirePage, TaskList} from './StorytellerGrimoirePage'
 import {NightChecklist} from './components/NightChecklist'
 
 vi.mock('react-router', () => ({
@@ -17,7 +17,12 @@ vi.mock('./clocktowerService', () => ({
         pendingTasks: [],
         ruleTraceEnabled: false,
     }),
-    getClocktowerNightChecklist: vi.fn().mockResolvedValue({nightNo: 1, nightType: 'FIRST_NIGHT', steps: [], completed: false}),
+    getClocktowerNightChecklist: vi.fn().mockResolvedValue({
+        nightNo: 1,
+        nightType: 'FIRST_NIGHT',
+        steps: [],
+        completed: false
+    }),
     submitClocktowerStorytellerAction: vi.fn(),
 }))
 
@@ -55,5 +60,39 @@ describe('StorytellerGrimoirePage', () => {
         expect(markup).toContain('首夜')
         expect(markup).toContain('厨师')
         expect(markup).toContain('镇民')
+    })
+
+    test('renders pending wake task with resolve action', () => {
+        const markup = renderToStaticMarkup(
+            <TaskList
+                grimoire={{
+                    roomId: 7,
+                    phase: {phase: 'FIRST_NIGHT', dayNo: 0, nightNo: 1},
+                    seats: [],
+                    markers: [],
+                    reminders: [],
+                    pendingTasks: [
+                        {
+                            taskId: 9,
+                            taskType: 'WAKE_ROLE',
+                            phase: 'FIRST_NIGHT',
+                            roleCode: 'POISONER',
+                            seatId: 4,
+                            status: 'PENDING',
+                            note: '让投毒者选择一名玩家',
+                        },
+                    ],
+                    ruleTraceEnabled: false,
+                }}
+                onResolve={async () => {
+                }}
+                resolvingTaskId={null}
+            />,
+        )
+
+        expect(markup).toContain('唤醒角色')
+        expect(markup).toContain('待处理')
+        expect(markup).toContain('POISONER')
+        expect(markup).toContain('完成')
     })
 })

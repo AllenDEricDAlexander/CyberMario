@@ -78,6 +78,7 @@ public final class ClocktowerRoomTestFactory {
         AtomicLong nominationId = new AtomicLong(1L);
         AtomicLong voteId = new AtomicLong(1L);
         AtomicLong markerId = new AtomicLong(1L);
+        AtomicLong taskId = new AtomicLong(1L);
         ObjectMapper objectMapper = new ObjectMapper();
 
         ClocktowerRoomRepository roomRepository = mock(ClocktowerRoomRepository.class);
@@ -208,6 +209,14 @@ public final class ClocktowerRoomTestFactory {
                         && marker.getId().equals(invocation.getArgument(0))
                         && marker.getRoomId().equals(invocation.getArgument(1)))
                 .findFirst());
+        when(taskRepository.save(any(ClocktowerStorytellerTaskPo.class))).thenAnswer(saveTask(tasks, taskId));
+        when(taskRepository.findById(any())).thenAnswer(invocation -> tasks.stream()
+                .filter(task -> !task.isDeleted() && task.getId().equals(invocation.getArgument(0)))
+                .findFirst());
+        when(taskRepository.findByRoomIdAndDeletedFalseOrderBySortOrderAsc(any())).thenAnswer(invocation -> tasks.stream()
+                .filter(task -> !task.isDeleted() && task.getRoomId().equals(invocation.getArgument(0)))
+                .sorted(Comparator.comparing(ClocktowerStorytellerTaskPo::getSortOrder))
+                .toList());
         when(taskRepository.findByRoomIdAndStatusAndDeletedFalseOrderBySortOrderAsc(any(), any()))
                 .thenAnswer(invocation -> tasks.stream()
                         .filter(task -> !task.isDeleted()
@@ -367,6 +376,18 @@ public final class ClocktowerRoomTestFactory {
                 markers.add(marker);
             }
             return marker;
+        };
+    }
+
+    private static Answer<ClocktowerStorytellerTaskPo> saveTask(List<ClocktowerStorytellerTaskPo> tasks,
+                                                                AtomicLong nextId) {
+        return invocation -> {
+            ClocktowerStorytellerTaskPo task = invocation.getArgument(0);
+            if (task.getId() == null) {
+                task.setId(nextId.getAndIncrement());
+                tasks.add(task);
+            }
+            return task;
         };
     }
 

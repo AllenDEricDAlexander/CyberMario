@@ -6,6 +6,7 @@ import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.grimoire.dto.response.ClocktowerGrimoireResponse;
 import top.egon.mario.clocktower.grimoire.dto.response.GrimoireSeatResponse;
+import top.egon.mario.clocktower.grimoire.dto.response.StorytellerTaskResponse;
 import top.egon.mario.clocktower.grimoire.service.ClocktowerGrimoireService;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomCreateRequest;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomJoinRequest;
@@ -48,6 +49,26 @@ class ClocktowerGrimoireServiceTests {
         assertThat(started.phase()).isEqualTo(ClocktowerPhase.FIRST_NIGHT);
         assertThat(grimoire.seats()).extracting(GrimoireSeatResponse::roleCode)
                 .containsExactly("EMPATH", "CHEF", "MONK", "POISONER", "IMP");
+    }
+
+    @Test
+    void startedFirstNightCreatesPendingWakeTasks() {
+        ClocktowerRoomResponse room = createJoinedFivePlayerRoom();
+        roomService.start(room.roomId(), new ClocktowerRoomStartRequest(
+                List.of(
+                        new RoleAssignmentRequest(room.seats().get(0).seatId(), "EMPATH"),
+                        new RoleAssignmentRequest(room.seats().get(1).seatId(), "CHEF"),
+                        new RoleAssignmentRequest(room.seats().get(2).seatId(), "MONK"),
+                        new RoleAssignmentRequest(room.seats().get(3).seatId(), "POISONER"),
+                        new RoleAssignmentRequest(room.seats().get(4).seatId(), "IMP")
+                ),
+                false
+        ), storytellerPrincipal());
+
+        ClocktowerGrimoireResponse grimoire = grimoireService.getGrimoire(room.roomId(), storytellerPrincipal());
+
+        assertThat(grimoire.pendingTasks()).extracting(StorytellerTaskResponse::roleCode)
+                .containsExactly("POISONER", "EMPATH");
     }
 
     @Test

@@ -23,6 +23,7 @@ import top.egon.mario.clocktower.grimoire.dto.response.StorytellerActionResponse
 import top.egon.mario.clocktower.grimoire.dto.response.StorytellerTaskResponse;
 import top.egon.mario.clocktower.grimoire.po.ClocktowerGrimoireEntryPo;
 import top.egon.mario.clocktower.grimoire.po.ClocktowerStatusMarkerPo;
+import top.egon.mario.clocktower.grimoire.po.ClocktowerStorytellerTaskPo;
 import top.egon.mario.clocktower.grimoire.repository.ClocktowerGrimoireEntryRepository;
 import top.egon.mario.clocktower.grimoire.repository.ClocktowerStatusMarkerRepository;
 import top.egon.mario.clocktower.grimoire.repository.ClocktowerStorytellerTaskRepository;
@@ -37,6 +38,8 @@ import top.egon.mario.clocktower.script.repository.ClocktowerNightOrderRepositor
 import top.egon.mario.clocktower.script.repository.ClocktowerRoleRepository;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -45,6 +48,10 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ClocktowerGrimoireServiceImpl implements ClocktowerGrimoireService {
+
+    private static final String TASK_WAKE_ROLE = "WAKE_ROLE";
+    private static final String STATUS_PENDING = "PENDING";
+    private static final String STATUS_DONE = "DONE";
 
     private final ClocktowerRoomRepository roomRepository;
     private final ClocktowerSeatRepository seatRepository;
@@ -56,11 +63,13 @@ public class ClocktowerGrimoireServiceImpl implements ClocktowerGrimoireService 
     private final ClocktowerEventService eventService;
 
     @Override
+    @Transactional
     public ClocktowerGrimoireResponse getGrimoire(Long roomId, RbacPrincipal principal) {
         ClocktowerRoomPo room = roomRepository.findByIdAndDeletedFalse(roomId)
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
         ClocktowerAccess.requireStoryteller(room, principal);
         List<ClocktowerSeatPo> seats = seatRepository.findByRoomIdAndDeletedFalseOrderBySeatNoAsc(roomId);
+        syncNightWakeTasks(room, seats);
         Map<Long, ClocktowerGrimoireEntryPo> entries = grimoireEntryRepository
                 .findByRoomIdAndDeletedFalseOrderBySeatIdAsc(roomId)
                 .stream()
@@ -71,7 +80,7 @@ public class ClocktowerGrimoireServiceImpl implements ClocktowerGrimoireService 
                         .map(StatusMarkerResponse::from)
                         .toList(),
                 List.of(),
-                taskRepository.findByRoomIdAndStatusAndDeletedFalseOrderBySortOrderAsc(roomId, "PENDING").stream()
+                taskRepository.findByRoomIdAndStatusAndDeletedFalseOrderBySortOrderAsc(roomId, STATUS_PENDING).stream()
                         .map(StorytellerTaskResponse::from)
                         .toList(),
                 false);
@@ -94,8 +103,15 @@ public class ClocktowerGrimoireServiceImpl implements ClocktowerGrimoireService 
         Map<String, ClocktowerRolePo> roleByCode = roleRepository.findByRoleCodeInAndDeletedFalse(seatByRole.keySet())
                 .stream()
                 .collect(Collectors.toMap(ClocktowerRolePo::getRoleCode, Function.identity(), (left, right) -> left));
+        Map<String, ClocktowerStorytellerTaskPo> taskByKey = currentNightWakeTasks(room).stream()
+                .collect(Collectors.toMap(task -> nightTaskKey(task.getRoleCode(), task.getSeatId()),
+                        Function.identity(), (left, right) -> left));
         List<NightStepResponse> steps = orders.stream()
-                .map(order -> toNightStep(order, seatByRole.get(order.getRoleCode()), roleByCode.get(order.getRoleCode())))
+                .map(order -> {
+                    ClocktowerSeatPo seat = seatByRole.get(order.getRoleCode());
+                    return toNightStep(order, seat, roleByCode.get(order.getRoleCode()),
+                            taskByKey.get(nightTaskKey(order.getRoleCode(), seat == null ? null : seat.getId())));
+                })
                 .toList();
         return new NightChecklistResponse(room.getCurrentNightNo(), nightType, steps,
                 !steps.isEmpty() && steps.stream().allMatch(NightStepResponse::completed));
@@ -117,17 +133,76 @@ public class ClocktowerGrimoireServiceImpl implements ClocktowerGrimoireService 
                     ClocktowerVisibility.PUBLIC, List.of(), Map.of("content", text(request.note())));
             case "PRIVATE_INFO" -> privateInfo(room, request, principal);
             case "ADVANCE_PHASE" -> advancePhase(room, request, principal);
-            case "CHANGE_ROLE", "CHANGE_ALIGNMENT", "RESOLVE_TASK" ->
+            case "RESOLVE_TASK" -> resolveTask(room, request, principal);
+            case "CHANGE_ROLE", "CHANGE_ALIGNMENT" ->
                     StorytellerActionResponse.rejected("ACTION_NOT_ENABLED_IN_PHASE_ONE", getGrimoire(roomId, principal));
             default -> StorytellerActionResponse.rejected("UNKNOWN_ACTION_TYPE", getGrimoire(roomId, principal));
         };
     }
 
     private static NightStepResponse toNightStep(ClocktowerNightOrderPo order, ClocktowerSeatPo seat,
-                                                 ClocktowerRolePo role) {
+                                                 ClocktowerRolePo role, ClocktowerStorytellerTaskPo task) {
         return new NightStepResponse(order.getOrderNo(), seat == null ? null : seat.getId(), order.getRoleCode(),
                 role == null ? order.getRoleCode() : role.getName(), role == null ? null : role.getRoleType(),
-                true, null, false);
+                true, null, task != null && STATUS_DONE.equals(task.getStatus()));
+    }
+
+    private void syncNightWakeTasks(ClocktowerRoomPo room, List<ClocktowerSeatPo> seats) {
+        if (!canHaveNightTasks(room)) {
+            return;
+        }
+        Map<String, ClocktowerSeatPo> seatByRole = seats.stream()
+                .filter(seat -> seat.getRoleCode() != null)
+                .collect(Collectors.toMap(ClocktowerSeatPo::getRoleCode, Function.identity(), (left, right) -> left));
+        if (seatByRole.isEmpty()) {
+            return;
+        }
+        Map<String, ClocktowerStorytellerTaskPo> taskByKey = currentNightWakeTasks(room).stream()
+                .collect(Collectors.toMap(task -> nightTaskKey(task.getRoleCode(), task.getSeatId()),
+                        Function.identity(), (left, right) -> left));
+        for (ClocktowerNightOrderPo order : currentNightOrders(room, seatByRole.keySet())) {
+            ClocktowerSeatPo seat = seatByRole.get(order.getRoleCode());
+            if (seat == null || taskByKey.containsKey(nightTaskKey(order.getRoleCode(), seat.getId()))) {
+                continue;
+            }
+            ClocktowerStorytellerTaskPo task = new ClocktowerStorytellerTaskPo();
+            task.setRoomId(room.getId());
+            task.setTaskType(TASK_WAKE_ROLE);
+            task.setPhase(room.getPhase());
+            task.setDayNo(room.getCurrentDayNo());
+            task.setNightNo(room.getCurrentNightNo());
+            task.setRoleCode(order.getRoleCode());
+            task.setSeatId(seat.getId());
+            task.setStatus(STATUS_PENDING);
+            task.setSortOrder(order.getSortOrder());
+            task.setNote(order.getReminderText());
+            taskByKey.put(nightTaskKey(order.getRoleCode(), seat.getId()), taskRepository.save(task));
+        }
+    }
+
+    private List<ClocktowerStorytellerTaskPo> currentNightWakeTasks(ClocktowerRoomPo room) {
+        return taskRepository.findByRoomIdAndDeletedFalseOrderBySortOrderAsc(room.getId()).stream()
+                .filter(task -> TASK_WAKE_ROLE.equals(task.getTaskType()))
+                .filter(task -> task.getNightNo() == room.getCurrentNightNo())
+                .toList();
+    }
+
+    private List<ClocktowerNightOrderPo> currentNightOrders(ClocktowerRoomPo room, Collection<String> roleCodes) {
+        ClocktowerNightType nightType = room.getCurrentNightNo() <= 1
+                ? ClocktowerNightType.FIRST_NIGHT : ClocktowerNightType.OTHER_NIGHT;
+        return nightOrderRepository.findByScriptCodeAndNightTypeAndRoleCodeInAndDeletedFalseOrderBySortOrderAsc(
+                room.getScriptCode(), nightType, roleCodes);
+    }
+
+    private static boolean canHaveNightTasks(ClocktowerRoomPo room) {
+        return room.getCurrentNightNo() > 0
+                && room.getPhase() != ClocktowerPhase.LOBBY
+                && room.getPhase() != ClocktowerPhase.SETUP
+                && room.getPhase() != ClocktowerPhase.ENDED;
+    }
+
+    private static String nightTaskKey(String roleCode, Long seatId) {
+        return roleCode + ":" + seatId;
     }
 
     private StorytellerActionResponse addMarker(ClocktowerRoomPo room, StorytellerActionRequest request,
@@ -176,6 +251,30 @@ public class ClocktowerGrimoireServiceImpl implements ClocktowerGrimoireService 
         Long targetSeatId = firstTarget(request);
         return append(room, principal, targetSeatId, ClocktowerEventType.PRIVATE_MESSAGE_SENT,
                 ClocktowerVisibility.PRIVATE, List.of(targetSeatId), Map.of("content", text(request.note())));
+    }
+
+    private StorytellerActionResponse resolveTask(ClocktowerRoomPo room, StorytellerActionRequest request,
+                                                  RbacPrincipal principal) {
+        Long taskId = longPayload(request, "taskId");
+        if (taskId == null) {
+            return StorytellerActionResponse.rejected("TASK_ID_REQUIRED", getGrimoire(room.getId(), principal));
+        }
+        ClocktowerStorytellerTaskPo task = taskRepository.findById(taskId)
+                .filter(candidate -> !candidate.isDeleted() && candidate.getRoomId().equals(room.getId()))
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_TASK_NOT_FOUND"));
+        if (STATUS_DONE.equals(task.getStatus())) {
+            return StorytellerActionResponse.rejected("TASK_ALREADY_RESOLVED", getGrimoire(room.getId(), principal));
+        }
+        task.setStatus(STATUS_DONE);
+        taskRepository.save(task);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("taskId", task.getId());
+        payload.put("taskType", task.getTaskType());
+        payload.put("roleCode", task.getRoleCode());
+        payload.put("status", task.getStatus());
+        payload.put("note", text(request.note()));
+        return append(room, principal, task.getSeatId(), ClocktowerEventType.NIGHT_STEP_UPDATED,
+                ClocktowerVisibility.STORYTELLER, List.of(), payload);
     }
 
     private StorytellerActionResponse advancePhase(ClocktowerRoomPo room, StorytellerActionRequest request,

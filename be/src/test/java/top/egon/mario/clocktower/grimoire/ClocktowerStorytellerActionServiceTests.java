@@ -1,10 +1,14 @@
 package top.egon.mario.clocktower.grimoire;
 
 import org.junit.jupiter.api.Test;
+import top.egon.mario.clocktower.common.enums.ClocktowerEventType;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.grimoire.dto.request.StorytellerActionRequest;
+import top.egon.mario.clocktower.grimoire.dto.response.ClocktowerGrimoireResponse;
+import top.egon.mario.clocktower.grimoire.dto.response.NightChecklistResponse;
 import top.egon.mario.clocktower.grimoire.dto.response.StatusMarkerResponse;
 import top.egon.mario.clocktower.grimoire.dto.response.StorytellerActionResponse;
+import top.egon.mario.clocktower.grimoire.dto.response.StorytellerTaskResponse;
 import top.egon.mario.clocktower.grimoire.service.ClocktowerGrimoireService;
 import top.egon.mario.clocktower.grimoire.service.impl.ClocktowerGrimoireServiceImpl;
 import top.egon.mario.clocktower.room.ClocktowerRoomTestFactory;
@@ -53,6 +57,24 @@ class ClocktowerStorytellerActionServiceTests {
                 "MARK_DEAD", List.of(targetSeat), "夜晚死亡", Map.of("reason", "NIGHT_DEATH")), storytellerPrincipal());
 
         assertThat(response.grimoire().seats().getFirst().alive()).isFalse();
+    }
+
+    @Test
+    void resolveTaskCompletesWakeTaskAndChecklistStep() {
+        ClocktowerRoomResponse room = startedTroubleBrewingRoomWithJoinedUsers();
+        ClocktowerGrimoireResponse grimoire = grimoireService.getGrimoire(room.roomId(), storytellerPrincipal());
+        StorytellerTaskResponse task = grimoire.pendingTasks().getFirst();
+
+        StorytellerActionResponse response = grimoireService.storytellerAction(room.roomId(), new StorytellerActionRequest(
+                "RESOLVE_TASK", List.of(), "已处理", Map.of("taskId", task.taskId())), storytellerPrincipal());
+        NightChecklistResponse checklist = grimoireService.nightChecklist(room.roomId(), storytellerPrincipal());
+
+        assertThat(response.accepted()).isTrue();
+        assertThat(response.event().eventType()).isEqualTo(ClocktowerEventType.NIGHT_STEP_UPDATED);
+        assertThat(response.grimoire().pendingTasks()).extracting(StorytellerTaskResponse::taskId)
+                .doesNotContain(task.taskId());
+        assertThat(checklist.steps()).filteredOn(step -> step.roleCode().equals(task.roleCode()))
+                .allMatch(step -> step.completed());
     }
 
     private ClocktowerRoomResponse startedTroubleBrewingRoomWithJoinedUsers() {
