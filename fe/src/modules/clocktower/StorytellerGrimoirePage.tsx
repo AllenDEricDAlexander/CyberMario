@@ -5,6 +5,7 @@ import {
     Card,
     Col,
     Empty,
+    Flex,
     Form,
     Input,
     InputNumber,
@@ -428,7 +429,7 @@ export function FlowPanel({
     }
     const canSubmitExecution = executionNote.trim().length > 0
     return (
-        <Space direction="vertical" size="middle" style={{width: '100%'}}>
+        <Flex gap="middle" style={{width: '100%'}} vertical>
             <Space wrap>
                 <Typography.Text strong>流程</Typography.Text>
                 <Tag color="blue">{phaseText(flow.phase.phase)}</Tag>
@@ -470,7 +471,7 @@ export function FlowPanel({
                         </Typography.Text>
                     </Space>
                     {flow.phase.phase === 'EXECUTION' && !flow.executionCandidate.resolved && (
-                        <Space direction="vertical" size="small" style={{width: '100%'}}>
+                        <Flex gap="small" style={{width: '100%'}} vertical>
                             <Input.TextArea
                                 autoSize={{minRows: 2, maxRows: 4}}
                                 onChange={(event) => setExecutionNote(event.target.value)}
@@ -504,7 +505,7 @@ export function FlowPanel({
                                     确认无人处决
                                 </Button>
                             )}
-                        </Space>
+                        </Flex>
                     )}
                 </>
             )}
@@ -514,7 +515,7 @@ export function FlowPanel({
             <Button disabled={!flow.advanceAllowed} loading={loading} onClick={voidify(onAdvance)} type="primary">
                 {transitionText(flow.nextTransition)}
             </Button>
-        </Space>
+        </Flex>
     )
 }
 

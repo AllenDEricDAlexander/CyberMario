@@ -1,6 +1,7 @@
 package top.egon.mario.clocktower;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.DefaultResourceLoader;
 import top.egon.mario.clocktower.action.dto.ClocktowerActionRequest;
 import top.egon.mario.clocktower.action.dto.ClocktowerActionResponse;
 import top.egon.mario.clocktower.action.service.ClocktowerActionService;
@@ -8,9 +9,12 @@ import top.egon.mario.clocktower.action.service.impl.ClocktowerActionServiceImpl
 import top.egon.mario.clocktower.common.enums.ClocktowerEventType;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
+import top.egon.mario.clocktower.engine.ClocktowerRuleEngine;
+import top.egon.mario.clocktower.engine.ClocktowerRuleEngineConfiguration;
 import top.egon.mario.clocktower.event.dto.ClocktowerEventResponse;
-import top.egon.mario.clocktower.grimoire.dto.request.StorytellerActionRequest;
-import top.egon.mario.clocktower.grimoire.dto.response.StorytellerActionResponse;
+import top.egon.mario.clocktower.flow.ClocktowerFlowService;
+import top.egon.mario.clocktower.flow.dto.SkipNightTaskRequest;
+import top.egon.mario.clocktower.flow.service.impl.ClocktowerFlowServiceImpl;
 import top.egon.mario.clocktower.grimoire.service.ClocktowerGrimoireService;
 import top.egon.mario.clocktower.grimoire.service.impl.ClocktowerGrimoireServiceImpl;
 import top.egon.mario.clocktower.replay.service.ClocktowerReplayService;
@@ -23,6 +27,7 @@ import top.egon.mario.clocktower.room.dto.request.RoleAssignmentRequest;
 import top.egon.mario.clocktower.room.dto.response.ClocktowerRoomResponse;
 import top.egon.mario.clocktower.room.dto.response.ClocktowerStartGameResponse;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomService;
+import top.egon.mario.clocktower.ruling.service.impl.ClocktowerRulingServiceImpl;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.util.List;
@@ -39,6 +44,7 @@ class ClocktowerCoreFlowTests {
             context.seatRepository(), context.grimoireEntryRepository(), context.markerRepository(),
             context.storytellerTaskRepository(), context.nightOrderRepository(), context.roleRepository(),
             context.eventService());
+    private final ClocktowerFlowService flowService = flowService();
     private final ClocktowerActionService actionService = new ClocktowerActionServiceImpl(context.roomRepository(),
             context.seatRepository(), context.nominationRepository(), context.voteRepository(), context.eventService());
     private final ClocktowerReplayService replayService = new ClocktowerReplayServiceImpl(context.roomRepository(),
@@ -53,10 +59,13 @@ class ClocktowerCoreFlowTests {
 
         assertThat(started.phase()).isEqualTo(ClocktowerPhase.FIRST_NIGHT);
 
-        StorytellerActionResponse day = grimoireService.storytellerAction(joined.roomId(),
-                new StorytellerActionRequest("ADVANCE_PHASE", List.of(), null, Map.of("targetPhase", "DAY")),
-                principal(1L, "storyteller"));
-        assertThat(day.grimoire().phase().phase()).isEqualTo(ClocktowerPhase.DAY);
+        grimoireService.getGrimoire(joined.roomId(), principal(1L, "storyteller"));
+        context.storytellerTaskRepository()
+                .findByRoomIdAndStatusAndDeletedFalseOrderBySortOrderAsc(joined.roomId(), "PENDING")
+                .forEach(task -> flowService.skipNightTask(joined.roomId(), task.getId(),
+                        new SkipNightTaskRequest("核心流程测试跳过"), principal(1L, "storyteller")));
+        assertThat(flowService.advance(joined.roomId(), principal(1L, "storyteller")).phase().phase())
+                .isEqualTo(ClocktowerPhase.DAY);
 
         Long seatOne = joined.seats().getFirst().seatId();
         Long seatTwo = joined.seats().get(1).seatId();
@@ -74,6 +83,19 @@ class ClocktowerCoreFlowTests {
         return new ClocktowerRoomCreateRequest("核心流程", ClocktowerScriptCode.TROUBLE_BREWING, 5,
                 null, null, List.of("EMPATH", "CHEF", "MONK", "POISONER", "IMP"),
                 "HUMAN", false, true, 0);
+    }
+
+    private ClocktowerFlowService flowService() {
+        ClocktowerRuleEngineConfiguration configuration = new ClocktowerRuleEngineConfiguration();
+        ClocktowerRuleEngine ruleEngine = new ClocktowerRuleEngine(
+                configuration.clocktowerBoardValidationKieBase(new DefaultResourceLoader()),
+                configuration.clocktowerFlowKieBase(new DefaultResourceLoader()));
+        ClocktowerRulingServiceImpl rulingService = new ClocktowerRulingServiceImpl(context.roomRepository(),
+                context.seatRepository(), context.nominationRepository(), context.rulingRepository(),
+                context.eventRepository(), context.eventService(), context.objectMapper(), grimoireService);
+        return new ClocktowerFlowServiceImpl(context.roomRepository(), context.seatRepository(),
+                context.storytellerTaskRepository(), context.nominationRepository(), context.voteRepository(),
+                context.roleRepository(), context.eventService(), context.eventRepository(), rulingService, ruleEngine);
     }
 
     private ClocktowerRoomResponse joinAllSeats(ClocktowerRoomResponse room) {
