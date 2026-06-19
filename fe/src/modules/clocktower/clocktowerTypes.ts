@@ -336,6 +336,72 @@ export type GamePhaseResponse = {
     nightNo: number
 }
 
+export type ClocktowerFlowTransition =
+    | 'COMPLETE_FIRST_NIGHT'
+    | 'START_NOMINATION'
+    | 'START_EXECUTION'
+    | 'START_NIGHT'
+    | 'COMPLETE_NIGHT'
+    | 'NONE'
+
+export type NightTaskSummaryResponse = {
+    total: number
+    pending: number
+    done: number
+    skipped: number
+}
+
+export type NominationSummaryResponse = {
+    nominationId: number
+    nominatorSeatId: number
+    nomineeSeatId: number
+    voteCount: number
+    status: string
+}
+
+export type ExecutionCandidateResponse = {
+    resolved: boolean
+    executable: boolean
+    nominationId?: number | null
+    nomineeSeatId?: number | null
+    voteCount: number
+    threshold: number
+    reason: string
+}
+
+export type VictoryCandidateResponse = {
+    winner: 'GOOD' | 'EVIL'
+    reason: string
+}
+
+export type ClocktowerFlowResponse = {
+    roomId: number
+    phase: GamePhaseResponse
+    nextTransition: ClocktowerFlowTransition
+    advanceAllowed: boolean
+    blockingReasons: string[]
+    nightTaskSummary: NightTaskSummaryResponse
+    openNomination?: NominationSummaryResponse | null
+    executionCandidate?: ExecutionCandidateResponse | null
+    victoryCandidate?: VictoryCandidateResponse | null
+}
+
+export type SkipNightTaskRequest = {
+    reason: string
+}
+
+export type CloseNominationRequest = {
+    note?: string | null
+}
+
+export type ClocktowerExecutionDeathPolicy = 'NO_CHANGE' | 'MARK_DEAD'
+
+export type ExecutionConfirmRequest = {
+    execute: boolean
+    deathPolicy: ClocktowerExecutionDeathPolicy
+    note?: string | null
+}
+
 export type ClocktowerGrimoireResponse = {
     roomId: number
     phase: GamePhaseResponse

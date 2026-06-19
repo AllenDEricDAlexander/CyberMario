@@ -24,7 +24,10 @@ import {PageToolbar} from '../../components/PageToolbar'
 import {resolveErrorMessage} from '../../services/request'
 import {voidify} from '../../utils/async'
 import {
+    advanceClocktowerFlow,
+    confirmClocktowerExecution,
     createClocktowerRuling,
+    getClocktowerFlow,
     getClocktowerGrimoire,
     getClocktowerNightChecklist,
     listClocktowerRulings,
@@ -32,6 +35,8 @@ import {
     undoClocktowerRuling,
 } from './clocktowerService'
 import type {
+    ClocktowerExecutionDeathPolicy,
+    ClocktowerFlowResponse,
     ClocktowerGrimoireResponse,
     ClocktowerNightChecklistResponse,
     ClocktowerRulingCreateRequest,
@@ -92,8 +97,10 @@ function StorytellerGrimoirePage() {
     const [form] = Form.useForm<ClocktowerStorytellerActionRequest>()
     const [grimoire, setGrimoire] = useState<ClocktowerGrimoireResponse | null>(null)
     const [checklist, setChecklist] = useState<ClocktowerNightChecklistResponse | null>(null)
+    const [flow, setFlow] = useState<ClocktowerFlowResponse | null>(null)
     const [rulings, setRulings] = useState<ClocktowerRulingResponse[]>([])
     const [loading, setLoading] = useState(false)
+    const [flowLoading, setFlowLoading] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [resolvingTaskId, setResolvingTaskId] = useState<number | null>(null)
     const [rulingLoadingKey, setRulingLoadingKey] = useState<string | null>(null)
@@ -108,13 +115,15 @@ function StorytellerGrimoirePage() {
         }
         setLoading(true)
         try {
-            const [grimoireResponse, checklistResponse, rulingRows] = await Promise.all([
+            const [grimoireResponse, checklistResponse, flowResponse, rulingRows] = await Promise.all([
                 getClocktowerGrimoire(numericRoomId),
                 getClocktowerNightChecklist(numericRoomId),
+                getClocktowerFlow(numericRoomId),
                 listClocktowerRulings(numericRoomId),
             ])
             setGrimoire(grimoireResponse)
             setChecklist(checklistResponse)
+            setFlow(flowResponse)
             setRulings(rulingRows)
         } catch (caught) {
             message.error(resolveErrorMessage(caught))
@@ -160,14 +169,73 @@ function StorytellerGrimoirePage() {
                 note: null,
                 payload: {taskId},
             })
-            const checklistResponse = await getClocktowerNightChecklist(numericRoomId)
+            const [checklistResponse, flowResponse] = await Promise.all([
+                getClocktowerNightChecklist(numericRoomId),
+                getClocktowerFlow(numericRoomId),
+            ])
             setGrimoire(response.grimoire)
             setChecklist(checklistResponse)
+            setFlow(flowResponse)
             message.success(response.accepted ? '任务已处理' : `操作被拒绝：${response.rejectedCode ?? '-'}`)
         } catch (caught) {
             message.error(resolveErrorMessage(caught))
         } finally {
             setResolvingTaskId(null)
+        }
+    }
+
+    async function advanceFlow() {
+        if (!Number.isFinite(numericRoomId)) {
+            return
+        }
+        setFlowLoading(true)
+        try {
+            const response = await advanceClocktowerFlow(numericRoomId)
+            setFlow(response)
+            await load()
+            message.success('流程已推进')
+        } catch (caught) {
+            message.error(resolveErrorMessage(caught))
+        } finally {
+            setFlowLoading(false)
+        }
+    }
+
+    async function confirmExecution(deathPolicy: ClocktowerExecutionDeathPolicy, note: string) {
+        if (!Number.isFinite(numericRoomId)) {
+            return
+        }
+        setFlowLoading(true)
+        try {
+            const response = await confirmClocktowerExecution(numericRoomId, {execute: true, deathPolicy, note})
+            setFlow(response)
+            await load()
+            message.success('处决已结算')
+        } catch (caught) {
+            message.error(resolveErrorMessage(caught))
+        } finally {
+            setFlowLoading(false)
+        }
+    }
+
+    async function confirmNoExecution(note: string) {
+        if (!Number.isFinite(numericRoomId)) {
+            return
+        }
+        setFlowLoading(true)
+        try {
+            const response = await confirmClocktowerExecution(numericRoomId, {
+                execute: false,
+                deathPolicy: 'NO_CHANGE',
+                note,
+            })
+            setFlow(response)
+            await load()
+            message.success('无人处决已确认')
+        } catch (caught) {
+            message.error(resolveErrorMessage(caught))
+        } finally {
+            setFlowLoading(false)
         }
     }
 
@@ -181,8 +249,12 @@ function StorytellerGrimoirePage() {
             const response = await createClocktowerRuling(numericRoomId, request)
             setGrimoire(response.grimoire)
             try {
-                const rulingRows = await listClocktowerRulings(numericRoomId)
+                const [rulingRows, flowResponse] = await Promise.all([
+                    listClocktowerRulings(numericRoomId),
+                    getClocktowerFlow(numericRoomId),
+                ])
                 setRulings(rulingRows)
+                setFlow(flowResponse)
                 message.success('裁定已生效')
             } catch (caught) {
                 message.warning(`裁定已生效，裁定历史刷新失败：${resolveErrorMessage(caught)}`)
@@ -219,8 +291,12 @@ function StorytellerGrimoirePage() {
             const response = await undoClocktowerRuling(numericRoomId, rulingId, {note: '撤销裁定', force: false})
             setGrimoire(response.grimoire)
             try {
-                const rulingRows = await listClocktowerRulings(numericRoomId)
+                const [rulingRows, flowResponse] = await Promise.all([
+                    listClocktowerRulings(numericRoomId),
+                    getClocktowerFlow(numericRoomId),
+                ])
                 setRulings(rulingRows)
+                setFlow(flowResponse)
                 message.success('裁定已撤销')
             } catch (caught) {
                 message.warning(`裁定已撤销，裁定历史刷新失败：${resolveErrorMessage(caught)}`)
@@ -255,6 +331,19 @@ function StorytellerGrimoirePage() {
                     <Card>
                         <Tabs
                             items={[
+                                {
+                                    key: 'flow',
+                                    label: '流程',
+                                    children: (
+                                        <FlowPanel
+                                            flow={flow}
+                                            loading={flowLoading}
+                                            onAdvance={advanceFlow}
+                                            onConfirmExecution={confirmExecution}
+                                            onConfirmNoExecution={confirmNoExecution}
+                                        />
+                                    ),
+                                },
                                 {
                                     key: 'tasks',
                                     label: '待处理任务',
@@ -318,6 +407,169 @@ function StorytellerGrimoirePage() {
             </Row>
         </>
     )
+}
+
+export function FlowPanel({
+    flow,
+    loading,
+    onAdvance,
+    onConfirmExecution,
+    onConfirmNoExecution,
+}: {
+    flow: ClocktowerFlowResponse | null
+    loading: boolean
+    onAdvance: () => Promise<void>
+    onConfirmExecution: (deathPolicy: ClocktowerExecutionDeathPolicy, note: string) => Promise<void>
+    onConfirmNoExecution: (note: string) => Promise<void>
+}) {
+    const [executionNote, setExecutionNote] = useState('')
+    if (!flow) {
+        return <Empty description="暂无流程信息"/>
+    }
+    const canSubmitExecution = executionNote.trim().length > 0
+    return (
+        <Space direction="vertical" size="middle" style={{width: '100%'}}>
+            <Space wrap>
+                <Typography.Text strong>流程</Typography.Text>
+                <Tag color="blue">{phaseText(flow.phase.phase)}</Tag>
+                <Typography.Text type="secondary">
+                    第 {flow.phase.dayNo} 天 / 第 {flow.phase.nightNo} 夜
+                </Typography.Text>
+                <Tag color={flow.advanceAllowed ? 'success' : 'warning'}>
+                    {flow.advanceAllowed ? '可推进' : '待处理'}
+                </Tag>
+            </Space>
+            <Space wrap>
+                <Tag>夜晚任务 {flow.nightTaskSummary.total}</Tag>
+                <Tag color={flow.nightTaskSummary.pending > 0 ? 'warning' : 'success'}>
+                    待处理 {flow.nightTaskSummary.pending}
+                </Tag>
+                <Tag color="success">完成 {flow.nightTaskSummary.done}</Tag>
+                <Tag>跳过 {flow.nightTaskSummary.skipped}</Tag>
+            </Space>
+            {flow.openNomination && (
+                <Space wrap>
+                    <Tag color="processing">提名进行中</Tag>
+                    <Typography.Text type="secondary">
+                        提名 {flow.openNomination.nominationId} · 当前 {flow.openNomination.voteCount} 票
+                    </Typography.Text>
+                </Space>
+            )}
+            {flow.blockingReasons.map((reason) => (
+                <Tag color="warning" key={reason}>{flowBlockingText(reason)}</Tag>
+            ))}
+            {flow.executionCandidate && (
+                <>
+                    <Space wrap>
+                        <Typography.Text strong>处决结算</Typography.Text>
+                        <Tag color={flow.executionCandidate.executable ? 'processing' : 'default'}>
+                            {flow.executionCandidate.executable ? '有处决候选' : '无人处决'}
+                        </Tag>
+                        <Typography.Text type="secondary">
+                            票数 {flow.executionCandidate.voteCount} / 门槛 {flow.executionCandidate.threshold}
+                        </Typography.Text>
+                    </Space>
+                    {flow.phase.phase === 'EXECUTION' && !flow.executionCandidate.resolved && (
+                        <Space direction="vertical" size="small" style={{width: '100%'}}>
+                            <Input.TextArea
+                                autoSize={{minRows: 2, maxRows: 4}}
+                                onChange={(event) => setExecutionNote(event.target.value)}
+                                placeholder="结算原因"
+                                value={executionNote}
+                            />
+                            {flow.executionCandidate.executable ? (
+                                <Space wrap>
+                                    <Button
+                                        disabled={!canSubmitExecution}
+                                        loading={loading}
+                                        onClick={voidify(() => onConfirmExecution('NO_CHANGE', executionNote.trim()))}
+                                    >
+                                        确认处决但不死亡
+                                    </Button>
+                                    <Button
+                                        danger
+                                        disabled={!canSubmitExecution}
+                                        loading={loading}
+                                        onClick={voidify(() => onConfirmExecution('MARK_DEAD', executionNote.trim()))}
+                                    >
+                                        确认处决并标记死亡
+                                    </Button>
+                                </Space>
+                            ) : (
+                                <Button
+                                    disabled={!canSubmitExecution}
+                                    loading={loading}
+                                    onClick={voidify(() => onConfirmNoExecution(executionNote.trim()))}
+                                >
+                                    确认无人处决
+                                </Button>
+                            )}
+                        </Space>
+                    )}
+                </>
+            )}
+            {flow.victoryCandidate && (
+                <Tag color="error">胜负建议：{flow.victoryCandidate.winner}</Tag>
+            )}
+            <Button disabled={!flow.advanceAllowed} loading={loading} onClick={voidify(onAdvance)} type="primary">
+                {transitionText(flow.nextTransition)}
+            </Button>
+        </Space>
+    )
+}
+
+function phaseText(phase: string) {
+    if (phase === 'FIRST_NIGHT') {
+        return '首夜'
+    }
+    if (phase === 'DAY') {
+        return '白天'
+    }
+    if (phase === 'NOMINATION') {
+        return '提名'
+    }
+    if (phase === 'EXECUTION') {
+        return '处决'
+    }
+    if (phase === 'NIGHT') {
+        return '夜晚'
+    }
+    return phase
+}
+
+function flowBlockingText(reason: string) {
+    if (reason === 'CLOCKTOWER_NIGHT_TASKS_PENDING') {
+        return '夜晚任务未完成'
+    }
+    if (reason === 'CLOCKTOWER_OPEN_NOMINATION_EXISTS') {
+        return '仍有提名未关闭'
+    }
+    if (reason === 'CLOCKTOWER_EXECUTION_NOT_RESOLVED') {
+        return '处决尚未结算'
+    }
+    if (reason === 'CLOCKTOWER_GAME_ALREADY_ENDED') {
+        return '游戏已结束'
+    }
+    return reason
+}
+
+function transitionText(transition: string) {
+    if (transition === 'COMPLETE_FIRST_NIGHT') {
+        return '进入第一天'
+    }
+    if (transition === 'START_NOMINATION') {
+        return '进入提名阶段'
+    }
+    if (transition === 'START_EXECUTION') {
+        return '进入处决阶段'
+    }
+    if (transition === 'START_NIGHT') {
+        return '进入下一夜'
+    }
+    if (transition === 'COMPLETE_NIGHT') {
+        return '进入下一天'
+    }
+    return '无可推进流程'
 }
 
 export function GrimoireSeatList({

@@ -1,8 +1,12 @@
 import {describe, expect, it, vi} from 'vitest'
 import {
+    advanceClocktowerFlow,
+    closeClocktowerNomination,
+    confirmClocktowerExecution,
     createClocktowerRuling,
     generateClocktowerBoard,
     getClocktowerGroupedNightOrder,
+    getClocktowerFlow,
     getClocktowerJinxRules,
     getClocktowerReplayVotes,
     getClocktowerScripts,
@@ -10,6 +14,7 @@ import {
     joinClocktowerRoom,
     listClocktowerRulings,
     saveClocktowerBoard,
+    skipClocktowerNightTask,
     streamClocktowerEvents,
     submitClocktowerStorytellerAction,
     undoClocktowerRuling,
@@ -123,6 +128,37 @@ describe('clocktowerService', () => {
         await getClocktowerReplayVotes(7)
 
         expect(requestJson).toHaveBeenCalledWith('/api/clocktower/replays/7/votes')
+    })
+
+    it('loads and advances room flow', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await getClocktowerFlow(7)
+        await advanceClocktowerFlow(7)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/flow')
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/flow/advance', {method: 'POST'})
+    })
+
+    it('submits flow control actions', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await skipClocktowerNightTask(7, 11, {reason: '无需唤醒'})
+        await closeClocktowerNomination(7, 12, {note: '投票结束'})
+        await confirmClocktowerExecution(7, {execute: true, deathPolicy: 'NO_CHANGE', note: '执行但未死亡'})
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/night-tasks/11/skip', {
+            method: 'POST',
+            body: {reason: '无需唤醒'},
+        })
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/nominations/12/close', {
+            method: 'POST',
+            body: {note: '投票结束'},
+        })
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/execution/confirm', {
+            method: 'POST',
+            body: {execute: true, deathPolicy: 'NO_CHANGE', note: '执行但未死亡'},
+        })
     })
 
     it('creates room rulings through the ruling endpoint', async () => {

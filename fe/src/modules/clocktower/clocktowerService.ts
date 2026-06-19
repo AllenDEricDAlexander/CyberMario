@@ -9,6 +9,7 @@ import type {
     ClocktowerBoardSaveRequest,
     ClocktowerBoardValidateRequest,
     ClocktowerEventResponse,
+    ClocktowerFlowResponse,
     ClocktowerGrimoireResponse,
     ClocktowerJinxRuleResponse,
     ClocktowerNightChecklistResponse,
@@ -34,6 +35,9 @@ import type {
     ClocktowerStorytellerActionRequest,
     ClocktowerTermResponse,
     ClocktowerUpdateSeatRequest,
+    CloseNominationRequest,
+    ExecutionConfirmRequest,
+    SkipNightTaskRequest,
     ClocktowerVoteReplayResponse,
     StorytellerActionResponse,
 } from './clocktowerTypes'
@@ -148,6 +152,35 @@ export function getClocktowerGrimoire(roomId: number) {
 
 export function getClocktowerNightChecklist(roomId: number) {
     return requestJson<ClocktowerNightChecklistResponse>(`/api/clocktower/rooms/${roomId}/night-checklist`)
+}
+
+export function getClocktowerFlow(roomId: number) {
+    return requestJson<ClocktowerFlowResponse>(`/api/clocktower/rooms/${roomId}/flow`)
+}
+
+export function advanceClocktowerFlow(roomId: number) {
+    return requestJson<ClocktowerFlowResponse>(`/api/clocktower/rooms/${roomId}/flow/advance`, {method: 'POST'})
+}
+
+export function skipClocktowerNightTask(roomId: number, taskId: number, request: SkipNightTaskRequest) {
+    return requestJson<ClocktowerFlowResponse>(`/api/clocktower/rooms/${roomId}/night-tasks/${taskId}/skip`, {
+        method: 'POST',
+        body: request,
+    })
+}
+
+export function closeClocktowerNomination(roomId: number, nominationId: number, request: CloseNominationRequest) {
+    return requestJson<ClocktowerFlowResponse>(`/api/clocktower/rooms/${roomId}/nominations/${nominationId}/close`, {
+        method: 'POST',
+        body: request,
+    })
+}
+
+export function confirmClocktowerExecution(roomId: number, request: ExecutionConfirmRequest) {
+    return requestJson<ClocktowerFlowResponse>(`/api/clocktower/rooms/${roomId}/execution/confirm`, {
+        method: 'POST',
+        body: request,
+    })
 }
 
 export function createClocktowerRuling(roomId: number, request: ClocktowerRulingCreateRequest) {

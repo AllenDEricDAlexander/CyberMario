@@ -33,11 +33,11 @@ export function NightChecklist({checklist, loading}: NightChecklistProps) {
                             <Typography.Text strong>{step.roleName}</Typography.Text>
                             <Typography.Text type="secondary">{step.roleCode}</Typography.Text>
                             <RoleTypeTag value={step.roleType}/>
-                            <Tag color={step.wakeRequired ? 'processing' : 'default'}>
-                                {step.wakeRequired ? '需要唤醒' : '跳过'}
+                            <Tag color={step.skipReason ? 'default' : step.wakeRequired ? 'processing' : 'default'}>
+                                {step.skipReason ? '已跳过' : step.wakeRequired ? '需要唤醒' : '跳过'}
                             </Tag>
-                            <Tag color={step.completed ? 'success' : 'warning'}>
-                                {step.completed ? '已完成' : '待处理'}
+                            <Tag color={step.completed || step.skipReason ? 'success' : 'warning'}>
+                                {step.skipReason ? '已跳过' : step.completed ? '已完成' : '待处理'}
                             </Tag>
                             {step.skipReason && <Typography.Text type="secondary">{step.skipReason}</Typography.Text>}
                         </Space>

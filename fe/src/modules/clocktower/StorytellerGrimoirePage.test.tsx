@@ -2,6 +2,7 @@ import {renderToStaticMarkup} from 'react-dom/server'
 import {describe, expect, test, vi} from 'vitest'
 import {
     Component as StorytellerGrimoirePage,
+    FlowPanel,
     GrimoireSeatList,
     RulingForm,
     RulingHistory,
@@ -30,6 +31,29 @@ vi.mock('./clocktowerService', () => ({
         steps: [],
         completed: false
     }),
+    getClocktowerFlow: vi.fn().mockResolvedValue({
+        roomId: 7,
+        phase: {phase: 'FIRST_NIGHT', dayNo: 0, nightNo: 1},
+        nextTransition: 'COMPLETE_FIRST_NIGHT',
+        advanceAllowed: false,
+        blockingReasons: ['CLOCKTOWER_NIGHT_TASKS_PENDING'],
+        nightTaskSummary: {total: 2, pending: 2, done: 0, skipped: 0},
+        openNomination: null,
+        executionCandidate: {
+            resolved: false,
+            executable: false,
+            nominationId: null,
+            nomineeSeatId: null,
+            voteCount: 0,
+            threshold: 3,
+            reason: 'NO_CLOSED_NOMINATION',
+        },
+        victoryCandidate: null,
+    }),
+    advanceClocktowerFlow: vi.fn(),
+    skipClocktowerNightTask: vi.fn(),
+    closeClocktowerNomination: vi.fn(),
+    confirmClocktowerExecution: vi.fn(),
     submitClocktowerStorytellerAction: vi.fn(),
     createClocktowerRuling: vi.fn(),
     listClocktowerRulings: vi.fn().mockResolvedValue([]),
@@ -72,6 +96,33 @@ describe('StorytellerGrimoirePage', () => {
         expect(markup).toContain('镇民')
     })
 
+    test('renders skipped night step reason', () => {
+        const markup = renderToStaticMarkup(
+            <NightChecklist
+                checklist={{
+                    nightNo: 1,
+                    nightType: 'FIRST_NIGHT',
+                    steps: [
+                        {
+                            orderNo: 20,
+                            seatId: 2,
+                            roleCode: 'EMPATH',
+                            roleName: '共情者',
+                            roleType: 'TOWNSFOLK',
+                            wakeRequired: true,
+                            skipReason: '已由说书人跳过',
+                            completed: false,
+                        },
+                    ],
+                    completed: false,
+                }}
+            />,
+        )
+
+        expect(markup).toContain('已跳过')
+        expect(markup).toContain('已由说书人跳过')
+    })
+
     test('renders pending wake task with resolve action', () => {
         const markup = renderToStaticMarkup(
             <TaskList
@@ -104,6 +155,76 @@ describe('StorytellerGrimoirePage', () => {
         expect(markup).toContain('待处理')
         expect(markup).toContain('POISONER')
         expect(markup).toContain('完成')
+    })
+
+    test('renders flow panel with blocking reason', () => {
+        const markup = renderToStaticMarkup(
+            <FlowPanel
+                flow={{
+                    roomId: 7,
+                    phase: {phase: 'FIRST_NIGHT', dayNo: 0, nightNo: 1},
+                    nextTransition: 'COMPLETE_FIRST_NIGHT',
+                    advanceAllowed: false,
+                    blockingReasons: ['CLOCKTOWER_NIGHT_TASKS_PENDING'],
+                    nightTaskSummary: {total: 2, pending: 2, done: 0, skipped: 0},
+                    openNomination: null,
+                    executionCandidate: {
+                        resolved: false,
+                        executable: false,
+                        nominationId: null,
+                        nomineeSeatId: null,
+                        voteCount: 0,
+                        threshold: 3,
+                        reason: 'NO_CLOSED_NOMINATION',
+                    },
+                    victoryCandidate: null,
+                }}
+                loading={false}
+                onAdvance={() => Promise.resolve()}
+                onConfirmExecution={() => Promise.resolve()}
+                onConfirmNoExecution={() => Promise.resolve()}
+            />,
+        )
+
+        expect(markup).toContain('流程')
+        expect(markup).toContain('首夜')
+        expect(markup).toContain('待处理 2')
+        expect(markup).toContain('夜晚任务未完成')
+    })
+
+    test('renders execution resolution controls with required note', () => {
+        const markup = renderToStaticMarkup(
+            <FlowPanel
+                flow={{
+                    roomId: 7,
+                    phase: {phase: 'EXECUTION', dayNo: 1, nightNo: 1},
+                    nextTransition: 'START_NIGHT',
+                    advanceAllowed: false,
+                    blockingReasons: ['CLOCKTOWER_EXECUTION_NOT_RESOLVED'],
+                    nightTaskSummary: {total: 0, pending: 0, done: 0, skipped: 0},
+                    openNomination: null,
+                    executionCandidate: {
+                        resolved: false,
+                        executable: true,
+                        nominationId: 12,
+                        nomineeSeatId: 3,
+                        voteCount: 4,
+                        threshold: 3,
+                        reason: 'EXECUTION_CANDIDATE',
+                    },
+                    victoryCandidate: null,
+                }}
+                loading={false}
+                onAdvance={() => Promise.resolve()}
+                onConfirmExecution={() => Promise.resolve()}
+                onConfirmNoExecution={() => Promise.resolve()}
+            />,
+        )
+
+        expect(markup).toContain('处决结算')
+        expect(markup).toContain('结算原因')
+        expect(markup).toContain('确认处决但不死亡')
+        expect(markup).toContain('确认处决并标记死亡')
     })
 
     test('renders grimoire seats with real and public life status plus ruling actions', () => {
