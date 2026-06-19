@@ -158,7 +158,10 @@ class ClocktowerBoardServiceTests {
         ClocktowerBoardRoleRepository roleRepository = mock(ClocktowerBoardRoleRepository.class);
         when(configRepository.save(any(ClocktowerBoardConfigPo.class))).thenAnswer(invocation -> {
             ClocktowerBoardConfigPo config = invocation.getArgument(0);
+            assertThat(config.isValid()).isTrue();
             config.setId(42L);
+            config.setValid(true);
+            config.setCreatedAt(java.time.Instant.parse("2026-06-19T00:00:00Z"));
             return config;
         });
         ClocktowerBoardService service = new ClocktowerBoardServiceImpl(provider,
@@ -171,6 +174,8 @@ class ClocktowerBoardServiceTests {
         ClocktowerBoardConfigResponse response = service.save(request, principal(1L));
 
         assertThat(response.boardId()).isEqualTo(42L);
+        assertThat(response.valid()).isTrue();
+        assertThat(response.createdAt()).isEqualTo(java.time.Instant.parse("2026-06-19T00:00:00Z"));
         assertThat(response.roleCodes()).containsExactly("CHEF", "UNKNOWN");
         assertThat(response.roles()).extracting(role -> role.roleName())
                 .containsExactly("厨师", "UNKNOWN");

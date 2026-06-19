@@ -113,6 +113,16 @@ class ClocktowerSchemaMigrationTests {
     }
 
     @Test
+    void boardValidMigrationAddsQueryableValidFlag() throws IOException {
+        Path migration = Path.of("src/main/resources/db/migration/V22__add_clocktower_board_valid.sql");
+
+        String sql = Files.readString(migration);
+
+        assertThat(sql).contains("ALTER TABLE clocktower_board_config");
+        assertThat(sql).contains("ADD COLUMN valid BOOLEAN NOT NULL DEFAULT FALSE");
+    }
+
+    @Test
     void completeClocktowerRuleDataMigrationAppliesReviewedBaseScriptRows() {
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setDriverClassName("org.h2.Driver");

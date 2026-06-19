@@ -84,6 +84,7 @@ public class ClocktowerBoardServiceImpl implements ClocktowerBoardService {
         config.setBoardCode("CTB-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
         config.setScriptCode(request.scriptCode());
         config.setPlayerCount(request.playerCount());
+        config.setValid(request.validation().valid());
         config.setDifficulty(request.difficulty());
         config.setChaos(request.chaos());
         config.setEvilPressure(request.evilPressure());
@@ -380,8 +381,8 @@ public class ClocktowerBoardServiceImpl implements ClocktowerBoardService {
     private ClocktowerBoardConfigResponse toResponse(ClocktowerBoardConfigPo config, List<String> roleCodes,
                                                      ClocktowerBoardValidationResponse validation) {
         return new ClocktowerBoardConfigResponse(config.getId(), config.getBoardCode(), config.getScriptCode(),
-                config.getPlayerCount(), roleCodes, roleMetadataProvider.roleSummaries(config.getScriptCode(), roleCodes),
-                validation);
+                config.getPlayerCount(), config.isValid(), config.getCreatedAt(), roleCodes,
+                roleMetadataProvider.roleSummaries(config.getScriptCode(), roleCodes), validation);
     }
 
     private String writeJson(Object value) {

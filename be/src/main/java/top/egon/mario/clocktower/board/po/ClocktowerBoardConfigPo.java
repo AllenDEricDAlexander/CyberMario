@@ -28,6 +28,9 @@ public class ClocktowerBoardConfigPo extends BaseAuditablePo {
     @Column(name = "player_count", nullable = false)
     private int playerCount;
 
+    @Column(name = "valid", nullable = false)
+    private boolean valid;
+
     @Column(name = "difficulty", nullable = false)
     private int difficulty;
 
