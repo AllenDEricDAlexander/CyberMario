@@ -104,7 +104,10 @@ function BoardBuilderPage() {
                 }
                 setRoles(response)
                 const availableRoleCodes = new Set(response.map((role) => role.roleCode))
-                const currentRoleCodes: string[] = form.getFieldValue('roleCodes') ?? []
+                const rawRoleCodes: unknown = form.getFieldValue('roleCodes')
+                const currentRoleCodes = Array.isArray(rawRoleCodes)
+                    ? rawRoleCodes.filter((roleCode): roleCode is string => typeof roleCode === 'string')
+                    : []
                 const nextRoleCodes = currentRoleCodes.filter((roleCode) => availableRoleCodes.has(roleCode))
                 if (nextRoleCodes.length !== currentRoleCodes.length) {
                     form.setFieldValue('roleCodes', nextRoleCodes)
