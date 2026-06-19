@@ -52,6 +52,17 @@ class ClocktowerFlowServiceTests {
     }
 
     @Test
+    void firstNightCannotAdvanceBeforeNightTasksAreSyncedByOpeningGrimoire() {
+        Long roomId = startedRoom();
+
+        assertThatThrownBy(() -> flowService.advance(roomId, storyteller()))
+                .hasMessageContaining("CLOCKTOWER_NIGHT_TASKS_PENDING");
+        assertThat(context.storytellerTaskRepository()
+                .findByRoomIdAndStatusAndDeletedFalseOrderBySortOrderAsc(roomId, "PENDING"))
+                .isNotEmpty();
+    }
+
+    @Test
     void skippingAllNightTasksAllowsFirstNightToEnterDay() {
         Long roomId = startedRoom();
         grimoireService.getGrimoire(roomId, storyteller());
@@ -187,6 +198,22 @@ class ClocktowerFlowServiceTests {
                     assertThat(nomination.getNomineeSeatId()).isNotZero();
                 });
         assertThat(flowService.getFlow(roomId, storyteller()).executionCandidate().resolved()).isTrue();
+    }
+
+    @Test
+    void confirmNoExecutionIsIdempotentAfterResolution() {
+        Long roomId = executionRoomWithClosedNominations(2, 1);
+
+        flowService.confirmExecution(roomId,
+                new ExecutionConfirmRequest(false, ClocktowerExecutionDeathPolicy.NO_CHANGE, "无人达到处决门槛"),
+                storyteller());
+        flowService.confirmExecution(roomId,
+                new ExecutionConfirmRequest(false, ClocktowerExecutionDeathPolicy.NO_CHANGE, "重复提交"),
+                storyteller());
+
+        assertThat(context.rulingRepository().findByRoomIdAndDeletedFalseOrderByIdDesc(roomId))
+                .filteredOn(ruling -> "SKIP_EXECUTION".equals(ruling.getRulingType().name()))
+                .hasSize(1);
     }
 
     @Test

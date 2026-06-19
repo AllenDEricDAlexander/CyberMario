@@ -424,6 +424,15 @@ export function FlowPanel({
     onConfirmNoExecution: (note: string) => Promise<void>
 }) {
     const [executionNote, setExecutionNote] = useState('')
+    useEffect(() => {
+        setExecutionNote('')
+    }, [
+        flow?.phase.phase,
+        flow?.phase.dayNo,
+        flow?.phase.nightNo,
+        flow?.executionCandidate?.nominationId,
+        flow?.executionCandidate?.resolved,
+    ])
     if (!flow) {
         return <Empty description="暂无流程信息"/>
     }
@@ -874,7 +883,6 @@ function StorytellerActionForm({
         <Form form={form} layout="vertical">
             <Form.Item label="动作" name="actionType" rules={[{required: true, message: '请选择动作'}]}>
                 <Select options={[
-                    {label: '阶段推进', value: 'ADVANCE_PHASE'},
                     {label: '说书人裁定', value: 'STORYTELLER_RULING'},
                     {label: '添加标记', value: 'ADD_MARKER'},
                     {label: '移除标记', value: 'REMOVE_MARKER'},

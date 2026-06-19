@@ -95,7 +95,8 @@ class ClocktowerCoreFlowTests {
                 context.eventRepository(), context.eventService(), context.objectMapper(), grimoireService);
         return new ClocktowerFlowServiceImpl(context.roomRepository(), context.seatRepository(),
                 context.storytellerTaskRepository(), context.nominationRepository(), context.voteRepository(),
-                context.roleRepository(), context.eventService(), context.eventRepository(), rulingService, ruleEngine);
+                context.roleRepository(), context.eventService(), context.eventRepository(), rulingService,
+                grimoireService, ruleEngine);
     }
 
     private ClocktowerRoomResponse joinAllSeats(ClocktowerRoomResponse room) {

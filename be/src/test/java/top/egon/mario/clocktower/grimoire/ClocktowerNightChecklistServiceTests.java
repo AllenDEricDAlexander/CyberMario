@@ -68,6 +68,31 @@ class ClocktowerNightChecklistServiceTests {
         assertThat(checklist.completed()).isFalse();
     }
 
+    @Test
+    void skippedNightTaskIsShownAsCompletedWithReason() {
+        ClocktowerRoomTestFactory.Context context = ClocktowerRoomTestFactory.context();
+        ClocktowerGrimoireServiceImpl service = new ClocktowerGrimoireServiceImpl(context.roomRepository(),
+                context.seatRepository(), context.grimoireEntryRepository(), context.markerRepository(),
+                context.storytellerTaskRepository(), context.nightOrderRepository(), context.roleRepository(),
+                context.eventService());
+        Long roomId = startedRoom(context);
+        service.getGrimoire(roomId, storytellerPrincipal());
+        var task = context.storytellerTaskRepository()
+                .findByRoomIdAndStatusAndDeletedFalseOrderBySortOrderAsc(roomId, "PENDING")
+                .getFirst();
+        task.setStatus("SKIPPED");
+        task.setNote("本轮无需唤醒");
+
+        NightChecklistResponse checklist = service.nightChecklist(roomId, storytellerPrincipal());
+
+        assertThat(checklist.steps()).filteredOn(step -> step.roleCode().equals(task.getRoleCode()))
+                .singleElement()
+                .satisfies(step -> {
+                    assertThat(step.completed()).isTrue();
+                    assertThat(step.skipReason()).isEqualTo("本轮无需唤醒");
+                });
+    }
+
     private ClocktowerRoomResponse startedTroubleBrewingRoomWithRoles(String... roleCodes) {
         ClocktowerRoomResponse room = roomService.create(new ClocktowerRoomCreateRequest(
                 "周五暗流", ClocktowerScriptCode.TROUBLE_BREWING, roleCodes.length, null, null,

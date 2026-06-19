@@ -110,6 +110,27 @@ class ClocktowerActionServiceTests {
     }
 
     @Test
+    void nominationRejectsPubliclyDeadNominatorAndNominee() {
+        ClocktowerRoomResponse room = runningDayRoom();
+        Long roomId = room.roomId();
+        var seats = context.seatRepository().findByRoomIdAndDeletedFalseOrderBySeatNoAsc(roomId);
+        seats.getFirst().setPublicLifeStatus("DEAD");
+
+        ClocktowerActionResponse deadNominator = nominate(roomId, seats.getFirst(), seats.get(1));
+
+        assertThat(deadNominator.accepted()).isFalse();
+        assertThat(deadNominator.rejectedCode()).isEqualTo("CLOCKTOWER_NOMINATOR_NOT_ALIVE");
+
+        seats.getFirst().setPublicLifeStatus("ALIVE");
+        seats.get(1).setPublicLifeStatus("DEAD");
+
+        ClocktowerActionResponse deadNominee = nominate(roomId, seats.getFirst(), seats.get(1));
+
+        assertThat(deadNominee.accepted()).isFalse();
+        assertThat(deadNominee.rejectedCode()).isEqualTo("CLOCKTOWER_NOMINEE_NOT_ALIVE");
+    }
+
+    @Test
     void nominationRejectsDailyRepeatAndOpenNomination() {
         ClocktowerRoomResponse room = runningDayRoom();
         Long roomId = room.roomId();

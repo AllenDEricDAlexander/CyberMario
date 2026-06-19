@@ -52,6 +52,7 @@ public class ClocktowerGrimoireServiceImpl implements ClocktowerGrimoireService 
     private static final String TASK_WAKE_ROLE = "WAKE_ROLE";
     private static final String STATUS_PENDING = "PENDING";
     private static final String STATUS_DONE = "DONE";
+    private static final String STATUS_SKIPPED = "SKIPPED";
 
     private final ClocktowerRoomRepository roomRepository;
     private final ClocktowerSeatRepository seatRepository;
@@ -148,9 +149,11 @@ public class ClocktowerGrimoireServiceImpl implements ClocktowerGrimoireService 
 
     private static NightStepResponse toNightStep(ClocktowerNightOrderPo order, ClocktowerSeatPo seat,
                                                  ClocktowerRolePo role, ClocktowerStorytellerTaskPo task) {
+        boolean skipped = task != null && STATUS_SKIPPED.equals(task.getStatus());
         return new NightStepResponse(order.getOrderNo(), seat == null ? null : seat.getId(), order.getRoleCode(),
                 role == null ? order.getRoleCode() : role.getName(), role == null ? null : role.getRoleType(),
-                true, null, task != null && STATUS_DONE.equals(task.getStatus()));
+                true, skipped ? task.getNote() : null,
+                task != null && (STATUS_DONE.equals(task.getStatus()) || skipped));
     }
 
     private void syncNightWakeTasks(ClocktowerRoomPo room, List<ClocktowerSeatPo> seats) {

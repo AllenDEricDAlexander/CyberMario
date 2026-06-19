@@ -80,12 +80,12 @@ public class ClocktowerActionServiceImpl implements ClocktowerActionService {
         if (room.getPhase() != ClocktowerPhase.DAY && room.getPhase() != ClocktowerPhase.NOMINATION) {
             return reject(room, actor, principal, "CLOCKTOWER_NOMINATION_PHASE_INVALID");
         }
-        if (!"ALIVE".equals(actor.getLifeStatus())) {
+        if (!canNominate(actor)) {
             return reject(room, actor, principal, "CLOCKTOWER_NOMINATOR_NOT_ALIVE");
         }
         Long targetSeatId = firstTarget(request);
         ClocktowerSeatPo target = seat(room.getId(), targetSeatId);
-        if (!"ALIVE".equals(target.getLifeStatus())) {
+        if (!canNominate(target)) {
             return reject(room, actor, principal, "CLOCKTOWER_NOMINEE_NOT_ALIVE");
         }
         if (nominationRepository.findTopByRoomIdAndStatusAndDeletedFalseOrderByIdDesc(room.getId(), "OPEN").isPresent()) {
@@ -205,5 +205,9 @@ public class ClocktowerActionServiceImpl implements ClocktowerActionService {
         }
         Object value = request.payload().get(key);
         return value instanceof Boolean booleanValue ? booleanValue : defaultValue;
+    }
+
+    private static boolean canNominate(ClocktowerSeatPo seat) {
+        return "ALIVE".equals(seat.getLifeStatus()) && "ALIVE".equals(seat.getPublicLifeStatus());
     }
 }

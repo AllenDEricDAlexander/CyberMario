@@ -33,6 +33,7 @@ import top.egon.mario.clocktower.grimoire.po.ClocktowerStorytellerTaskPo;
 import top.egon.mario.clocktower.grimoire.repository.ClocktowerNominationRepository;
 import top.egon.mario.clocktower.grimoire.repository.ClocktowerStorytellerTaskRepository;
 import top.egon.mario.clocktower.grimoire.repository.ClocktowerVoteRepository;
+import top.egon.mario.clocktower.grimoire.service.ClocktowerGrimoireService;
 import top.egon.mario.clocktower.room.po.ClocktowerRoomPo;
 import top.egon.mario.clocktower.room.po.ClocktowerSeatPo;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomRepository;
@@ -65,13 +66,15 @@ public class ClocktowerFlowServiceImpl implements ClocktowerFlowService {
     private final ClocktowerEventService eventService;
     private final ClocktowerEventRepository eventRepository;
     private final ClocktowerRulingService rulingService;
+    private final ClocktowerGrimoireService grimoireService;
     private final ClocktowerRuleEngine ruleEngine;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public ClocktowerFlowResponse getFlow(Long roomId, RbacPrincipal principal) {
         ClocktowerRoomPo room = room(roomId);
         ClocktowerAccess.requireStoryteller(room, principal);
+        ensureNightTasks(room, principal);
         return buildFlow(room);
     }
 
@@ -81,6 +84,7 @@ public class ClocktowerFlowServiceImpl implements ClocktowerFlowService {
         ClocktowerRoomPo room = roomRepository.findLockedByIdAndDeletedFalse(roomId)
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
         ClocktowerAccess.requireStoryteller(room, principal);
+        ensureNightTasks(room, principal);
         ClocktowerFlowResponse flow = buildFlow(room);
         if (!flow.advanceAllowed()) {
             throw new ClocktowerException(flow.blockingReasons().getFirst());
@@ -107,6 +111,7 @@ public class ClocktowerFlowServiceImpl implements ClocktowerFlowService {
                 room.getPhase(), room.getCurrentDayNo(), room.getCurrentNightNo(),
                 principal == null ? null : principal.userId(), null, null, ClocktowerVisibility.PUBLIC, List.of(),
                 Map.of("phase", room.getPhase().name())));
+        ensureNightTasks(room, principal);
         return buildFlow(room);
     }
 
@@ -170,6 +175,9 @@ public class ClocktowerFlowServiceImpl implements ClocktowerFlowService {
                 : request.deathPolicy();
         ClocktowerFlowResponse flow = buildFlow(room);
         ExecutionCandidateResponse candidate = flow.executionCandidate();
+        if (candidate.resolved()) {
+            return flow;
+        }
         if (Boolean.TRUE.equals(request.execute())) {
             if (!candidate.executable() || candidate.nominationId() == null || candidate.nomineeSeatId() == null) {
                 throw new ClocktowerException("CLOCKTOWER_EXECUTION_CANDIDATE_REQUIRED");
@@ -269,6 +277,12 @@ public class ClocktowerFlowServiceImpl implements ClocktowerFlowService {
         return closed.stream().anyMatch(ClocktowerNominationPo::isExecuted)
                 || eventRepository.existsByRoomIdAndDayNoAndEventTypeAndDeletedFalse(
                 room.getId(), room.getCurrentDayNo(), ClocktowerEventType.EXECUTION_SKIPPED);
+    }
+
+    private void ensureNightTasks(ClocktowerRoomPo room, RbacPrincipal principal) {
+        if (isNight(room.getPhase())) {
+            grimoireService.getGrimoire(room.getId(), principal);
+        }
     }
 
     private NightTaskSummaryResponse nightSummary(List<ClocktowerStorytellerTaskPo> tasks) {
