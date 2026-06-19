@@ -3,8 +3,8 @@ import {App, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, 
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useState} from 'react'
 import {useNavigate} from 'react-router'
+import {reportGlobalError} from '../../app/globalError'
 import {PageToolbar} from '../../components/PageToolbar'
-import {resolveErrorMessage} from '../../services/request'
 import {voidify} from '../../utils/async'
 import {createClocktowerRoom, listClocktowerBoards, listClocktowerRooms} from './clocktowerService'
 import {RoleSummaryTags} from './components/RoleSummaryTags'
@@ -48,11 +48,11 @@ function RoomListPage() {
         try {
             setRooms(await listClocktowerRooms())
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setLoading(false)
         }
-    }, [message])
+    }, [])
 
     useEffect(() => {
         void loadRooms()
@@ -83,7 +83,7 @@ function RoomListPage() {
             setBoards(page.records)
         } catch (caught) {
             setBoards([])
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setBoardLoading(false)
         }
@@ -126,7 +126,7 @@ function RoomListPage() {
             await loadRooms()
             void navigate(`/clocktower/rooms/${room.roomId}/lobby`)
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setSaving(false)
         }

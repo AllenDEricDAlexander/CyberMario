@@ -18,8 +18,8 @@ import {
 } from 'antd'
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {useNavigate, useParams} from 'react-router'
+import {reportGlobalError} from '../../app/globalError'
 import {PageToolbar} from '../../components/PageToolbar'
-import {resolveErrorMessage} from '../../services/request'
 import {voidify} from '../../utils/async'
 import {hasAdminPermissionBypass, useAuth} from '../auth/authStore'
 import {
@@ -71,11 +71,11 @@ function RoomLobbyPage() {
         try {
             setRoles(await getClocktowerRoles(scriptCode, {enabled: true}))
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setRoleLoading(false)
         }
-    }, [message])
+    }, [])
 
     const loadRoom = useCallback(async () => {
         if (!Number.isFinite(numericRoomId)) {
@@ -89,11 +89,11 @@ function RoomLobbyPage() {
                 await loadRoles(nextRoom.scriptCode)
             }
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setLoading(false)
         }
-    }, [canManageRoom, loadRoles, message, numericRoomId])
+    }, [canManageRoom, loadRoles, numericRoomId])
 
     useEffect(() => {
         void loadRoom()
@@ -110,7 +110,7 @@ function RoomLobbyPage() {
             message.success('已加入座位')
             await loadRoom()
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setJoining(false)
         }
@@ -126,7 +126,7 @@ function RoomLobbyPage() {
             message.success('已离开房间')
             await loadRoom()
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setLeaving(false)
         }
@@ -160,7 +160,7 @@ function RoomLobbyPage() {
             closeSeatEditor()
             await loadRoom()
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setUpdatingSeat(false)
         }
@@ -179,7 +179,7 @@ function RoomLobbyPage() {
             message.success('游戏已开始')
             void navigate(`/clocktower/rooms/${numericRoomId}/grimoire`)
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setStarting(false)
         }

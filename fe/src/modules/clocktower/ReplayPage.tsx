@@ -1,10 +1,10 @@
 import {SearchOutlined} from '@ant-design/icons'
-import {App, Button, Card, Col, Form, InputNumber, Row, Select, Space, Table, Tag, Typography} from 'antd'
+import {Button, Card, Col, Form, InputNumber, Row, Select, Space, Table, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useEffect, useState} from 'react'
 import {useParams} from 'react-router'
+import {reportGlobalError} from '../../app/globalError'
 import {PageToolbar} from '../../components/PageToolbar'
-import {resolveErrorMessage} from '../../services/request'
 import {voidify} from '../../utils/async'
 import {hasAdminPermissionBypass, useAuth} from '../auth/authStore'
 import {getClocktowerReplay, getClocktowerReplayVotes} from './clocktowerService'
@@ -19,7 +19,6 @@ type ReplayFormValues = {
 
 function ReplayPage() {
     const {roomId} = useParams()
-    const {message} = App.useApp()
     const auth = useAuth()
     const [form] = Form.useForm<ReplayFormValues>()
     const [replay, setReplay] = useState<ClocktowerReplayResponse | null>(null)
@@ -51,13 +50,13 @@ function ReplayPage() {
                 setVotes(await getClocktowerReplayVotes(numericRoomId))
             } catch (caught) {
                 setVotes([])
-                message.error(resolveErrorMessage(caught))
+                reportGlobalError(caught)
             }
         } catch (caught) {
             setReplay(null)
             setVotes([])
             setSelected(null)
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setLoading(false)
         }

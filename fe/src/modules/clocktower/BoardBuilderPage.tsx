@@ -2,10 +2,10 @@ import {EditOutlined, ExperimentOutlined, ReloadOutlined} from '@ant-design/icon
 import {Alert, App, Button, Card, Form, Input, InputNumber, Popconfirm, Select, Space, Switch, Table, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useState} from 'react'
+import {clearGlobalError, reportGlobalError} from '../../app/globalError'
 import {DateTimeText} from '../../components/DateTimeText'
 import {PageToolbar} from '../../components/PageToolbar'
 import {usePageData} from '../../hooks/usePageData'
-import {resolveErrorMessage} from '../../services/request'
 import {voidify} from '../../utils/async'
 import {
     deleteClocktowerBoard,
@@ -64,7 +64,6 @@ function BoardBuilderPage() {
     const [validating, setValidating] = useState(false)
     const [savingEditor, setSavingEditor] = useState(false)
     const [savingCandidateId, setSavingCandidateId] = useState<string>()
-    const [error, setError] = useState<string>()
     const selectedScriptCode = Form.useWatch('scriptCode', form) ?? defaultScriptCode
     const selectedPlayerCount = Form.useWatch('playerCount', form) ?? 5
     const selectedRoleCodes = Form.useWatch('roleCodes', form) ?? []
@@ -86,7 +85,7 @@ function BoardBuilderPage() {
         try {
             await loadSavedBoards(nextPage, nextSize)
         } catch (caught) {
-            setError(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         }
     }, [loadSavedBoards])
 
@@ -94,7 +93,7 @@ function BoardBuilderPage() {
         try {
             setScripts(await getClocktowerScripts())
         } catch (caught) {
-            setError(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         }
     }, [])
 
@@ -128,7 +127,7 @@ function BoardBuilderPage() {
             })
             .catch((caught) => {
                 if (active) {
-                    setError(resolveErrorMessage(caught))
+                    reportGlobalError(caught)
                 }
             })
             .finally(() => {
@@ -148,7 +147,7 @@ function BoardBuilderPage() {
     async function generate() {
         const values = await form.validateFields(boardGenerateFieldNames)
         setLoading(true)
-        setError(undefined)
+        clearGlobalError()
         try {
             const response = await generateClocktowerBoard({
                 scriptCode: values.scriptCode,
@@ -164,7 +163,7 @@ function BoardBuilderPage() {
             })
             setCandidates(response.candidates)
         } catch (caught) {
-            setError(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setLoading(false)
         }
@@ -173,7 +172,7 @@ function BoardBuilderPage() {
     async function validateCurrentBoard() {
         const values = await form.validateFields(['scriptCode', 'playerCount', 'roleCodes'])
         setValidating(true)
-        setError(undefined)
+        clearGlobalError()
         setValidation(undefined)
         try {
             const response = await validateClocktowerBoard({
@@ -183,7 +182,7 @@ function BoardBuilderPage() {
             })
             setValidation(response)
         } catch (caught) {
-            setError(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setValidating(false)
         }
@@ -192,13 +191,13 @@ function BoardBuilderPage() {
     async function saveCurrentBoard() {
         const values = await form.validateFields()
         setSavingEditor(true)
-        setError(undefined)
+        clearGlobalError()
         try {
             await saveClocktowerBoard(toSaveRequest(values))
             message.success('配板已保存')
             await reloadSavedBoards()
         } catch (caught) {
-            setError(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setSavingEditor(false)
         }
@@ -207,7 +206,7 @@ function BoardBuilderPage() {
     async function saveCandidate(candidate: ClocktowerBoardCandidateResponse) {
         const values = form.getFieldsValue()
         setSavingCandidateId(candidate.candidateId)
-        setError(undefined)
+        clearGlobalError()
         try {
             await saveClocktowerBoard({
                 scriptCode: candidate.scriptCode,
@@ -222,20 +221,20 @@ function BoardBuilderPage() {
             message.success('配板已保存')
             await reloadSavedBoards()
         } catch (caught) {
-            setError(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setSavingCandidateId(undefined)
         }
     }
 
     async function deleteSavedBoard(boardId: number) {
-        setError(undefined)
+        clearGlobalError()
         try {
             await deleteClocktowerBoard(boardId)
             message.success('配板已删除')
             await reloadSavedBoards()
         } catch (caught) {
-            setError(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         }
     }
 
@@ -279,7 +278,6 @@ function BoardBuilderPage() {
                 description="为说书人生成、编辑并校验一局可用配板。"
                 title="钟楼配板"
             />
-            {error && <Alert showIcon style={{marginBottom: 16}} title={error} type="error"/>}
             <Form
                 form={form}
                 initialValues={{

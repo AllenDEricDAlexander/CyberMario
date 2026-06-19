@@ -1,10 +1,11 @@
 import {DashboardOutlined, ReloadOutlined, ThunderboltOutlined, UserOutlined,} from '@ant-design/icons'
 import {Column, Line, Pie} from '@ant-design/charts'
-import {App, Button, Card, Col, DatePicker, Empty, Row, Segmented, Select, Space, Statistic, Table, Tag} from 'antd'
+import {Button, Card, Col, DatePicker, Empty, Row, Segmented, Select, Space, Statistic, Table, Tag} from 'antd'
 import type {RangePickerProps} from 'antd/es/date-picker'
 import type {ColumnsType} from 'antd/es/table'
 import type {ReactNode} from 'react'
 import {useEffect, useMemo, useState} from 'react'
+import {reportGlobalError} from '../../app/globalError'
 import {DateTimeText} from '../../components/DateTimeText'
 import {PageToolbar} from '../../components/PageToolbar'
 import {hasAdminPermissionBypass, useAuth} from '../auth/authStore'
@@ -23,7 +24,6 @@ type RangeValue = Parameters<NonNullable<RangePickerProps['onChange']>>[0]
 
 function DashboardPage() {
     const auth = useAuth()
-    const {message} = App.useApp()
     const canViewGlobal = hasAdminPermissionBypass(auth)
         || auth.hasPermission('api:agent:model-audit:dashboard:global')
     const [scope, setScope] = useState<ModelAuditDashboardScope>(canViewGlobal ? 'GLOBAL' : 'SELF')
@@ -63,7 +63,7 @@ function DashboardPage() {
         try {
             setSummary(await getModelAuditDashboardSummary(buildQuery()))
         } catch (error) {
-            message.error((error as Error).message)
+            reportGlobalError(error)
         } finally {
             setSummaryLoading(false)
         }
@@ -78,7 +78,7 @@ function DashboardPage() {
             setRecentSize(page.size)
             setRecentTotal(page.total)
         } catch (error) {
-            message.error((error as Error).message)
+            reportGlobalError(error)
         } finally {
             setRecentLoading(false)
         }
@@ -113,12 +113,12 @@ function DashboardPage() {
         {title: '用户', width: 160, render: (_, record) => userLabel(record)},
         {title: '模型', dataIndex: 'model', width: 190},
         {title: '场景', dataIndex: 'scenario', width: 130, render: (value) => <Tag>{value}</Tag>},
-        {title: '状态', dataIndex: 'status', width: 110, render: (value) => statusTag(value)},
+        {title: '状态', dataIndex: 'status', width: 110, render: (value: ModelAuditRecentCall['status']) => statusTag(value)},
         {title: '输入', dataIndex: 'promptTokens', width: 90, render: numberText},
         {title: '输出', dataIndex: 'completionTokens', width: 90, render: numberText},
         {title: '总 Token', dataIndex: 'totalTokens', width: 110, render: numberText},
-        {title: '耗时', dataIndex: 'durationMs', width: 100, render: (value) => `${numberText(value)}ms`},
-        {title: 'Trace', dataIndex: 'traceId', width: 180, render: (value) => value || '-'},
+        {title: '耗时', dataIndex: 'durationMs', width: 100, render: (value: ModelAuditRecentCall['durationMs']) => `${numberText(value)}ms`},
+        {title: 'Trace', dataIndex: 'traceId', width: 180, render: (value: ModelAuditRecentCall['traceId']) => value || '-'},
     ]
 
     const chartTheme = useMemo(() => ({

@@ -21,6 +21,7 @@ import {
 } from 'antd'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {useParams} from 'react-router'
+import {reportGlobalError} from '../../app/globalError'
 import {PageToolbar} from '../../components/PageToolbar'
 import {resolveErrorMessage} from '../../services/request'
 import {voidify} from '../../utils/async'
@@ -127,11 +128,11 @@ function StorytellerGrimoirePage() {
             setFlow(flowResponse)
             setRulings(rulingRows)
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setLoading(false)
         }
-    }, [message, numericRoomId])
+    }, [numericRoomId])
 
     useEffect(() => {
         void load()
@@ -152,7 +153,7 @@ function StorytellerGrimoirePage() {
             setGrimoire(response.grimoire)
             message.success(response.accepted ? '说书人操作已提交' : `操作被拒绝：${response.rejectedCode ?? '-'}`)
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setSubmitting(false)
         }
@@ -179,7 +180,7 @@ function StorytellerGrimoirePage() {
             setFlow(flowResponse)
             message.success(response.accepted ? '任务已处理' : `操作被拒绝：${response.rejectedCode ?? '-'}`)
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setResolvingTaskId(null)
         }
@@ -196,7 +197,7 @@ function StorytellerGrimoirePage() {
             await load()
             message.success('流程已推进')
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setFlowLoading(false)
         }
@@ -213,7 +214,7 @@ function StorytellerGrimoirePage() {
             await load()
             message.success('处决已结算')
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setFlowLoading(false)
         }
@@ -234,7 +235,7 @@ function StorytellerGrimoirePage() {
             await load()
             message.success('无人处决已确认')
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setFlowLoading(false)
         }
@@ -262,7 +263,7 @@ function StorytellerGrimoirePage() {
             }
             return true
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
             return false
         } finally {
             rulingMutationInFlight.current = false
@@ -303,7 +304,7 @@ function StorytellerGrimoirePage() {
                 message.warning(`裁定已撤销，裁定历史刷新失败：${resolveErrorMessage(caught)}`)
             }
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             rulingMutationInFlight.current = false
             setUndoingRulingId(null)

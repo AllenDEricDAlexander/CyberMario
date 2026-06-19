@@ -2,9 +2,9 @@ import {EditOutlined, ReloadOutlined} from '@ant-design/icons'
 import {App, Button, Card, Form, Select, Space, Switch, Table, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useEffect, useState} from 'react'
+import {reportGlobalError} from '../../../app/globalError'
 import {DateTimeText} from '../../../components/DateTimeText'
 import {PageToolbar} from '../../../components/PageToolbar'
-import {resolveErrorMessage} from '../../../services/request'
 import {canUseRbacButton, useAuth} from '../../auth/authStore'
 import {mcpButtonCodes} from './mcpPermissionCodes'
 import {disableMcpTool, enableMcpTool, getMcpServers, getMcpTools, updateMcpToolPolicy} from './mcpService'
@@ -49,7 +49,7 @@ function McpToolListPage() {
         try {
             setServers(await getMcpServers())
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         }
     }
 
@@ -58,7 +58,7 @@ function McpToolListPage() {
         try {
             setTools(await getMcpTools(serverId))
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         } finally {
             setLoading(false)
         }
@@ -78,7 +78,7 @@ function McpToolListPage() {
             setPolicyOpen(false)
             await loadTools()
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
             throw requestError
         } finally {
             setSaving(false)
@@ -96,7 +96,7 @@ function McpToolListPage() {
             message.success(checked ? '工具已启用' : '工具已禁用')
             await loadTools()
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         } finally {
             setSwitchingId(null)
         }

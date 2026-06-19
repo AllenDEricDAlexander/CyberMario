@@ -1,9 +1,9 @@
 import {ReloadOutlined, SearchOutlined} from '@ant-design/icons'
-import {App, Button, Card, Empty, Form, Input, Select, Space, Table, Tabs, Tag, Typography} from 'antd'
+import {Button, Card, Empty, Form, Input, Select, Space, Table, Tabs, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useEffect, useMemo, useRef, useState} from 'react'
+import {reportGlobalError} from '../../app/globalError'
 import {PageToolbar} from '../../components/PageToolbar'
-import {resolveErrorMessage} from '../../services/request'
 import {voidify} from '../../utils/async'
 import {enumCode, enumDesc} from '../../utils/enum'
 import {
@@ -48,7 +48,6 @@ type JinxRuleFilterValues = {
 }
 
 function RuleDataPage() {
-    const {message} = App.useApp()
     const [termForm] = Form.useForm<TermFilterValues>()
     const [jinxRuleForm] = Form.useForm<JinxRuleFilterValues>()
     const [scripts, setScripts] = useState<ClocktowerScriptResponse[]>([])
@@ -98,7 +97,7 @@ function RuleDataPage() {
             setJinxRules(jinxRuleResponse)
             setScriptCode((current) => current ?? scriptResponse[0]?.scriptCode)
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setInitialLoading(false)
         }
@@ -122,7 +121,7 @@ function RuleDataPage() {
             setNightOrder(nightOrderResponse)
         } catch (caught) {
             if (scriptRequestId === scriptRequestIdRef.current) {
-                message.error(resolveErrorMessage(caught))
+                reportGlobalError(caught)
             }
         } finally {
             if (scriptRequestId === scriptRequestIdRef.current) {
@@ -149,7 +148,7 @@ function RuleDataPage() {
             setRoles(response)
         } catch (caught) {
             if (roleRequestId === roleRequestIdRef.current) {
-                message.error(resolveErrorMessage(caught))
+                reportGlobalError(caught)
             }
         } finally {
             if (roleRequestId === roleRequestIdRef.current) {
@@ -175,7 +174,7 @@ function RuleDataPage() {
             })
             setTerms(response)
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setTermLoading(false)
         }
@@ -191,7 +190,7 @@ function RuleDataPage() {
             })
             setJinxRules(response)
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setJinxRuleLoading(false)
         }
@@ -417,7 +416,7 @@ function RoleTable({loading, roles}: { loading: boolean; roles: ClocktowerRoleRe
             width: 120,
             render: (value: ClocktowerRoleType) => <RoleTypeTag value={value}/>,
         },
-        {title: '阵营', dataIndex: 'alignment', width: 100, render: (value) => <Tag>{enumDesc(value)}</Tag>},
+        {title: '阵营', dataIndex: 'alignment', width: 100, render: (value: ClocktowerRoleResponse['alignment']) => <Tag>{enumDesc(value)}</Tag>},
         {title: '能力', dataIndex: 'abilityText'},
         {
             title: '首夜',

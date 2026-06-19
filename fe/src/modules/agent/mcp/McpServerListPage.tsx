@@ -3,9 +3,9 @@ import {App, Button, Popconfirm, Space, Switch, Table, Tag, Typography} from 'an
 import type {ColumnsType} from 'antd/es/table'
 import type {ReactNode} from 'react'
 import {useEffect, useState} from 'react'
+import {reportGlobalError} from '../../../app/globalError'
 import {DateTimeText} from '../../../components/DateTimeText'
 import {PageToolbar} from '../../../components/PageToolbar'
-import {resolveErrorMessage} from '../../../services/request'
 import {canUseRbacButton, useAuth} from '../../auth/authStore'
 import {mcpButtonCodes} from './mcpPermissionCodes'
 import {
@@ -53,7 +53,7 @@ function McpServerListPage() {
         try {
             setServers(await getMcpServers())
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         } finally {
             setLoading(false)
         }
@@ -68,7 +68,7 @@ function McpServerListPage() {
         setSaving(true)
         try {
             if (editingServer) {
-                await updateMcpServer(editingServer.id, request as UpdateMcpServerRequest)
+                await updateMcpServer(editingServer.id, request)
             } else {
                 await createMcpServer(request as CreateMcpServerRequest)
             }
@@ -76,7 +76,7 @@ function McpServerListPage() {
             setEditorOpen(false)
             await loadServers()
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
             throw requestError
         } finally {
             setSaving(false)
@@ -89,7 +89,7 @@ function McpServerListPage() {
             message.success('服务已删除')
             await loadServers()
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         }
     }
 
@@ -104,7 +104,7 @@ function McpServerListPage() {
             message.success(checked ? '服务已启用' : '服务已禁用')
             await loadServers()
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         } finally {
             setSwitchingId(null)
         }
@@ -116,11 +116,11 @@ function McpServerListPage() {
             if (result.success) {
                 message.success(`连接成功，发现 ${result.toolCount} 个工具`)
             } else {
-                message.error(result.errorMessage || '连接测试失败')
+                reportGlobalError(result.errorMessage || '连接测试失败')
             }
             await loadServers()
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         }
     }
 
@@ -130,7 +130,7 @@ function McpServerListPage() {
             message.success(`发现 ${result.discoveredCount} 个工具，新增 ${result.createdCount} 个，更新 ${result.updatedCount} 个`)
             await loadServers()
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         }
     }
 

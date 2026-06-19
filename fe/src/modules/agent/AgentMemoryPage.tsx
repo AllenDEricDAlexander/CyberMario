@@ -5,9 +5,9 @@ import {useCallback, useEffect, useMemo, useState} from 'react'
 import {useNavigate} from 'react-router'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import {reportGlobalError} from '../../app/globalError'
 import {PageToolbar} from '../../components/PageToolbar'
 import {canAccessAdminPath} from '../../layouts/AdminLayout/menu'
-import {resolveErrorMessage} from '../../services/request'
 import {voidify} from '../../utils/async'
 import {canUseRbacButton, hasAdminPermissionBypass, useAuth} from '../auth/authStore'
 import {archiveAgentMemorySession, getAgentLongTermMemory, getAgentMemorySessions} from './agentService'
@@ -57,11 +57,11 @@ function AgentMemoryPage() {
             setLongTerm(memory)
             setSessions(sessionPage.records)
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         } finally {
             setLoading(false)
         }
-    }, [entryType, message, status])
+    }, [entryType, status])
 
     useEffect(() => {
         void load()
@@ -73,7 +73,7 @@ function AgentMemoryPage() {
             message.success('会话已归档')
             await load()
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         }
     }
 
@@ -98,7 +98,7 @@ function AgentMemoryPage() {
             width: 110,
             render: (value) => <Tag color={value ? 'purple' : 'default'}>{value ? 'ON' : 'OFF'}</Tag>,
         },
-        {title: '最后活跃', dataIndex: 'lastActiveAt', width: 180, render: (value) => value || '-'},
+        {title: '最后活跃', dataIndex: 'lastActiveAt', width: 180, render: (value: string | undefined) => value || '-'},
         {
             title: '操作',
             fixed: 'right',

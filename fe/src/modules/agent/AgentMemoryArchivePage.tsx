@@ -2,8 +2,8 @@ import {DeleteOutlined, ReloadOutlined, RollbackOutlined} from '@ant-design/icon
 import {App, Button, Popconfirm, Space, Table, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useMemo, useState} from 'react'
+import {reportGlobalError} from '../../app/globalError'
 import {PageToolbar} from '../../components/PageToolbar'
-import {resolveErrorMessage} from '../../services/request'
 import {voidify} from '../../utils/async'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {deleteAgentMemorySession, getAgentMemorySessions, restoreAgentMemorySession} from './agentService'
@@ -24,11 +24,11 @@ function AgentMemoryArchivePage() {
             const page = await getAgentMemorySessions({page: 1, size: 100, status: 'ARCHIVED'})
             setSessions(page.records)
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         } finally {
             setLoading(false)
         }
-    }, [message])
+    }, [])
 
     useEffect(() => {
         void load()
@@ -40,7 +40,7 @@ function AgentMemoryArchivePage() {
             message.success('会话已恢复')
             await load()
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         }
     }
 
@@ -50,14 +50,14 @@ function AgentMemoryArchivePage() {
             message.success('会话已删除')
             await load()
         } catch (requestError) {
-            message.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         }
     }
 
     const columns = useMemo<ColumnsType<AgentMemorySessionResponse>>(() => [
         {title: '标题', dataIndex: 'title', render: (_, record) => record.title || record.sessionId},
         {title: '入口', dataIndex: 'entryType', width: 140, render: (value) => <Tag color="blue">{value}</Tag>},
-        {title: '归档时间', dataIndex: 'archivedAt', width: 180, render: (value) => value || '-'},
+        {title: '归档时间', dataIndex: 'archivedAt', width: 180, render: (value: string | undefined) => value || '-'},
         {
             title: '操作',
             fixed: 'right',

@@ -1,10 +1,10 @@
 import {ReloadOutlined} from '@ant-design/icons'
-import {App, Button, Card, Empty, Space, Table, Tag} from 'antd'
+import {Button, Card, Empty, Space, Table, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useEffect, useState} from 'react'
 import {useNavigate} from 'react-router'
+import {reportGlobalError} from '../../app/globalError'
 import {PageToolbar} from '../../components/PageToolbar'
-import {resolveErrorMessage} from '../../services/request'
 import {voidify} from '../../utils/async'
 import {listClocktowerRooms} from './clocktowerService'
 import type {ClocktowerRoomResponse, ClocktowerRoomStatus} from './clocktowerTypes'
@@ -19,7 +19,6 @@ const statusColors: Record<ClocktowerRoomStatus, string> = {
 
 function ReplayListPage() {
     const navigate = useNavigate()
-    const {message} = App.useApp()
     const [rooms, setRooms] = useState<ClocktowerRoomResponse[]>([])
     const [loading, setLoading] = useState(false)
 
@@ -32,7 +31,7 @@ function ReplayListPage() {
         try {
             setRooms(await listClocktowerRooms())
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setLoading(false)
         }
@@ -63,7 +62,7 @@ function ReplayListPage() {
             fixed: 'right',
             width: 120,
             render: (_, record) => (
-                <Button size="small" type="primary" onClick={() => navigate(`/clocktower/replays/${record.roomId}`)}>
+                <Button size="small" type="primary" onClick={() => void navigate(`/clocktower/replays/${record.roomId}`)}>
                     查看回放
                 </Button>
             ),

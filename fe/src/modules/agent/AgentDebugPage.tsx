@@ -14,6 +14,7 @@ import {
     Typography,
 } from 'antd'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {reportGlobalError} from '../../app/globalError'
 import {
     applyAgentChunkToMessage,
     ChatSettingsModal,
@@ -108,11 +109,11 @@ function AgentDebugPage() {
             const page = await getAgentPresets({page: 1, size: 200})
             setPresets(page.records)
         } catch (requestError) {
-            appMessage.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         } finally {
             setLoading(false)
         }
-    }, [appMessage])
+    }, [])
 
     const loadSessions = useCallback(async () => {
         setSessionLoading(true)
@@ -120,11 +121,11 @@ function AgentDebugPage() {
             const page = await getAgentMemorySessions({page: 1, size: 100, entryType: 'AGENT_DEBUG'})
             setSessions(page.records)
         } catch (requestError) {
-            appMessage.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         } finally {
             setSessionLoading(false)
         }
-    }, [appMessage])
+    }, [])
 
     useEffect(() => {
         form.setFieldsValue(defaultFormValues())
@@ -157,7 +158,7 @@ function AgentDebugPage() {
             await loadPresets()
             form.setFieldsValue(toFormValues(saved))
         } catch (requestError) {
-            appMessage.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         } finally {
             setSaving(false)
         }
@@ -180,7 +181,7 @@ function AgentDebugPage() {
             await loadPresets()
             form.setFieldsValue(toFormValues(saved))
         } catch (requestError) {
-            appMessage.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         } finally {
             setSaving(false)
         }
@@ -201,7 +202,7 @@ function AgentDebugPage() {
             form.setFieldsValue(defaultFormValues())
             await loadPresets()
         } catch (requestError) {
-            appMessage.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         } finally {
             setSaving(false)
         }
@@ -240,6 +241,7 @@ function AgentDebugPage() {
 
             const errorMessage = resolveErrorMessage(requestError)
             setError(errorMessage)
+            reportGlobalError(requestError)
             throw new Error(errorMessage, {cause: requestError})
         } finally {
             if (abortControllerRef.current === abortController) {
@@ -297,7 +299,7 @@ function AgentDebugPage() {
             setSessionId(session.sessionId)
             setSessions((current) => [session, ...current.filter((item) => item.sessionId !== session.sessionId)])
         } catch (requestError) {
-            appMessage.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
             setSessionId('')
         }
         setMessages(initialMessages)
@@ -322,7 +324,7 @@ function AgentDebugPage() {
             }
             await loadSessions()
         } catch (requestError) {
-            appMessage.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         }
     }
 
@@ -352,7 +354,7 @@ function AgentDebugPage() {
             await navigator.clipboard.writeText(content)
             appMessage.success('已复制')
         } catch {
-            appMessage.error('复制失败')
+            reportGlobalError('复制失败')
         }
     }
 

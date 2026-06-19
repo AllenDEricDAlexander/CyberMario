@@ -1,5 +1,6 @@
 import {App, Space, Switch, Tag, Typography} from 'antd'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {reportGlobalError} from '../../../app/globalError'
 import {
     applyAgentChunkToMessage,
     ChatWorkspace,
@@ -82,6 +83,7 @@ export function ChatPage() {
 
             const errorMessage = resolveErrorMessage(requestError)
             setError(errorMessage)
+            reportGlobalError(requestError)
             throw new Error(errorMessage, {cause: requestError})
         } finally {
             if (abortControllerRef.current === abortController) {
@@ -115,11 +117,11 @@ export function ChatPage() {
             const page = await getAgentMemorySessions({page: 1, size: 100, entryType: 'AGENT_CHAT'})
             setSessions(page.records)
         } catch (requestError) {
-            appMessage.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         } finally {
             setSessionLoading(false)
         }
-    }, [appMessage])
+    }, [])
 
     useEffect(() => {
         void loadSessions()
@@ -151,7 +153,7 @@ export function ChatPage() {
             setSessionId(session.sessionId)
             setSessions((current) => [session, ...current.filter((item) => item.sessionId !== session.sessionId)])
         } catch (requestError) {
-            appMessage.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
             setSessionId('')
         }
         setMessages(initialMessages)
@@ -172,7 +174,7 @@ export function ChatPage() {
             setError('')
             await loadSessions()
         } catch (requestError) {
-            appMessage.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         }
     }
 
@@ -201,7 +203,7 @@ export function ChatPage() {
             await navigator.clipboard.writeText(content)
             appMessage.success('已复制')
         } catch {
-            appMessage.error('复制失败')
+            reportGlobalError('复制失败')
         }
     }
 

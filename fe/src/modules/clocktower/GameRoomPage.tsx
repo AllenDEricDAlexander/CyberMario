@@ -2,8 +2,8 @@ import {ReloadOutlined} from '@ant-design/icons'
 import {App, Button, Card, Col, Empty, List, Row, Space, Tabs, Tag, Typography} from 'antd'
 import {useEffect, useMemo, useState} from 'react'
 import {useParams} from 'react-router'
+import {reportGlobalError} from '../../app/globalError'
 import {PageToolbar} from '../../components/PageToolbar'
-import {resolveErrorMessage} from '../../services/request'
 import {voidify} from '../../utils/async'
 import {
     getClocktowerPlayerView,
@@ -40,7 +40,7 @@ function GameRoomPage() {
             (event) => setEvents((current) => [...current, event]),
         ).catch((caught) => {
             if (!controller.signal.aborted) {
-                message.error(resolveErrorMessage(caught))
+                reportGlobalError(caught)
             }
         })
         return () => controller.abort()
@@ -56,7 +56,7 @@ function GameRoomPage() {
             setView(response)
             setEvents(response.recentEvents)
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setLoading(false)
         }
@@ -82,7 +82,7 @@ function GameRoomPage() {
             }
             message.success(response.accepted ? '操作已提交' : `操作被拒绝：${response.rejectedCode ?? '-'}`)
         } catch (caught) {
-            message.error(resolveErrorMessage(caught))
+            reportGlobalError(caught)
         } finally {
             setSubmitting(false)
         }

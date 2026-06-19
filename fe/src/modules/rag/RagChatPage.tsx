@@ -1,5 +1,6 @@
 import {App, Checkbox, Drawer, Form, InputNumber, Select, Space, Switch, Tag, Typography} from 'antd'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {reportGlobalError} from '../../app/globalError'
 import {
     applyRagEventToMessage,
     ChatSettingsModal,
@@ -84,9 +85,9 @@ function RagChatPage() {
             const page = await getRagKnowledgeBases({page: 1, size: 200})
             setKnowledgeBases(page.records)
         } catch (requestError) {
-            appMessage.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         }
-    }, [appMessage])
+    }, [])
 
     const loadSessions = useCallback(async () => {
         setSessionLoading(true)
@@ -94,11 +95,11 @@ function RagChatPage() {
             const page = await getAgentMemorySessions({page: 1, size: 100, entryType: 'RAG_CHAT'})
             setSessions(page.records)
         } catch (requestError) {
-            appMessage.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         } finally {
             setSessionLoading(false)
         }
-    }, [appMessage])
+    }, [])
 
     useEffect(() => {
         void loadKnowledgeBases()
@@ -148,6 +149,7 @@ function RagChatPage() {
 
             const errorMessage = resolveErrorMessage(requestError)
             setError(errorMessage)
+            reportGlobalError(requestError)
             throw new Error(errorMessage, {cause: requestError})
         } finally {
             if (abortControllerRef.current === abortController) {
@@ -213,7 +215,7 @@ function RagChatPage() {
             setSessionId(session.sessionId)
             setSessions((current) => [session, ...current.filter((item) => item.sessionId !== session.sessionId)])
         } catch (requestError) {
-            appMessage.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
             setSessionId('')
         }
         setMessages(initialMessages)
@@ -240,7 +242,7 @@ function RagChatPage() {
             }
             await loadSessions()
         } catch (requestError) {
-            appMessage.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         }
     }
 
@@ -287,7 +289,7 @@ function RagChatPage() {
             })
             appMessage.success('反馈已提交')
         } catch (requestError) {
-            appMessage.error(resolveErrorMessage(requestError))
+            reportGlobalError(requestError)
         }
     }
 

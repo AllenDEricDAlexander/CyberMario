@@ -1,6 +1,7 @@
 import {SearchOutlined} from '@ant-design/icons'
-import {App, Button, Card, Checkbox, Drawer, Form, Input, InputNumber, List, Select, Space, Tabs, Tag, Typography} from 'antd'
+import {Button, Card, Checkbox, Drawer, Form, Input, InputNumber, List, Select, Space, Tabs, Tag, Typography} from 'antd'
 import {useEffect, useState} from 'react'
+import {reportGlobalError} from '../../app/globalError'
 import {PageToolbar} from '../../components/PageToolbar'
 import {voidify} from '../../utils/async'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
@@ -21,7 +22,6 @@ type RetrievalLabFormValues = {
 
 function RetrievalLabPage() {
     const auth = useAuth()
-    const {message} = App.useApp()
     const [form] = Form.useForm<RetrievalLabFormValues>()
     const [loading, setLoading] = useState(false)
     const [traceLoading, setTraceLoading] = useState(false)
@@ -45,7 +45,7 @@ function RetrievalLabPage() {
             setResult(response)
             setTrace(null)
         } catch (error) {
-            message.error((error as Error).message)
+            reportGlobalError(error)
         } finally {
             setLoading(false)
         }
@@ -60,7 +60,7 @@ function RetrievalLabPage() {
             setTrace(await getRagRetrievalTrace(result.traceId))
             setTraceOpen(true)
         } catch (error) {
-            message.error((error as Error).message)
+            reportGlobalError(error)
         } finally {
             setTraceLoading(false)
         }
