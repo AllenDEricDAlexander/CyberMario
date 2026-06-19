@@ -6,6 +6,7 @@ import type {
     ClocktowerBoardConfigResponse,
     ClocktowerBoardGenerateRequest,
     ClocktowerBoardGenerateResponse,
+    ClocktowerBoardQuery,
     ClocktowerBoardSaveRequest,
     ClocktowerBoardValidateRequest,
     ClocktowerEventResponse,
@@ -15,6 +16,7 @@ import type {
     ClocktowerNightChecklistResponse,
     ClocktowerNightOrderGroupResponse,
     ClocktowerNightOrderResponse,
+    ClocktowerPage,
     ClocktowerPlayerActionRequest,
     ClocktowerPlayerViewResponse,
     ClocktowerReplayResponse,
@@ -98,8 +100,15 @@ export function saveClocktowerBoard(request: ClocktowerBoardSaveRequest) {
     })
 }
 
-export function listClocktowerBoards() {
-    return requestJson<ClocktowerBoardConfigResponse[]>('/api/clocktower/boards')
+export function listClocktowerBoards(params: ClocktowerBoardQuery = {}) {
+    const search = buildSearchParams({
+        page: params.page ?? 1,
+        size: params.size ?? 20,
+        scriptCode: params.scriptCode,
+        playerCount: params.playerCount,
+        valid: params.valid,
+    })
+    return requestJson<ClocktowerPage<ClocktowerBoardConfigResponse>>(`/api/clocktower/boards${suffix(search)}`)
 }
 
 export function deleteClocktowerBoard(boardId: number) {

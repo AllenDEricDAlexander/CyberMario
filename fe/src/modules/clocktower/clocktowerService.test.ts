@@ -12,12 +12,14 @@ import {
     getClocktowerScripts,
     getClocktowerTerms,
     joinClocktowerRoom,
+    listClocktowerBoards,
     listClocktowerRulings,
     saveClocktowerBoard,
     skipClocktowerNightTask,
     streamClocktowerEvents,
     submitClocktowerStorytellerAction,
     undoClocktowerRuling,
+    validateClocktowerBoard,
 } from './clocktowerService'
 
 vi.mock('../../services/request', () => ({
@@ -77,6 +79,22 @@ describe('clocktowerService', () => {
         })
     })
 
+    it('validates boards with POST body', async () => {
+        const {requestJson} = await import('../../services/request')
+        const request = {
+            scriptCode: 'TROUBLE_BREWING' as const,
+            playerCount: 5,
+            roleCodes: ['CHEF', 'IMP'],
+        }
+
+        await validateClocktowerBoard(request)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/boards/validate', {
+            method: 'POST',
+            body: request,
+        })
+    })
+
     it('saves boards with backend roleCodes payload', async () => {
         const {requestJson} = await import('../../services/request')
         const request = {
@@ -88,18 +106,28 @@ describe('clocktowerService', () => {
             newbieFriendly: true,
             seed: 'seed-1',
             roleCodes: ['CHEF', 'IMP'],
-            validation: {
-                valid: true,
-                roleTypeCounts: {TOWNSFOLK: 3, OUTSIDER: 0, MINION: 1, DEMON: 1},
-                violations: [],
-                scores: [],
-            },
         }
         await saveClocktowerBoard(request)
         expect(requestJson).toHaveBeenCalledWith('/api/clocktower/boards/save', {
             method: 'POST',
             body: request,
         })
+    })
+
+    it('loads paged board library with filters', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await listClocktowerBoards({
+            page: 3,
+            size: 40,
+            scriptCode: 'TROUBLE_BREWING',
+            playerCount: 5,
+            valid: true,
+        })
+
+        expect(requestJson).toHaveBeenCalledWith(
+            '/api/clocktower/boards?page=3&size=40&scriptCode=TROUBLE_BREWING&playerCount=5&valid=true',
+        )
     })
 
     it('joins rooms with room join request and returns the seat response', async () => {

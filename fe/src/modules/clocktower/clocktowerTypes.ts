@@ -1,3 +1,4 @@
+import type {PageResult} from '../../types/api'
 import type {CodedEnum} from '../../utils/enum'
 
 export type ClocktowerScriptCode = 'TROUBLE_BREWING' | 'BAD_MOON_RISING' | 'SECTS_AND_VIOLETS'
@@ -59,6 +60,7 @@ export type ClocktowerRulingReason =
 
 export type ClocktowerRulingStatus = 'APPLIED' | 'REVOKED'
 export type ClocktowerLifeStatus = 'ALIVE' | 'DEAD'
+export type ClocktowerPage<T> = PageResult<T>
 
 export type ClocktowerRulingCreateRequest = {
     rulingType: ClocktowerRulingCreateType
@@ -189,6 +191,14 @@ export type ClocktowerBoardValidateRequest = {
     roleCodes: string[]
 }
 
+export type ClocktowerBoardQuery = {
+    scriptCode?: ClocktowerScriptCode
+    playerCount?: number
+    valid?: boolean
+    page?: number
+    size?: number
+}
+
 export type ClocktowerBoardSaveRequest = {
     scriptCode: ClocktowerScriptCode
     playerCount: number
@@ -198,7 +208,6 @@ export type ClocktowerBoardSaveRequest = {
     newbieFriendly: boolean
     seed?: string | null
     roleCodes: string[]
-    validation?: ClocktowerBoardValidationResponse | null
 }
 
 export type ClocktowerBoardGenerateResponse = {
@@ -258,6 +267,8 @@ export type ClocktowerBoardConfigResponse = {
     roleCodes: string[]
     roles?: ClocktowerRoleSummaryResponse[]
     validation: ClocktowerBoardValidationResponse
+    valid: boolean
+    createdAt?: string | null
 }
 
 export type ClocktowerRoomCreateRequest = {
