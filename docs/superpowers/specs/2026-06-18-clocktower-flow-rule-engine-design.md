@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-18
 
-**Status:** Draft approved in brainstorming, awaiting written spec review.
+**Status:** Draft updated after execution/death rules review, awaiting written spec review.
 
 **Goal:** Redesign the Clocktower game flow so the normal storyteller workflow follows the real Blood on the Clocktower loop: setup and role distribution, first night, day discussion, nomination and voting, execution resolution, next night, next day, repeated until game end. The design fixes the current bug where the generic phase-advance action can jump from day directly to night and where night tasks can appear outside night phases.
 
@@ -46,6 +46,8 @@ The confirmed design decisions are:
 - The majority threshold is `ceil(realAliveCount / 2)`.
 - If no nomination reaches threshold, or the highest vote count is tied, nobody is executed.
 - Execution or no-execution confirmation is required before advancing to the next night.
+- Execution and death are separate concepts. A confirmed execution resolves the day's execution slot; it does not automatically change a player's real or public life status.
+- If an execution causes death, the storyteller records an explicit death ruling with a reason. If the executed player survives, only the execution is recorded.
 - Core victory checks produce storyteller suggestions, not automatic game end.
 - This version does not introduce jBPM, Kogito, or BPMN workflow execution.
 
@@ -75,6 +77,7 @@ The ruling system owns exceptions:
 - Forced phase change.
 - Execution override.
 - No-execution override.
+- Death, revival, and public life-state changes.
 - Game end confirmation.
 - Corrections after mistaken operation.
 
@@ -227,6 +230,15 @@ This intentionally treats false death as vote-limited from the public perspectiv
 
 Entering `EXECUTION` freezes nomination for the day.
 
+Execution resolution and death are intentionally modeled as separate facts:
+
+- Execution is a daytime decision that consumes the single execution opportunity for the current day.
+- Death is a player life-state change. It can happen because of execution, night abilities, role abilities, or storyteller ruling.
+- A player can be executed and remain alive.
+- A dead player can be executed again, but cannot die again.
+- Victory suggestions use real life status, not whether a player was executed.
+- Public death and real death can differ for false-death situations; execution does not change either one by itself.
+
 Execution candidate calculation:
 
 1. Consider only current-day valid closed nominations.
@@ -239,10 +251,13 @@ Storyteller actions in `EXECUTION`:
 
 - If there is a candidate, confirm execution.
 - If there is no candidate, confirm no execution.
-- A confirmed execution writes execution event/ruling and defaults to real death plus public death.
-- A confirmed no-execution writes a no-execution/skip-execution ruling or event.
+- A confirmed execution writes an `EXECUTE_PLAYER` ruling/event and marks the source nomination as executed.
+- A confirmed execution does not automatically write `MARK_DEAD` and does not mutate `lifeStatus` or `publicLifeStatus`.
+- If the execution causes death, the storyteller explicitly applies a `MARK_DEAD` ruling with a reason. The UI may offer this as a checked "同时标记死亡" action, but the backend still records it as a separate ruling.
+- If the executed player survives, the storyteller records only the execution and explains the survival in the execution note.
+- A confirmed no-execution writes a `SKIP_EXECUTION` ruling/event for the current day. It must not create a synthetic nomination.
 - The room cannot advance to `NIGHT` until execution is resolved.
-- Special role outcomes such as survival, changed target, extra execution, or no-death execution use the ruling system with a reason.
+- Special role outcomes such as survival, changed target, extra execution, no-death execution, death after execution, or revival use the ruling system with a reason.
 
 ## 11. Victory Suggestions
 
@@ -312,7 +327,9 @@ Nomination UI:
 Execution UI:
 
 - Shows candidate, vote count, threshold, source nomination, and tie/no-threshold reason.
-- Requires "确认处决" or "确认无人处决".
+- Requires "确认无人处决", "确认处决但不改变生死", or "确认处决并标记死亡".
+- "确认处决并标记死亡" creates two audited facts: execution first, death second.
+- The UI must display execution and death as distinct concepts so the storyteller can handle survival, already-dead targets, and false-death cases.
 - After resolution, the next action becomes "进入下一夜".
 
 Forced phase UI:
@@ -331,7 +348,9 @@ The current schema already supports the confirmed first-version flow:
 - `clocktower_storyteller_task.note` can hold skip reasons.
 - `clocktower_nomination.day_no` supports daily nomination limits.
 - `clocktower_nomination.status` supports `OPEN`, `CLOSED`, and `VOID`.
-- `clocktower_nomination.vote_count` and `clocktower_nomination.executed` support execution calculation and confirmation.
+- `clocktower_nomination.vote_count` supports execution candidate calculation.
+- `clocktower_nomination.executed` records which nomination was executed, but does not imply death.
+- `clocktower_ruling` and `clocktower_event` record current-day execution/no-execution resolution without synthetic nominations.
 - `clocktower_vote.used_dead_vote` records dead-vote spending.
 - `clocktower_vote` already enforces one vote per nomination per voter through its unique constraint.
 - `clocktower_seat.has_dead_vote` tracks whether a player still has their one dead vote.
@@ -361,6 +380,9 @@ Backend tests:
 - Execution candidate is absent below threshold.
 - Execution candidate is absent on top-vote tie.
 - Execution candidate is present when top vote is unique and reaches threshold.
+- Confirming execution without death leaves real and public life status unchanged.
+- Confirming execution with death records execution and death separately.
+- Confirming no execution records current-day resolution without creating a fake nomination.
 - Execution must be resolved before entering night.
 - Demon death suggests good victory.
 - Two real-alive players with a living demon suggests evil victory.
@@ -401,6 +423,8 @@ The feature is accepted when:
 - Day pages no longer show current pending night tasks.
 - Nomination and voting enforce the confirmed daily limits and dead-vote rules.
 - Execution result follows threshold and tie rules.
+- Execution and death are separate: a player can be executed without becoming dead.
+- Death and revival happen through explicit rulings with reasons.
 - Execution/no-execution confirmation is required before next night.
 - Forced phase changes are audited as rulings with reasons.
 - Tests cover the core flow, nomination, vote, execution, and UI blocking behavior.
