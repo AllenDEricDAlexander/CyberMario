@@ -183,6 +183,21 @@ public final class ClocktowerRoomTestFactory {
                 .filter(nomination -> !nomination.isDeleted() && nomination.getRoomId().equals(invocation.getArgument(0)))
                 .sorted(Comparator.comparing(ClocktowerNominationPo::getId))
                 .toList());
+        when(nominationRepository.findByRoomIdAndDayNoAndDeletedFalseOrderByIdAsc(any(), anyInt()))
+                .thenAnswer(invocation -> nominations.stream()
+                        .filter(nomination -> !nomination.isDeleted()
+                                && nomination.getRoomId().equals(invocation.getArgument(0))
+                                && nomination.getDayNo() == (Integer) invocation.getArgument(1))
+                        .sorted(Comparator.comparing(ClocktowerNominationPo::getId))
+                        .toList());
+        when(nominationRepository.findByRoomIdAndDayNoAndStatusAndDeletedFalseOrderByIdAsc(any(), anyInt(), any()))
+                .thenAnswer(invocation -> nominations.stream()
+                        .filter(nomination -> !nomination.isDeleted()
+                                && nomination.getRoomId().equals(invocation.getArgument(0))
+                                && nomination.getDayNo() == (Integer) invocation.getArgument(1)
+                                && nomination.getStatus().equals(invocation.getArgument(2)))
+                        .sorted(Comparator.comparing(ClocktowerNominationPo::getId))
+                        .toList());
         when(nominationRepository.findById(any())).thenAnswer(invocation -> nominations.stream()
                 .filter(nomination -> !nomination.isDeleted()
                         && nomination.getId().equals(invocation.getArgument(0)))
@@ -242,6 +257,13 @@ public final class ClocktowerRoomTestFactory {
                         .filter(task -> !task.isDeleted()
                                 && task.getRoomId().equals(invocation.getArgument(0))
                                 && task.getStatus().equals(invocation.getArgument(1)))
+                        .sorted(Comparator.comparing(ClocktowerStorytellerTaskPo::getSortOrder))
+                        .toList());
+        when(taskRepository.findByRoomIdAndNightNoAndDeletedFalseOrderBySortOrderAsc(any(), anyInt()))
+                .thenAnswer(invocation -> tasks.stream()
+                        .filter(task -> !task.isDeleted()
+                                && task.getRoomId().equals(invocation.getArgument(0))
+                                && task.getNightNo() == (Integer) invocation.getArgument(1))
                         .sorted(Comparator.comparing(ClocktowerStorytellerTaskPo::getSortOrder))
                         .toList());
         when(rulingRepository.save(any(ClocktowerRulingPo.class))).thenAnswer(saveRuling(rulings, rulingId));

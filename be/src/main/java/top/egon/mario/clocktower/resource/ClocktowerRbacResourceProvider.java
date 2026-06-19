@@ -58,6 +58,14 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
                 "/api/clocktower/rooms/*/seats/*", ApiRiskLevel.HIGH));
         resources.add(api("api:clocktower:rooms:storyteller:night", "Clocktower night checklist", "GET",
                 "/api/clocktower/rooms/*/night-checklist", ApiRiskLevel.HIGH));
+        resources.add(api("api:clocktower:rooms:storyteller:flow", "Clocktower storyteller flow", "ANY",
+                "/api/clocktower/rooms/*/flow/**", ApiRiskLevel.HIGH));
+        resources.add(api("api:clocktower:rooms:storyteller:night-task", "Clocktower storyteller night task", "ANY",
+                "/api/clocktower/rooms/*/night-tasks/**", ApiRiskLevel.HIGH));
+        resources.add(api("api:clocktower:rooms:storyteller:nomination", "Clocktower storyteller nomination", "ANY",
+                "/api/clocktower/rooms/*/nominations/**", ApiRiskLevel.HIGH));
+        resources.add(api("api:clocktower:rooms:storyteller:execution", "Clocktower storyteller execution", "ANY",
+                "/api/clocktower/rooms/*/execution/**", ApiRiskLevel.HIGH));
         resources.add(api("api:clocktower:rooms:storyteller:action", "Clocktower storyteller action", "POST",
                 "/api/clocktower/rooms/*/storyteller/actions", ApiRiskLevel.HIGH));
         resources.add(api("api:clocktower:rooms:storyteller:ruling", "Clocktower storyteller rulings", "ANY",
@@ -99,6 +107,10 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
                                 "api:clocktower:rooms:storyteller:start",
                                 "api:clocktower:rooms:storyteller:seat",
                                 "api:clocktower:rooms:storyteller:night",
+                                "api:clocktower:rooms:storyteller:flow",
+                                "api:clocktower:rooms:storyteller:night-task",
+                                "api:clocktower:rooms:storyteller:nomination",
+                                "api:clocktower:rooms:storyteller:execution",
                                 "api:clocktower:rooms:storyteller:action",
                                 "api:clocktower:rooms:storyteller:ruling",
                                 "api:clocktower:rooms:storyteller:ruling:detail", "api:clocktower:events:stream",

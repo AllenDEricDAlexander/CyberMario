@@ -10,4 +10,6 @@ public interface ClocktowerStorytellerTaskRepository extends JpaRepository<Clock
     List<ClocktowerStorytellerTaskPo> findByRoomIdAndDeletedFalseOrderBySortOrderAsc(Long roomId);
 
     List<ClocktowerStorytellerTaskPo> findByRoomIdAndStatusAndDeletedFalseOrderBySortOrderAsc(Long roomId, String status);
+
+    List<ClocktowerStorytellerTaskPo> findByRoomIdAndNightNoAndDeletedFalseOrderBySortOrderAsc(Long roomId, int nightNo);
 }

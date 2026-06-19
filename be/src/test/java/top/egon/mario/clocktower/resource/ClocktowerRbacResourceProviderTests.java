@@ -36,6 +36,10 @@ class ClocktowerRbacResourceProviderTests {
                         "api:clocktower:rooms:storyteller:start",
                         "api:clocktower:rooms:storyteller:seat",
                         "api:clocktower:rooms:storyteller:night",
+                        "api:clocktower:rooms:storyteller:flow",
+                        "api:clocktower:rooms:storyteller:night-task",
+                        "api:clocktower:rooms:storyteller:nomination",
+                        "api:clocktower:rooms:storyteller:execution",
                         "api:clocktower:rooms:storyteller:action",
                         "api:clocktower:rooms:storyteller:ruling",
                         "api:clocktower:rooms:storyteller:ruling:detail",
@@ -68,6 +72,10 @@ class ClocktowerRbacResourceProviderTests {
                         "api:clocktower:terms:read",
                         "api:clocktower:jinx-rules:read",
                         "api:clocktower:rooms:storyteller:ruling",
+                        "api:clocktower:rooms:storyteller:flow",
+                        "api:clocktower:rooms:storyteller:night-task",
+                        "api:clocktower:rooms:storyteller:nomination",
+                        "api:clocktower:rooms:storyteller:execution",
                         "api:clocktower:rooms:storyteller:ruling:detail"));
     }
 }
