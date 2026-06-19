@@ -3,12 +3,17 @@ package top.egon.mario.clocktower.flow.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import top.egon.mario.clocktower.common.ClocktowerAccess;
 import top.egon.mario.clocktower.common.ClocktowerException;
+import top.egon.mario.clocktower.common.enums.ClocktowerEventType;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoleType;
+import top.egon.mario.clocktower.common.enums.ClocktowerVisibility;
 import top.egon.mario.clocktower.engine.ClocktowerRuleEngine;
 import top.egon.mario.clocktower.engine.flow.ClocktowerFlowFact;
+import top.egon.mario.clocktower.event.dto.ClocktowerEventAppendRequest;
+import top.egon.mario.clocktower.event.service.ClocktowerEventService;
 import top.egon.mario.clocktower.flow.ClocktowerFlowService;
 import top.egon.mario.clocktower.flow.dto.ClocktowerFlowResponse;
 import top.egon.mario.clocktower.flow.dto.CloseNominationRequest;
@@ -29,11 +34,11 @@ import top.egon.mario.clocktower.room.po.ClocktowerSeatPo;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomRepository;
 import top.egon.mario.clocktower.room.repository.ClocktowerSeatRepository;
 import top.egon.mario.clocktower.script.repository.ClocktowerRoleRepository;
-import top.egon.mario.clocktower.event.service.ClocktowerEventService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -65,14 +70,52 @@ public class ClocktowerFlowServiceImpl implements ClocktowerFlowService {
     @Override
     @Transactional
     public ClocktowerFlowResponse advance(Long roomId, RbacPrincipal principal) {
-        throw new ClocktowerException("CLOCKTOWER_FLOW_TRANSITION_UNSUPPORTED");
+        ClocktowerRoomPo room = roomRepository.findLockedByIdAndDeletedFalse(roomId)
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
+        ClocktowerAccess.requireStoryteller(room, principal);
+        ClocktowerFlowResponse flow = buildFlow(room);
+        if (!flow.advanceAllowed()) {
+            throw new ClocktowerException(flow.blockingReasons().getFirst());
+        }
+        switch (flow.nextTransition()) {
+            case COMPLETE_FIRST_NIGHT -> {
+                room.setPhase(ClocktowerPhase.DAY);
+                room.setCurrentDayNo(1);
+            }
+            case COMPLETE_NIGHT -> {
+                room.setPhase(ClocktowerPhase.DAY);
+                room.setCurrentDayNo(room.getCurrentDayNo() + 1);
+            }
+            default -> throw new ClocktowerException("CLOCKTOWER_FLOW_TRANSITION_UNSUPPORTED");
+        }
+        roomRepository.save(room);
+        eventService.append(new ClocktowerEventAppendRequest(room.getId(), ClocktowerEventType.PHASE_CHANGED,
+                room.getPhase(), room.getCurrentDayNo(), room.getCurrentNightNo(),
+                principal == null ? null : principal.userId(), null, null, ClocktowerVisibility.PUBLIC, List.of(),
+                Map.of("phase", room.getPhase().name())));
+        return buildFlow(room);
     }
 
     @Override
     @Transactional
     public ClocktowerFlowResponse skipNightTask(Long roomId, Long taskId, SkipNightTaskRequest request,
                                                 RbacPrincipal principal) {
-        throw new ClocktowerException("CLOCKTOWER_FLOW_TRANSITION_UNSUPPORTED");
+        ClocktowerRoomPo room = roomRepository.findLockedByIdAndDeletedFalse(roomId)
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
+        ClocktowerAccess.requireStoryteller(room, principal);
+        if (request == null || !StringUtils.hasText(request.reason())) {
+            throw new ClocktowerException("CLOCKTOWER_NIGHT_TASK_SKIP_REASON_REQUIRED");
+        }
+        ClocktowerStorytellerTaskPo task = taskRepository.findById(taskId)
+                .filter(candidate -> !candidate.isDeleted() && candidate.getRoomId().equals(roomId))
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_TASK_NOT_FOUND"));
+        if (!isNight(room.getPhase()) || task.getNightNo() != room.getCurrentNightNo()) {
+            throw new ClocktowerException("CLOCKTOWER_NIGHT_TASK_NOT_CURRENT");
+        }
+        task.setStatus(STATUS_SKIPPED);
+        task.setNote(request.reason());
+        taskRepository.save(task);
+        return buildFlow(room);
     }
 
     @Override

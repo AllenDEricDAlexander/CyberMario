@@ -91,6 +91,11 @@ public class ClocktowerGrimoireServiceImpl implements ClocktowerGrimoireService 
         ClocktowerRoomPo room = roomRepository.findByIdAndDeletedFalse(roomId)
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
         ClocktowerAccess.requireStoryteller(room, principal);
+        if (room.getPhase() != ClocktowerPhase.FIRST_NIGHT && room.getPhase() != ClocktowerPhase.NIGHT) {
+            ClocktowerNightType nightType = room.getCurrentNightNo() <= 1
+                    ? ClocktowerNightType.FIRST_NIGHT : ClocktowerNightType.OTHER_NIGHT;
+            return new NightChecklistResponse(room.getCurrentNightNo(), nightType, List.of(), false);
+        }
         List<ClocktowerSeatPo> seats = seatRepository.findByRoomIdAndDeletedFalseOrderBySeatNoAsc(roomId);
         Map<String, ClocktowerSeatPo> seatByRole = seats.stream()
                 .filter(seat -> seat.getRoleCode() != null)
@@ -196,9 +201,7 @@ public class ClocktowerGrimoireServiceImpl implements ClocktowerGrimoireService 
 
     private static boolean canHaveNightTasks(ClocktowerRoomPo room) {
         return room.getCurrentNightNo() > 0
-                && room.getPhase() != ClocktowerPhase.LOBBY
-                && room.getPhase() != ClocktowerPhase.SETUP
-                && room.getPhase() != ClocktowerPhase.ENDED;
+                && (room.getPhase() == ClocktowerPhase.FIRST_NIGHT || room.getPhase() == ClocktowerPhase.NIGHT);
     }
 
     private static String nightTaskKey(String roleCode, Long seatId) {

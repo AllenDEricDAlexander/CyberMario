@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ClocktowerFlowServiceTests {
 
@@ -35,6 +36,46 @@ class ClocktowerFlowServiceTests {
         assertThat(flow.advanceAllowed()).isFalse();
         assertThat(flow.blockingReasons()).containsExactly("CLOCKTOWER_NIGHT_TASKS_PENDING");
         assertThat(flow.nightTaskSummary().pending()).isGreaterThan(0);
+    }
+
+    @Test
+    void firstNightCannotAdvanceUntilTasksDoneOrSkipped() {
+        Long roomId = startedRoom();
+        grimoireService.getGrimoire(roomId, storyteller());
+
+        assertThatThrownBy(() -> flowService.advance(roomId, storyteller()))
+                .hasMessageContaining("CLOCKTOWER_NIGHT_TASKS_PENDING");
+    }
+
+    @Test
+    void skippingAllNightTasksAllowsFirstNightToEnterDay() {
+        Long roomId = startedRoom();
+        grimoireService.getGrimoire(roomId, storyteller());
+        var pending = context.storytellerTaskRepository()
+                .findByRoomIdAndStatusAndDeletedFalseOrderBySortOrderAsc(roomId, "PENDING");
+        for (var task : pending) {
+            flowService.skipNightTask(roomId, task.getId(),
+                    new top.egon.mario.clocktower.flow.dto.SkipNightTaskRequest("本轮无需唤醒"), storyteller());
+        }
+
+        var flow = flowService.advance(roomId, storyteller());
+
+        assertThat(flow.phase().phase()).isEqualTo(ClocktowerPhase.DAY);
+        assertThat(flow.phase().dayNo()).isEqualTo(1);
+        assertThat(flow.phase().nightNo()).isEqualTo(1);
+    }
+
+    @Test
+    void skipNightTaskRequiresReason() {
+        Long roomId = startedRoom();
+        grimoireService.getGrimoire(roomId, storyteller());
+        var task = context.storytellerTaskRepository()
+                .findByRoomIdAndStatusAndDeletedFalseOrderBySortOrderAsc(roomId, "PENDING")
+                .getFirst();
+
+        assertThatThrownBy(() -> flowService.skipNightTask(roomId, task.getId(),
+                new top.egon.mario.clocktower.flow.dto.SkipNightTaskRequest(" "), storyteller()))
+                .hasMessageContaining("CLOCKTOWER_NIGHT_TASK_SKIP_REASON_REQUIRED");
     }
 
     private Long startedRoom() {
