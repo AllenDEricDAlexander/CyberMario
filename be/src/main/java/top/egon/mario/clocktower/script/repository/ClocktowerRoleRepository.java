@@ -25,5 +25,7 @@ public interface ClocktowerRoleRepository extends JpaRepository<ClocktowerRolePo
 
     List<ClocktowerRolePo> findByRoleCodeInAndDeletedFalse(Collection<String> roleCodes);
 
+    List<ClocktowerRolePo> findByRoleCodeInAndEnabledAndDeletedFalse(Collection<String> roleCodes, boolean enabled);
+
     Optional<ClocktowerRolePo> findByRoleCodeAndDeletedFalse(String roleCode);
 }

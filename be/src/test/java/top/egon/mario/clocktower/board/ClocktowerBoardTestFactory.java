@@ -12,6 +12,7 @@ import top.egon.mario.clocktower.engine.ClocktowerRuleEngine;
 import top.egon.mario.clocktower.engine.RuleDecisionCollector;
 import top.egon.mario.clocktower.script.dto.response.ClocktowerRoleSummaryResponse;
 
+import java.util.Collection;
 import java.util.List;
 
 import static org.mockito.Mockito.mock;
@@ -22,9 +23,37 @@ final class ClocktowerBoardTestFactory {
     }
 
     static ClocktowerBoardService service() {
-        RoleMetadataProvider provider = scriptCode -> {
-            if (scriptCode == ClocktowerScriptCode.TROUBLE_BREWING) {
-                return List.of(
+        return new ClocktowerBoardServiceImpl(roleMetadataProvider(), new TestClocktowerRuleEngine(),
+                mock(top.egon.mario.clocktower.board.repository.ClocktowerBoardConfigRepository.class),
+                mock(top.egon.mario.clocktower.board.repository.ClocktowerBoardRoleRepository.class),
+                new ObjectMapper());
+    }
+
+    static RoleMetadataProvider roleMetadataProvider() {
+        return new RoleMetadataProvider() {
+            @Override
+            public List<ClocktowerRoleSummaryResponse> roles(ClocktowerScriptCode scriptCode) {
+                return ClocktowerBoardTestFactory.roleSummaries(scriptCode);
+            }
+
+            @Override
+            public List<ClocktowerRoleSummaryResponse> enabledRoles(Collection<String> roleCodes) {
+                if (roleCodes == null || roleCodes.isEmpty()) {
+                    return List.of();
+                }
+                return List.of(ClocktowerScriptCode.TROUBLE_BREWING, ClocktowerScriptCode.BAD_MOON_RISING,
+                                ClocktowerScriptCode.SECTS_AND_VIOLETS)
+                        .stream()
+                        .flatMap(scriptCode -> ClocktowerBoardTestFactory.roleSummaries(scriptCode).stream())
+                        .filter(role -> roleCodes.contains(role.roleCode()))
+                        .toList();
+            }
+        };
+    }
+
+    private static List<ClocktowerRoleSummaryResponse> roleSummaries(ClocktowerScriptCode scriptCode) {
+        if (scriptCode == ClocktowerScriptCode.TROUBLE_BREWING) {
+            return List.of(
                         summary(scriptCode, "WASHERWOMAN", "洗衣妇", ClocktowerRoleType.TOWNSFOLK,
                                 ClocktowerAlignment.GOOD, "得知两名玩家中有一名是某个镇民。", 1, true, false, false),
                         summary(scriptCode, "LIBRARIAN", "图书管理员", ClocktowerRoleType.TOWNSFOLK,
@@ -69,18 +98,13 @@ final class ClocktowerBoardTestFactory {
                                 "有额外的外来者在场。", 3, false, false, true),
                         summary(scriptCode, "IMP", "小恶魔", ClocktowerRoleType.DEMON, ClocktowerAlignment.EVIL,
                                 "每晚选择一名玩家：他死亡。如果杀死自己，一名爪牙变成小恶魔。", 2, false, true, false));
-            }
-            return List.of(
-                    summary(scriptCode, "BMR_TOWNSFOLK", "黯月镇民", ClocktowerRoleType.TOWNSFOLK,
-                            ClocktowerAlignment.GOOD),
-                    summary(scriptCode, "BMR_MINION", "黯月爪牙", ClocktowerRoleType.MINION,
-                            ClocktowerAlignment.EVIL),
-                    summary(scriptCode, "BMR_DEMON", "黯月恶魔", ClocktowerRoleType.DEMON, ClocktowerAlignment.EVIL));
-        };
-        return new ClocktowerBoardServiceImpl(provider, new TestClocktowerRuleEngine(),
-                mock(top.egon.mario.clocktower.board.repository.ClocktowerBoardConfigRepository.class),
-                mock(top.egon.mario.clocktower.board.repository.ClocktowerBoardRoleRepository.class),
-                new ObjectMapper());
+        }
+        return List.of(
+                summary(scriptCode, "BMR_TOWNSFOLK", "黯月镇民", ClocktowerRoleType.TOWNSFOLK,
+                        ClocktowerAlignment.GOOD),
+                summary(scriptCode, "BMR_MINION", "黯月爪牙", ClocktowerRoleType.MINION,
+                        ClocktowerAlignment.EVIL),
+                summary(scriptCode, "BMR_DEMON", "黯月恶魔", ClocktowerRoleType.DEMON, ClocktowerAlignment.EVIL));
     }
 
     static ClocktowerRuleEngine ruleEngine() {

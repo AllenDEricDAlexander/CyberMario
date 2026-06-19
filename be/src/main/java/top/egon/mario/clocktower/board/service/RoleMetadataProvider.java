@@ -14,6 +14,10 @@ public interface RoleMetadataProvider {
 
     List<ClocktowerRoleSummaryResponse> roles(ClocktowerScriptCode scriptCode);
 
+    default List<ClocktowerRoleSummaryResponse> enabledRoles(Collection<String> roleCodes) {
+        return List.of();
+    }
+
     default Map<String, ClocktowerRoleType> roleTypes(ClocktowerScriptCode scriptCode) {
         return roles(scriptCode).stream()
                 .collect(Collectors.toMap(ClocktowerRoleSummaryResponse::roleCode,

@@ -10,6 +10,7 @@ import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardCandidateResp
 import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardConfigResponse;
 import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardGenerateResponse;
 import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardValidationResponse;
+import top.egon.mario.clocktower.board.dto.response.ClocktowerRuleViolationResponse;
 import top.egon.mario.clocktower.board.dto.response.ClocktowerScoreResponse;
 import top.egon.mario.clocktower.board.po.ClocktowerBoardConfigPo;
 import top.egon.mario.clocktower.board.repository.ClocktowerBoardConfigRepository;
@@ -62,6 +63,32 @@ class ClocktowerBoardServiceTests {
         assertThat(response.typeCounts().townsfolk()).isEqualTo(3);
         assertThat(response.typeCounts().minion()).isEqualTo(1);
         assertThat(response.typeCounts().demon()).isEqualTo(1);
+    }
+
+    @Test
+    void validateRejectsUnknownRoleCode() {
+        BoardValidationResponse response = boardService.validate(new ClocktowerBoardValidateRequest(
+                ClocktowerScriptCode.TROUBLE_BREWING,
+                5,
+                List.of("EMPATH", "CHEF", "MONK", "POISONER", "NO_SUCH_ROLE")
+        ));
+
+        assertThat(response.valid()).isFalse();
+        assertThat(response.issues()).extracting(ClocktowerRuleViolationResponse::code)
+                .contains("BOARD_ROLE_NOT_FOUND");
+    }
+
+    @Test
+    void validateRejectsRoleFromAnotherScript() {
+        BoardValidationResponse response = boardService.validate(new ClocktowerBoardValidateRequest(
+                ClocktowerScriptCode.TROUBLE_BREWING,
+                5,
+                List.of("EMPATH", "CHEF", "MONK", "POISONER", "BMR_DEMON")
+        ));
+
+        assertThat(response.valid()).isFalse();
+        assertThat(response.issues()).extracting(ClocktowerRuleViolationResponse::code)
+                .contains("BOARD_ROLE_SCRIPT_MISMATCH");
     }
 
     @Test
@@ -150,18 +177,30 @@ class ClocktowerBoardServiceTests {
 
     @Test
     void saveBoardConfigResponsePreservesRoleCodesAndAddsRoleSummaries() {
-        RoleMetadataProvider provider = scriptCode -> List.of(
-                new ClocktowerRoleSummaryResponse(scriptCode, "CHEF", "厨师", ClocktowerRoleType.TOWNSFOLK,
-                        ClocktowerAlignment.GOOD),
-                new ClocktowerRoleSummaryResponse(scriptCode, "POISONER", "投毒者", ClocktowerRoleType.MINION,
-                        ClocktowerAlignment.EVIL));
+        RoleMetadataProvider provider = new RoleMetadataProvider() {
+            @Override
+            public List<ClocktowerRoleSummaryResponse> roles(ClocktowerScriptCode scriptCode) {
+                return List.of(
+                        new ClocktowerRoleSummaryResponse(scriptCode, "CHEF", "厨师", ClocktowerRoleType.TOWNSFOLK,
+                                ClocktowerAlignment.GOOD),
+                        new ClocktowerRoleSummaryResponse(scriptCode, "POISONER", "投毒者", ClocktowerRoleType.MINION,
+                                ClocktowerAlignment.EVIL));
+            }
+
+            @Override
+            public List<ClocktowerRoleSummaryResponse> enabledRoles(java.util.Collection<String> roleCodes) {
+                return roles(ClocktowerScriptCode.TROUBLE_BREWING).stream()
+                        .filter(role -> roleCodes.contains(role.roleCode()))
+                        .toList();
+            }
+        };
         ClocktowerBoardConfigRepository configRepository = mock(ClocktowerBoardConfigRepository.class);
         ClocktowerBoardRoleRepository roleRepository = mock(ClocktowerBoardRoleRepository.class);
         when(configRepository.save(any(ClocktowerBoardConfigPo.class))).thenAnswer(invocation -> {
             ClocktowerBoardConfigPo config = invocation.getArgument(0);
-            assertThat(config.isValid()).isTrue();
+            assertThat(config.isValid()).isFalse();
             config.setId(42L);
-            config.setValid(true);
+            config.setValid(false);
             config.setCreatedAt(java.time.Instant.parse("2026-06-19T00:00:00Z"));
             return config;
         });
@@ -175,11 +214,37 @@ class ClocktowerBoardServiceTests {
         ClocktowerBoardConfigResponse response = service.save(request, principal(1L));
 
         assertThat(response.boardId()).isEqualTo(42L);
-        assertThat(response.valid()).isTrue();
+        assertThat(response.valid()).isFalse();
         assertThat(response.createdAt()).isEqualTo(java.time.Instant.parse("2026-06-19T00:00:00Z"));
         assertThat(response.roleCodes()).containsExactly("CHEF", "UNKNOWN");
         assertThat(response.roles()).extracting(role -> role.roleName())
                 .containsExactly("厨师", "UNKNOWN");
+    }
+
+    @Test
+    void saveRevalidatesAndPersistsBackendValidationResult() {
+        RoleMetadataProvider provider = ClocktowerBoardTestFactory.roleMetadataProvider();
+        ClocktowerBoardConfigRepository configRepository = mock(ClocktowerBoardConfigRepository.class);
+        ClocktowerBoardRoleRepository roleRepository = mock(ClocktowerBoardRoleRepository.class);
+        when(configRepository.save(any(ClocktowerBoardConfigPo.class))).thenAnswer(invocation -> {
+            ClocktowerBoardConfigPo config = invocation.getArgument(0);
+            config.setId(99L);
+            config.setCreatedAt(java.time.Instant.parse("2026-06-19T01:00:00Z"));
+            return config;
+        });
+        ClocktowerBoardService service = new ClocktowerBoardServiceImpl(provider,
+                ClocktowerBoardTestFactory.ruleEngine(), configRepository, roleRepository, new ObjectMapper());
+        ClocktowerBoardValidationResponse trustedFrontendValidation = new ClocktowerBoardValidationResponse(true,
+                Map.of(), List.of(), List.of());
+        ClocktowerBoardSaveRequest request = new ClocktowerBoardSaveRequest(ClocktowerScriptCode.TROUBLE_BREWING,
+                5, 1, 1, 1, true, "seed", List.of("EMPATH", "CHEF"), trustedFrontendValidation);
+
+        ClocktowerBoardConfigResponse response = service.save(request, principal(1L));
+
+        assertThat(response.valid()).isFalse();
+        assertThat(response.validation().valid()).isFalse();
+        assertThat(response.validation().violations()).extracting(ClocktowerRuleViolationResponse::code)
+                .contains("BOARD_ROLE_COUNT_MISMATCH");
     }
 
     @Test
