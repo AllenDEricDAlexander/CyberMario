@@ -130,6 +130,14 @@ describe('clocktowerService', () => {
         )
     })
 
+    it('loads valid saved boards for room creation', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await listClocktowerBoards({page: 1, size: 200, valid: true})
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/boards?page=1&size=200&valid=true')
+    })
+
     it('joins rooms with room join request and returns the seat response', async () => {
         const {requestJson} = await import('../../services/request')
         const request = {seatNo: 3, displayName: 'Alice', inviteCode: 'INVITE'}

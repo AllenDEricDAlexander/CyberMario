@@ -1,22 +1,20 @@
 import {PlusOutlined, ReloadOutlined} from '@ant-design/icons'
 import {App, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Table, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
-import {useEffect, useState} from 'react'
+import {useCallback, useEffect, useState} from 'react'
 import {useNavigate} from 'react-router'
 import {PageToolbar} from '../../components/PageToolbar'
 import {resolveErrorMessage} from '../../services/request'
 import {voidify} from '../../utils/async'
-import {createClocktowerRoom, listClocktowerRooms} from './clocktowerService'
+import {createClocktowerRoom, listClocktowerBoards, listClocktowerRooms} from './clocktowerService'
+import {RoleSummaryTags} from './components/RoleSummaryTags'
 import type {
+    ClocktowerBoardConfigResponse,
     ClocktowerRoomCreateRequest,
     ClocktowerRoomResponse,
     ClocktowerRoomStatus,
     ClocktowerScriptCode,
 } from './clocktowerTypes'
-
-type RoomFormValues = Omit<ClocktowerRoomCreateRequest, 'roleCodes'> & {
-    roleCodesText?: string
-}
 
 const scriptOptions: Array<{ label: string; value: ClocktowerScriptCode }> = [
     {label: '暗流涌动', value: 'TROUBLE_BREWING'},
@@ -35,17 +33,17 @@ const statusColors: Record<ClocktowerRoomStatus, string> = {
 function RoomListPage() {
     const navigate = useNavigate()
     const {message} = App.useApp()
-    const [form] = Form.useForm<RoomFormValues>()
+    const [form] = Form.useForm<ClocktowerRoomCreateRequest>()
+    const selectedBoardId = Form.useWatch('boardConfigId', form)
     const [rooms, setRooms] = useState<ClocktowerRoomResponse[]>([])
+    const [boards, setBoards] = useState<ClocktowerBoardConfigResponse[]>([])
     const [loading, setLoading] = useState(false)
+    const [boardLoading, setBoardLoading] = useState(false)
     const [saving, setSaving] = useState(false)
     const [creatorOpen, setCreatorOpen] = useState(false)
+    const selectedBoard = boards.find((board) => board.boardId === selectedBoardId)
 
-    useEffect(() => {
-        void loadRooms()
-    }, [])
-
-    async function loadRooms() {
+    const loadRooms = useCallback(async () => {
         setLoading(true)
         try {
             setRooms(await listClocktowerRooms())
@@ -54,34 +52,79 @@ function RoomListPage() {
         } finally {
             setLoading(false)
         }
-    }
+    }, [message])
+
+    useEffect(() => {
+        void loadRooms()
+    }, [loadRooms])
 
     function openCreator() {
         form.setFieldsValue({
             name: '钟楼房间',
             scriptCode: 'TROUBLE_BREWING',
             playerCount: 5,
+            boardConfigId: null,
+            boardCode: null,
+            roleCodes: [],
             storytellerMode: 'HUMAN',
             allowSpectators: true,
             allowPrivateChat: true,
             agentSeatCount: 0,
         })
+        setBoards([])
         setCreatorOpen(true)
+        void loadValidBoards()
+    }
+
+    async function loadValidBoards() {
+        setBoardLoading(true)
+        try {
+            const page = await listClocktowerBoards({page: 1, size: 200, valid: true})
+            setBoards(page.records)
+        } catch (caught) {
+            setBoards([])
+            message.error(resolveErrorMessage(caught))
+        } finally {
+            setBoardLoading(false)
+        }
+    }
+
+    function selectBoard(boardConfigId?: number | null) {
+        if (boardConfigId == null) {
+            form.setFieldsValue({
+                boardConfigId: null,
+                boardCode: null,
+                roleCodes: [],
+            })
+            return
+        }
+
+        const board = boards.find((item) => item.boardId === boardConfigId)
+        if (!board) {
+            return
+        }
+
+        form.setFieldsValue({
+            boardConfigId: board.boardId,
+            boardCode: board.boardCode,
+            scriptCode: board.scriptCode,
+            playerCount: board.playerCount,
+            roleCodes: [],
+        })
     }
 
     async function saveRoom() {
         const values = await form.validateFields()
         setSaving(true)
         try {
-            const {roleCodesText, ...request} = values
             const room = await createClocktowerRoom({
-                ...request,
-                roleCodes: parseRoleCodes(roleCodesText),
+                ...values,
+                roleCodes: values.roleCodes ?? [],
             })
             message.success('房间已创建')
             setCreatorOpen(false)
             await loadRooms()
-            navigate(`/clocktower/rooms/${room.roomId}/lobby`)
+            void navigate(`/clocktower/rooms/${room.roomId}/lobby`)
         } catch (caught) {
             message.error(resolveErrorMessage(caught))
         } finally {
@@ -114,23 +157,36 @@ function RoomListPage() {
             width: 120,
             render: (_, record) => `${record.seats.filter((seat) => seat.userId).length}/${record.playerCount}`,
         },
-        {title: '说书人', dataIndex: 'storytellerUserId', width: 120, render: (value) => value ?? '-'},
+        {
+            title: '说书人',
+            dataIndex: 'storytellerUserId',
+            width: 120,
+            render: (value: ClocktowerRoomResponse['storytellerUserId']) => value ?? '-',
+        },
         {
             title: '操作',
             fixed: 'right',
             width: 300,
             render: (_, record) => (
                 <Space>
-                    <Button size="small" onClick={() => navigate(`/clocktower/rooms/${record.roomId}/lobby`)}>
+                    <Button size="small" onClick={() => {
+                        void navigate(`/clocktower/rooms/${record.roomId}/lobby`)
+                    }}>
                         大厅
                     </Button>
-                    <Button size="small" onClick={() => navigate(`/clocktower/rooms/${record.roomId}/play`)}>
+                    <Button size="small" onClick={() => {
+                        void navigate(`/clocktower/rooms/${record.roomId}/play`)
+                    }}>
                         游戏
                     </Button>
-                    <Button size="small" onClick={() => navigate(`/clocktower/rooms/${record.roomId}/grimoire`)}>
+                    <Button size="small" onClick={() => {
+                        void navigate(`/clocktower/rooms/${record.roomId}/grimoire`)
+                    }}>
                         魔典
                     </Button>
-                    <Button size="small" onClick={() => navigate(`/clocktower/replays/${record.roomId}`)}>
+                    <Button size="small" onClick={() => {
+                        void navigate(`/clocktower/replays/${record.roomId}`)
+                    }}>
                         回放
                     </Button>
                     <Popconfirm title="归档接口将在后续计划实现">
@@ -170,6 +226,12 @@ function RoomListPage() {
                 title="创建钟楼房间"
             >
                 <Form form={form} layout="vertical">
+                    <Form.Item hidden name="boardCode">
+                        <Select options={[]}/>
+                    </Form.Item>
+                    <Form.Item hidden name="roleCodes">
+                        <Select mode="multiple" options={[]}/>
+                    </Form.Item>
                     <Form.Item label="房间名称" name="name" rules={[{required: true, message: '请输入房间名称'}]}>
                         <Input/>
                     </Form.Item>
@@ -187,9 +249,23 @@ function RoomListPage() {
                     <Form.Item label="说书人模式" name="storytellerMode">
                         <Select options={[{label: '人工说书人', value: 'HUMAN'}]}/>
                     </Form.Item>
-                    <Form.Item label="预设角色代码" name="roleCodesText">
-                        <Input.TextArea placeholder="可选，用逗号或换行分隔角色代码" rows={3}/>
+                    <Form.Item label="通过配板" name="boardConfigId">
+                        <Select
+                            allowClear
+                            loading={boardLoading}
+                            onChange={selectBoard}
+                            options={boards.map((board) => ({
+                                label: `${board.boardCode} · ${board.scriptCode} · ${board.playerCount}人`,
+                                value: board.boardId,
+                            }))}
+                            placeholder="可选，只展示校验通过的配板"
+                        />
                     </Form.Item>
+                    {selectedBoard && (
+                        <div style={{marginTop: -12, marginBottom: 16}}>
+                            <RoleSummaryTags roleCodes={selectedBoard.roleCodes} roles={selectedBoard.roles}/>
+                        </div>
+                    )}
                     <Space align="start" wrap>
                         <Form.Item label="允许旁观" name="allowSpectators" valuePropName="checked">
                             <Switch/>
@@ -202,13 +278,6 @@ function RoomListPage() {
             </Modal>
         </>
     )
-}
-
-function parseRoleCodes(text?: string) {
-    return (text ?? '')
-        .split(/[,\n]/)
-        .map((item) => item.trim())
-        .filter(Boolean)
 }
 
 export const Component = RoomListPage
