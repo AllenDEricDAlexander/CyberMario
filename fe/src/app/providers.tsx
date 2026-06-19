@@ -3,8 +3,8 @@ import {App, ConfigProvider} from 'antd'
 import {XProvider} from '@ant-design/x'
 import zhCN from 'antd/locale/zh_CN'
 import zhCNX from '@ant-design/x/locale/zh_CN'
-import {resolveErrorMessage} from '../services/request'
 import {AuthProvider} from '../modules/auth/authStore'
+import {GlobalErrorProvider, reportGlobalError} from './globalError'
 import {registerAsyncErrorHandler, registerUnhandledRejectionReporter} from '../utils/async'
 
 type AppProvidersProps = {
@@ -36,9 +36,11 @@ export function AppProviders({children}: AppProvidersProps) {
         <ConfigProvider locale={zhCN} theme={theme}>
             <XProvider locale={xLocale} theme={theme}>
                 <App>
-                    <AsyncErrorReporter>
-                        <AuthProvider>{children}</AuthProvider>
-                    </AsyncErrorReporter>
+                    <GlobalErrorProvider>
+                        <AsyncErrorReporter>
+                            <AuthProvider>{children}</AuthProvider>
+                        </AsyncErrorReporter>
+                    </GlobalErrorProvider>
                 </App>
             </XProvider>
         </ConfigProvider>
@@ -46,19 +48,14 @@ export function AppProviders({children}: AppProvidersProps) {
 }
 
 function AsyncErrorReporter({children}: AppProvidersProps) {
-    const {message} = App.useApp()
-
     useEffect(() => {
-        const reportError = (error: unknown) => {
-            message.error(resolveErrorMessage(error))
-        }
-        const disposeRejectedHandler = registerAsyncErrorHandler(reportError)
-        const disposeUnhandledRejectionHandler = registerUnhandledRejectionReporter(reportError)
+        const disposeRejectedHandler = registerAsyncErrorHandler(reportGlobalError)
+        const disposeUnhandledRejectionHandler = registerUnhandledRejectionReporter(reportGlobalError)
         return () => {
             disposeRejectedHandler()
             disposeUnhandledRejectionHandler()
         }
-    }, [message])
+    }, [])
 
     return <>{children}</>
 }
