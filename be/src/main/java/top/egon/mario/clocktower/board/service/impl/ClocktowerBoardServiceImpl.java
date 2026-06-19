@@ -400,6 +400,7 @@ public class ClocktowerBoardServiceImpl implements ClocktowerBoardService {
             issues.add(new ClocktowerRuleViolationResponse("BOARD_ROLE_COUNT_MISMATCH",
                     "角色数量必须和玩家人数一致。", "ERROR"));
         }
+        Set<String> visitedRoleCodes = new LinkedHashSet<>();
         Set<String> scriptRoleCodes = scriptRoles.stream()
                 .map(ClocktowerRoleSummaryResponse::roleCode)
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
@@ -407,6 +408,10 @@ public class ClocktowerBoardServiceImpl implements ClocktowerBoardService {
                 .collect(java.util.stream.Collectors.toMap(ClocktowerRoleSummaryResponse::roleCode,
                         java.util.function.Function.identity(), (left, right) -> left, LinkedHashMap::new));
         for (String roleCode : roleCodes) {
+            if (!visitedRoleCodes.add(roleCode)) {
+                issues.add(new ClocktowerRuleViolationResponse("BOARD_ROLE_DUPLICATED",
+                        "角色不能重复：" + roleCode, "ERROR"));
+            }
             ClocktowerRoleSummaryResponse enabledRole = enabledRoles.get(roleCode);
             if (enabledRole == null) {
                 issues.add(new ClocktowerRuleViolationResponse("BOARD_ROLE_NOT_FOUND",
@@ -423,12 +428,16 @@ public class ClocktowerBoardServiceImpl implements ClocktowerBoardService {
                                                               List<ClocktowerRuleViolationResponse> ruleIssues) {
         Map<String, ClocktowerRuleViolationResponse> issues = new LinkedHashMap<>();
         for (ClocktowerRuleViolationResponse issue : inputIssues) {
-            issues.putIfAbsent(issue.code(), issue);
+            issues.putIfAbsent(issueKey(issue), issue);
         }
         for (ClocktowerRuleViolationResponse issue : ruleIssues) {
-            issues.putIfAbsent(issue.code(), issue);
+            issues.putIfAbsent(issueKey(issue), issue);
         }
         return List.copyOf(issues.values());
+    }
+
+    private String issueKey(ClocktowerRuleViolationResponse issue) {
+        return issue.code() + "\u0000" + issue.message();
     }
 
     private Map<String, Integer> roleTypeCountMap(ClocktowerRoleTypeCountResponse typeCounts) {

@@ -79,6 +79,36 @@ class ClocktowerBoardServiceTests {
     }
 
     @Test
+    void validateReportsEachUnknownRoleCode() {
+        BoardValidationResponse response = boardService.validate(new ClocktowerBoardValidateRequest(
+                ClocktowerScriptCode.TROUBLE_BREWING,
+                5,
+                List.of("EMPATH", "CHEF", "MONK", "NO_SUCH_ROLE", "NO_SUCH_OTHER_ROLE")
+        ));
+
+        assertThat(response.valid()).isFalse();
+        assertThat(response.issues())
+                .filteredOn(issue -> "BOARD_ROLE_NOT_FOUND".equals(issue.code()))
+                .extracting(ClocktowerRuleViolationResponse::message)
+                .containsExactly("角色不存在或未启用：NO_SUCH_ROLE", "角色不存在或未启用：NO_SUCH_OTHER_ROLE");
+    }
+
+    @Test
+    void validateRejectsDuplicateRoleCode() {
+        BoardValidationResponse response = boardService.validate(new ClocktowerBoardValidateRequest(
+                ClocktowerScriptCode.TROUBLE_BREWING,
+                5,
+                List.of("EMPATH", "CHEF", "CHEF", "POISONER", "IMP")
+        ));
+
+        assertThat(response.valid()).isFalse();
+        assertThat(response.issues()).extracting(ClocktowerRuleViolationResponse::code)
+                .contains("BOARD_ROLE_DUPLICATED");
+        assertThat(response.issues()).extracting(ClocktowerRuleViolationResponse::message)
+                .contains("角色不能重复：CHEF");
+    }
+
+    @Test
     void validateRejectsRoleFromAnotherScript() {
         BoardValidationResponse response = boardService.validate(new ClocktowerBoardValidateRequest(
                 ClocktowerScriptCode.TROUBLE_BREWING,
@@ -245,6 +275,34 @@ class ClocktowerBoardServiceTests {
         assertThat(response.validation().valid()).isFalse();
         assertThat(response.validation().violations()).extracting(ClocktowerRuleViolationResponse::code)
                 .contains("BOARD_ROLE_COUNT_MISMATCH");
+    }
+
+    @Test
+    void saveRevalidatesAndPersistsDuplicateRoleIssue() {
+        RoleMetadataProvider provider = ClocktowerBoardTestFactory.roleMetadataProvider();
+        ClocktowerBoardConfigRepository configRepository = mock(ClocktowerBoardConfigRepository.class);
+        ClocktowerBoardRoleRepository roleRepository = mock(ClocktowerBoardRoleRepository.class);
+        when(configRepository.save(any(ClocktowerBoardConfigPo.class))).thenAnswer(invocation -> {
+            ClocktowerBoardConfigPo config = invocation.getArgument(0);
+            assertThat(config.isValid()).isFalse();
+            config.setId(100L);
+            config.setCreatedAt(java.time.Instant.parse("2026-06-19T02:00:00Z"));
+            return config;
+        });
+        ClocktowerBoardService service = new ClocktowerBoardServiceImpl(provider,
+                ClocktowerBoardTestFactory.ruleEngine(), configRepository, roleRepository, new ObjectMapper());
+        ClocktowerBoardValidationResponse trustedFrontendValidation = new ClocktowerBoardValidationResponse(true,
+                Map.of(), List.of(), List.of());
+        ClocktowerBoardSaveRequest request = new ClocktowerBoardSaveRequest(ClocktowerScriptCode.TROUBLE_BREWING,
+                5, 1, 1, 1, true, "seed", List.of("EMPATH", "CHEF", "CHEF", "POISONER", "IMP"),
+                trustedFrontendValidation);
+
+        ClocktowerBoardConfigResponse response = service.save(request, principal(1L));
+
+        assertThat(response.valid()).isFalse();
+        assertThat(response.validation().valid()).isFalse();
+        assertThat(response.validation().violations()).extracting(ClocktowerRuleViolationResponse::code)
+                .contains("BOARD_ROLE_DUPLICATED");
     }
 
     @Test
