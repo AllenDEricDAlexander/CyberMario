@@ -8,6 +8,7 @@ import top.egon.mario.clocktower.board.dto.response.BoardValidationResponse;
 import top.egon.mario.clocktower.board.dto.response.ClocktowerRoleTypeCountResponse;
 import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
 import top.egon.mario.clocktower.common.enums.ClocktowerAlignment;
+import top.egon.mario.clocktower.common.enums.ClocktowerEventType;
 import top.egon.mario.clocktower.common.enums.ClocktowerNightType;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoleType;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
@@ -177,6 +178,12 @@ public final class ClocktowerRoomTestFactory {
                                 && event.getEventSeq() > (Long) invocation.getArgument(1))
                         .sorted(Comparator.comparing(ClocktowerEventPo::getEventSeq))
                         .toList());
+        when(eventRepository.existsByRoomIdAndDayNoAndEventTypeAndDeletedFalse(any(), anyInt(), any()))
+                .thenAnswer(invocation -> events.stream()
+                        .anyMatch(event -> !event.isDeleted()
+                                && event.getRoomId().equals(invocation.getArgument(0))
+                                && event.getDayNo() == (Integer) invocation.getArgument(1)
+                                && event.getEventType() == (ClocktowerEventType) invocation.getArgument(2)));
         when(nominationRepository.save(any(ClocktowerNominationPo.class)))
                 .thenAnswer(saveNomination(nominations, nominationId));
         when(nominationRepository.findByRoomIdAndDeletedFalseOrderByIdAsc(any())).thenAnswer(invocation -> nominations.stream()

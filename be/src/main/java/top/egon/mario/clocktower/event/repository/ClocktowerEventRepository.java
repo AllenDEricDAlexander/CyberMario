@@ -1,6 +1,7 @@
 package top.egon.mario.clocktower.event.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import top.egon.mario.clocktower.common.enums.ClocktowerEventType;
 import top.egon.mario.clocktower.event.po.ClocktowerEventPo;
 
 import java.util.List;
@@ -13,4 +14,6 @@ public interface ClocktowerEventRepository extends JpaRepository<ClocktowerEvent
     List<ClocktowerEventPo> findByRoomIdAndEventSeqGreaterThanAndDeletedFalseOrderByEventSeqAsc(Long roomId, Long eventSeq);
 
     Optional<ClocktowerEventPo> findTopByRoomIdAndDeletedFalseOrderByEventSeqDesc(Long roomId);
+
+    boolean existsByRoomIdAndDayNoAndEventTypeAndDeletedFalse(Long roomId, int dayNo, ClocktowerEventType eventType);
 }

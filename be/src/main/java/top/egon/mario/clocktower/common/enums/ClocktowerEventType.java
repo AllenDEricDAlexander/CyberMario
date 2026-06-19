@@ -15,6 +15,7 @@ public enum ClocktowerEventType {
     VOTE_CAST,
     DEAD_VOTE_SPENT,
     PLAYER_EXECUTED,
+    EXECUTION_SKIPPED,
     PLAYER_DIED,
     PLAYER_PASSED,
     MARKER_ADDED,

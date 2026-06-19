@@ -78,6 +78,49 @@ class ClocktowerFlowServiceTests {
                 .hasMessageContaining("CLOCKTOWER_NIGHT_TASK_SKIP_REASON_REQUIRED");
     }
 
+    @Test
+    void normalFlowMovesDayToNominationThenExecution() {
+        Long roomId = dayRoom();
+
+        var nominationFlow = flowService.advance(roomId, storyteller());
+        assertThat(nominationFlow.phase().phase()).isEqualTo(ClocktowerPhase.NOMINATION);
+
+        var executionFlow = flowService.advance(roomId, storyteller());
+        assertThat(executionFlow.phase().phase()).isEqualTo(ClocktowerPhase.EXECUTION);
+    }
+
+    @Test
+    void executionResolvedMovesToNextNightAndNightCompletionMovesToNextDay() {
+        Long roomId = executionResolvedRoom();
+
+        var nightFlow = flowService.advance(roomId, storyteller());
+        assertThat(nightFlow.phase().phase()).isEqualTo(ClocktowerPhase.NIGHT);
+        assertThat(nightFlow.phase().dayNo()).isEqualTo(1);
+        assertThat(nightFlow.phase().nightNo()).isEqualTo(2);
+    }
+
+    private Long dayRoom() {
+        Long roomId = startedRoom();
+        grimoireService.getGrimoire(roomId, storyteller());
+        context.storytellerTaskRepository()
+                .findByRoomIdAndStatusAndDeletedFalseOrderBySortOrderAsc(roomId, "PENDING")
+                .forEach(task -> flowService.skipNightTask(roomId, task.getId(),
+                        new top.egon.mario.clocktower.flow.dto.SkipNightTaskRequest("跳过"), storyteller()));
+        flowService.advance(roomId, storyteller());
+        return roomId;
+    }
+
+    private Long executionResolvedRoom() {
+        Long roomId = dayRoom();
+        flowService.advance(roomId, storyteller());
+        flowService.advance(roomId, storyteller());
+        flowService.confirmExecution(roomId,
+                new top.egon.mario.clocktower.flow.dto.ExecutionConfirmRequest(false,
+                        top.egon.mario.clocktower.flow.dto.ClocktowerExecutionDeathPolicy.NO_CHANGE,
+                        "无人处决"), storyteller());
+        return roomId;
+    }
+
     private Long startedRoom() {
         var room = context.roomService().create(new ClocktowerRoomCreateRequest("流程测试",
                 ClocktowerScriptCode.TROUBLE_BREWING, 5,

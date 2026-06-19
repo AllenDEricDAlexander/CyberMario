@@ -19,7 +19,7 @@ final class TestClocktowerFlowServices {
                 configuration.clocktowerFlowKieBase(new DefaultResourceLoader()));
         return new ClocktowerFlowServiceImpl(context.roomRepository(), context.seatRepository(),
                 context.storytellerTaskRepository(), context.nominationRepository(), context.voteRepository(),
-                context.roleRepository(), context.eventService(), ruleEngine);
+                context.roleRepository(), context.eventService(), context.eventRepository(), ruleEngine);
     }
 
     static ClocktowerGrimoireServiceImpl grimoireService(ClocktowerRoomTestFactory.Context context) {

@@ -137,7 +137,8 @@ public class ClocktowerGrimoireServiceImpl implements ClocktowerGrimoireService 
             case "PUBLIC_ANNOUNCEMENT" -> append(room, principal, null, ClocktowerEventType.PUBLIC_MESSAGE_SENT,
                     ClocktowerVisibility.PUBLIC, List.of(), Map.of("content", text(request.note())));
             case "PRIVATE_INFO" -> privateInfo(room, request, principal);
-            case "ADVANCE_PHASE" -> advancePhase(room, request, principal);
+            case "ADVANCE_PHASE" -> StorytellerActionResponse.rejected(
+                    "CLOCKTOWER_ADVANCE_PHASE_REPLACED_BY_FLOW", getGrimoire(roomId, principal));
             case "RESOLVE_TASK" -> resolveTask(room, request, principal);
             case "CHANGE_ROLE", "CHANGE_ALIGNMENT" ->
                     StorytellerActionResponse.rejected("ACTION_NOT_ENABLED_IN_PHASE_ONE", getGrimoire(roomId, principal));
@@ -280,21 +281,6 @@ public class ClocktowerGrimoireServiceImpl implements ClocktowerGrimoireService 
                 ClocktowerVisibility.STORYTELLER, List.of(), payload);
     }
 
-    private StorytellerActionResponse advancePhase(ClocktowerRoomPo room, StorytellerActionRequest request,
-                                                   RbacPrincipal principal) {
-        ClocktowerPhase targetPhase = targetPhase(room.getPhase(), request);
-        room.setPhase(targetPhase);
-        if (targetPhase == ClocktowerPhase.DAY && room.getCurrentDayNo() == 0) {
-            room.setCurrentDayNo(1);
-        }
-        if (targetPhase == ClocktowerPhase.NIGHT) {
-            room.setCurrentNightNo(room.getCurrentNightNo() + 1);
-        }
-        roomRepository.save(room);
-        return append(room, principal, null, ClocktowerEventType.PHASE_CHANGED, ClocktowerVisibility.PUBLIC,
-                List.of(), Map.of("phase", targetPhase.name()));
-    }
-
     private StorytellerActionResponse append(ClocktowerRoomPo room, RbacPrincipal principal, Long targetSeatId,
                                              ClocktowerEventType eventType, ClocktowerVisibility visibility,
                                              List<Long> visibleSeatIds, Map<String, Object> payload) {
@@ -302,20 +288,6 @@ public class ClocktowerGrimoireServiceImpl implements ClocktowerGrimoireService 
                 room.getPhase(), room.getCurrentDayNo(), room.getCurrentNightNo(),
                 principal == null ? null : principal.userId(), null, targetSeatId, visibility, visibleSeatIds, payload));
         return StorytellerActionResponse.accepted(event, getGrimoire(room.getId(), principal));
-    }
-
-    private static ClocktowerPhase targetPhase(ClocktowerPhase currentPhase, StorytellerActionRequest request) {
-        String requested = stringPayload(request, "targetPhase", null);
-        if (requested != null) {
-            return ClocktowerPhase.valueOf(requested);
-        }
-        return switch (currentPhase) {
-            case FIRST_NIGHT, NIGHT -> ClocktowerPhase.DAY;
-            case DAY -> ClocktowerPhase.NIGHT;
-            case NOMINATION -> ClocktowerPhase.EXECUTION;
-            case EXECUTION -> ClocktowerPhase.NIGHT;
-            default -> ClocktowerPhase.DAY;
-        };
     }
 
     private static Long firstTarget(StorytellerActionRequest request) {

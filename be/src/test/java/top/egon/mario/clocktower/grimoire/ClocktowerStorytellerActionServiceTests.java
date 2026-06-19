@@ -77,6 +77,18 @@ class ClocktowerStorytellerActionServiceTests {
                 .allMatch(step -> step.completed());
     }
 
+    @Test
+    void oldAdvancePhaseActionIsRejected() {
+        ClocktowerRoomResponse room = startedTroubleBrewingRoomWithJoinedUsers();
+
+        StorytellerActionResponse response = grimoireService.storytellerAction(room.roomId(),
+                new StorytellerActionRequest("ADVANCE_PHASE", List.of(), "推进", Map.of()),
+                storytellerPrincipal());
+
+        assertThat(response.accepted()).isFalse();
+        assertThat(response.rejectedCode()).isEqualTo("CLOCKTOWER_ADVANCE_PHASE_REPLACED_BY_FLOW");
+    }
+
     private ClocktowerRoomResponse startedTroubleBrewingRoomWithJoinedUsers() {
         ClocktowerRoomResponse room = roomService.create(new ClocktowerRoomCreateRequest(
                 "周五暗流", ClocktowerScriptCode.TROUBLE_BREWING, 5, null, null,

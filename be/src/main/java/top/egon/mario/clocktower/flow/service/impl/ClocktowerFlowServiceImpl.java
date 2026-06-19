@@ -13,10 +13,12 @@ import top.egon.mario.clocktower.common.enums.ClocktowerVisibility;
 import top.egon.mario.clocktower.engine.ClocktowerRuleEngine;
 import top.egon.mario.clocktower.engine.flow.ClocktowerFlowFact;
 import top.egon.mario.clocktower.event.dto.ClocktowerEventAppendRequest;
+import top.egon.mario.clocktower.event.repository.ClocktowerEventRepository;
 import top.egon.mario.clocktower.event.service.ClocktowerEventService;
 import top.egon.mario.clocktower.flow.ClocktowerFlowService;
 import top.egon.mario.clocktower.flow.dto.ClocktowerFlowResponse;
 import top.egon.mario.clocktower.flow.dto.CloseNominationRequest;
+import top.egon.mario.clocktower.flow.dto.ClocktowerExecutionDeathPolicy;
 import top.egon.mario.clocktower.flow.dto.ExecutionCandidateResponse;
 import top.egon.mario.clocktower.flow.dto.ExecutionConfirmRequest;
 import top.egon.mario.clocktower.flow.dto.NightTaskSummaryResponse;
@@ -57,6 +59,7 @@ public class ClocktowerFlowServiceImpl implements ClocktowerFlowService {
     private final ClocktowerVoteRepository voteRepository;
     private final ClocktowerRoleRepository roleRepository;
     private final ClocktowerEventService eventService;
+    private final ClocktowerEventRepository eventRepository;
     private final ClocktowerRuleEngine ruleEngine;
 
     @Override
@@ -85,6 +88,12 @@ public class ClocktowerFlowServiceImpl implements ClocktowerFlowService {
             case COMPLETE_NIGHT -> {
                 room.setPhase(ClocktowerPhase.DAY);
                 room.setCurrentDayNo(room.getCurrentDayNo() + 1);
+            }
+            case START_NOMINATION -> room.setPhase(ClocktowerPhase.NOMINATION);
+            case START_EXECUTION -> room.setPhase(ClocktowerPhase.EXECUTION);
+            case START_NIGHT -> {
+                room.setPhase(ClocktowerPhase.NIGHT);
+                room.setCurrentNightNo(room.getCurrentNightNo() + 1);
             }
             default -> throw new ClocktowerException("CLOCKTOWER_FLOW_TRANSITION_UNSUPPORTED");
         }
@@ -129,7 +138,34 @@ public class ClocktowerFlowServiceImpl implements ClocktowerFlowService {
     @Transactional
     public ClocktowerFlowResponse confirmExecution(Long roomId, ExecutionConfirmRequest request,
                                                    RbacPrincipal principal) {
-        throw new ClocktowerException("CLOCKTOWER_FLOW_TRANSITION_UNSUPPORTED");
+        ClocktowerRoomPo room = roomRepository.findLockedByIdAndDeletedFalse(roomId)
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
+        ClocktowerAccess.requireStoryteller(room, principal);
+        if (room.getPhase() != ClocktowerPhase.EXECUTION) {
+            throw new ClocktowerException("CLOCKTOWER_EXECUTION_PHASE_INVALID");
+        }
+        if (request == null || !StringUtils.hasText(request.note())) {
+            throw new ClocktowerException("CLOCKTOWER_EXECUTION_NOTE_REQUIRED");
+        }
+        ClocktowerExecutionDeathPolicy deathPolicy = request.deathPolicy() == null
+                ? ClocktowerExecutionDeathPolicy.NO_CHANGE
+                : request.deathPolicy();
+        ClocktowerFlowResponse flow = buildFlow(room);
+        ExecutionCandidateResponse candidate = flow.executionCandidate();
+        if (Boolean.TRUE.equals(request.execute())) {
+            throw new ClocktowerException("CLOCKTOWER_FLOW_TRANSITION_UNSUPPORTED");
+        }
+        if (deathPolicy == ClocktowerExecutionDeathPolicy.MARK_DEAD) {
+            throw new ClocktowerException("CLOCKTOWER_EXECUTION_DEATH_POLICY_INVALID");
+        }
+        if (candidate.executable()) {
+            throw new ClocktowerException("CLOCKTOWER_EXECUTION_CANDIDATE_EXISTS");
+        }
+        eventService.append(new ClocktowerEventAppendRequest(room.getId(), ClocktowerEventType.EXECUTION_SKIPPED,
+                room.getPhase(), room.getCurrentDayNo(), room.getCurrentNightNo(),
+                principal == null ? null : principal.userId(), null, null, ClocktowerVisibility.PUBLIC, List.of(),
+                Map.of("note", request.note())));
+        return buildFlow(room);
     }
 
     private ClocktowerFlowResponse buildFlow(ClocktowerRoomPo room) {
@@ -189,7 +225,9 @@ public class ClocktowerFlowServiceImpl implements ClocktowerFlowService {
     }
 
     private boolean executionResolved(ClocktowerRoomPo room, List<ClocktowerNominationPo> closed) {
-        return closed.stream().anyMatch(ClocktowerNominationPo::isExecuted);
+        return closed.stream().anyMatch(ClocktowerNominationPo::isExecuted)
+                || eventRepository.existsByRoomIdAndDayNoAndEventTypeAndDeletedFalse(
+                room.getId(), room.getCurrentDayNo(), ClocktowerEventType.EXECUTION_SKIPPED);
     }
 
     private NightTaskSummaryResponse nightSummary(List<ClocktowerStorytellerTaskPo> tasks) {
