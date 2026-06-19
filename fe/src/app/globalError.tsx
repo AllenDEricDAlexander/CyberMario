@@ -51,11 +51,10 @@ export function GlobalErrorAlert({message, onClose}: GlobalErrorAlertProps) {
 
     return (
         <Alert
-            closable
-            message={message}
-            onClose={onClose}
+            closable={{onClose}}
             showIcon
             style={{margin: '16px 24px 0'}}
+            title={message}
             type="error"
         />
     )
