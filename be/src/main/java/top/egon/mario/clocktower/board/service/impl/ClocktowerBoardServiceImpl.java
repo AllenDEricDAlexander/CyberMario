@@ -8,6 +8,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardGenerateRequest;
@@ -28,6 +31,7 @@ import top.egon.mario.clocktower.board.repository.ClocktowerBoardConfigRepositor
 import top.egon.mario.clocktower.board.repository.ClocktowerBoardRoleRepository;
 import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
 import top.egon.mario.clocktower.board.service.RoleMetadataProvider;
+import top.egon.mario.clocktower.common.ClocktowerAccess;
 import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerAlignment;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoleType;
@@ -50,6 +54,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.ToIntFunction;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 @Service
@@ -95,45 +100,52 @@ public class ClocktowerBoardServiceImpl implements ClocktowerBoardService {
     @Override
     @Transactional
     public ClocktowerBoardConfigResponse save(ClocktowerBoardSaveRequest request, RbacPrincipal principal) {
-        List<String> roleCodes = normalizeRoleCodes(request.roleCodes());
-        BoardValidationResponse validation = validate(new ClocktowerBoardValidateRequest(
-                request.scriptCode(), request.playerCount(), roleCodes));
-        ClocktowerBoardValidationResponse boardValidation = ClocktowerBoardValidationResponse.from(
-                validation, roleTypeCountMap(validation.typeCounts()));
-        ClocktowerBoardConfigPo config = new ClocktowerBoardConfigPo();
-        config.setBoardCode("CTB-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
-        config.setScriptCode(request.scriptCode());
-        config.setPlayerCount(request.playerCount());
-        config.setValid(boardValidation.valid());
-        config.setDifficulty(request.difficulty());
-        config.setChaos(request.chaos());
-        config.setEvilPressure(request.evilPressure());
-        config.setNewbieFriendly(request.newbieFriendly());
-        config.setSeed(request.seed());
-        config.setValidationJson(writeJson(boardValidation));
-        ClocktowerBoardConfigPo saved = boardConfigRepository.save(config);
+        ClocktowerAccess.requireAuthenticated(principal);
+        return withSecurityContextPrincipal(principal, () -> {
+            List<String> roleCodes = normalizeRoleCodes(request.roleCodes());
+            BoardValidationResponse validation = validate(new ClocktowerBoardValidateRequest(
+                    request.scriptCode(), request.playerCount(), roleCodes));
+            ClocktowerBoardValidationResponse boardValidation = ClocktowerBoardValidationResponse.from(
+                    validation, roleTypeCountMap(validation.typeCounts()));
+            ClocktowerBoardConfigPo config = new ClocktowerBoardConfigPo();
+            config.setBoardCode("CTB-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+            config.setScriptCode(request.scriptCode());
+            config.setPlayerCount(request.playerCount());
+            config.setValid(boardValidation.valid());
+            config.setDifficulty(request.difficulty());
+            config.setChaos(request.chaos());
+            config.setEvilPressure(request.evilPressure());
+            config.setNewbieFriendly(request.newbieFriendly());
+            config.setSeed(request.seed());
+            config.setValidationJson(writeJson(boardValidation));
+            config.setCreatedBy(principal.userId());
+            config.setUpdatedBy(principal.userId());
+            ClocktowerBoardConfigPo saved = boardConfigRepository.save(config);
 
-        Map<String, ClocktowerRoleType> roleTypes = roleMetadataProvider.roleTypes(request.scriptCode());
-        for (int i = 0; i < roleCodes.size(); i++) {
-            ClocktowerBoardRolePo role = new ClocktowerBoardRolePo();
-            role.setBoardConfigId(saved.getId());
-            role.setRoleCode(roleCodes.get(i));
-            role.setRoleType(roleTypes.getOrDefault(role.getRoleCode(), ClocktowerRoleType.TOWNSFOLK));
-            role.setSortOrder(i + 1);
-            boardRoleRepository.save(role);
-        }
-        return toResponse(saved, roleCodes, boardValidation);
+            Map<String, ClocktowerRoleType> roleTypes = roleMetadataProvider.roleTypes(request.scriptCode());
+            for (int i = 0; i < roleCodes.size(); i++) {
+                ClocktowerBoardRolePo role = new ClocktowerBoardRolePo();
+                role.setBoardConfigId(saved.getId());
+                role.setRoleCode(roleCodes.get(i));
+                role.setRoleType(roleTypes.getOrDefault(role.getRoleCode(), ClocktowerRoleType.TOWNSFOLK));
+                role.setSortOrder(i + 1);
+                boardRoleRepository.save(role);
+            }
+            return toResponse(saved, roleCodes, boardValidation);
+        });
     }
 
     @Override
     public Page<ClocktowerBoardConfigResponse> list(ClocktowerBoardQuery query, Pageable pageable,
                                                    RbacPrincipal principal) {
+        ClocktowerAccess.requireAuthenticated(principal);
         return boardConfigRepository.findAll(boardSpecification(query, principal), pageable)
                 .map(this::toResponse);
     }
 
     @Override
     public ClocktowerBoardConfigResponse usableBoard(Long boardConfigId, String boardCode, RbacPrincipal principal) {
+        ClocktowerAccess.requireAuthenticated(principal);
         ClocktowerBoardConfigPo config = loadBoard(boardConfigId, boardCode);
         requireOwner(config, principal);
         if (!config.isValid()) {
@@ -145,10 +157,12 @@ public class ClocktowerBoardServiceImpl implements ClocktowerBoardService {
     @Override
     @Transactional
     public void delete(Long boardId, RbacPrincipal principal) {
+        ClocktowerAccess.requireAuthenticated(principal);
         boardConfigRepository.findByIdAndDeletedFalse(boardId).ifPresent(config -> {
             requireOwner(config, principal);
             config.setDeleted(true);
-            boardConfigRepository.save(config);
+            config.setUpdatedBy(principal.userId());
+            withSecurityContextPrincipal(principal, () -> boardConfigRepository.save(config));
         });
     }
 
@@ -479,15 +493,11 @@ public class ClocktowerBoardServiceImpl implements ClocktowerBoardService {
 
     private Specification<ClocktowerBoardConfigPo> boardSpecification(ClocktowerBoardQuery query,
                                                                      RbacPrincipal principal) {
-        Long userId = principal == null ? null : principal.userId();
+        Long userId = principal.userId();
         return (root, criteriaQuery, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(criteriaBuilder.isFalse(root.get("deleted")));
-            if (userId == null) {
-                predicates.add(criteriaBuilder.isNull(root.get("createdBy")));
-            } else {
-                predicates.add(criteriaBuilder.equal(root.get("createdBy"), userId));
-            }
+            predicates.add(criteriaBuilder.equal(root.get("createdBy"), userId));
             if (query != null) {
                 if (query.scriptCode() != null) {
                     predicates.add(criteriaBuilder.equal(root.get("scriptCode"), query.scriptCode()));
@@ -516,9 +526,20 @@ public class ClocktowerBoardServiceImpl implements ClocktowerBoardService {
     }
 
     private void requireOwner(ClocktowerBoardConfigPo config, RbacPrincipal principal) {
-        Long userId = principal == null ? null : principal.userId();
-        if (!Objects.equals(config.getCreatedBy(), userId)) {
+        if (!Objects.equals(config.getCreatedBy(), principal.userId())) {
             throw new ClocktowerException("CLOCKTOWER_BOARD_FORBIDDEN");
+        }
+    }
+
+    private <T> T withSecurityContextPrincipal(RbacPrincipal principal, Supplier<T> supplier) {
+        SecurityContext previousContext = SecurityContextHolder.getContext();
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, List.of()));
+        try {
+            SecurityContextHolder.setContext(context);
+            return supplier.get();
+        } finally {
+            SecurityContextHolder.setContext(previousContext);
         }
     }
 

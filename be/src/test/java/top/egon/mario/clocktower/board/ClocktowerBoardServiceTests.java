@@ -12,6 +12,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.context.SecurityContextHolder;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardGenerateRequest;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardQuery;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardSaveRequest;
@@ -48,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -323,6 +325,35 @@ class ClocktowerBoardServiceTests {
     }
 
     @Test
+    void saveBindsCurrentPrincipalAsBoardOwner() {
+        RoleMetadataProvider provider = ClocktowerBoardTestFactory.roleMetadataProvider();
+        ClocktowerBoardConfigRepository configRepository = mock(ClocktowerBoardConfigRepository.class);
+        ClocktowerBoardRoleRepository roleRepository = mock(ClocktowerBoardRoleRepository.class);
+        RbacPrincipal principal = principal(11L);
+        ArgumentCaptor<ClocktowerBoardConfigPo> configCaptor = ArgumentCaptor.forClass(ClocktowerBoardConfigPo.class);
+        when(configRepository.save(any(ClocktowerBoardConfigPo.class))).thenAnswer(invocation -> {
+            assertThat(SecurityContextHolder.getContext().getAuthentication().getPrincipal()).isEqualTo(principal);
+            ClocktowerBoardConfigPo config = invocation.getArgument(0);
+            config.setId(101L);
+            config.setCreatedAt(java.time.Instant.parse("2026-06-19T02:30:00Z"));
+            return config;
+        });
+        ClocktowerBoardService service = new ClocktowerBoardServiceImpl(provider,
+                ClocktowerBoardTestFactory.ruleEngine(), configRepository, roleRepository, new ObjectMapper());
+        ClocktowerBoardValidationResponse trustedFrontendValidation = new ClocktowerBoardValidationResponse(true,
+                Map.of(), List.of(), List.of());
+        ClocktowerBoardSaveRequest request = new ClocktowerBoardSaveRequest(ClocktowerScriptCode.TROUBLE_BREWING,
+                5, 1, 1, 1, true, "seed",
+                List.of("EMPATH", "CHEF", "MONK", "POISONER", "IMP"), trustedFrontendValidation);
+
+        service.save(request, principal);
+
+        verify(configRepository).save(configCaptor.capture());
+        assertThat(configCaptor.getValue().getCreatedBy()).isEqualTo(11L);
+        assertThat(configCaptor.getValue().getUpdatedBy()).isEqualTo(11L);
+    }
+
+    @Test
     void saveBoardConfigTreatsMissingValidationAsInvalid() {
         RoleMetadataProvider provider = scriptCode -> List.of(
                 new ClocktowerRoleSummaryResponse(scriptCode, "CHEF", "厨师", ClocktowerRoleType.TOWNSFOLK,
@@ -343,6 +374,20 @@ class ClocktowerBoardServiceTests {
         ClocktowerBoardConfigResponse response = assertDoesNotThrow(() -> service.save(request, principal(1L)));
 
         assertThat(response.valid()).isFalse();
+    }
+
+    @Test
+    void listRejectsAnonymousPrincipal() {
+        ClocktowerBoardConfigRepository configRepository = mock(ClocktowerBoardConfigRepository.class);
+        ClocktowerBoardRoleRepository roleRepository = mock(ClocktowerBoardRoleRepository.class);
+        ClocktowerBoardService service = new ClocktowerBoardServiceImpl(ClocktowerBoardTestFactory.roleMetadataProvider(),
+                ClocktowerBoardTestFactory.ruleEngine(), configRepository, roleRepository, new ObjectMapper());
+
+        assertThatThrownBy(() -> service.list(new ClocktowerBoardQuery(
+                ClocktowerScriptCode.TROUBLE_BREWING, 5, true), PageRequest.of(0, 20), null))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessage("CLOCKTOWER_AUTH_REQUIRED");
+        verify(configRepository, never()).findAll(any(Specification.class), any(PageRequest.class));
     }
 
     @Test
@@ -420,6 +465,21 @@ class ClocktowerBoardServiceTests {
         assertThatThrownBy(() -> service.usableBoard(null, "CTB-OTHER", principal(1L)))
                 .isInstanceOf(ClocktowerException.class)
                 .hasMessage("CLOCKTOWER_BOARD_FORBIDDEN");
+    }
+
+    @Test
+    void usableBoardRejectsAnonymousBeforeNullOwnedBoardCanMatch() {
+        ClocktowerBoardConfigRepository configRepository = mock(ClocktowerBoardConfigRepository.class);
+        ClocktowerBoardRoleRepository roleRepository = mock(ClocktowerBoardRoleRepository.class);
+        ClocktowerBoardConfigPo config = boardConfig(91L, "CTB-ANON", ClocktowerScriptCode.TROUBLE_BREWING,
+                5, null, true);
+        when(configRepository.findByIdAndDeletedFalse(91L)).thenReturn(Optional.of(config));
+        ClocktowerBoardService service = new ClocktowerBoardServiceImpl(ClocktowerBoardTestFactory.roleMetadataProvider(),
+                ClocktowerBoardTestFactory.ruleEngine(), configRepository, roleRepository, new ObjectMapper());
+
+        assertThatThrownBy(() -> service.usableBoard(91L, null, null))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessage("CLOCKTOWER_AUTH_REQUIRED");
     }
 
     @Test
