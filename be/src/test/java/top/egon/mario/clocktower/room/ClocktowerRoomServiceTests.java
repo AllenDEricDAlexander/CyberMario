@@ -2,6 +2,7 @@ package top.egon.mario.clocktower.room;
 
 import org.junit.jupiter.api.Test;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardGenerateRequest;
+import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardQuery;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardSaveRequest;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardValidateRequest;
 import top.egon.mario.clocktower.board.dto.response.BoardValidationResponse;
@@ -176,8 +177,15 @@ class ClocktowerRoomServiceTests {
         }
 
         @Override
-        public List<ClocktowerBoardConfigResponse> list() {
-            return List.of();
+        public org.springframework.data.domain.Page<ClocktowerBoardConfigResponse> list(ClocktowerBoardQuery query,
+                                                                                        org.springframework.data.domain.Pageable pageable,
+                                                                                        RbacPrincipal principal) {
+            return org.springframework.data.domain.Page.empty(pageable);
+        }
+
+        @Override
+        public ClocktowerBoardConfigResponse usableBoard(Long boardConfigId, String boardCode, RbacPrincipal principal) {
+            throw new UnsupportedOperationException();
         }
 
         @Override

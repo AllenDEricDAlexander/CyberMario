@@ -3,10 +3,15 @@ package top.egon.mario.clocktower.board.service.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardGenerateRequest;
+import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardQuery;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardSaveRequest;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardValidateRequest;
 import top.egon.mario.clocktower.board.dto.response.BoardValidationResponse;
@@ -23,6 +28,7 @@ import top.egon.mario.clocktower.board.repository.ClocktowerBoardConfigRepositor
 import top.egon.mario.clocktower.board.repository.ClocktowerBoardRoleRepository;
 import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
 import top.egon.mario.clocktower.board.service.RoleMetadataProvider;
+import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerAlignment;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoleType;
 import top.egon.mario.clocktower.engine.BoardCandidateFact;
@@ -120,23 +126,27 @@ public class ClocktowerBoardServiceImpl implements ClocktowerBoardService {
     }
 
     @Override
-    public List<ClocktowerBoardConfigResponse> list() {
-        return boardConfigRepository.findByDeletedFalseOrderByIdDesc().stream()
-                .map(config -> {
-                    List<String> roleCodes = boardRoleRepository
-                            .findByBoardConfigIdAndDeletedFalseOrderBySortOrderAsc(config.getId())
-                            .stream()
-                            .map(ClocktowerBoardRolePo::getRoleCode)
-                            .toList();
-                    return toResponse(config, roleCodes, readValidation(config.getValidationJson()));
-                })
-                .toList();
+    public Page<ClocktowerBoardConfigResponse> list(ClocktowerBoardQuery query, Pageable pageable,
+                                                   RbacPrincipal principal) {
+        return boardConfigRepository.findAll(boardSpecification(query, principal), pageable)
+                .map(this::toResponse);
+    }
+
+    @Override
+    public ClocktowerBoardConfigResponse usableBoard(Long boardConfigId, String boardCode, RbacPrincipal principal) {
+        ClocktowerBoardConfigPo config = loadBoard(boardConfigId, boardCode);
+        requireOwner(config, principal);
+        if (!config.isValid()) {
+            throw new ClocktowerException("CLOCKTOWER_BOARD_INVALID");
+        }
+        return toResponse(config);
     }
 
     @Override
     @Transactional
     public void delete(Long boardId, RbacPrincipal principal) {
         boardConfigRepository.findByIdAndDeletedFalse(boardId).ifPresent(config -> {
+            requireOwner(config, principal);
             config.setDeleted(true);
             boardConfigRepository.save(config);
         });
@@ -456,6 +466,60 @@ public class ClocktowerBoardServiceImpl implements ClocktowerBoardService {
         return new ClocktowerBoardConfigResponse(config.getId(), config.getBoardCode(), config.getScriptCode(),
                 config.getPlayerCount(), config.isValid(), config.getCreatedAt(), roleCodes,
                 roleMetadataProvider.roleSummaries(config.getScriptCode(), roleCodes), validation);
+    }
+
+    private ClocktowerBoardConfigResponse toResponse(ClocktowerBoardConfigPo config) {
+        List<String> roleCodes = boardRoleRepository
+                .findByBoardConfigIdAndDeletedFalseOrderBySortOrderAsc(config.getId())
+                .stream()
+                .map(ClocktowerBoardRolePo::getRoleCode)
+                .toList();
+        return toResponse(config, roleCodes, readValidation(config.getValidationJson()));
+    }
+
+    private Specification<ClocktowerBoardConfigPo> boardSpecification(ClocktowerBoardQuery query,
+                                                                     RbacPrincipal principal) {
+        Long userId = principal == null ? null : principal.userId();
+        return (root, criteriaQuery, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(criteriaBuilder.isFalse(root.get("deleted")));
+            if (userId == null) {
+                predicates.add(criteriaBuilder.isNull(root.get("createdBy")));
+            } else {
+                predicates.add(criteriaBuilder.equal(root.get("createdBy"), userId));
+            }
+            if (query != null) {
+                if (query.scriptCode() != null) {
+                    predicates.add(criteriaBuilder.equal(root.get("scriptCode"), query.scriptCode()));
+                }
+                if (query.playerCount() != null) {
+                    predicates.add(criteriaBuilder.equal(root.get("playerCount"), query.playerCount()));
+                }
+                if (query.valid() != null) {
+                    predicates.add(criteriaBuilder.equal(root.get("valid"), query.valid()));
+                }
+            }
+            return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
+        };
+    }
+
+    private ClocktowerBoardConfigPo loadBoard(Long boardConfigId, String boardCode) {
+        if (boardConfigId != null) {
+            return boardConfigRepository.findByIdAndDeletedFalse(boardConfigId)
+                    .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_BOARD_INVALID"));
+        }
+        if (boardCode != null && !boardCode.isBlank()) {
+            return boardConfigRepository.findByBoardCodeAndDeletedFalse(boardCode)
+                    .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_BOARD_INVALID"));
+        }
+        throw new ClocktowerException("CLOCKTOWER_BOARD_INVALID");
+    }
+
+    private void requireOwner(ClocktowerBoardConfigPo config, RbacPrincipal principal) {
+        Long userId = principal == null ? null : principal.userId();
+        if (!Objects.equals(config.getCreatedBy(), userId)) {
+            throw new ClocktowerException("CLOCKTOWER_BOARD_FORBIDDEN");
+        }
     }
 
     private String writeJson(Object value) {

@@ -499,8 +499,16 @@ public final class ClocktowerRoomTestFactory {
         }
 
         @Override
-        public List<top.egon.mario.clocktower.board.dto.response.ClocktowerBoardConfigResponse> list() {
-            return List.of();
+        public org.springframework.data.domain.Page<top.egon.mario.clocktower.board.dto.response.ClocktowerBoardConfigResponse> list(
+                top.egon.mario.clocktower.board.dto.request.ClocktowerBoardQuery query,
+                org.springframework.data.domain.Pageable pageable, RbacPrincipal principal) {
+            return org.springframework.data.domain.Page.empty(pageable);
+        }
+
+        @Override
+        public top.egon.mario.clocktower.board.dto.response.ClocktowerBoardConfigResponse usableBoard(
+                Long boardConfigId, String boardCode, RbacPrincipal principal) {
+            throw new UnsupportedOperationException();
         }
 
         @Override
