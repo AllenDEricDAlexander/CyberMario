@@ -37,7 +37,6 @@ import top.egon.mario.clocktower.ruling.repository.ClocktowerRulingRepository;
 import top.egon.mario.clocktower.ruling.service.ClocktowerRulingService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -180,8 +179,7 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
     }
 
     private boolean requiresNomination(ClocktowerRulingType rulingType) {
-        return rulingType == ClocktowerRulingType.SKIP_EXECUTION
-                || rulingType == ClocktowerRulingType.CLOSE_NOMINATION
+        return rulingType == ClocktowerRulingType.CLOSE_NOMINATION
                 || rulingType == ClocktowerRulingType.REOPEN_NOMINATION
                 || rulingType == ClocktowerRulingType.VOID_NOMINATION;
     }
@@ -226,8 +224,7 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
                     ClocktowerEventType.STORYTELLER_RULING);
             case SET_PUBLIC_LIFE -> applyPublicLife(room, ruling, request, principal);
             case EXECUTE_PLAYER -> applyExecution(room, ruling, principal);
-            case SKIP_EXECUTION -> applyNominationStatus(room, ruling, principal, "CLOSED",
-                    ClocktowerEventType.STORYTELLER_RULING);
+            case SKIP_EXECUTION -> applySkipExecution(room, ruling, principal);
             case END_GAME -> applyEndGame(room, ruling, principal);
             case CLOSE_NOMINATION -> applyNominationStatus(room, ruling, principal, "CLOSED",
                     ClocktowerEventType.STORYTELLER_RULING);
@@ -276,18 +273,17 @@ public class ClocktowerRulingServiceImpl implements ClocktowerRulingService {
                 throw new ClocktowerException("CLOCKTOWER_RULING_NOMINATION_TARGET_MISMATCH");
             }
         }
-        seat.setLifeStatus("DEAD");
-        seat.setPublicLifeStatus("DEAD");
-        seatRepository.save(seat);
         if (nomination != null) {
             nomination.setExecuted(true);
             nomination.setStatus("CLOSED");
             nominationRepository.save(nomination);
         }
-        List<ClocktowerEventResponse> events = new ArrayList<>();
-        events.add(append(room, principal, seat.getId(), ClocktowerEventType.PLAYER_EXECUTED, ruling));
-        events.add(append(room, principal, seat.getId(), ClocktowerEventType.PLAYER_DIED, ruling));
-        return events;
+        return List.of(append(room, principal, seat.getId(), ClocktowerEventType.PLAYER_EXECUTED, ruling));
+    }
+
+    private List<ClocktowerEventResponse> applySkipExecution(ClocktowerRoomPo room, ClocktowerRulingPo ruling,
+                                                             RbacPrincipal principal) {
+        return List.of(append(room, principal, null, ClocktowerEventType.EXECUTION_SKIPPED, ruling));
     }
 
     private List<ClocktowerEventResponse> applyNominationStatus(ClocktowerRoomPo room, ClocktowerRulingPo ruling,

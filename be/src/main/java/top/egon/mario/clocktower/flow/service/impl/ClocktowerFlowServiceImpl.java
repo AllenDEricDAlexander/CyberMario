@@ -9,6 +9,8 @@ import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerEventType;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoleType;
+import top.egon.mario.clocktower.common.enums.ClocktowerRulingReason;
+import top.egon.mario.clocktower.common.enums.ClocktowerRulingType;
 import top.egon.mario.clocktower.common.enums.ClocktowerVisibility;
 import top.egon.mario.clocktower.engine.ClocktowerRuleEngine;
 import top.egon.mario.clocktower.engine.flow.ClocktowerFlowFact;
@@ -35,6 +37,8 @@ import top.egon.mario.clocktower.room.po.ClocktowerRoomPo;
 import top.egon.mario.clocktower.room.po.ClocktowerSeatPo;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomRepository;
 import top.egon.mario.clocktower.room.repository.ClocktowerSeatRepository;
+import top.egon.mario.clocktower.ruling.dto.ClocktowerRulingCreateRequest;
+import top.egon.mario.clocktower.ruling.service.ClocktowerRulingService;
 import top.egon.mario.clocktower.script.repository.ClocktowerRoleRepository;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
@@ -60,6 +64,7 @@ public class ClocktowerFlowServiceImpl implements ClocktowerFlowService {
     private final ClocktowerRoleRepository roleRepository;
     private final ClocktowerEventService eventService;
     private final ClocktowerEventRepository eventRepository;
+    private final ClocktowerRulingService rulingService;
     private final ClocktowerRuleEngine ruleEngine;
 
     @Override
@@ -131,7 +136,20 @@ public class ClocktowerFlowServiceImpl implements ClocktowerFlowService {
     @Transactional
     public ClocktowerFlowResponse closeNomination(Long roomId, Long nominationId, CloseNominationRequest request,
                                                   RbacPrincipal principal) {
-        throw new ClocktowerException("CLOCKTOWER_FLOW_TRANSITION_UNSUPPORTED");
+        ClocktowerRoomPo room = roomRepository.findLockedByIdAndDeletedFalse(roomId)
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
+        ClocktowerAccess.requireStoryteller(room, principal);
+        if (room.getPhase() != ClocktowerPhase.NOMINATION) {
+            throw new ClocktowerException("CLOCKTOWER_NOMINATION_PHASE_INVALID");
+        }
+        ClocktowerNominationPo nomination = nominationRepository.findByIdAndRoomIdAndDeletedFalse(nominationId, roomId)
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_NOMINATION_NOT_FOUND"));
+        if (!NOMINATION_OPEN.equals(nomination.getStatus())) {
+            throw new ClocktowerException("CLOCKTOWER_NOMINATION_NOT_OPEN");
+        }
+        nomination.setStatus(NOMINATION_CLOSED);
+        nominationRepository.save(nomination);
+        return buildFlow(room);
     }
 
     @Override
@@ -153,19 +171,42 @@ public class ClocktowerFlowServiceImpl implements ClocktowerFlowService {
         ClocktowerFlowResponse flow = buildFlow(room);
         ExecutionCandidateResponse candidate = flow.executionCandidate();
         if (Boolean.TRUE.equals(request.execute())) {
-            throw new ClocktowerException("CLOCKTOWER_FLOW_TRANSITION_UNSUPPORTED");
+            if (!candidate.executable() || candidate.nominationId() == null || candidate.nomineeSeatId() == null) {
+                throw new ClocktowerException("CLOCKTOWER_EXECUTION_CANDIDATE_REQUIRED");
+            }
+            if (deathPolicy == ClocktowerExecutionDeathPolicy.MARK_DEAD) {
+                ClocktowerSeatPo nominee = seatRepository
+                        .findByIdAndRoomIdAndDeletedFalse(candidate.nomineeSeatId(), roomId)
+                        .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_SEAT_NOT_FOUND"));
+                if ("DEAD".equals(nominee.getLifeStatus())) {
+                    throw new ClocktowerException("CLOCKTOWER_EXECUTION_TARGET_ALREADY_DEAD");
+                }
+            }
+            rulingService.create(roomId, new ClocktowerRulingCreateRequest(
+                    ClocktowerRulingType.EXECUTE_PLAYER, candidate.nomineeSeatId(), candidate.nominationId(),
+                    null, null, null, ClocktowerRulingReason.VOTE_EXECUTION, request.note(),
+                    "一名玩家被处决", ClocktowerVisibility.PUBLIC, false), principal);
+            if (deathPolicy == ClocktowerExecutionDeathPolicy.MARK_DEAD) {
+                rulingService.create(roomId, new ClocktowerRulingCreateRequest(
+                        ClocktowerRulingType.MARK_DEAD, candidate.nomineeSeatId(), null,
+                        null, null, null, ClocktowerRulingReason.VOTE_EXECUTION, request.note(),
+                        "一名玩家死亡", ClocktowerVisibility.PUBLIC, false), principal);
+            }
+        } else {
+            if (deathPolicy == ClocktowerExecutionDeathPolicy.MARK_DEAD) {
+                throw new ClocktowerException("CLOCKTOWER_EXECUTION_DEATH_POLICY_INVALID");
+            }
+            if (candidate.executable()) {
+                throw new ClocktowerException("CLOCKTOWER_EXECUTION_CANDIDATE_EXISTS");
+            }
+            rulingService.create(roomId, new ClocktowerRulingCreateRequest(
+                    ClocktowerRulingType.SKIP_EXECUTION, null, null, null,
+                    null, null, ClocktowerRulingReason.VOTE_EXECUTION, request.note(),
+                    "今日无人被处决", ClocktowerVisibility.PUBLIC, false), principal);
         }
-        if (deathPolicy == ClocktowerExecutionDeathPolicy.MARK_DEAD) {
-            throw new ClocktowerException("CLOCKTOWER_EXECUTION_DEATH_POLICY_INVALID");
-        }
-        if (candidate.executable()) {
-            throw new ClocktowerException("CLOCKTOWER_EXECUTION_CANDIDATE_EXISTS");
-        }
-        eventService.append(new ClocktowerEventAppendRequest(room.getId(), ClocktowerEventType.EXECUTION_SKIPPED,
-                room.getPhase(), room.getCurrentDayNo(), room.getCurrentNightNo(),
-                principal == null ? null : principal.userId(), null, null, ClocktowerVisibility.PUBLIC, List.of(),
-                Map.of("note", request.note())));
-        return buildFlow(room);
+        ClocktowerRoomPo refreshed = roomRepository.findByIdAndDeletedFalse(roomId)
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
+        return buildFlow(refreshed);
     }
 
     private ClocktowerFlowResponse buildFlow(ClocktowerRoomPo room) {

@@ -6,6 +6,7 @@ import top.egon.mario.clocktower.engine.ClocktowerRuleEngineConfiguration;
 import top.egon.mario.clocktower.flow.service.impl.ClocktowerFlowServiceImpl;
 import top.egon.mario.clocktower.grimoire.service.impl.ClocktowerGrimoireServiceImpl;
 import top.egon.mario.clocktower.room.ClocktowerRoomTestFactory;
+import top.egon.mario.clocktower.ruling.service.impl.ClocktowerRulingServiceImpl;
 
 final class TestClocktowerFlowServices {
 
@@ -17,9 +18,13 @@ final class TestClocktowerFlowServices {
         ClocktowerRuleEngine ruleEngine = new ClocktowerRuleEngine(
                 configuration.clocktowerBoardValidationKieBase(new DefaultResourceLoader()),
                 configuration.clocktowerFlowKieBase(new DefaultResourceLoader()));
+        ClocktowerGrimoireServiceImpl grimoireService = grimoireService(context);
+        ClocktowerRulingServiceImpl rulingService = new ClocktowerRulingServiceImpl(context.roomRepository(),
+                context.seatRepository(), context.nominationRepository(), context.rulingRepository(),
+                context.eventRepository(), context.eventService(), context.objectMapper(), grimoireService);
         return new ClocktowerFlowServiceImpl(context.roomRepository(), context.seatRepository(),
                 context.storytellerTaskRepository(), context.nominationRepository(), context.voteRepository(),
-                context.roleRepository(), context.eventService(), context.eventRepository(), ruleEngine);
+                context.roleRepository(), context.eventService(), context.eventRepository(), rulingService, ruleEngine);
     }
 
     static ClocktowerGrimoireServiceImpl grimoireService(ClocktowerRoomTestFactory.Context context) {

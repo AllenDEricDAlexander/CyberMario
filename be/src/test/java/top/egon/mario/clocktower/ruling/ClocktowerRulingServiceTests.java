@@ -3,6 +3,7 @@ package top.egon.mario.clocktower.ruling;
 import org.junit.jupiter.api.Test;
 import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerEventType;
+import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
 import top.egon.mario.clocktower.common.enums.ClocktowerRulingReason;
 import top.egon.mario.clocktower.common.enums.ClocktowerRulingStatus;
 import top.egon.mario.clocktower.common.enums.ClocktowerRulingType;
@@ -278,7 +279,7 @@ class ClocktowerRulingServiceTests {
     }
 
     @Test
-    void executePlayerCanTargetAnySeatAndMarksExecutedDeath() {
+    void executePlayerCanTargetAnySeatWithoutChangingLifeStatus() {
         ClocktowerRoomResponse room = startedRoom();
         Long targetSeatId = room.seats().get(3).seatId();
 
@@ -288,13 +289,13 @@ class ClocktowerRulingServiceTests {
                 storytellerPrincipal());
 
         assertThat(response.events()).extracting(event -> event.eventType())
-                .contains(ClocktowerEventType.PLAYER_EXECUTED, ClocktowerEventType.PLAYER_DIED);
+                .containsExactly(ClocktowerEventType.PLAYER_EXECUTED);
         assertThat(context.seatRepository().findByIdAndRoomIdAndDeletedFalse(targetSeatId, room.roomId()).orElseThrow()
-                .getLifeStatus()).isEqualTo("DEAD");
+                .getLifeStatus()).isEqualTo("ALIVE");
     }
 
     @Test
-    void executePlayerWithMatchingNominationClosesNominationAndPreservesVotes() {
+    void executePlayerWithMatchingNominationClosesNominationAndPreservesVotesWithoutDeath() {
         ClocktowerRoomResponse room = startedRoom();
         Long nominator = room.seats().getFirst().seatId();
         Long nominee = room.seats().get(1).seatId();
@@ -312,15 +313,28 @@ class ClocktowerRulingServiceTests {
                 ClocktowerVisibility.PUBLIC, false), storytellerPrincipal());
 
         assertThat(response.events()).extracting(event -> event.eventType())
-                .contains(ClocktowerEventType.PLAYER_EXECUTED, ClocktowerEventType.PLAYER_DIED);
+                .containsExactly(ClocktowerEventType.PLAYER_EXECUTED);
         assertThat(context.seatRepository().findByIdAndRoomIdAndDeletedFalse(nominee, room.roomId()).orElseThrow()
-                .getLifeStatus()).isEqualTo("DEAD");
+                .getLifeStatus()).isEqualTo("ALIVE");
         ClocktowerNominationPo nomination = context.nominationRepository().findById(nominationId).orElseThrow();
         assertThat(nomination.getStatus()).isEqualTo("CLOSED");
         assertThat(nomination.isExecuted()).isTrue();
         assertThat(context.voteRepository().findByNominationIdAndDeletedFalseOrderByIdAsc(nominationId))
                 .extracting(ClocktowerVotePo::getId)
                 .containsExactly(votesBeforeExecution.getFirst().getId());
+    }
+
+    @Test
+    void skipExecutionDoesNotRequireNomination() {
+        ClocktowerRoomResponse room = startedRoom();
+
+        ClocktowerRulingApplyResponse response = rulingService.create(room.roomId(), new ClocktowerRulingCreateRequest(
+                ClocktowerRulingType.SKIP_EXECUTION, null, null, null, null, null,
+                ClocktowerRulingReason.VOTE_EXECUTION, "无人处决", "今日无人被处决",
+                ClocktowerVisibility.PUBLIC, false), storytellerPrincipal());
+
+        assertThat(response.events()).extracting(event -> event.eventType())
+                .containsExactly(ClocktowerEventType.EXECUTION_SKIPPED);
     }
 
     @Test
@@ -428,6 +442,12 @@ class ClocktowerRulingServiceTests {
     }
 
     private void submitPlayerAction(Long roomId, Long actorSeatId, String actionType, List<Long> targets) {
+        if ("NOMINATE".equals(actionType)) {
+            context.roomRepository().findByIdAndDeletedFalse(roomId).ifPresent(room -> {
+                room.setPhase(ClocktowerPhase.DAY);
+                room.setCurrentDayNo(1);
+            });
+        }
         new top.egon.mario.clocktower.action.service.impl.ClocktowerActionServiceImpl(context.roomRepository(),
                 context.seatRepository(), context.nominationRepository(), context.voteRepository(), context.eventService())
                 .submit(roomId, new top.egon.mario.clocktower.action.dto.ClocktowerActionRequest(
