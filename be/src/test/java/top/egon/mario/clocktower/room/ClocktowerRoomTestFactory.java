@@ -235,6 +235,12 @@ public final class ClocktowerRoomTestFactory {
                                 && vote.getNominationId().equals(invocation.getArgument(0))
                                 && vote.getVoterSeatId().equals(invocation.getArgument(1)))
                         .findFirst());
+        when(voteRepository.existsByRoomIdAndVoterSeatIdAndUsedDeadVoteTrueAndDeletedFalse(any(), any()))
+                .thenAnswer(invocation -> votes.stream()
+                        .anyMatch(vote -> !vote.isDeleted()
+                                && vote.getRoomId().equals(invocation.getArgument(0))
+                                && vote.getVoterSeatId().equals(invocation.getArgument(1))
+                                && vote.isUsedDeadVote()));
         when(markerRepository.save(any(ClocktowerStatusMarkerPo.class))).thenAnswer(saveMarker(markers, markerId));
         when(markerRepository.findByRoomIdAndDeletedFalseOrderByIdAsc(any())).thenAnswer(invocation -> markers.stream()
                 .filter(marker -> !marker.isDeleted() && marker.getRoomId().equals(invocation.getArgument(0)))

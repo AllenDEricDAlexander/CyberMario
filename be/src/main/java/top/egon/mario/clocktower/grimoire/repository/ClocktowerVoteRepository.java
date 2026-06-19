@@ -13,4 +13,6 @@ public interface ClocktowerVoteRepository extends JpaRepository<ClocktowerVotePo
     List<ClocktowerVotePo> findByNominationIdAndDeletedFalseOrderByIdAsc(Long nominationId);
 
     Optional<ClocktowerVotePo> findByNominationIdAndVoterSeatIdAndDeletedFalse(Long nominationId, Long voterSeatId);
+
+    boolean existsByRoomIdAndVoterSeatIdAndUsedDeadVoteTrueAndDeletedFalse(Long roomId, Long voterSeatId);
 }

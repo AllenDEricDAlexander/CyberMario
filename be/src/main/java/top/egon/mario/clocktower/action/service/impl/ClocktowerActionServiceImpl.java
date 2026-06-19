@@ -77,13 +77,27 @@ public class ClocktowerActionServiceImpl implements ClocktowerActionService {
 
     private ClocktowerActionResponse nominate(ClocktowerRoomPo room, ClocktowerSeatPo actor,
                                               ClocktowerActionRequest request, RbacPrincipal principal) {
+        if (room.getPhase() != ClocktowerPhase.DAY && room.getPhase() != ClocktowerPhase.NOMINATION) {
+            return reject(room, actor, principal, "CLOCKTOWER_NOMINATION_PHASE_INVALID");
+        }
         if (!"ALIVE".equals(actor.getLifeStatus())) {
-            return reject(room, actor, principal, "NOMINATOR_NOT_ALIVE");
+            return reject(room, actor, principal, "CLOCKTOWER_NOMINATOR_NOT_ALIVE");
         }
         Long targetSeatId = firstTarget(request);
         ClocktowerSeatPo target = seat(room.getId(), targetSeatId);
         if (!"ALIVE".equals(target.getLifeStatus())) {
-            return reject(room, actor, principal, "NOMINEE_NOT_ALIVE");
+            return reject(room, actor, principal, "CLOCKTOWER_NOMINEE_NOT_ALIVE");
+        }
+        if (nominationRepository.findTopByRoomIdAndStatusAndDeletedFalseOrderByIdDesc(room.getId(), "OPEN").isPresent()) {
+            return reject(room, actor, principal, "CLOCKTOWER_OPEN_NOMINATION_EXISTS");
+        }
+        List<ClocktowerNominationPo> today = nominationRepository
+                .findByRoomIdAndDayNoAndDeletedFalseOrderByIdAsc(room.getId(), room.getCurrentDayNo());
+        if (today.stream().anyMatch(nomination -> nomination.getNominatorSeatId().equals(actor.getId()))) {
+            return reject(room, actor, principal, "CLOCKTOWER_NOMINATOR_ALREADY_NOMINATED_TODAY");
+        }
+        if (today.stream().anyMatch(nomination -> nomination.getNomineeSeatId().equals(target.getId()))) {
+            return reject(room, actor, principal, "CLOCKTOWER_NOMINEE_ALREADY_NOMINATED_TODAY");
         }
         ClocktowerNominationPo nomination = new ClocktowerNominationPo();
         nomination.setRoomId(room.getId());
@@ -101,15 +115,20 @@ public class ClocktowerActionServiceImpl implements ClocktowerActionService {
 
     private ClocktowerActionResponse vote(ClocktowerRoomPo room, ClocktowerSeatPo actor,
                                           ClocktowerActionRequest request, RbacPrincipal principal) {
+        if (room.getPhase() != ClocktowerPhase.NOMINATION) {
+            return reject(room, actor, principal, "CLOCKTOWER_VOTE_PHASE_INVALID");
+        }
         ClocktowerNominationPo nomination = nominationRepository
                 .findTopByRoomIdAndStatusAndDeletedFalseOrderByIdDesc(room.getId(), "OPEN")
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_NOMINATION_NOT_FOUND"));
         if (voteRepository.findByNominationIdAndVoterSeatIdAndDeletedFalse(nomination.getId(), actor.getId()).isPresent()) {
-            return reject(room, actor, principal, "VOTE_ALREADY_CAST");
+            return reject(room, actor, principal, "CLOCKTOWER_VOTE_ALREADY_CAST");
         }
-        boolean usedDeadVote = "DEAD".equals(actor.getLifeStatus());
-        if (usedDeadVote && !actor.isHasDeadVote()) {
-            return reject(room, actor, principal, "DEAD_VOTE_ALREADY_SPENT");
+        boolean usedDeadVote = "DEAD".equals(actor.getLifeStatus()) || "DEAD".equals(actor.getPublicLifeStatus());
+        if (usedDeadVote && (!actor.isHasDeadVote()
+                || voteRepository.existsByRoomIdAndVoterSeatIdAndUsedDeadVoteTrueAndDeletedFalse(
+                room.getId(), actor.getId()))) {
+            return reject(room, actor, principal, "CLOCKTOWER_DEAD_VOTE_ALREADY_SPENT");
         }
         ClocktowerVotePo vote = new ClocktowerVotePo();
         vote.setRoomId(room.getId());
