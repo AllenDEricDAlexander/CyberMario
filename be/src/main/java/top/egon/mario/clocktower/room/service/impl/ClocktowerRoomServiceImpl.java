@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardValidateRequest;
 import top.egon.mario.clocktower.board.dto.response.BoardValidationResponse;
+import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardConfigResponse;
 import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
 import top.egon.mario.clocktower.common.ClocktowerAccess;
 import top.egon.mario.clocktower.common.ClocktowerException;
@@ -58,7 +59,7 @@ public class ClocktowerRoomServiceImpl implements ClocktowerRoomService {
     @Override
     @Transactional
     public ClocktowerRoomResponse create(ClocktowerRoomCreateRequest request, RbacPrincipal principal) {
-        List<String> roleCodes = request.roleCodes() == null ? List.of() : request.roleCodes();
+        List<String> roleCodes = resolveCreateRoomRoleCodes(request, principal);
         if (!roleCodes.isEmpty()) {
             BoardValidationResponse validation = boardService.validate(new ClocktowerBoardValidateRequest(
                     request.scriptCode(), request.playerCount(), roleCodes));
@@ -88,6 +89,19 @@ public class ClocktowerRoomServiceImpl implements ClocktowerRoomService {
         }
         appendRoomEvent(savedRoom, ClocktowerEventType.ROOM_CREATED, principal, Map.of("roomCode", savedRoom.getRoomCode()));
         return toResponse(savedRoom);
+    }
+
+    private List<String> resolveCreateRoomRoleCodes(ClocktowerRoomCreateRequest request, RbacPrincipal principal) {
+        if (request.boardConfigId() != null || StringUtils.hasText(request.boardCode())) {
+            ClocktowerBoardConfigResponse board = boardService.usableBoard(request.boardConfigId(), request.boardCode(),
+                    principal);
+            if (!board.valid() || board.scriptCode() != request.scriptCode()
+                    || board.playerCount() != request.playerCount()) {
+                throw new ClocktowerException("CLOCKTOWER_BOARD_INVALID");
+            }
+            return board.roleCodes();
+        }
+        return request.roleCodes() == null ? List.of() : request.roleCodes();
     }
 
     @Override

@@ -6,9 +6,11 @@ import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardQuery;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardSaveRequest;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardValidateRequest;
 import top.egon.mario.clocktower.board.dto.response.BoardValidationResponse;
+import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardValidationResponse;
 import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardConfigResponse;
 import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardGenerateResponse;
 import top.egon.mario.clocktower.board.dto.response.ClocktowerRoleTypeCountResponse;
+import top.egon.mario.clocktower.board.dto.response.ClocktowerRuleViolationResponse;
 import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
 import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
@@ -26,6 +28,7 @@ import top.egon.mario.clocktower.room.service.ClocktowerRoomService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -58,6 +61,48 @@ class ClocktowerRoomServiceTests {
 
         assertThat(room.status()).isEqualTo(ClocktowerRoomStatus.LOBBY);
         assertThat(room.seats()).hasSize(5);
+    }
+
+    @Test
+    void createRoomUsesValidSavedBoardRoles() {
+        SavedBoardService boardService = new SavedBoardService(SavedBoardMode.VALID);
+        ClocktowerRoomService service = ClocktowerRoomTestFactory.context(boardService).roomService();
+        ClocktowerRoomCreateRequest request = new ClocktowerRoomCreateRequest(
+                "周五暗流", ClocktowerScriptCode.TROUBLE_BREWING, 5, 42L, null,
+                List.of(), "HUMAN", false, true, 0);
+
+        ClocktowerRoomResponse room = service.create(request, principal(1L, "mario"));
+
+        assertThat(boardService.usableBoardCalled()).isTrue();
+        assertThat(boardService.validatedRoleCodes()).containsExactly("EMPATH", "CHEF", "MONK", "POISONER", "IMP");
+        assertThat(room.status()).isEqualTo(ClocktowerRoomStatus.LOBBY);
+        assertThat(room.seats()).hasSize(5);
+    }
+
+    @Test
+    void createRoomRejectsInvalidSavedBoard() {
+        ClocktowerRoomService service = ClocktowerRoomTestFactory.context(
+                new SavedBoardService(SavedBoardMode.INVALID)).roomService();
+        ClocktowerRoomCreateRequest request = new ClocktowerRoomCreateRequest(
+                "周五暗流", ClocktowerScriptCode.TROUBLE_BREWING, 5, 42L, null,
+                List.of(), "HUMAN", false, true, 0);
+
+        assertThatThrownBy(() -> service.create(request, principal(1L, "mario")))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_BOARD_INVALID");
+    }
+
+    @Test
+    void createRoomRejectsSavedBoardWithMismatchedScriptOrPlayerCount() {
+        ClocktowerRoomService service = ClocktowerRoomTestFactory.context(
+                new SavedBoardService(SavedBoardMode.PLAYER_COUNT_MISMATCH)).roomService();
+        ClocktowerRoomCreateRequest request = new ClocktowerRoomCreateRequest(
+                "周五暗流", ClocktowerScriptCode.TROUBLE_BREWING, 5, 42L, null,
+                List.of(), "HUMAN", false, true, 0);
+
+        assertThatThrownBy(() -> service.create(request, principal(1L, "mario")))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_BOARD_INVALID");
     }
 
     @Test
@@ -152,6 +197,75 @@ class ClocktowerRoomServiceTests {
 
     private static RbacPrincipal principal(Long userId, String username) {
         return new RbacPrincipal(userId, username, Set.of("CLOCKTOWER_STORYTELLER"), Set.of(), "v1");
+    }
+
+    private enum SavedBoardMode {
+        VALID,
+        INVALID,
+        PLAYER_COUNT_MISMATCH
+    }
+
+    private static final class SavedBoardService implements ClocktowerBoardService {
+
+        private final SavedBoardMode mode;
+        private boolean usableBoardCalled;
+        private List<String> validatedRoleCodes = List.of();
+
+        private SavedBoardService(SavedBoardMode mode) {
+            this.mode = mode;
+        }
+
+        private boolean usableBoardCalled() {
+            return usableBoardCalled;
+        }
+
+        private List<String> validatedRoleCodes() {
+            return validatedRoleCodes;
+        }
+
+        @Override
+        public BoardValidationResponse validate(ClocktowerBoardValidateRequest request) {
+            validatedRoleCodes = request.roleCodes();
+            boolean valid = List.of("EMPATH", "CHEF", "MONK", "POISONER", "IMP").equals(request.roleCodes());
+            return new BoardValidationResponse(valid, new ClocktowerRoleTypeCountResponse(3, 0, 1, 1, 0, 0),
+                    valid ? List.of() : List.of(new ClocktowerRuleViolationResponse(
+                            "BOARD_ROLE_COUNT_MISMATCH", "角色数量必须和玩家人数一致。", "ERROR")), List.of());
+        }
+
+        @Override
+        public ClocktowerBoardGenerateResponse generate(ClocktowerBoardGenerateRequest request, RbacPrincipal principal) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ClocktowerBoardConfigResponse save(ClocktowerBoardSaveRequest request, RbacPrincipal principal) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public org.springframework.data.domain.Page<ClocktowerBoardConfigResponse> list(ClocktowerBoardQuery query,
+                                                                                        org.springframework.data.domain.Pageable pageable,
+                                                                                        RbacPrincipal principal) {
+            return org.springframework.data.domain.Page.empty(pageable);
+        }
+
+        @Override
+        public ClocktowerBoardConfigResponse usableBoard(Long boardConfigId, String boardCode, RbacPrincipal principal) {
+            usableBoardCalled = true;
+            if (mode == SavedBoardMode.INVALID) {
+                throw new ClocktowerException("CLOCKTOWER_BOARD_INVALID");
+            }
+            int playerCount = mode == SavedBoardMode.PLAYER_COUNT_MISMATCH ? 6 : 5;
+            return new ClocktowerBoardConfigResponse(boardConfigId, "CTB-TEST", ClocktowerScriptCode.TROUBLE_BREWING,
+                    playerCount, true, java.time.Instant.parse("2026-06-19T03:00:00Z"),
+                    List.of("EMPATH", "CHEF", "MONK", "POISONER", "IMP"), List.of(),
+                    new ClocktowerBoardValidationResponse(true,
+                            Map.of("TOWNSFOLK", 3, "MINION", 1, "DEMON", 1), List.of(), List.of()));
+        }
+
+        @Override
+        public void delete(Long boardId, RbacPrincipal principal) {
+        }
     }
 
     private static final class RejectEmptyBoardService implements ClocktowerBoardService {
