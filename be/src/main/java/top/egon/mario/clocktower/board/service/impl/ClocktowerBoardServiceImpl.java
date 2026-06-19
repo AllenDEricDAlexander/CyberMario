@@ -84,7 +84,7 @@ public class ClocktowerBoardServiceImpl implements ClocktowerBoardService {
         config.setBoardCode("CTB-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
         config.setScriptCode(request.scriptCode());
         config.setPlayerCount(request.playerCount());
-        config.setValid(request.validation().valid());
+        config.setValid(request.validation() != null && request.validation().valid());
         config.setDifficulty(request.difficulty());
         config.setChaos(request.chaos());
         config.setEvilPressure(request.evilPressure());

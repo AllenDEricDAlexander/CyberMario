@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -179,6 +180,29 @@ class ClocktowerBoardServiceTests {
         assertThat(response.roleCodes()).containsExactly("CHEF", "UNKNOWN");
         assertThat(response.roles()).extracting(role -> role.roleName())
                 .containsExactly("厨师", "UNKNOWN");
+    }
+
+    @Test
+    void saveBoardConfigTreatsMissingValidationAsInvalid() {
+        RoleMetadataProvider provider = scriptCode -> List.of(
+                new ClocktowerRoleSummaryResponse(scriptCode, "CHEF", "厨师", ClocktowerRoleType.TOWNSFOLK,
+                        ClocktowerAlignment.GOOD));
+        ClocktowerBoardConfigRepository configRepository = mock(ClocktowerBoardConfigRepository.class);
+        ClocktowerBoardRoleRepository roleRepository = mock(ClocktowerBoardRoleRepository.class);
+        when(configRepository.save(any(ClocktowerBoardConfigPo.class))).thenAnswer(invocation -> {
+            ClocktowerBoardConfigPo config = invocation.getArgument(0);
+            assertThat(config.isValid()).isFalse();
+            config.setId(43L);
+            return config;
+        });
+        ClocktowerBoardService service = new ClocktowerBoardServiceImpl(provider,
+                ClocktowerBoardTestFactory.ruleEngine(), configRepository, roleRepository, new ObjectMapper());
+        ClocktowerBoardSaveRequest request = new ClocktowerBoardSaveRequest(ClocktowerScriptCode.TROUBLE_BREWING,
+                1, 1, 1, 1, true, "seed", List.of("CHEF"), null);
+
+        ClocktowerBoardConfigResponse response = assertDoesNotThrow(() -> service.save(request, principal(1L)));
+
+        assertThat(response.valid()).isFalse();
     }
 
     @Test
