@@ -1,6 +1,10 @@
 import {renderToStaticMarkup} from 'react-dom/server'
 import {describe, expect, test, vi} from 'vitest'
-import {Component as BoardBuilderPage, savedBoardColumns} from './BoardBuilderPage'
+import {
+    boardGenerateFieldNames,
+    Component as BoardBuilderPage,
+    savedBoardColumns,
+} from './BoardBuilderPage'
 import {Table} from 'antd'
 
 vi.mock('./clocktowerService', () => ({
@@ -27,6 +31,22 @@ describe('BoardBuilderPage', () => {
         expect(markup).toContain('保存当前配板')
         expect(markup).toContain('校验结果')
         expect(markup).toContain('我的配板库')
+    })
+
+    test('does not require manual editor roles when generating candidates', () => {
+        expect(boardGenerateFieldNames).toEqual([
+            'scriptCode',
+            'playerCount',
+            'difficulty',
+            'chaos',
+            'evilPressure',
+            'newbieFriendly',
+            'candidateCount',
+            'bannedRoleCodes',
+            'lockedRoleCodes',
+            'seed',
+        ])
+        expect(boardGenerateFieldNames).not.toContain('roleCodes')
     })
 
     test('renders saved board localized role names with official codes', () => {

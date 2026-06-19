@@ -37,6 +37,18 @@ type BoardEditorFormValues = ClocktowerBoardGenerateRequest & {
 type BoardLibraryFilterValues = Pick<ClocktowerBoardQuery, 'scriptCode' | 'playerCount' | 'valid'>
 
 const defaultScriptCode = 'TROUBLE_BREWING' satisfies ClocktowerScriptCode
+export const boardGenerateFieldNames: Array<keyof BoardEditorFormValues> = [
+    'scriptCode',
+    'playerCount',
+    'difficulty',
+    'chaos',
+    'evilPressure',
+    'newbieFriendly',
+    'candidateCount',
+    'bannedRoleCodes',
+    'lockedRoleCodes',
+    'seed',
+]
 
 function BoardBuilderPage() {
     const {message} = App.useApp()
@@ -134,7 +146,7 @@ function BoardBuilderPage() {
     }
 
     async function generate() {
-        const values = await form.validateFields()
+        const values = await form.validateFields(boardGenerateFieldNames)
         setLoading(true)
         setError(undefined)
         try {
