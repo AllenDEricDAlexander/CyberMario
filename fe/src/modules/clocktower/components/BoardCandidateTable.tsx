@@ -1,4 +1,4 @@
-import {Button, Table, Tag} from 'antd'
+import {Button, Space, Table, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import type {ClocktowerBoardCandidateResponse} from '../clocktowerTypes'
 import {RoleSummaryTags} from './RoleSummaryTags'
@@ -7,10 +7,11 @@ type BoardCandidateTableProps = {
     candidates: ClocktowerBoardCandidateResponse[]
     loading?: boolean
     savingCandidateId?: string
+    onCopy?: (candidate: ClocktowerBoardCandidateResponse) => void
     onSave?: (candidate: ClocktowerBoardCandidateResponse) => Promise<void>
 }
 
-export function BoardCandidateTable({candidates, loading, savingCandidateId, onSave}: BoardCandidateTableProps) {
+export function BoardCandidateTable({candidates, loading, savingCandidateId, onCopy, onSave}: BoardCandidateTableProps) {
     const columns: ColumnsType<ClocktowerBoardCandidateResponse> = [
         {title: '候选', dataIndex: 'candidateId', width: 160, render: (value) => <Tag>{value}</Tag>},
         {title: '人数', dataIndex: 'playerCount', width: 90},
@@ -35,22 +36,29 @@ export function BoardCandidateTable({candidates, loading, savingCandidateId, onS
             title: '校验',
             dataIndex: 'validation',
             width: 120,
-            render: (_, record) => record.validation.valid ? <Tag color="success">通过</Tag> : <Tag color="error">有问题</Tag>,
+            render: (_, record) => record.validation.valid
+                ? <Tag color="success">校验通过</Tag>
+                : <Tag color="error">校验未通过</Tag>,
         },
         {
             title: '操作',
             fixed: 'right',
-            width: 110,
+            width: 210,
             render: (_, record) => (
-                <Button
-                    disabled={!onSave}
-                    loading={savingCandidateId === record.candidateId}
-                    onClick={() => void onSave?.(record)}
-                    size="small"
-                    type="primary"
-                >
-                    保存
-                </Button>
+                <Space>
+                    <Button disabled={!onCopy} onClick={() => onCopy?.(record)} size="small">
+                        复制到编辑器
+                    </Button>
+                    <Button
+                        disabled={!onSave}
+                        loading={savingCandidateId === record.candidateId}
+                        onClick={() => void onSave?.(record)}
+                        size="small"
+                        type="primary"
+                    >
+                        保存
+                    </Button>
+                </Space>
             ),
         },
     ]
@@ -62,7 +70,7 @@ export function BoardCandidateTable({candidates, loading, savingCandidateId, onS
             loading={loading}
             pagination={false}
             rowKey="candidateId"
-            scroll={{x: 1020}}
+            scroll={{x: 1120}}
         />
     )
 }
