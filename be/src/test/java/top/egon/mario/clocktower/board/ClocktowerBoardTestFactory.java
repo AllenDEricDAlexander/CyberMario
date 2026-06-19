@@ -105,7 +105,7 @@ final class ClocktowerBoardTestFactory {
     private static final class TestClocktowerRuleEngine extends ClocktowerRuleEngine {
 
         private TestClocktowerRuleEngine() {
-            super(null);
+            super(null, null);
         }
 
         @Override

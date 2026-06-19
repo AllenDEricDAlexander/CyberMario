@@ -15,11 +15,19 @@ import java.io.IOException;
 public class ClocktowerRuleEngineConfiguration {
 
     private static final String BOARD_VALIDATION_RULE = "clocktower/rules/board/board-validation.drl";
+    private static final String FLOW_TRANSITION_RULE = "clocktower/rules/flow/flow-transition.drl";
 
     @Bean
-    KieBase clocktowerBoardValidationKieBase(ResourceLoader resourceLoader) {
+    public KieBase clocktowerBoardValidationKieBase(ResourceLoader resourceLoader) {
         return new KieHelper()
                 .addResource(loadDrlResource(resourceLoader, BOARD_VALIDATION_RULE), ResourceType.DRL)
+                .build();
+    }
+
+    @Bean
+    public KieBase clocktowerFlowKieBase(ResourceLoader resourceLoader) {
+        return new KieHelper()
+                .addResource(loadDrlResource(resourceLoader, FLOW_TRANSITION_RULE), ResourceType.DRL)
                 .build();
     }
 

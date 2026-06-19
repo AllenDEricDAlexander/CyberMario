@@ -14,7 +14,8 @@ class ClocktowerRuleEngineConfigurationTests {
     void loadsBoardValidationRulesFromClasspathResource() {
         ClocktowerRuleEngineConfiguration configuration = new ClocktowerRuleEngineConfiguration();
         ClocktowerRuleEngine engine = new ClocktowerRuleEngine(
-                configuration.clocktowerBoardValidationKieBase(new DefaultResourceLoader()));
+                configuration.clocktowerBoardValidationKieBase(new DefaultResourceLoader()),
+                configuration.clocktowerFlowKieBase(new DefaultResourceLoader()));
 
         RuleDecisionCollector collector = engine.validateBoard(new BoardCandidateFact(
                 ClocktowerScriptCode.TROUBLE_BREWING, 4, List.of("EMPATH", "IMP"), 1, 0, 0, 1));

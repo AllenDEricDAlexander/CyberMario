@@ -1,0 +1,103 @@
+package clocktower.rules.flow;
+
+import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
+import top.egon.mario.clocktower.engine.flow.ClocktowerFlowFact;
+import top.egon.mario.clocktower.engine.flow.ClocktowerFlowDecisionCollector;
+import top.egon.mario.clocktower.engine.flow.VictoryCandidateDecision;
+import top.egon.mario.clocktower.flow.dto.ClocktowerFlowTransition;
+
+rule "first night blocked by pending tasks"
+when
+    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.FIRST_NIGHT, pendingNightTaskCount > 0)
+    $collector : ClocktowerFlowDecisionCollector()
+then
+    $collector.block(ClocktowerFlowTransition.COMPLETE_FIRST_NIGHT, "CLOCKTOWER_NIGHT_TASKS_PENDING");
+end
+
+rule "first night can complete"
+when
+    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.FIRST_NIGHT, pendingNightTaskCount == 0)
+    $collector : ClocktowerFlowDecisionCollector()
+then
+    $collector.allow(ClocktowerFlowTransition.COMPLETE_FIRST_NIGHT);
+end
+
+rule "day can start nomination"
+when
+    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.DAY)
+    $collector : ClocktowerFlowDecisionCollector()
+then
+    $collector.allow(ClocktowerFlowTransition.START_NOMINATION);
+end
+
+rule "nomination blocked by open nomination"
+when
+    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.NOMINATION, openNominationExists == true)
+    $collector : ClocktowerFlowDecisionCollector()
+then
+    $collector.block(ClocktowerFlowTransition.START_EXECUTION, "CLOCKTOWER_OPEN_NOMINATION_EXISTS");
+end
+
+rule "nomination can start execution"
+when
+    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.NOMINATION, openNominationExists == false)
+    $collector : ClocktowerFlowDecisionCollector()
+then
+    $collector.allow(ClocktowerFlowTransition.START_EXECUTION);
+end
+
+rule "execution blocked until resolved"
+when
+    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.EXECUTION, executionResolved == false)
+    $collector : ClocktowerFlowDecisionCollector()
+then
+    $collector.block(ClocktowerFlowTransition.START_NIGHT, "CLOCKTOWER_EXECUTION_NOT_RESOLVED");
+end
+
+rule "execution can start night"
+when
+    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.EXECUTION, executionResolved == true)
+    $collector : ClocktowerFlowDecisionCollector()
+then
+    $collector.allow(ClocktowerFlowTransition.START_NIGHT);
+end
+
+rule "night blocked by pending tasks"
+when
+    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.NIGHT, pendingNightTaskCount > 0)
+    $collector : ClocktowerFlowDecisionCollector()
+then
+    $collector.block(ClocktowerFlowTransition.COMPLETE_NIGHT, "CLOCKTOWER_NIGHT_TASKS_PENDING");
+end
+
+rule "night can complete"
+when
+    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.NIGHT, pendingNightTaskCount == 0)
+    $collector : ClocktowerFlowDecisionCollector()
+then
+    $collector.allow(ClocktowerFlowTransition.COMPLETE_NIGHT);
+end
+
+rule "ended has no transition"
+when
+    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.ENDED)
+    $collector : ClocktowerFlowDecisionCollector()
+then
+    $collector.block(ClocktowerFlowTransition.NONE, "CLOCKTOWER_GAME_ALREADY_ENDED");
+end
+
+rule "all demons dead suggests good victory"
+when
+    $fact : ClocktowerFlowFact(allDemonsDead == true)
+    $collector : ClocktowerFlowDecisionCollector()
+then
+    $collector.victoryCandidate(new VictoryCandidateDecision("GOOD", "ALL_DEMONS_DEAD"));
+end
+
+rule "two alive with demon suggests evil victory"
+when
+    $fact : ClocktowerFlowFact(realAliveCount <= 2, demonAlive == true)
+    $collector : ClocktowerFlowDecisionCollector()
+then
+    $collector.victoryCandidate(new VictoryCandidateDecision("EVIL", "TWO_ALIVE_WITH_LIVING_DEMON"));
+end
