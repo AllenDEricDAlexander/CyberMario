@@ -3,6 +3,7 @@ package top.egon.mario.agent.memory.dto.response;
 import top.egon.mario.agent.memory.po.AgentMemoryMessagePo;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryEntryType;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageRole;
+import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageStatus;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageType;
 
 import java.time.Instant;
@@ -23,6 +24,10 @@ public record AgentMemoryMessageResponse(
         String sourceRefsJson,
         String traceId,
         String requestId,
+        AgentMemoryMessageStatus messageStatus,
+        String errorCode,
+        String errorMessage,
+        String metadataJson,
         Instant createdAt
 ) {
 
@@ -40,6 +45,10 @@ public record AgentMemoryMessageResponse(
                 message.getSourceRefsJson(),
                 message.getTraceId(),
                 message.getRequestId(),
+                message.getMessageStatus(),
+                message.getErrorCode(),
+                message.getErrorMessage(),
+                message.getMetadataJson(),
                 message.getCreatedAt()
         );
     }

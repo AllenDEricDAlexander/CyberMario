@@ -5,6 +5,7 @@ import org.springframework.transaction.annotation.Transactional;
 import top.egon.mario.agent.memory.po.AgentMemoryMessagePo;
 import top.egon.mario.agent.memory.po.AgentMemorySessionPo;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageRole;
+import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageStatus;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageType;
 import top.egon.mario.agent.memory.repository.AgentMemoryMessageRepository;
 import top.egon.mario.agent.memory.repository.AgentMemorySessionRepository;
@@ -60,6 +61,12 @@ public class AgentMemoryMessageServiceImpl implements AgentMemoryMessageService 
             message.setSourceRefsJson(record.sourceRefsJson());
             message.setTraceId(record.traceId());
             message.setRequestId(record.requestId());
+            message.setMessageStatus(record.messageStatus() == null
+                    ? AgentMemoryMessageStatus.SUCCEEDED
+                    : record.messageStatus());
+            message.setErrorCode(record.errorCode());
+            message.setErrorMessage(record.errorMessage());
+            message.setMetadataJson(record.metadataJson());
             message.setCreatedAt(now);
             messages.add(message);
         }

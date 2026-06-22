@@ -12,6 +12,7 @@ import lombok.Getter;
 import lombok.Setter;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryEntryType;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageRole;
+import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageStatus;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageType;
 
 import java.time.Instant;
@@ -67,6 +68,19 @@ public class AgentMemoryMessagePo {
 
     @Column(name = "request_id", length = 64)
     private String requestId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "message_status", nullable = false, length = 32)
+    private AgentMemoryMessageStatus messageStatus = AgentMemoryMessageStatus.SUCCEEDED;
+
+    @Column(name = "error_code", length = 256)
+    private String errorCode;
+
+    @Column(name = "error_message", columnDefinition = "TEXT")
+    private String errorMessage;
+
+    @Column(name = "metadata_json", columnDefinition = "TEXT")
+    private String metadataJson;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;

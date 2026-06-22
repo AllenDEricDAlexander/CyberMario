@@ -18,6 +18,7 @@ import top.egon.mario.agent.memory.hook.AgentMemoryMessagesHook;
 import top.egon.mario.agent.memory.po.AgentMemorySessionPo;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryEntryType;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageRole;
+import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageStatus;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageType;
 import top.egon.mario.agent.memory.po.enums.AgentMemorySessionStatus;
 import top.egon.mario.agent.memory.service.AgentMemoryContextService;
@@ -138,8 +139,14 @@ class ReactAgentChatServiceTests {
         verify(support.memoryMessageService).appendAll(org.mockito.ArgumentMatchers.argThat(records ->
                 records.size() == 2
                         && records.get(0).role() == AgentMemoryMessageRole.USER
+                        && records.get(0).messageType() == AgentMemoryMessageType.MESSAGE
+                        && records.get(0).messageStatus() == AgentMemoryMessageStatus.SUCCEEDED
                         && records.get(1).role() == AgentMemoryMessageRole.ASSISTANT
                         && records.get(1).messageType() == AgentMemoryMessageType.MESSAGE
+                        && records.get(1).messageStatus() == AgentMemoryMessageStatus.SUCCEEDED
+                        && records.get(1).errorCode() == null
+                        && records.get(1).errorMessage() == null
+                        && records.get(1).metadataJson() == null
                         && records.get(1).content().equals("答案")));
         verify(support.memoryExtractionService).extractAfterTurn(any(AgentMemoryExtractionRequest.class));
     }
