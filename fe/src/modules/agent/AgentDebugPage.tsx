@@ -96,6 +96,7 @@ function AgentDebugPage() {
     const abortControllerRef = useRef<AbortController | null>(null)
     const updateAssistantMessageRef = useRef<UpdateAssistantMessage | null>(null)
     const historyRequestSeqRef = useRef(0)
+    const sessionListRequestSeqRef = useRef(0)
     const isMountedRef = useRef(true)
 
     const selectedPresetId = Form.useWatch('presetId', form)
@@ -116,6 +117,8 @@ function AgentDebugPage() {
         isMountedRef.current = true
         return () => {
             isMountedRef.current = false
+            abortControllerRef.current?.abort()
+            abortControllerRef.current = null
             nextHistoryRequestToken()
         }
     }, [])
@@ -133,22 +136,25 @@ function AgentDebugPage() {
     }, [])
 
     const loadSessions = useCallback(async () => {
+        sessionListRequestSeqRef.current += 1
+        const requestToken = sessionListRequestSeqRef.current
+        const isLatestRequest = () => isMountedRef.current && sessionListRequestSeqRef.current === requestToken
         if (isMountedRef.current) {
             setSessionLoading(true)
         }
         try {
             const page = await getAgentMemorySessions({page: 1, size: 100, entryType: 'AGENT_DEBUG'})
-            if (!isMountedRef.current) {
+            if (!isLatestRequest()) {
                 return
             }
             setSessions(page.records)
         } catch (requestError) {
-            if (!isMountedRef.current) {
+            if (!isLatestRequest()) {
                 return
             }
             reportGlobalError(requestError)
         } finally {
-            if (isMountedRef.current) {
+            if (isLatestRequest()) {
                 setSessionLoading(false)
             }
         }
@@ -252,6 +258,9 @@ function AgentDebugPage() {
                 presetId: values.presetId,
                 overrides: toConfig(values),
             }, abortController.signal, (chunk) => {
+                if (!isMountedRef.current) {
+                    return
+                }
                 if (chunk.threadId) {
                     setSessionId(chunk.threadId)
                 }
@@ -260,9 +269,12 @@ function AgentDebugPage() {
                     current => applyAgentChunkToMessage(current, chunk)
                 )
             })
+            if (!isMountedRef.current) {
+                return
+            }
             updateAssistantMessageRef.current?.(assistantId, markMessageSucceeded)
         } catch (requestError) {
-            if (abortController.signal.aborted) {
+            if (!isMountedRef.current || abortController.signal.aborted) {
                 return
             }
 

@@ -32,6 +32,7 @@ export function mapMemoryMessagesToWorkspaceMessages(
 ): ChatWorkspaceMessage[] {
     const workspaceMessages: ChatWorkspaceMessage[] = []
     const assistantMessagesByTurnNo = new Map<number, ChatWorkspaceMessage>()
+    const userQuestionsByTurnNo = new Map<number, string>()
     const sortedMessages = [...messages].sort((left, right) => left.seqNo - right.seqNo)
 
     for (const memoryMessage of sortedMessages) {
@@ -44,6 +45,7 @@ export function mapMemoryMessagesToWorkspaceMessages(
                 )
                 assistantMessage.id = memoryMessageId(memoryMessage)
                 assistantMessage.content = memoryMessage.content ?? ''
+                applySameTurnQuestion(assistantMessage, userQuestionsByTurnNo.get(memoryMessage.turnNo))
                 applyMemoryMessageMetadata(assistantMessage, memoryMessage)
                 applyMemoryMessageSources(assistantMessage, memoryMessage)
                 assistantMessage.status = assistantMessage.status === 'error' ? 'error' : 'success'
@@ -52,6 +54,14 @@ export function mapMemoryMessagesToWorkspaceMessages(
 
             if (memoryMessage.role === 'SYSTEM' && !memoryMessage.content?.trim()) {
                 continue
+            }
+
+            if (memoryMessage.role === 'USER' && memoryMessage.content?.trim()) {
+                userQuestionsByTurnNo.set(memoryMessage.turnNo, memoryMessage.content)
+                const assistantMessage = assistantMessagesByTurnNo.get(memoryMessage.turnNo)
+                if (assistantMessage) {
+                    applySameTurnQuestion(assistantMessage, memoryMessage.content)
+                }
             }
 
             const workspaceMessage: ChatWorkspaceMessage = {
@@ -71,6 +81,7 @@ export function mapMemoryMessagesToWorkspaceMessages(
                 workspaceMessages,
                 assistantMessagesByTurnNo,
             )
+            applySameTurnQuestion(assistantMessage, userQuestionsByTurnNo.get(memoryMessage.turnNo))
             assistantMessage.thinkContent = appendHistoryText(
                 assistantMessage.thinkContent,
                 memoryMessage.content ?? '',
@@ -88,9 +99,11 @@ export function mapMemoryMessagesToWorkspaceMessages(
                     workspaceMessages,
                     assistantMessagesByTurnNo,
                 )
+                applySameTurnQuestion(assistantMessage, userQuestionsByTurnNo.get(memoryMessage.turnNo))
                 assistantMessage.sources = sources
                 applyMemoryMessageMetadata(assistantMessage, memoryMessage)
             } else if (existingAssistantMessage) {
+                applySameTurnQuestion(existingAssistantMessage, userQuestionsByTurnNo.get(memoryMessage.turnNo))
                 applyMemoryMessageMetadata(existingAssistantMessage, memoryMessage)
             }
             continue
@@ -103,6 +116,7 @@ export function mapMemoryMessagesToWorkspaceMessages(
                 assistantMessagesByTurnNo,
             )
             const errorMessage = memoryMessage.content?.trim() || 'Request failed.'
+            applySameTurnQuestion(assistantMessage, userQuestionsByTurnNo.get(memoryMessage.turnNo))
             assistantMessage.error = errorMessage
             assistantMessage.status = 'error'
             applyMemoryMessageMetadata(assistantMessage, memoryMessage)
@@ -225,6 +239,12 @@ function appendHistoryText(currentText: string | undefined, nextText: string): s
     }
 
     return currentText?.trim() ? `${currentText}\n${nextText}` : nextText
+}
+
+function applySameTurnQuestion(message: ChatWorkspaceMessage, question: string | undefined) {
+    if (question?.trim()) {
+        message.question = question
+    }
 }
 
 function applyMemoryMessageMetadata(

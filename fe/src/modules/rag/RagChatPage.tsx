@@ -75,6 +75,7 @@ function RagChatPage() {
     const abortControllerRef = useRef<AbortController | null>(null)
     const updateAssistantMessageRef = useRef<UpdateAssistantMessage | null>(null)
     const historyRequestSeqRef = useRef(0)
+    const sessionListRequestSeqRef = useRef(0)
     const isMountedRef = useRef(true)
     const canCreateFeedback = canUseRbacButton(auth, ragButtonCodes.feedback.create)
 
@@ -93,6 +94,8 @@ function RagChatPage() {
         isMountedRef.current = true
         return () => {
             isMountedRef.current = false
+            abortControllerRef.current?.abort()
+            abortControllerRef.current = null
             nextHistoryRequestToken()
         }
     }, [])
@@ -107,22 +110,25 @@ function RagChatPage() {
     }, [])
 
     const loadSessions = useCallback(async () => {
+        sessionListRequestSeqRef.current += 1
+        const requestToken = sessionListRequestSeqRef.current
+        const isLatestRequest = () => isMountedRef.current && sessionListRequestSeqRef.current === requestToken
         if (isMountedRef.current) {
             setSessionLoading(true)
         }
         try {
             const page = await getAgentMemorySessions({page: 1, size: 100, entryType: 'RAG_CHAT'})
-            if (!isMountedRef.current) {
+            if (!isLatestRequest()) {
                 return
             }
             setSessions(page.records)
         } catch (requestError) {
-            if (!isMountedRef.current) {
+            if (!isLatestRequest()) {
                 return
             }
             reportGlobalError(requestError)
         } finally {
-            if (isMountedRef.current) {
+            if (isLatestRequest()) {
                 setSessionLoading(false)
             }
         }
@@ -159,6 +165,9 @@ function RagChatPage() {
                 },
                 abortController.signal,
                 (event) => {
+                    if (!isMountedRef.current) {
+                        return
+                    }
                     if (event.type === 'metadata' && event.data.sessionId) {
                         setSessionId(event.data.sessionId)
                     }
@@ -168,9 +177,12 @@ function RagChatPage() {
                     )
                 },
             )
+            if (!isMountedRef.current) {
+                return
+            }
             updateAssistantMessageRef.current?.(assistantId, markMessageSucceeded)
         } catch (requestError) {
-            if (abortController.signal.aborted) {
+            if (!isMountedRef.current || abortController.signal.aborted) {
                 return
             }
 

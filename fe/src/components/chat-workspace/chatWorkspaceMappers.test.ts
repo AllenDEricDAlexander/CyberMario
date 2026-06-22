@@ -188,6 +188,57 @@ describe('chat workspace mappers', () => {
         ])
     })
 
+    test('restores same-turn user question on persisted assistant messages', () => {
+        const messages = mapMemoryMessagesToWorkspaceMessages([
+            memoryMessage({
+                id: 1,
+                seqNo: 1,
+                turnNo: 1,
+                role: 'USER',
+                content: 'What did the scheduler decide?',
+            }),
+            memoryMessage({
+                id: 2,
+                seqNo: 2,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                messageType: 'THINK',
+                content: 'Checking prior runs',
+            }),
+            memoryMessage({
+                id: 3,
+                seqNo: 3,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                content: 'It selected the retry window.',
+                traceId: 'trace-question',
+                sourceRefsJson: JSON.stringify({sources: [source]}),
+            }),
+            memoryMessage({
+                id: 4,
+                seqNo: 4,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                messageType: 'ERROR',
+                content: '',
+                requestId: 'request-question',
+            }),
+        ])
+
+        expect(messages).toHaveLength(2)
+        expect(messages[1]).toMatchObject({
+            id: 'memory-3',
+            role: 'assistant',
+            content: 'It selected the retry window.',
+            question: 'What did the scheduler decide?',
+            thinkContent: 'Checking prior runs',
+            sources: [source],
+            traceId: 'trace-question',
+            requestId: 'request-question',
+            status: 'error',
+        })
+    })
+
     test('skips blank persisted system messages', () => {
         const messages = mapMemoryMessagesToWorkspaceMessages([
             memoryMessage({
