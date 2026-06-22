@@ -7,6 +7,7 @@ import {
     ChatWorkspace,
     type ChatWorkspaceMessage,
     type ChatWorkspaceRequest,
+    mapMemoryMessagesToWorkspaceMessages,
     mapSessionToConversation,
     markMessageSucceeded,
     useXChatWorkspace,
@@ -15,6 +16,7 @@ import {resolveErrorMessage} from '../../services/request'
 import {
     archiveAgentMemorySession,
     createAgentMemorySession,
+    getAgentMemoryMessages,
     getAgentMemorySessions,
 } from '../agent/agentService'
 import type {AgentMemorySessionResponse} from '../agent/agentTypes'
@@ -72,6 +74,7 @@ function RagChatPage() {
     const [sourceOpen, setSourceOpen] = useState(false)
     const abortControllerRef = useRef<AbortController | null>(null)
     const updateAssistantMessageRef = useRef<UpdateAssistantMessage | null>(null)
+    const historyRequestSeqRef = useRef(0)
     const canCreateFeedback = canUseRbacButton(auth, ragButtonCodes.feedback.create)
 
     const conversations = useMemo(
@@ -79,6 +82,15 @@ function RagChatPage() {
         [sessions]
     )
     const sessionLabel = useMemo(() => sessionId || 'New RAG session', [sessionId])
+
+    function nextHistoryRequestToken() {
+        historyRequestSeqRef.current += 1
+        return historyRequestSeqRef.current
+    }
+
+    useEffect(() => () => {
+        nextHistoryRequestToken()
+    }, [])
 
     const loadKnowledgeBases = useCallback(async () => {
         try {
@@ -197,6 +209,7 @@ function RagChatPage() {
 
         setInput('')
         setError('')
+        nextHistoryRequestToken()
         request({
             message: nextMessage,
             conversationKey: sessionId || undefined,
@@ -206,6 +219,7 @@ function RagChatPage() {
 
     async function handleNewConversation() {
         abort()
+        nextHistoryRequestToken()
         try {
             const session = await createAgentMemorySession({
                 entryType: 'RAG_CHAT',
@@ -230,6 +244,7 @@ function RagChatPage() {
         }
 
         abort()
+        nextHistoryRequestToken()
         try {
             await archiveAgentMemorySession(conversationKey)
             appMessage.success('会话已归档')
@@ -247,8 +262,13 @@ function RagChatPage() {
     }
 
     function handleConversationChange(conversationKey: string) {
+        void loadConversationHistory(conversationKey)
+    }
+
+    async function loadConversationHistory(conversationKey: string) {
         abort()
         setSessionId(conversationKey)
+        const requestToken = nextHistoryRequestToken()
         const session = sessions.find((item) => item.sessionId === conversationKey)
         if (session) {
             setMemoryEnabled(session.memoryEnabled)
@@ -258,6 +278,20 @@ function RagChatPage() {
         setInput('')
         setError('')
         closeSourceDrawer()
+
+        try {
+            const historyMessages = mapMemoryMessagesToWorkspaceMessages(
+                await getAgentMemoryMessages(conversationKey)
+            )
+            if (historyRequestSeqRef.current === requestToken) {
+                setMessages(historyMessages.length > 0 ? historyMessages : initialMessages)
+            }
+        } catch (requestError) {
+            if (historyRequestSeqRef.current === requestToken) {
+                setMessages(initialMessages)
+                reportGlobalError(requestError)
+            }
+        }
     }
 
     function handleSourceSelect(source: SourceReferenceResponse) {
