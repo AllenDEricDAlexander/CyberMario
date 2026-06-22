@@ -2,6 +2,7 @@ package top.egon.mario.agent.config;
 
 import org.junit.jupiter.api.Test;
 import reactor.core.scheduler.Schedulers;
+import top.egon.mario.agent.context.service.AgentContextAssemblyService;
 import top.egon.mario.agent.memory.service.AgentMemoryContextService;
 import top.egon.mario.agent.memory.service.AgentMemoryExtractionService;
 import top.egon.mario.agent.memory.service.AgentMemoryMessageService;
@@ -53,6 +54,7 @@ class AgentConfigurationTests {
                 mock(AgentMemorySessionService.class),
                 mock(AgentMemoryMessageService.class),
                 mock(AgentMemoryContextService.class),
+                mock(AgentContextAssemblyService.class),
                 mock(AgentMemoryExtractionService.class)
         );
 

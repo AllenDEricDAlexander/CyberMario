@@ -1,5 +1,6 @@
 package top.egon.mario.agent.memory.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.Size;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryEntryType;
 
@@ -9,7 +10,11 @@ import top.egon.mario.agent.memory.po.enums.AgentMemoryEntryType;
 public record AgentMemorySessionRequest(
         AgentMemoryEntryType entryType,
         @Size(max = 256) String title,
-        Boolean memoryEnabled,
+        @JsonAlias("memoryEnabled") Boolean memoryContextEnabled,
         Boolean longTermExtractionEnabled
 ) {
+
+    public Boolean memoryEnabled() {
+        return memoryContextEnabled;
+    }
 }

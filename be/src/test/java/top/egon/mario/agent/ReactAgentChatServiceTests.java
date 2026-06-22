@@ -12,6 +12,8 @@ import org.springframework.ai.chat.messages.UserMessage;
 import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
+import top.egon.mario.agent.context.service.AgentContextAssemblyService;
+import top.egon.mario.agent.context.service.model.AgentContext;
 import top.egon.mario.agent.dto.request.AgentDebugChatRequest;
 import top.egon.mario.agent.model.dto.enums.ModelProviderType;
 import top.egon.mario.agent.model.dto.request.ModelOptions;
@@ -56,7 +58,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
@@ -119,19 +123,33 @@ class ReactAgentChatServiceTests {
         ReactAgent agent = mock(ReactAgent.class);
         AgentRuntimeSpec debugSpec = runtimeSpec("debug-fingerprint");
         TestSupport support = new TestSupport(agent);
+        RbacPrincipal principal = new RbacPrincipal(8L, "luigi", Set.of("CHAT_BASIC"), Set.of(), "v1");
+        AgentMemoryContext memoryContext = new AgentMemoryContext("recent prompt", "long prompt");
         given(support.presetService.resolveRuntimeSpec(any(AgentDebugChatRequest.class))).willReturn(debugSpec);
         given(support.auditService.start(any(), eq("你好"))).willReturn(99L);
+        given(support.memoryContextService.contextFor(any(), eq(principal), eq(true)))
+                .willReturn(memoryContext);
+        given(support.contextAssemblyService.assemble(eq(principal), eq(memoryContext), eq(false)))
+                .willReturn(new AgentContext("safety prompt", "", "long prompt", "recent prompt"));
         given(agent.stream(eq("你好"), any(RunnableConfig.class)))
-                .willReturn(Flux.just(messageOutput("答案")));
+                .willAnswer(invocation -> {
+                    RunnableConfig config = invocation.getArgument(1);
+                    assertThat(config.metadata(AgentMemoryMessagesHook.SAFETY_PROMPT_METADATA_KEY)).contains("safety prompt");
+                    assertThat(config.metadata(AgentMemoryMessagesHook.SOUL_PROMPT_METADATA_KEY)).isEmpty();
+                    assertThat(config.metadata(AgentMemoryMessagesHook.SHORT_TERM_MEMORY_METADATA_KEY)).contains("recent prompt");
+                    assertThat(config.metadata(AgentMemoryMessagesHook.LONG_TERM_MEMORY_METADATA_KEY)).contains("long prompt");
+                    return Flux.just(messageOutput("答案"));
+                });
 
         StepVerifier.create(support.chatService.debugChat(
                         new AgentDebugChatRequest("你好", "thread-1", null, null, null, 9L, null),
-                        new RbacPrincipal(8L, "luigi", Set.of("CHAT_BASIC"), Set.of(), "v1")))
+                        principal))
                 .expectNext(new ChatResponse("thread-1", "答案", "message"))
                 .verifyComplete();
 
         verify(support.runtimeFactory).runtime(eq(debugSpec), any(ModelCallContext.class));
         verify(support.runtimeFactory, never()).get(any(), any());
+        verify(support.contextAssemblyService).assemble(principal, memoryContext, false);
         verify(support.auditService).start(any(), eq("你好"));
         verify(support.auditService).complete(eq(99L), org.mockito.ArgumentMatchers.argThat(messages ->
                 messages.size() == 1
@@ -159,6 +177,8 @@ class ReactAgentChatServiceTests {
     void chatStartsRunAuditAndPassesContextThroughRunnableConfigMetadata() throws Exception {
         ReactAgent agent = mock(ReactAgent.class);
         TestSupport support = new TestSupport(agent);
+        RbacPrincipal principal = new RbacPrincipal(8L, "luigi", Set.of("CHAT_BASIC"), Set.of(), "v1");
+        AgentMemoryContext memoryContext = new AgentMemoryContext("raw recent", "raw long");
         AgentRunAuditContext context = new AgentRunAuditContext(7L, "request-1", "trace-1",
                 8L, "luigi", "thread-1", 9L, "fingerprint-1", new AtomicInteger(-1), new AtomicInteger(0),
                 Map.of("docs_search", new AgentRunAuditContext.ToolDescriptor(AgentRunToolType.MCP, "docs")));
@@ -172,18 +192,21 @@ class ReactAgentChatServiceTests {
                     assertThat(config.metadata(AgentRunAuditContext.METADATA_KEY)).contains(context);
                     assertThat(config.metadata("requestId")).isPresent();
                     assertThat(config.metadata("threadId")).contains("thread-1");
-                    assertThat(config.metadata(AgentMemoryMessagesHook.SHORT_TERM_PROMPT_METADATA)).contains("short prompt");
-                    assertThat(config.metadata(AgentMemoryMessagesHook.LONG_TERM_PROMPT_METADATA)).contains("long prompt");
+                    assertThat(config.metadata(AgentMemoryMessagesHook.SAFETY_PROMPT_METADATA_KEY)).contains("safety prompt");
+                    assertThat(config.metadata(AgentMemoryMessagesHook.SOUL_PROMPT_METADATA_KEY)).contains("soul prompt");
+                    assertThat(config.metadata(AgentMemoryMessagesHook.SHORT_TERM_MEMORY_METADATA_KEY)).contains("recent prompt");
+                    assertThat(config.metadata(AgentMemoryMessagesHook.LONG_TERM_MEMORY_METADATA_KEY)).contains("long prompt");
                     AgentRunAuditContext metadataContext = (AgentRunAuditContext) config.metadata(AgentRunAuditContext.METADATA_KEY).orElseThrow();
                     assertThat(metadataContext.toolDescriptor("docs_search").toolType()).isEqualTo(AgentRunToolType.MCP);
                     return Flux.just(messageOutput("答案"));
                 });
 
-        given(support.memoryContextService.contextFor(any(), any()))
-                .willReturn(new AgentMemoryContext("short prompt", "long prompt"));
+        given(support.memoryContextService.contextFor(any(), any(), eq(true)))
+                .willReturn(memoryContext);
+        given(support.contextAssemblyService.assemble(eq(principal), eq(memoryContext), eq(true)))
+                .willReturn(new AgentContext("safety prompt", "soul prompt", "long prompt", "recent prompt"));
 
-        StepVerifier.create(support.chatService.chat("你好", "thread-1",
-                        new RbacPrincipal(8L, "luigi", Set.of("CHAT_BASIC"), Set.of(), "v1")))
+        StepVerifier.create(support.chatService.chat("你好", "thread-1", principal))
                 .expectNext(new ChatResponse("thread-1", "答案", "message"))
                 .verifyComplete();
 
@@ -193,6 +216,7 @@ class ReactAgentChatServiceTests {
                         && start.threadId().equals("thread-1")
                         && start.userMessage().equals("你好")
                         && start.effectiveConfigJson().contains("systemPrompt")));
+        verify(support.contextAssemblyService).assemble(principal, memoryContext, true);
         verify(support.runAuditService).complete(eq(context), eq("答案"), eq(null), any(Instant.class));
     }
 
@@ -379,6 +403,26 @@ class ReactAgentChatServiceTests {
     }
 
     @Test
+    void chatPreservesExistingMemoryContextSwitchWhenRequestOmitsFlag() throws Exception {
+        ReactAgent agent = mock(ReactAgent.class);
+        TestSupport support = new TestSupport(agent);
+        RbacPrincipal principal = new RbacPrincipal(8L, "luigi", Set.of("CHAT_BASIC"), Set.of(), "v1");
+        AgentMemorySessionPo disabledSession = session("thread-1", AgentMemoryEntryType.AGENT_CHAT);
+        disabledSession.setMemoryEnabled(false);
+        given(support.memorySessionService.resolveOrCreate(
+                eq(AgentMemoryEntryType.AGENT_CHAT), eq("thread-1"), isNull(), eq(true), eq(principal)))
+                .willReturn(disabledSession);
+        given(agent.stream(eq("你好"), any(RunnableConfig.class))).willReturn(Flux.empty());
+
+        StepVerifier.create(support.chatService.chat(new ChatRequest("你好", "thread-1", null, null), principal))
+                .verifyComplete();
+
+        verify(support.memorySessionService).resolveOrCreate(
+                eq(AgentMemoryEntryType.AGENT_CHAT), eq("thread-1"), isNull(), eq(true), eq(principal));
+        verify(support.memoryContextService).contextFor(disabledSession, principal, false);
+    }
+
+    @Test
     void chatDoesNotEmitUserMessageFromStateFallback() throws Exception {
         ReactAgent agent = mock(ReactAgent.class);
         TestSupport support = new TestSupport(agent);
@@ -421,6 +465,7 @@ class ReactAgentChatServiceTests {
         private final AgentMemorySessionService memorySessionService = mock(AgentMemorySessionService.class);
         private final AgentMemoryMessageService memoryMessageService = mock(AgentMemoryMessageService.class);
         private final AgentMemoryContextService memoryContextService = mock(AgentMemoryContextService.class);
+        private final AgentContextAssemblyService contextAssemblyService = mock(AgentContextAssemblyService.class);
         private final AgentMemoryExtractionService memoryExtractionService = mock(AgentMemoryExtractionService.class);
         private final ArxivToolUserContext userContext = new ArxivToolUserContext();
         private final AgentRunAuditContext runAuditContext = new AgentRunAuditContext(7L, "request-1", "trace-1",
@@ -445,12 +490,15 @@ class ReactAgentChatServiceTests {
                         String sessionId = invocation.getArgument(1);
                         return session(sessionId == null || sessionId.isBlank() ? "thread-1" : sessionId, entryType);
                     });
-            given(memoryContextService.contextFor(any(), any())).willReturn(new AgentMemoryContext("", ""));
+            given(memoryContextService.contextFor(any(), any(), any(Boolean.class)))
+                    .willReturn(new AgentMemoryContext("", ""));
+            given(contextAssemblyService.assemble(any(), any(), anyBoolean()))
+                    .willReturn((AgentContext) null);
             given(memoryMessageService.nextTurnNo(any())).willReturn(1);
             doAnswer(invocation -> null).when(auditService).complete(any(), any(), any());
             this.chatService = new ReactAgentChatService(presetService, runtimeFactory, auditService, runAuditService,
                     Schedulers.immediate(), userContext, memorySessionService, memoryMessageService,
-                    memoryContextService, memoryExtractionService);
+                    memoryContextService, contextAssemblyService, memoryExtractionService);
         }
     }
 

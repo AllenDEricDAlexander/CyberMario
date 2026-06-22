@@ -1,5 +1,6 @@
 package top.egon.mario.pojo.request;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 
 /**
@@ -9,6 +10,10 @@ public record ChatRequest(
         @NotBlank String message,
         String threadId,
         String sessionId,
-        Boolean memoryEnabled
+        @JsonAlias("memoryEnabled") Boolean memoryContextEnabled
 ) {
+
+    public Boolean memoryEnabled() {
+        return memoryContextEnabled;
+    }
 }

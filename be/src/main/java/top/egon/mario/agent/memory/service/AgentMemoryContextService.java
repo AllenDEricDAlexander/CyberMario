@@ -6,5 +6,5 @@ import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 public interface AgentMemoryContextService {
 
-    AgentMemoryContext contextFor(AgentMemorySessionPo session, RbacPrincipal principal);
+    AgentMemoryContext contextFor(AgentMemorySessionPo session, RbacPrincipal principal, boolean longTermMemoryEnabled);
 }

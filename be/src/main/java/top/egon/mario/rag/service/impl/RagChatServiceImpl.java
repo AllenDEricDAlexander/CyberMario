@@ -66,16 +66,17 @@ public class RagChatServiceImpl implements RagChatService {
             AgentMemorySessionPo session = memorySessionService.resolveOrCreate(
                     AgentMemoryEntryType.RAG_CHAT,
                     request.sessionId(),
-                    request.memoryEnabled(),
+                    request.memoryContextEnabled(),
                     request.longTermExtractionEnabled(),
                     principal);
-            AgentMemoryContext memoryContext = memoryContextService.contextFor(session, principal);
+            AgentMemoryContext memoryContext = memoryContextService.contextFor(session, principal, false);
             int turnNo = memoryMessageService.nextTurnNo(session.getSessionId());
             persistUserMemory(session, request, turnNo, traceId, messageId);
             Flux<RagStreamEvent> metadata = Flux.just(event("metadata", Map.of(
                     "messageId", messageId,
                     "traceId", traceId,
                     "sessionId", session.getSessionId(),
+                    "memoryContextEnabled", session.isMemoryEnabled(),
                     "memoryEnabled", session.isMemoryEnabled(),
                     "longTermExtractionEnabled", session.isLongTermExtractionEnabled())));
             return metadata.concatWith(Flux.defer(() -> ragEvents(request, principal, session, memoryContext,

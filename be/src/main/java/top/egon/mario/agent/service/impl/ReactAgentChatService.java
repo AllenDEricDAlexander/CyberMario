@@ -13,8 +13,9 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.SignalType;
 import reactor.core.scheduler.Scheduler;
+import top.egon.mario.agent.context.service.AgentContextAssemblyService;
+import top.egon.mario.agent.context.service.model.AgentContext;
 import top.egon.mario.agent.dto.request.AgentDebugChatRequest;
-import top.egon.mario.agent.memory.hook.AgentMemoryMessagesHook;
 import top.egon.mario.agent.memory.po.AgentMemorySessionPo;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryEntryType;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageRole;
@@ -76,6 +77,7 @@ public class ReactAgentChatService implements ChatAgentService {
     private final AgentMemorySessionService memorySessionService;
     private final AgentMemoryMessageService memoryMessageService;
     private final AgentMemoryContextService memoryContextService;
+    private final AgentContextAssemblyService contextAssemblyService;
     private final AgentMemoryExtractionService memoryExtractionService;
 
     public ReactAgentChatService(AgentPresetService agentPresetService, AgentRuntimeFactory agentRuntimeFactory,
@@ -84,6 +86,7 @@ public class ReactAgentChatService implements ChatAgentService {
                                  AgentMemorySessionService memorySessionService,
                                  AgentMemoryMessageService memoryMessageService,
                                  AgentMemoryContextService memoryContextService,
+                                 AgentContextAssemblyService contextAssemblyService,
                                  AgentMemoryExtractionService memoryExtractionService) {
         this.agentPresetService = agentPresetService;
         this.agentRuntimeFactory = agentRuntimeFactory;
@@ -94,6 +97,7 @@ public class ReactAgentChatService implements ChatAgentService {
         this.memorySessionService = memorySessionService;
         this.memoryMessageService = memoryMessageService;
         this.memoryContextService = memoryContextService;
+        this.contextAssemblyService = contextAssemblyService;
         this.memoryExtractionService = memoryExtractionService;
     }
 
@@ -119,11 +123,14 @@ public class ReactAgentChatService implements ChatAgentService {
             AgentMemorySessionPo memorySession = memorySessionService.resolveOrCreate(
                     entryType,
                     resolveSessionId(request.sessionId(), request.threadId()),
-                    request.memoryEnabled(),
+                    request.memoryContextEnabled(),
                     debugRequest == null ? Boolean.TRUE : debugRequest.longTermExtractionEnabled(),
                     principal);
+            boolean memoryContextEnabled = memorySession.isMemoryEnabled();
             String conversationThreadId = memorySession.getSessionId();
-            AgentMemoryContext memoryContext = memoryContextService.contextFor(memorySession, principal);
+            AgentMemoryContext memoryContext = memoryContextService.contextFor(
+                    memorySession, principal, memoryContextEnabled);
+            AgentContext agentContext = contextAssemblyService.assemble(principal, memoryContext, debugRequest == null);
             AgentRuntimeSpec spec = debugRequest == null
                     ? agentPresetService.defaultRuntimeSpec()
                     : agentPresetService.resolveRuntimeSpec(debugRequest);
@@ -155,7 +162,7 @@ public class ReactAgentChatService implements ChatAgentService {
                                     conversationThreadId, spec, message, runtime.toolDescriptors());
                             runAuditContext.set(context);
                             arxivToolUserContext.set(principal);
-                            return runtime.agent().stream(message, runnableConfig(cfg, context, memoryContext,
+                            return runtime.agent().stream(message, runnableConfig(cfg, context, agentContext,
                                     memorySession, entryType));
                         } catch (GraphRunnerException e) {
                             return Flux.error(e);
@@ -223,7 +230,7 @@ public class ReactAgentChatService implements ChatAgentService {
     }
 
     private RunnableConfig runnableConfig(RunnableConfig config, AgentRunAuditContext context,
-                                          AgentMemoryContext memoryContext,
+                                          AgentContext agentContext,
                                           AgentMemorySessionPo memorySession,
                                           AgentMemoryEntryType entryType) {
         RunnableConfig.Builder builder = RunnableConfig.builder(config);
@@ -232,10 +239,9 @@ public class ReactAgentChatService implements ChatAgentService {
         }
         builder.addMetadata("agentMemorySessionId", memorySession.getSessionId());
         builder.addMetadata("agentMemoryEntryType", entryType.name());
-        builder.addMetadata(AgentMemoryMessagesHook.SHORT_TERM_PROMPT_METADATA,
-                memoryContext == null ? "" : memoryContext.shortTermPrompt());
-        builder.addMetadata(AgentMemoryMessagesHook.LONG_TERM_PROMPT_METADATA,
-                memoryContext == null ? "" : memoryContext.longTermPrompt());
+        if (agentContext != null) {
+            agentContext.toMetadata().forEach(builder::addMetadata);
+        }
         return builder.build();
     }
 

@@ -1,5 +1,6 @@
 package top.egon.mario.rag.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -16,7 +17,7 @@ import java.util.List;
  */
 public record RagChatRequest(
         String sessionId,
-        Boolean memoryEnabled,
+        @JsonAlias("memoryEnabled") Boolean memoryContextEnabled,
         Boolean longTermExtractionEnabled,
         @NotBlank String question,
         List<Long> knowledgeBaseIds,
@@ -24,6 +25,10 @@ public record RagChatRequest(
         @Valid ModelOptions modelOptions,
         Boolean withSources
 ) {
+
+    public Boolean memoryEnabled() {
+        return memoryContextEnabled;
+    }
 
     public record RetrievalOptions(
             @Min(1) @Max(20) Integer topK,

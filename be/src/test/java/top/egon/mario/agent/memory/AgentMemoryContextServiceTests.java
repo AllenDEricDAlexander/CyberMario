@@ -30,13 +30,17 @@ class AgentMemoryContextServiceTests {
     private final RbacPrincipal principal = new RbacPrincipal(8L, "luigi", Set.of("CHAT_BASIC"), Set.of(), "v1");
 
     @Test
-    void doesNotAssembleHistoryWhenSessionMemoryDisabled() {
-        AgentMemorySessionPo session = new AgentMemorySessionPo();
+    void assemblesRecentTurnsEvenWhenLongTermMemoryContextDisabled() {
+        AgentMemorySessionPo session = session(AgentMemoryEntryType.AGENT_CHAT);
         session.setMemoryEnabled(false);
+        given(messageService.recentTurns(session)).willReturn(List.of(
+                new AgentMemoryTurn("我喜欢中文回答", "好的")
+        ));
 
-        var context = service.contextFor(session, principal);
+        var context = service.contextFor(session, principal, false);
 
-        assertThat(context.shortTermPrompt()).isBlank();
+        assertThat(context.shortTermPrompt()).contains("用户: 我喜欢中文回答");
+        assertThat(context.shortTermPrompt()).contains("助手: 好的");
         assertThat(context.longTermPrompt()).isBlank();
     }
 
@@ -50,7 +54,7 @@ class AgentMemoryContextServiceTests {
         given(longTermMemoryService.getOrCreateUserAgentMemory(principal))
                 .willReturn(memory("# User Memory\n\n## Preferences\n- 中文回答"));
 
-        var context = service.contextFor(session, principal);
+        var context = service.contextFor(session, principal, true);
 
         assertThat(context.shortTermPrompt()).contains("用户: 我喜欢中文回答");
         assertThat(context.shortTermPrompt()).contains("助手: 明白");
@@ -65,7 +69,7 @@ class AgentMemoryContextServiceTests {
                 new AgentMemoryTurn("上一个问题", "上一个回答")
         ));
 
-        var context = service.contextFor(session, principal);
+        var context = service.contextFor(session, principal, true);
 
         assertThat(context.shortTermPrompt()).contains("上一个问题");
         assertThat(context.longTermPrompt()).isBlank();
@@ -73,6 +77,7 @@ class AgentMemoryContextServiceTests {
 
     private AgentMemorySessionPo session(AgentMemoryEntryType entryType) {
         AgentMemorySessionPo session = new AgentMemorySessionPo();
+        session.setId(1L);
         session.setSessionId("session-1");
         session.setEntryType(entryType);
         session.setStatus(AgentMemorySessionStatus.ACTIVE);

@@ -36,14 +36,15 @@ public class AgentMemoryContextServiceImpl implements AgentMemoryContextService 
 
     @Override
     @Transactional(readOnly = true)
-    public AgentMemoryContext contextFor(AgentMemorySessionPo session, RbacPrincipal principal) {
-        if (session == null || !session.isMemoryEnabled() || session.isDeleted()
+    public AgentMemoryContext contextFor(AgentMemorySessionPo session, RbacPrincipal principal,
+                                         boolean longTermMemoryEnabled) {
+        if (session == null || session.getId() == null || session.isDeleted()
                 || session.getStatus() == AgentMemorySessionStatus.ARCHIVED
                 || session.getStatus() == AgentMemorySessionStatus.DELETED) {
             return EMPTY;
         }
         String shortTermPrompt = shortTermPrompt(messageService.recentTurns(session));
-        if (session.getEntryType() == AgentMemoryEntryType.RAG_CHAT) {
+        if (!longTermMemoryEnabled || session.getEntryType() == AgentMemoryEntryType.RAG_CHAT) {
             return new AgentMemoryContext(shortTermPrompt, "");
         }
         if (session.getEntryType() != AgentMemoryEntryType.AGENT_CHAT

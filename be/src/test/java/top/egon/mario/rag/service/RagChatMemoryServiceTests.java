@@ -39,6 +39,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
@@ -65,7 +66,7 @@ class RagChatMemoryServiceTests {
     void ragChatAddsOnlySessionShortTermMemoryBeforeSources() {
         given(memorySessionService.resolveOrCreate(eq(AgentMemoryEntryType.RAG_CHAT), any(), eq(true), eq(true), any()))
                 .willReturn(session("rag-session-1", true, true));
-        given(memoryContextService.contextFor(any(), any()))
+        given(memoryContextService.contextFor(any(), any(), eq(false)))
                 .willReturn(new AgentMemoryContext("用户: 上一个问题\n助手: 上一个回答", ""));
         given(memoryMessageService.nextTurnNo("rag-session-1")).willReturn(3);
         given(retrievalService.searchSources(any(), any(), any(), any(), any(), any(), any(), any()))
@@ -76,6 +77,7 @@ class RagChatMemoryServiceTests {
                         null, true, true, "继续说", List.of(1L), null, null, true), principal))
                 .expectNextMatches(event -> "metadata".equals(event.type())
                         && "rag-session-1".equals(event.data().get("sessionId"))
+                        && Boolean.TRUE.equals(event.data().get("memoryContextEnabled"))
                         && Boolean.TRUE.equals(event.data().get("memoryEnabled"))
                         && Boolean.TRUE.equals(event.data().get("longTermExtractionEnabled")))
                 .expectNextMatches(event -> "retrieval".equals(event.type()))
@@ -116,10 +118,41 @@ class RagChatMemoryServiceTests {
     }
 
     @Test
+    void ragChatPreservesExistingMemoryContextSwitchWhenRequestOmitsFlag() {
+        AgentMemorySessionPo disabledSession = session("rag-session-disabled", false, true);
+        given(memorySessionService.resolveOrCreate(
+                eq(AgentMemoryEntryType.RAG_CHAT), eq("rag-session-disabled"), isNull(), eq(true), eq(principal)))
+                .willReturn(disabledSession);
+        given(memoryContextService.contextFor(disabledSession, principal, false))
+                .willReturn(new AgentMemoryContext("用户: 历史事实", ""));
+        given(memoryMessageService.nextTurnNo("rag-session-disabled")).willReturn(1);
+        given(retrievalService.searchSources(any(), any(), any(), any(), any(), any(), any(), any()))
+                .willReturn(List.of());
+
+        StepVerifier.create(service.stream(new RagChatRequest(
+                        "rag-session-disabled", null, true, "没有来源的问题", null, null, null, true), principal))
+                .expectNextMatches(event -> "metadata".equals(event.type())
+                        && "rag-session-disabled".equals(event.data().get("sessionId"))
+                        && Boolean.FALSE.equals(event.data().get("memoryContextEnabled"))
+                        && Boolean.FALSE.equals(event.data().get("memoryEnabled"))
+                        && Boolean.TRUE.equals(event.data().get("longTermExtractionEnabled")))
+                .expectNextMatches(event -> "retrieval".equals(event.type()))
+                .expectNextMatches(event -> "delta".equals(event.type())
+                        && "知识库中没有找到明确依据。".equals(event.data().get("content")))
+                .expectNextMatches(event -> "done".equals(event.type())
+                        && "NO_CONTEXT".equals(event.data().get("finishReason")))
+                .verifyComplete();
+
+        verify(memorySessionService).resolveOrCreate(
+                eq(AgentMemoryEntryType.RAG_CHAT), eq("rag-session-disabled"), isNull(), eq(true), eq(principal));
+        verify(memoryContextService).contextFor(disabledSession, principal, false);
+    }
+
+    @Test
     void ragChatPersistsNoContextAnswerWithoutUsingMemoryAsKnowledge() {
         given(memorySessionService.resolveOrCreate(eq(AgentMemoryEntryType.RAG_CHAT), eq("rag-session-2"), eq(false), eq(false), any()))
                 .willReturn(session("rag-session-2", false, false));
-        given(memoryContextService.contextFor(any(), any()))
+        given(memoryContextService.contextFor(any(), any(), eq(false)))
                 .willReturn(new AgentMemoryContext("用户: 历史事实", ""));
         given(memoryMessageService.nextTurnNo("rag-session-2")).willReturn(1);
         given(retrievalService.searchSources(any(), any(), any(), any(), any(), any(), any(), any()))
@@ -129,6 +162,7 @@ class RagChatMemoryServiceTests {
                         "rag-session-2", false, false, "没有来源的问题", null, null, null, true), principal))
                 .expectNextMatches(event -> "metadata".equals(event.type())
                         && "rag-session-2".equals(event.data().get("sessionId"))
+                        && Boolean.FALSE.equals(event.data().get("memoryContextEnabled"))
                         && Boolean.FALSE.equals(event.data().get("memoryEnabled")))
                 .expectNextMatches(event -> "retrieval".equals(event.type()))
                 .expectNextMatches(event -> "delta".equals(event.type())
@@ -163,7 +197,7 @@ class RagChatMemoryServiceTests {
     void ragChatPersistsOnlyFinalCumulativeAssistantMessageWhileStreamingDeltas() {
         given(memorySessionService.resolveOrCreate(eq(AgentMemoryEntryType.RAG_CHAT), any(), eq(true), eq(false), any()))
                 .willReturn(session("rag-session-3", true, false));
-        given(memoryContextService.contextFor(any(), any()))
+        given(memoryContextService.contextFor(any(), any(), eq(false)))
                 .willReturn(new AgentMemoryContext("", ""));
         given(memoryMessageService.nextTurnNo("rag-session-3")).willReturn(5);
         given(retrievalService.searchSources(any(), any(), any(), any(), any(), any(), any(), any()))
@@ -207,7 +241,7 @@ class RagChatMemoryServiceTests {
     void ragChatStillEmitsDoneWhenLongTermExtractionFailsAfterAssistantPersistence() {
         given(memorySessionService.resolveOrCreate(eq(AgentMemoryEntryType.RAG_CHAT), any(), eq(true), eq(true), any()))
                 .willReturn(session("rag-session-extract-fails", true, true));
-        given(memoryContextService.contextFor(any(), any()))
+        given(memoryContextService.contextFor(any(), any(), eq(false)))
                 .willReturn(new AgentMemoryContext("", ""));
         given(memoryMessageService.nextTurnNo("rag-session-extract-fails")).willReturn(8);
         given(retrievalService.searchSources(any(), any(), any(), any(), any(), any(), any(), any()))
@@ -248,7 +282,7 @@ class RagChatMemoryServiceTests {
     void ragChatSourceRefsJsonAllowsNullableSourceFields() {
         given(memorySessionService.resolveOrCreate(eq(AgentMemoryEntryType.RAG_CHAT), any(), eq(true), eq(false), any()))
                 .willReturn(session("rag-session-null-source", true, false));
-        given(memoryContextService.contextFor(any(), any()))
+        given(memoryContextService.contextFor(any(), any(), eq(false)))
                 .willReturn(new AgentMemoryContext("", ""));
         given(memoryMessageService.nextTurnNo("rag-session-null-source")).willReturn(11);
         given(retrievalService.searchSources(any(), any(), any(), any(), any(), any(), any(), any()))
@@ -278,7 +312,7 @@ class RagChatMemoryServiceTests {
     void ragChatSkipsAssistantMemoryAndExtractionWhenModelCompletesWithBlankContent() {
         given(memorySessionService.resolveOrCreate(eq(AgentMemoryEntryType.RAG_CHAT), any(), eq(true), eq(true), any()))
                 .willReturn(session("rag-session-blank", true, true));
-        given(memoryContextService.contextFor(any(), any()))
+        given(memoryContextService.contextFor(any(), any(), eq(false)))
                 .willReturn(new AgentMemoryContext("", ""));
         given(memoryMessageService.nextTurnNo("rag-session-blank")).willReturn(6);
         given(retrievalService.searchSources(any(), any(), any(), any(), any(), any(), any(), any()))
@@ -310,7 +344,7 @@ class RagChatMemoryServiceTests {
     void ragChatPersistsAssistantErrorAndEmitsErrorEventWhenModelStreamFails() {
         given(memorySessionService.resolveOrCreate(eq(AgentMemoryEntryType.RAG_CHAT), any(), eq(true), eq(true), any()))
                 .willReturn(session("rag-session-4", true, true));
-        given(memoryContextService.contextFor(any(), any()))
+        given(memoryContextService.contextFor(any(), any(), eq(false)))
                 .willReturn(new AgentMemoryContext("", ""));
         given(memoryMessageService.nextTurnNo("rag-session-4")).willReturn(7);
         given(retrievalService.searchSources(any(), any(), any(), any(), any(), any(), any(), any()))
@@ -355,7 +389,7 @@ class RagChatMemoryServiceTests {
     void ragChatPersistsAssistantErrorAndCompletesWhenRetrievalFails() {
         given(memorySessionService.resolveOrCreate(eq(AgentMemoryEntryType.RAG_CHAT), any(), eq(true), eq(true), any()))
                 .willReturn(session("rag-session-5", true, true));
-        given(memoryContextService.contextFor(any(), any()))
+        given(memoryContextService.contextFor(any(), any(), eq(false)))
                 .willReturn(new AgentMemoryContext("", ""));
         given(memoryMessageService.nextTurnNo("rag-session-5")).willReturn(9);
         IllegalArgumentException failure = new IllegalArgumentException("retrieval down");

@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import reactor.core.scheduler.Scheduler;
+import top.egon.mario.agent.context.service.AgentContextAssemblyService;
 import top.egon.mario.agent.memory.service.AgentMemoryContextService;
 import top.egon.mario.agent.memory.service.AgentMemoryExtractionService;
 import top.egon.mario.agent.memory.service.AgentMemoryMessageService;
@@ -45,10 +46,11 @@ public class AgentConfiguration {
                                              AgentMemorySessionService memorySessionService,
                                              AgentMemoryMessageService memoryMessageService,
                                              AgentMemoryContextService memoryContextService,
+                                             AgentContextAssemblyService contextAssemblyService,
                                              AgentMemoryExtractionService memoryExtractionService) {
         return new ReactAgentChatService(agentPresetService, agentRuntimeFactory, auditService, runAuditService,
                 blockingScheduler, arxivToolUserContext, memorySessionService, memoryMessageService,
-                memoryContextService, memoryExtractionService);
+                memoryContextService, contextAssemblyService, memoryExtractionService);
     }
 
 }
