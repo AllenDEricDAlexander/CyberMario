@@ -111,6 +111,10 @@ function AgentDebugPage() {
         return historyRequestSeqRef.current
     }
 
+    useEffect(() => () => {
+        nextHistoryRequestToken()
+    }, [])
+
     const loadPresets = useCallback(async () => {
         setLoading(true)
         try {

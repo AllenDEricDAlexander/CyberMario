@@ -58,6 +58,10 @@ export function ChatPage() {
         return historyRequestSeqRef.current
     }
 
+    useEffect(() => () => {
+        nextHistoryRequestToken()
+    }, [])
+
     const handleWorkspaceRequest = useCallback(async (
         requestParams: ChatWorkspaceRequest,
         assistantId: string
@@ -249,6 +253,7 @@ export function ChatPage() {
         }
 
         setError('')
+        nextHistoryRequestToken()
         request({
             message: question,
             conversationKey: sessionId || undefined,
