@@ -183,7 +183,7 @@ export type RagStreamEvent =
     | { type: 'retrieval'; data: { sources: SourceReferenceResponse[]; topK: number } }
     | { type: 'delta'; data: { content: string } }
     | { type: 'done'; data: { finishReason: string } }
-    | { type: 'error'; data: { code: string; message: string; traceId?: string } }
+    | { type: 'error'; data: { code: string; message: string; traceId?: string; sessionId?: string } }
 
 export type RagPage<T> = PageResult<T>
 

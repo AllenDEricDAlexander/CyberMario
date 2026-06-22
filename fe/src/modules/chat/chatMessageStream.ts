@@ -21,15 +21,18 @@ export function appendChatChunk(message: ChatMessage, chunk: ChatResponse): Chat
     }
 }
 
-function mergeStreamText(currentText: string, chunkText: string) {
-    if (!chunkText) {
-        return currentText
+export function mergeStreamText(currentText: string | null | undefined, chunkText: string | null | undefined): string {
+    const current = currentText ?? ''
+    const chunk = chunkText ?? ''
+
+    if (!chunk) {
+        return current
     }
-    if (!currentText || chunkText.startsWith(currentText)) {
-        return chunkText
+    if (!current) {
+        return chunk
     }
-    if (currentText.endsWith(chunkText)) {
-        return currentText
+    if (chunk.length > current.length && chunk.startsWith(current)) {
+        return chunk
     }
-    return `${currentText}${chunkText}`
+    return `${current}${chunk}`
 }

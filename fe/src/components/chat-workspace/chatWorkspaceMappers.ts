@@ -1,4 +1,4 @@
-import {appendChatChunk} from '../../modules/chat/chatMessageStream'
+import {appendChatChunk, mergeStreamText} from '../../modules/chat/chatMessageStream'
 import type {ChatMessage, ChatResponse} from '../../modules/chat/chatTypes'
 import type {AgentMemoryMessageResponse, AgentMemorySessionResponse} from '../../modules/agent/agentTypes'
 import type {ChatWorkspaceBubbleItem, ChatWorkspaceConversation, ChatWorkspaceMessage} from './chatWorkspaceTypes'
@@ -115,7 +115,7 @@ export function mapMemoryMessagesToWorkspaceMessages(
                 workspaceMessages,
                 assistantMessagesByTurnNo,
             )
-            const errorMessage = memoryMessage.content?.trim() || 'Request failed.'
+            const errorMessage = memoryMessage.content?.trim() || memoryMessage.errorMessage?.trim() || 'Request failed.'
             applySameTurnQuestion(assistantMessage, userQuestionsByTurnNo.get(memoryMessage.turnNo))
             assistantMessage.error = errorMessage
             assistantMessage.status = 'error'
@@ -155,6 +155,7 @@ export function applyRagEventToMessage(message: ChatWorkspaceMessage, event: Rag
                 ...message,
                 messageId: event.data.messageId,
                 traceId: event.data.traceId,
+                sessionId: event.data.sessionId ?? message.sessionId,
             }
         case 'retrieval':
             return {
@@ -165,7 +166,7 @@ export function applyRagEventToMessage(message: ChatWorkspaceMessage, event: Rag
         case 'delta':
             return {
                 ...message,
-                content: `${message.content}${event.data.content}`,
+                content: mergeStreamText(message.content, event.data.content),
                 status: 'updating',
             }
         case 'error':
@@ -173,13 +174,15 @@ export function applyRagEventToMessage(message: ChatWorkspaceMessage, event: Rag
                 ...message,
                 content: event.data.message,
                 error: event.data.message,
+                errorCode: event.data.code,
                 status: 'error',
                 traceId: event.data.traceId ?? message.traceId,
+                sessionId: event.data.sessionId ?? message.sessionId,
             }
         case 'done':
             return {
                 ...message,
-                status: 'success',
+                status: message.status === 'error' ? 'error' : 'success',
             }
         default:
             return assertNever(event)
@@ -259,6 +262,15 @@ function applyMemoryMessageMetadata(
         if (memoryMessage.entryType === 'RAG_CHAT' && memoryMessage.role === 'ASSISTANT') {
             message.messageId = memoryMessage.requestId
         }
+    }
+    if (memoryMessage.errorCode) {
+        message.errorCode = memoryMessage.errorCode
+    }
+    if (memoryMessage.errorMessage) {
+        message.errorMessage = memoryMessage.errorMessage
+    }
+    if (memoryMessage.metadataJson) {
+        message.metadataJson = memoryMessage.metadataJson
     }
 }
 

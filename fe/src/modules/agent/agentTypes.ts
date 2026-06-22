@@ -10,6 +10,7 @@ export type AgentMemoryEntryType = 'AGENT_CHAT' | 'AGENT_DEBUG' | 'RAG_CHAT' | '
 export type AgentMemorySessionStatus = 'ACTIVE' | 'RELEASED' | 'ARCHIVED' | 'DELETED'
 export type AgentMemoryMessageRole = 'USER' | 'ASSISTANT' | 'SYSTEM'
 export type AgentMemoryMessageType = 'MESSAGE' | 'THINK' | 'ERROR' | 'RAG_SOURCES'
+export type AgentMemoryMessageStatus = 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
 export type AgentMemoryExtractionStatus = 'RUNNING' | 'SUCCESS' | 'FAILED' | 'SKIPPED'
 export type AgentRunEventType =
     | 'RUN_STARTED'
@@ -125,6 +126,10 @@ export type AgentMemoryMessageResponse = {
     sourceRefsJson?: string
     traceId?: string
     requestId?: string
+    messageStatus?: AgentMemoryMessageStatus
+    errorCode?: string
+    errorMessage?: string
+    metadataJson?: string
     createdAt?: string
 }
 

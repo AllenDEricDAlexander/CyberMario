@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import {appendChatChunk} from './chatMessageStream'
+import {appendChatChunk, mergeStreamText} from './chatMessageStream'
 import type {ChatMessage} from './chatTypes'
 
 const assistantMessage: ChatMessage = {
@@ -9,6 +9,16 @@ const assistantMessage: ChatMessage = {
 }
 
 describe('chatMessageStream', () => {
+    test('merges empty, cumulative, and repeated delta chunks', () => {
+        expect(mergeStreamText('', '你')).toBe('你')
+        expect(mergeStreamText('你', '你好')).toBe('你好')
+        expect(mergeStreamText('哈', '哈')).toBe('哈哈')
+        expect(mergeStreamText('你好', '好')).toBe('你好好')
+        expect(mergeStreamText('hello', '')).toBe('hello')
+        expect(mergeStreamText('hello', null)).toBe('hello')
+        expect(mergeStreamText('hello', undefined)).toBe('hello')
+    })
+
     test('appends delta message chunks', () => {
         const first = appendChatChunk(assistantMessage, {
             threadId: 'thread-1',

@@ -554,6 +554,76 @@ describe('chat workspace mappers', () => {
         })
     })
 
+    test('maps blank persisted errors from stored error metadata', () => {
+        const messages = mapMemoryMessagesToWorkspaceMessages([
+            memoryMessage({
+                id: 1,
+                seqNo: 1,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                messageType: 'ERROR',
+                content: '   ',
+                traceId: 'trace-error',
+                errorCode: 'MODEL_TIMEOUT',
+                errorMessage: 'Model timed out.',
+                metadataJson: '{"retryable":true}',
+            }),
+        ])
+
+        expect(messages).toHaveLength(1)
+        expect(messages[0]).toMatchObject({
+            id: 'memory-1',
+            role: 'assistant',
+            content: 'Model timed out.',
+            error: 'Model timed out.',
+            status: 'error',
+            traceId: 'trace-error',
+            errorCode: 'MODEL_TIMEOUT',
+            errorMessage: 'Model timed out.',
+            metadataJson: '{"retryable":true}',
+        })
+    })
+
+    test('falls back persisted errors without stored content or error message', () => {
+        const messages = mapMemoryMessagesToWorkspaceMessages([
+            memoryMessage({
+                id: 1,
+                seqNo: 1,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                messageType: 'ERROR',
+                content: '',
+            }),
+        ])
+
+        expect(messages).toHaveLength(1)
+        expect(messages[0]).toMatchObject({
+            content: 'Request failed.',
+            error: 'Request failed.',
+            status: 'error',
+        })
+    })
+
+    test('keeps old persisted assistant rows without message status compatible', () => {
+        const messages = mapMemoryMessagesToWorkspaceMessages([
+            memoryMessage({
+                id: 1,
+                seqNo: 1,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                content: 'Old row content',
+            }),
+        ])
+
+        expect(messages).toHaveLength(1)
+        expect(messages[0]).toMatchObject({
+            id: 'memory-1',
+            role: 'assistant',
+            content: 'Old row content',
+            status: 'success',
+        })
+    })
+
     test('returns no workspace messages for empty persisted memory history', () => {
         expect(mapMemoryMessagesToWorkspaceMessages([])).toEqual([])
     })
@@ -592,6 +662,47 @@ describe('chat workspace mappers', () => {
         expect(updated.status).toBe('updating')
     })
 
+    test('replaces cumulative RAG delta text without duplication', () => {
+        const first = applyRagEventToMessage({...workspaceMessage, content: ''}, {
+            type: 'delta',
+            data: {
+                content: '你',
+            },
+        })
+        const second = applyRagEventToMessage(first, {
+            type: 'delta',
+            data: {
+                content: '你好',
+            },
+        })
+        const third = applyRagEventToMessage(second, {
+            type: 'delta',
+            data: {
+                content: '你好，Mario',
+            },
+        })
+
+        expect(third.content).toBe('你好，Mario')
+        expect(third.status).toBe('updating')
+    })
+
+    test('preserves repeated RAG delta chunks', () => {
+        const first = applyRagEventToMessage({...workspaceMessage, content: ''}, {
+            type: 'delta',
+            data: {
+                content: '哈',
+            },
+        })
+        const second = applyRagEventToMessage(first, {
+            type: 'delta',
+            data: {
+                content: '哈',
+            },
+        })
+
+        expect(second.content).toBe('哈哈')
+    })
+
     test('marks RAG messages successful when done event arrives', () => {
         const done: RagStreamEvent = {
             type: 'done',
@@ -601,6 +712,17 @@ describe('chat workspace mappers', () => {
         }
 
         expect(applyRagEventToMessage({...workspaceMessage, status: 'updating'}, done).status).toBe('success')
+    })
+
+    test('keeps RAG messages failed when done event arrives after an error', () => {
+        const done: RagStreamEvent = {
+            type: 'done',
+            data: {
+                finishReason: 'stop',
+            },
+        }
+
+        expect(applyRagEventToMessage({...workspaceMessage, status: 'error'}, done).status).toBe('error')
     })
 
     test('keeps prior content and status when RAG metadata sets message ids', () => {
@@ -621,8 +743,17 @@ describe('chat workspace mappers', () => {
         })
     })
 
-    test('maps RAG error events to failed messages with trace fallback', () => {
-        const failed = applyRagEventToMessage({...workspaceMessage, traceId: 'trace-existing'}, {
+    test('keeps metadata RAG session id when later error event omits session id', () => {
+        const withMetadata = applyRagEventToMessage(workspaceMessage, {
+            type: 'metadata',
+            data: {
+                messageId: 'rag-message-1',
+                traceId: 'trace-1',
+                sessionId: 'session-metadata',
+            },
+        })
+
+        const failed = applyRagEventToMessage(withMetadata, {
             type: 'error',
             data: {
                 code: 'RAG_FAILED',
@@ -633,8 +764,49 @@ describe('chat workspace mappers', () => {
         expect(failed).toMatchObject({
             content: '检索失败',
             error: '检索失败',
+            errorCode: 'RAG_FAILED',
+            status: 'error',
+            messageId: 'rag-message-1',
+            traceId: 'trace-1',
+            sessionId: 'session-metadata',
+        })
+    })
+
+    test('maps RAG error events to failed messages with trace fallback', () => {
+        const failed = applyRagEventToMessage({...workspaceMessage, traceId: 'trace-existing', sessionId: 'session-existing'}, {
+            type: 'error',
+            data: {
+                code: 'RAG_FAILED',
+                message: '检索失败',
+                sessionId: 'session-error',
+            },
+        })
+
+        expect(failed).toMatchObject({
+            content: '检索失败',
+            error: '检索失败',
+            errorCode: 'RAG_FAILED',
             status: 'error',
             traceId: 'trace-existing',
+            sessionId: 'session-error',
+        })
+    })
+
+    test('keeps existing RAG session id when error event omits session id', () => {
+        const failed = applyRagEventToMessage({...workspaceMessage, sessionId: 'session-existing'}, {
+            type: 'error',
+            data: {
+                code: 'RAG_FAILED',
+                message: '检索失败',
+            },
+        })
+
+        expect(failed).toMatchObject({
+            content: '检索失败',
+            error: '检索失败',
+            errorCode: 'RAG_FAILED',
+            status: 'error',
+            sessionId: 'session-existing',
         })
     })
 })
