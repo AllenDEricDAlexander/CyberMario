@@ -21,6 +21,7 @@ import {
     ChatWorkspace,
     type ChatWorkspaceMessage,
     type ChatWorkspaceRequest,
+    mapMemoryMessagesToWorkspaceMessages,
     mapSessionToConversation,
     markMessageSucceeded,
     useXChatWorkspace,
@@ -33,6 +34,7 @@ import {
     createAgentMemorySession,
     createAgentPreset,
     deleteAgentPreset,
+    getAgentMemoryMessages,
     getAgentMemorySessions,
     getAgentPresets,
     streamAgentDebugChat,
@@ -93,6 +95,7 @@ function AgentDebugPage() {
     const [error, setError] = useState('')
     const abortControllerRef = useRef<AbortController | null>(null)
     const updateAssistantMessageRef = useRef<UpdateAssistantMessage | null>(null)
+    const historyRequestSeqRef = useRef(0)
 
     const selectedPresetId = Form.useWatch('presetId', form)
     const selectedPreset = useMemo(() => presets.find((item) => item.id === selectedPresetId), [presets, selectedPresetId])
@@ -102,6 +105,11 @@ function AgentDebugPage() {
         [sessions]
     )
     const sessionLabel = useMemo(() => sessionId || 'New Debug Session', [sessionId])
+
+    function nextHistoryRequestToken() {
+        historyRequestSeqRef.current += 1
+        return historyRequestSeqRef.current
+    }
 
     const loadPresets = useCallback(async () => {
         setLoading(true)
@@ -281,6 +289,7 @@ function AgentDebugPage() {
 
         setInput('')
         setError('')
+        nextHistoryRequestToken()
         request({
             message: nextMessage,
             conversationKey: sessionId || undefined,
@@ -290,6 +299,7 @@ function AgentDebugPage() {
 
     async function newConversation() {
         abort()
+        nextHistoryRequestToken()
         try {
             const session = await createAgentMemorySession({
                 entryType: 'AGENT_DEBUG',
@@ -313,6 +323,7 @@ function AgentDebugPage() {
         }
 
         abort()
+        nextHistoryRequestToken()
         try {
             await archiveAgentMemorySession(conversationKey)
             appMessage.success('会话已归档')
@@ -329,8 +340,13 @@ function AgentDebugPage() {
     }
 
     function handleConversationChange(conversationKey: string) {
+        void loadConversationHistory(conversationKey)
+    }
+
+    async function loadConversationHistory(conversationKey: string) {
         abort()
         setSessionId(conversationKey)
+        const requestToken = nextHistoryRequestToken()
         const session = sessions.find((item) => item.sessionId === conversationKey)
         if (session) {
             setMemoryEnabled(session.memoryEnabled)
@@ -339,6 +355,20 @@ function AgentDebugPage() {
         setMessages(initialMessages)
         setInput('')
         setError('')
+
+        try {
+            const historyMessages = mapMemoryMessagesToWorkspaceMessages(
+                await getAgentMemoryMessages(conversationKey)
+            )
+            if (historyRequestSeqRef.current === requestToken) {
+                setMessages(historyMessages.length > 0 ? historyMessages : initialMessages)
+            }
+        } catch (requestError) {
+            if (historyRequestSeqRef.current === requestToken) {
+                setMessages(initialMessages)
+                reportGlobalError(requestError)
+            }
+        }
     }
 
     async function handleCopyMessage(message: ChatWorkspaceMessage) {
@@ -370,6 +400,7 @@ function AgentDebugPage() {
         }
 
         setError('')
+        nextHistoryRequestToken()
         request({
             message: question,
             conversationKey: sessionId || undefined,
