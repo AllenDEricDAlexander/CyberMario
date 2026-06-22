@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useRef, useState} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useXChat} from '@ant-design/x-sdk'
 import type {
     ChatWorkspaceMessage,
@@ -117,15 +117,32 @@ export function getRequestErrorMessage(error: unknown): string {
     return 'Request failed.'
 }
 
+export function canUpdateRequestLifecycleState(
+    isMounted: boolean,
+    requestInFlightAssistantId: string | null,
+    assistantId: string,
+): boolean {
+    return isMounted && requestInFlightAssistantId === assistantId
+}
+
 export function useXChatWorkspace(options: UseXChatWorkspaceOptions): UseXChatWorkspaceResult {
     const {conversationKey, defaultMessages, onRequest, onAbort} = options
     const [isRequesting, setIsRequesting] = useState(false)
     const requestInFlightRef = useRef<string | null>(null)
+    const isMountedRef = useRef(true)
     // Keep the SDK store key stable because backend session ids may arrive during streaming.
     // Pages reset messages explicitly with setMessages when switching conversations.
     const [sdkConversationKey] = useState(() => conversationKey || createMessageId('conversation'))
     const defaultMessageInfos = useMemo(() => defaultMessages.map(toMessageInfo), [defaultMessages])
     const parser = useCallback((message: ChatWorkspaceMessage) => message, [])
+
+    useEffect(() => {
+        isMountedRef.current = true
+
+        return () => {
+            isMountedRef.current = false
+        }
+    }, [])
 
     const chat = useXChat<ChatWorkspaceMessage, ChatWorkspaceMessage, ChatWorkspaceRequest>({
         conversationKey: sdkConversationKey,
@@ -196,7 +213,7 @@ export function useXChatWorkspace(options: UseXChatWorkspaceOptions): UseXChatWo
         void Promise.resolve()
             .then(() => onRequest({...requestParams, message}, assistantId))
             .catch(error => {
-                if (requestInFlightRef.current !== assistantId) {
+                if (!canUpdateRequestLifecycleState(isMountedRef.current, requestInFlightRef.current, assistantId)) {
                     return
                 }
 
@@ -217,7 +234,7 @@ export function useXChatWorkspace(options: UseXChatWorkspaceOptions): UseXChatWo
                 })
             })
             .finally(() => {
-                if (requestInFlightRef.current !== assistantId) {
+                if (!canUpdateRequestLifecycleState(isMountedRef.current, requestInFlightRef.current, assistantId)) {
                     return
                 }
 
@@ -228,7 +245,15 @@ export function useXChatWorkspace(options: UseXChatWorkspaceOptions): UseXChatWo
 
     const abort = useCallback(() => {
         const activeAssistantId = requestInFlightRef.current
-        if (activeAssistantId) {
+        if (!isMountedRef.current) {
+            return
+        }
+
+        if (activeAssistantId && canUpdateRequestLifecycleState(
+            isMountedRef.current,
+            requestInFlightRef.current,
+            activeAssistantId,
+        )) {
             setSdkMessage(activeAssistantId, markMessageInfoAborted)
         }
 

@@ -1,6 +1,7 @@
 import {describe, expect, test} from 'vitest'
 import {
     createAssistantPlaceholder,
+    canUpdateRequestLifecycleState,
     getRequestErrorMessage,
     markMessageInfoAborted,
     markMessageAborted,
@@ -148,5 +149,12 @@ describe('useXChatWorkspace helpers', () => {
         expect(getRequestErrorMessage('Plain failure')).toBe('Plain failure')
         expect(getRequestErrorMessage({message: 'Object failure'})).toBe('Object failure')
         expect(getRequestErrorMessage(undefined)).toBe('Request failed.')
+    })
+
+    test('allows request lifecycle state updates only while mounted for the active assistant', () => {
+        expect(canUpdateRequestLifecycleState(true, 'assistant-1', 'assistant-1')).toBe(true)
+        expect(canUpdateRequestLifecycleState(false, 'assistant-1', 'assistant-1')).toBe(false)
+        expect(canUpdateRequestLifecycleState(true, null, 'assistant-1')).toBe(false)
+        expect(canUpdateRequestLifecycleState(true, 'assistant-2', 'assistant-1')).toBe(false)
     })
 })

@@ -256,6 +256,9 @@ function applyMemoryMessageMetadata(
     }
     if (memoryMessage.requestId) {
         message.requestId = memoryMessage.requestId
+        if (memoryMessage.entryType === 'RAG_CHAT' && memoryMessage.role === 'ASSISTANT') {
+            message.messageId = memoryMessage.requestId
+        }
     }
 }
 

@@ -338,6 +338,30 @@ describe('chat workspace mappers', () => {
         })
     })
 
+    test('restores persisted RAG assistant request ids as feedback message ids', () => {
+        const messages = mapMemoryMessagesToWorkspaceMessages([
+            memoryMessage({
+                id: 1,
+                seqNo: 1,
+                turnNo: 1,
+                entryType: 'RAG_CHAT',
+                role: 'ASSISTANT',
+                content: 'Answer with feedback metadata',
+                requestId: 'message-1',
+            }),
+        ])
+
+        expect(messages).toHaveLength(1)
+        expect(messages[0]).toMatchObject({
+            id: 'memory-1',
+            role: 'assistant',
+            content: 'Answer with feedback metadata',
+            requestId: 'message-1',
+            messageId: 'message-1',
+            status: 'success',
+        })
+    })
+
     test('restores persisted RAG sources from assistant message rows', () => {
         const messages = mapMemoryMessagesToWorkspaceMessages([
             memoryMessage({
