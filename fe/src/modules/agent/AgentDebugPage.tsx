@@ -96,6 +96,7 @@ function AgentDebugPage() {
     const abortControllerRef = useRef<AbortController | null>(null)
     const updateAssistantMessageRef = useRef<UpdateAssistantMessage | null>(null)
     const historyRequestSeqRef = useRef(0)
+    const isMountedRef = useRef(true)
 
     const selectedPresetId = Form.useWatch('presetId', form)
     const selectedPreset = useMemo(() => presets.find((item) => item.id === selectedPresetId), [presets, selectedPresetId])
@@ -111,8 +112,12 @@ function AgentDebugPage() {
         return historyRequestSeqRef.current
     }
 
-    useEffect(() => () => {
-        nextHistoryRequestToken()
+    useEffect(() => {
+        isMountedRef.current = true
+        return () => {
+            isMountedRef.current = false
+            nextHistoryRequestToken()
+        }
     }, [])
 
     const loadPresets = useCallback(async () => {
@@ -128,14 +133,24 @@ function AgentDebugPage() {
     }, [])
 
     const loadSessions = useCallback(async () => {
-        setSessionLoading(true)
+        if (isMountedRef.current) {
+            setSessionLoading(true)
+        }
         try {
             const page = await getAgentMemorySessions({page: 1, size: 100, entryType: 'AGENT_DEBUG'})
+            if (!isMountedRef.current) {
+                return
+            }
             setSessions(page.records)
         } catch (requestError) {
+            if (!isMountedRef.current) {
+                return
+            }
             reportGlobalError(requestError)
         } finally {
-            setSessionLoading(false)
+            if (isMountedRef.current) {
+                setSessionLoading(false)
+            }
         }
     }, [])
 
@@ -310,17 +325,23 @@ function AgentDebugPage() {
                 memoryEnabled,
                 longTermExtractionEnabled,
             })
+            if (!isMountedRef.current) {
+                return
+            }
             setSessions((current) => [session, ...current.filter((item) => item.sessionId !== session.sessionId)])
             if (historyRequestSeqRef.current === requestToken) {
                 setSessionId(session.sessionId)
             }
         } catch (requestError) {
+            if (!isMountedRef.current) {
+                return
+            }
             reportGlobalError(requestError)
             if (historyRequestSeqRef.current === requestToken) {
                 setSessionId('')
             }
         }
-        if (historyRequestSeqRef.current !== requestToken) {
+        if (!isMountedRef.current || historyRequestSeqRef.current !== requestToken) {
             return
         }
         setMessages(initialMessages)
@@ -338,15 +359,21 @@ function AgentDebugPage() {
         const requestToken = nextHistoryRequestToken()
         try {
             await archiveAgentMemorySession(conversationKey)
+            if (!isMountedRef.current) {
+                return
+            }
             appMessage.success('会话已归档')
             await loadSessions()
-            if (isActiveConversation && historyRequestSeqRef.current === requestToken) {
+            if (isMountedRef.current && isActiveConversation && historyRequestSeqRef.current === requestToken) {
                 setSessionId('')
                 setMessages(initialMessages)
                 setInput('')
                 setError('')
             }
         } catch (requestError) {
+            if (!isMountedRef.current) {
+                return
+            }
             reportGlobalError(requestError)
         }
     }

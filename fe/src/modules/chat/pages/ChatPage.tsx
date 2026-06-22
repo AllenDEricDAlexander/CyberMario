@@ -46,6 +46,7 @@ export function ChatPage() {
     const abortControllerRef = useRef<AbortController | null>(null)
     const updateAssistantMessageRef = useRef<UpdateAssistantMessage | null>(null)
     const historyRequestSeqRef = useRef(0)
+    const isMountedRef = useRef(true)
 
     const conversations = useMemo(
         () => sessions.map(mapSessionToConversation),
@@ -58,8 +59,12 @@ export function ChatPage() {
         return historyRequestSeqRef.current
     }
 
-    useEffect(() => () => {
-        nextHistoryRequestToken()
+    useEffect(() => {
+        isMountedRef.current = true
+        return () => {
+            isMountedRef.current = false
+            nextHistoryRequestToken()
+        }
     }, [])
 
     const handleWorkspaceRequest = useCallback(async (
@@ -124,14 +129,24 @@ export function ChatPage() {
     })
 
     const loadSessions = useCallback(async () => {
-        setSessionLoading(true)
+        if (isMountedRef.current) {
+            setSessionLoading(true)
+        }
         try {
             const page = await getAgentMemorySessions({page: 1, size: 100, entryType: 'AGENT_CHAT'})
+            if (!isMountedRef.current) {
+                return
+            }
             setSessions(page.records)
         } catch (requestError) {
+            if (!isMountedRef.current) {
+                return
+            }
             reportGlobalError(requestError)
         } finally {
-            setSessionLoading(false)
+            if (isMountedRef.current) {
+                setSessionLoading(false)
+            }
         }
     }, [])
 
@@ -164,17 +179,23 @@ export function ChatPage() {
         const requestToken = nextHistoryRequestToken()
         try {
             const session = await createAgentMemorySession({entryType: 'AGENT_CHAT', memoryEnabled})
+            if (!isMountedRef.current) {
+                return
+            }
             setSessions((current) => [session, ...current.filter((item) => item.sessionId !== session.sessionId)])
             if (historyRequestSeqRef.current === requestToken) {
                 setSessionId(session.sessionId)
             }
         } catch (requestError) {
+            if (!isMountedRef.current) {
+                return
+            }
             reportGlobalError(requestError)
             if (historyRequestSeqRef.current === requestToken) {
                 setSessionId('')
             }
         }
-        if (historyRequestSeqRef.current !== requestToken) {
+        if (!isMountedRef.current || historyRequestSeqRef.current !== requestToken) {
             return
         }
         setMessages(initialMessages)
@@ -194,14 +215,20 @@ export function ChatPage() {
         const requestToken = nextHistoryRequestToken()
         try {
             await archiveAgentMemorySession(conversationKey)
+            if (!isMountedRef.current) {
+                return
+            }
             appMessage.success('会话已归档')
             await loadSessions()
-            if (isActiveConversation && historyRequestSeqRef.current === requestToken) {
+            if (isMountedRef.current && isActiveConversation && historyRequestSeqRef.current === requestToken) {
                 setSessionId('')
                 setMessages(initialMessages)
                 setError('')
             }
         } catch (requestError) {
+            if (!isMountedRef.current) {
+                return
+            }
             reportGlobalError(requestError)
         }
     }
