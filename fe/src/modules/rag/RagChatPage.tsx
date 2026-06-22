@@ -101,27 +101,15 @@ function RagChatPage() {
         }
     }, [])
 
-    const loadSessions = useCallback(async (requestToken?: number) => {
-        const isCurrentRequest = () => requestToken === undefined || historyRequestSeqRef.current === requestToken
-        if (!isCurrentRequest()) {
-            return
-        }
-        if (requestToken === undefined) {
-            setSessionLoading(true)
-        }
+    const loadSessions = useCallback(async () => {
+        setSessionLoading(true)
         try {
             const page = await getAgentMemorySessions({page: 1, size: 100, entryType: 'RAG_CHAT'})
-            if (isCurrentRequest()) {
-                setSessions(page.records)
-            }
+            setSessions(page.records)
         } catch (requestError) {
-            if (isCurrentRequest()) {
-                reportGlobalError(requestError)
-            }
+            reportGlobalError(requestError)
         } finally {
-            if (requestToken === undefined && isCurrentRequest()) {
-                setSessionLoading(false)
-            }
+            setSessionLoading(false)
         }
     }, [])
 
@@ -238,17 +226,15 @@ function RagChatPage() {
                 memoryEnabled,
                 longTermExtractionEnabled,
             })
-            if (historyRequestSeqRef.current !== requestToken) {
-                return
-            }
-            setSessionId(session.sessionId)
             setSessions((current) => [session, ...current.filter((item) => item.sessionId !== session.sessionId)])
-        } catch (requestError) {
-            if (historyRequestSeqRef.current !== requestToken) {
-                return
+            if (historyRequestSeqRef.current === requestToken) {
+                setSessionId(session.sessionId)
             }
+        } catch (requestError) {
             reportGlobalError(requestError)
-            setSessionId('')
+            if (historyRequestSeqRef.current === requestToken) {
+                setSessionId('')
+            }
         }
         if (historyRequestSeqRef.current !== requestToken) {
             return
@@ -269,22 +255,17 @@ function RagChatPage() {
         const requestToken = nextHistoryRequestToken()
         try {
             await archiveAgentMemorySession(conversationKey)
-            if (historyRequestSeqRef.current !== requestToken) {
-                return
-            }
             appMessage.success('会话已归档')
-            if (isActiveConversation) {
+            await loadSessions()
+            if (isActiveConversation && historyRequestSeqRef.current === requestToken) {
                 setSessionId('')
                 setMessages(initialMessages)
                 setInput('')
                 setError('')
                 closeSourceDrawer()
             }
-            await loadSessions(requestToken)
         } catch (requestError) {
-            if (historyRequestSeqRef.current === requestToken) {
-                reportGlobalError(requestError)
-            }
+            reportGlobalError(requestError)
         }
     }
 
