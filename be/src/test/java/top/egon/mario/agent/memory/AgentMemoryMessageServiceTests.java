@@ -2,10 +2,12 @@ package top.egon.mario.agent.memory;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import top.egon.mario.agent.memory.dto.response.AgentMemoryMessageResponse;
 import top.egon.mario.agent.memory.po.AgentMemoryMessagePo;
 import top.egon.mario.agent.memory.po.AgentMemorySessionPo;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryEntryType;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageRole;
+import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageStatus;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageType;
 import top.egon.mario.agent.memory.repository.AgentMemoryMessageRepository;
 import top.egon.mario.agent.memory.repository.AgentMemorySessionRepository;
@@ -52,8 +54,53 @@ class AgentMemoryMessageServiceTests {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<AgentMemoryMessagePo>> captor = ArgumentCaptor.forClass(List.class);
         verify(messageRepository).saveAll(captor.capture());
-        assertThat(captor.getValue()).extracting(AgentMemoryMessagePo::getSeqNo).containsExactly(5, 6);
-        assertThat(captor.getValue()).extracting(AgentMemoryMessagePo::getContent).containsExactly("hello", "answer");
+        List<AgentMemoryMessagePo> messages = captor.getValue();
+        assertThat(messages).extracting(AgentMemoryMessagePo::getSeqNo).containsExactly(5, 6);
+        assertThat(messages).extracting(AgentMemoryMessagePo::getContent).containsExactly("hello", "answer");
+        assertThat(messages).extracting(AgentMemoryMessagePo::getMessageStatus)
+                .containsExactly(AgentMemoryMessageStatus.SUCCEEDED, AgentMemoryMessageStatus.SUCCEEDED);
+        assertThat(messages).extracting(AgentMemoryMessagePo::getErrorCode).containsOnlyNulls();
+        assertThat(messages).extracting(AgentMemoryMessagePo::getErrorMessage).containsOnlyNulls();
+        assertThat(messages).extracting(AgentMemoryMessagePo::getMetadataJson).containsOnlyNulls();
+    }
+
+    @Test
+    void appendsFailedRecordsWithErrorMetadata() {
+        given(messageRepository.findBySessionIdAndDeletedFalseOrderBySeqNoAsc("session-1"))
+                .willReturn(List.of());
+        given(messageRepository.saveAll(anyList())).willAnswer(invocation -> invocation.getArgument(0));
+
+        service.appendAll(List.of(AgentMemoryMessageRecord.failed("session-1", 8L, AgentMemoryEntryType.AGENT_CHAT, 3,
+                AgentMemoryMessageRole.ASSISTANT, AgentMemoryMessageType.MESSAGE, "模型调用失败：boom",
+                "trace-1", "request-1", IllegalStateException.class.getName(), "boom")));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<AgentMemoryMessagePo>> captor = ArgumentCaptor.forClass(List.class);
+        verify(messageRepository).saveAll(captor.capture());
+        AgentMemoryMessagePo message = captor.getValue().getFirst();
+        assertThat(message.getMessageStatus()).isEqualTo(AgentMemoryMessageStatus.FAILED);
+        assertThat(message.getErrorCode()).isEqualTo(IllegalStateException.class.getName());
+        assertThat(message.getErrorMessage()).isEqualTo("boom");
+        assertThat(message.getMetadataJson()).isNull();
+    }
+
+    @Test
+    void responseIncludesFinalSnapshotMetadata() {
+        AgentMemoryMessagePo message = message(1, 1, AgentMemoryMessageRole.ASSISTANT, "answer");
+        message.setId(12L);
+        message.setTraceId("trace-1");
+        message.setRequestId("request-1");
+        message.setMessageStatus(AgentMemoryMessageStatus.FAILED);
+        message.setErrorCode("AGENT_ERROR");
+        message.setErrorMessage("boom");
+        message.setMetadataJson("{\"finalSnapshot\":true}");
+
+        AgentMemoryMessageResponse response = AgentMemoryMessageResponse.from(message);
+
+        assertThat(response.messageStatus()).isEqualTo(AgentMemoryMessageStatus.FAILED);
+        assertThat(response.errorCode()).isEqualTo("AGENT_ERROR");
+        assertThat(response.errorMessage()).isEqualTo("boom");
+        assertThat(response.metadataJson()).isEqualTo("{\"finalSnapshot\":true}");
     }
 
     @Test
