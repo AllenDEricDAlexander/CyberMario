@@ -1,11 +1,12 @@
 import {describe, expect, test} from 'vitest'
 import type {ReactNode} from 'react'
 import type {ChatResponse} from '../../modules/chat/chatTypes'
-import type {AgentMemorySessionResponse} from '../../modules/agent/agentTypes'
+import type {AgentMemoryMessageResponse, AgentMemorySessionResponse} from '../../modules/agent/agentTypes'
 import type {RagStreamEvent, SourceReferenceResponse} from '../../modules/rag/ragTypes'
 import {
     applyAgentChunkToMessage,
     applyRagEventToMessage,
+    mapMemoryMessagesToWorkspaceMessages,
     mapSessionToConversation,
     mapWorkspaceMessageToBubbleItem,
 } from './chatWorkspaceMappers'
@@ -86,6 +87,20 @@ const source: SourceReferenceResponse = {
     metadata: {heading: 'Intro'},
 }
 
+function memoryMessage(overrides: Partial<AgentMemoryMessageResponse>): AgentMemoryMessageResponse {
+    return {
+        id: 1,
+        sessionId: 'session-1',
+        entryType: 'AGENT_CHAT',
+        seqNo: 1,
+        turnNo: 1,
+        role: 'USER',
+        messageType: 'MESSAGE',
+        content: 'Hello',
+        ...overrides,
+    }
+}
+
 describe('chat workspace mappers', () => {
     test('exposes the shared chat workspace UI type contract', () => {
         expect(chatWorkspaceTypeContract).toEqual({
@@ -133,6 +148,339 @@ describe('chat workspace mappers', () => {
                 workspaceMessage,
             },
         })
+    })
+
+    test('maps persisted memory messages to workspace messages in seq order', () => {
+        const messages = mapMemoryMessagesToWorkspaceMessages([
+            memoryMessage({
+                id: 2,
+                seqNo: 2,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                content: 'Hi there',
+                traceId: 'trace-1',
+                requestId: 'request-1',
+            }),
+            memoryMessage({
+                id: 1,
+                seqNo: 1,
+                turnNo: 1,
+                role: 'USER',
+                content: 'Hello',
+            }),
+        ])
+
+        expect(messages).toMatchObject([
+            {
+                id: 'memory-1',
+                role: 'user',
+                content: 'Hello',
+                status: 'success',
+            },
+            {
+                id: 'memory-2',
+                role: 'assistant',
+                content: 'Hi there',
+                status: 'success',
+                traceId: 'trace-1',
+                requestId: 'request-1',
+            },
+        ])
+    })
+
+    test('skips blank persisted system messages', () => {
+        const messages = mapMemoryMessagesToWorkspaceMessages([
+            memoryMessage({
+                id: 1,
+                role: 'SYSTEM',
+                content: '   ',
+            }),
+        ])
+
+        expect(messages).toEqual([])
+    })
+
+    test('merges persisted thinking and RAG sources into the assistant turn', () => {
+        const messages = mapMemoryMessagesToWorkspaceMessages([
+            memoryMessage({
+                id: 1,
+                seqNo: 1,
+                turnNo: 1,
+                role: 'USER',
+                content: 'Find the source',
+            }),
+            memoryMessage({
+                id: 2,
+                seqNo: 2,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                messageType: 'THINK',
+                content: 'Searching notes',
+            }),
+            memoryMessage({
+                id: 3,
+                seqNo: 3,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                content: 'Here is the answer',
+            }),
+            memoryMessage({
+                id: 4,
+                seqNo: 4,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                messageType: 'RAG_SOURCES',
+                sourceRefsJson: JSON.stringify({sources: [source]}),
+            }),
+        ])
+
+        expect(messages).toHaveLength(2)
+        expect(messages[1]).toMatchObject({
+            id: 'memory-3',
+            role: 'assistant',
+            content: 'Here is the answer',
+            thinkContent: 'Searching notes',
+            sources: [source],
+            status: 'success',
+        })
+    })
+
+    test('preserves metadata from persisted assistant turn side rows', () => {
+        const messages = mapMemoryMessagesToWorkspaceMessages([
+            memoryMessage({
+                id: 1,
+                seqNo: 1,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                content: 'Answer with later metadata',
+            }),
+            memoryMessage({
+                id: 2,
+                seqNo: 2,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                messageType: 'THINK',
+                content: 'Thinking with trace',
+                traceId: 'trace-merged',
+                requestId: 'request-merged',
+            }),
+            memoryMessage({
+                id: 3,
+                seqNo: 3,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                messageType: 'RAG_SOURCES',
+                sourceRefsJson: JSON.stringify({sources: [source]}),
+            }),
+        ])
+
+        expect(messages).toHaveLength(1)
+        expect(messages[0]).toMatchObject({
+            id: 'memory-1',
+            role: 'assistant',
+            content: 'Answer with later metadata',
+            thinkContent: 'Thinking with trace',
+            sources: [source],
+            traceId: 'trace-merged',
+            requestId: 'request-merged',
+            status: 'success',
+        })
+    })
+
+    test('restores persisted RAG sources from assistant message rows', () => {
+        const messages = mapMemoryMessagesToWorkspaceMessages([
+            memoryMessage({
+                id: 1,
+                seqNo: 1,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                content: 'Answer with inline sources',
+                sourceRefsJson: JSON.stringify({sources: [source]}),
+            }),
+        ])
+
+        expect(messages).toHaveLength(1)
+        expect(messages[0]).toMatchObject({
+            id: 'memory-1',
+            role: 'assistant',
+            content: 'Answer with inline sources',
+            sources: [source],
+            status: 'success',
+        })
+    })
+
+    test('normalizes compact persisted RAG source refs from assistant message rows', () => {
+        const messages = mapMemoryMessagesToWorkspaceMessages([
+            memoryMessage({
+                id: 1,
+                seqNo: 1,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                content: 'Answer with compact source refs',
+                sourceRefsJson: JSON.stringify([
+                    {
+                        sourceId: 'source-compact',
+                        knowledgeBaseId: 9,
+                        documentId: 10,
+                        chunkId: 11,
+                    },
+                ]),
+            }),
+        ])
+
+        expect(messages).toHaveLength(1)
+        expect(messages[0]).toMatchObject({
+            id: 'memory-1',
+            role: 'assistant',
+            content: 'Answer with compact source refs',
+            sources: [
+                {
+                    sourceId: 'source-compact',
+                    knowledgeBaseId: 9,
+                    knowledgeBaseName: 'Knowledge Base 9',
+                    documentId: 10,
+                    documentName: 'Document 10',
+                    chunkId: 11,
+                    chunkIndex: 0,
+                    score: 0,
+                    content: '',
+                    metadata: {},
+                },
+            ],
+            status: 'success',
+        })
+    })
+
+    test('ignores invalid persisted RAG source JSON without dropping the assistant message', () => {
+        const messages = mapMemoryMessagesToWorkspaceMessages([
+            memoryMessage({
+                id: 1,
+                seqNo: 1,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                content: 'Answer without parsed sources',
+            }),
+            memoryMessage({
+                id: 2,
+                seqNo: 2,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                messageType: 'RAG_SOURCES',
+                sourceRefsJson: '{invalid',
+            }),
+        ])
+
+        expect(messages).toHaveLength(1)
+        expect(messages[0]).toMatchObject({
+            id: 'memory-1',
+            role: 'assistant',
+            content: 'Answer without parsed sources',
+            status: 'success',
+        })
+    })
+
+    test('filters invalid persisted RAG source items without dropping the assistant message', () => {
+        const messages = mapMemoryMessagesToWorkspaceMessages([
+            memoryMessage({
+                id: 1,
+                seqNo: 1,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                content: 'Answer without valid source items',
+            }),
+            memoryMessage({
+                id: 2,
+                seqNo: 2,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                messageType: 'RAG_SOURCES',
+                sourceRefsJson: JSON.stringify({
+                    sources: [
+                        {
+                            sourceId: 'source-1',
+                            score: '0.88',
+                        },
+                    ],
+                }),
+            }),
+        ])
+
+        expect(messages).toHaveLength(1)
+        expect(messages[0]).toMatchObject({
+            id: 'memory-1',
+            role: 'assistant',
+            content: 'Answer without valid source items',
+            status: 'success',
+        })
+        expect(messages[0].sources).toBeUndefined()
+    })
+
+    test('preserves RAG metadata when persisted sources are filtered out', () => {
+        const messages = mapMemoryMessagesToWorkspaceMessages([
+            memoryMessage({
+                id: 1,
+                seqNo: 1,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                content: 'Answer with metadata only RAG row',
+            }),
+            memoryMessage({
+                id: 2,
+                seqNo: 2,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                messageType: 'RAG_SOURCES',
+                sourceRefsJson: JSON.stringify({
+                    sources: [
+                        {
+                            sourceId: 'source-invalid',
+                            score: '0.42',
+                        },
+                    ],
+                }),
+                traceId: 'trace-rag-meta',
+                requestId: 'request-rag-meta',
+            }),
+        ])
+
+        expect(messages).toHaveLength(1)
+        expect(messages[0]).toMatchObject({
+            id: 'memory-1',
+            role: 'assistant',
+            content: 'Answer with metadata only RAG row',
+            traceId: 'trace-rag-meta',
+            requestId: 'request-rag-meta',
+            status: 'success',
+        })
+        expect(messages[0].sources).toBeUndefined()
+    })
+
+    test('maps persisted errors onto the assistant turn', () => {
+        const messages = mapMemoryMessagesToWorkspaceMessages([
+            memoryMessage({
+                id: 1,
+                seqNo: 1,
+                turnNo: 1,
+                role: 'ASSISTANT',
+                messageType: 'ERROR',
+                content: '模型调用失败',
+                traceId: 'trace-error',
+            }),
+        ])
+
+        expect(messages).toHaveLength(1)
+        expect(messages[0]).toMatchObject({
+            id: 'memory-1',
+            role: 'assistant',
+            content: '模型调用失败',
+            error: '模型调用失败',
+            status: 'error',
+            traceId: 'trace-error',
+        })
+    })
+
+    test('returns no workspace messages for empty persisted memory history', () => {
+        expect(mapMemoryMessagesToWorkspaceMessages([])).toEqual([])
     })
 
     test('keeps agent thinking chunks separate from message content', () => {
