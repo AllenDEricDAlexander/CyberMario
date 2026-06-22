@@ -6,6 +6,7 @@ import {
     ChatWorkspace,
     type ChatWorkspaceMessage,
     type ChatWorkspaceRequest,
+    mapMemoryMessagesToWorkspaceMessages,
     mapSessionToConversation,
     markMessageSucceeded,
     useXChatWorkspace,
@@ -14,6 +15,7 @@ import {resolveErrorMessage} from '../../../services/request'
 import {
     archiveAgentMemorySession,
     createAgentMemorySession,
+    getAgentMemoryMessages,
     getAgentMemorySessions,
 } from '../../agent/agentService'
 import type {AgentMemorySessionResponse} from '../../agent/agentTypes'
@@ -43,12 +45,18 @@ export function ChatPage() {
     const [error, setError] = useState('')
     const abortControllerRef = useRef<AbortController | null>(null)
     const updateAssistantMessageRef = useRef<UpdateAssistantMessage | null>(null)
+    const historyRequestSeqRef = useRef(0)
 
     const conversations = useMemo(
         () => sessions.map(mapSessionToConversation),
         [sessions]
     )
     const threadLabel = useMemo(() => sessionId || 'New Session', [sessionId])
+
+    function nextHistoryRequestToken() {
+        historyRequestSeqRef.current += 1
+        return historyRequestSeqRef.current
+    }
 
     const handleWorkspaceRequest = useCallback(async (
         requestParams: ChatWorkspaceRequest,
@@ -139,6 +147,7 @@ export function ChatPage() {
 
         setInput('')
         setError('')
+        nextHistoryRequestToken()
         request({
             message: nextMessage,
             conversationKey: sessionId || undefined,
@@ -148,6 +157,7 @@ export function ChatPage() {
 
     async function handleNewConversation() {
         abort()
+        nextHistoryRequestToken()
         try {
             const session = await createAgentMemorySession({entryType: 'AGENT_CHAT', memoryEnabled})
             setSessionId(session.sessionId)
@@ -166,6 +176,7 @@ export function ChatPage() {
             return
         }
 
+        nextHistoryRequestToken()
         try {
             await archiveAgentMemorySession(conversationKey)
             appMessage.success('会话已归档')
@@ -179,8 +190,13 @@ export function ChatPage() {
     }
 
     function handleConversationChange(conversationKey: string) {
+        void loadConversationHistory(conversationKey)
+    }
+
+    async function loadConversationHistory(conversationKey: string) {
         abort()
         setSessionId(conversationKey)
+        const requestToken = nextHistoryRequestToken()
         const session = sessions.find((item) => item.sessionId === conversationKey)
         if (session) {
             setMemoryEnabled(session.memoryEnabled)
@@ -188,6 +204,20 @@ export function ChatPage() {
         setMessages(initialMessages)
         setInput('')
         setError('')
+
+        try {
+            const historyMessages = mapMemoryMessagesToWorkspaceMessages(
+                await getAgentMemoryMessages(conversationKey)
+            )
+            if (historyRequestSeqRef.current === requestToken) {
+                setMessages(historyMessages.length > 0 ? historyMessages : initialMessages)
+            }
+        } catch (requestError) {
+            if (historyRequestSeqRef.current === requestToken) {
+                setMessages(initialMessages)
+                reportGlobalError(requestError)
+            }
+        }
     }
 
     async function handleCopyMessage(message: ChatWorkspaceMessage) {
