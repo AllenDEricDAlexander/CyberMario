@@ -60,4 +60,19 @@ public class UserPo extends BaseAuditablePo {
     @Column(name = "remark", length = 255)
     private String remark;
 
+    @Column(name = "soul_md", columnDefinition = "TEXT")
+    private String soulMd;
+
+    @Column(name = "soul_md_enabled", nullable = false)
+    private boolean soulMdEnabled = true;
+
+    @Column(name = "soul_md_chars", nullable = false)
+    private int soulMdChars;
+
+    @Column(name = "soul_md_version_no", nullable = false)
+    private int soulMdVersionNo = 1;
+
+    @Column(name = "soul_md_updated_at")
+    private Instant soulMdUpdatedAt;
+
 }
