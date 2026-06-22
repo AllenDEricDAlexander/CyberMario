@@ -13,6 +13,10 @@ public class AgentMemoryTextAccumulator {
         content = merge(content, chunk);
     }
 
+    public void acceptSnapshot(String snapshot) {
+        content = snapshot == null ? "" : snapshot;
+    }
+
     public String content() {
         return content;
     }

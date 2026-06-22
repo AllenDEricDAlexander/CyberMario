@@ -144,6 +144,7 @@ public class ReactAgentChatService implements ChatAgentService {
             persistUserMemory(memorySession, message, turnNo, requestId, traceId);
             AgentMemoryTextAccumulator messageContent = new AgentMemoryTextAccumulator();
             AgentMemoryTextAccumulator thinkContent = new AgentMemoryTextAccumulator();
+            AtomicReference<String> lastStateSnapshotKey = new AtomicReference<>();
             TraceContext.withMdc(traceId, () -> LogUtil.info(log).log("agent chat started, threadId={}, messageLength={}",
                     conversationThreadId, message == null ? 0 : message.length()));
             return Mono.just(RunnableConfig.builder().threadId(conversationThreadId).build())
@@ -166,8 +167,10 @@ public class ReactAgentChatService implements ChatAgentService {
                     .doOnError(error -> TraceContext.withMdc(traceId,
                             () -> LogUtil.error(log).log("agent chat failed, threadId={}", conversationThreadId, error)))
                     .subscribeOn(blockingScheduler)
-                    .flatMap(output -> toChatResponse(output, conversationThreadId))
-                    .doOnNext(response -> collectAuditChunk(response, messageContent, thinkContent))
+                    .flatMap(output -> toChatChunk(output, conversationThreadId))
+                    .filter(chunk -> shouldEmitChunk(chunk, lastStateSnapshotKey))
+                    .doOnNext(chunk -> collectAuditChunk(chunk, messageContent, thinkContent))
+                    .map(AgentChatChunk::response)
                     .doFinally(signalType -> {
                         finishAudit(signalType, auditId.get(), messageContent, thinkContent, null);
                         finishRunAudit(signalType, runAuditContext.get(), messageContent, thinkContent, null);
@@ -236,18 +239,40 @@ public class ReactAgentChatService implements ChatAgentService {
         return builder.build();
     }
 
-    private void collectAuditChunk(ChatResponse response, AgentMemoryTextAccumulator messageContent,
+    private boolean shouldEmitChunk(AgentChatChunk chunk, AtomicReference<String> lastStateSnapshotKey) {
+        if (chunk == null || !chunk.stateSnapshot()) {
+            return true;
+        }
+        ChatResponse response = chunk.response();
+        String key = response.type() + "\n" + response.message();
+        if (key.equals(lastStateSnapshotKey.get())) {
+            return false;
+        }
+        lastStateSnapshotKey.set(key);
+        return true;
+    }
+
+    private void collectAuditChunk(AgentChatChunk chunk, AgentMemoryTextAccumulator messageContent,
                                    AgentMemoryTextAccumulator thinkContent) {
+        ChatResponse response = chunk.response();
         if (response == null || response.message() == null) {
             return;
         }
         if ("think".equals(response.type())) {
-            thinkContent.accept(response.message());
+            collectText(chunk, thinkContent);
             return;
         }
         if ("message".equals(response.type())) {
-            messageContent.accept(response.message());
+            collectText(chunk, messageContent);
         }
+    }
+
+    private void collectText(AgentChatChunk chunk, AgentMemoryTextAccumulator content) {
+        if (chunk.stateSnapshot()) {
+            content.acceptSnapshot(chunk.response().message());
+            return;
+        }
+        content.accept(chunk.response().message());
     }
 
     private void finishAudit(SignalType signalType, Long auditId, AgentMemoryTextAccumulator messageContent,
@@ -360,13 +385,13 @@ public class ReactAgentChatService implements ChatAgentService {
                 error == null ? null : error.getMessage())));
     }
 
-    private Flux<ChatResponse> toChatResponse(NodeOutput output, String threadId) {
+    private Flux<AgentChatChunk> toChatChunk(NodeOutput output, String threadId) {
         // 1) Direct message via reflection-friendly access
         try {
             Object msg = invokeOutputMethod(output, "message");
             if (msg instanceof Message m && StringUtils.hasText(m.getText())) {
                 String type = inferType(output);
-                return Flux.just(new ChatResponse(threadId, m.getText(), type));
+                return Flux.just(new AgentChatChunk(new ChatResponse(threadId, m.getText(), type), false));
             }
         } catch (Exception ignored) {
             // method not available
@@ -387,11 +412,14 @@ public class ReactAgentChatService implements ChatAgentService {
             }
             String text = extractText(last);
             if (StringUtils.hasText(text)) {
-                return Flux.just(new ChatResponse(threadId, text, "message"));
+                return Flux.just(new AgentChatChunk(new ChatResponse(threadId, text, "message"), true));
             }
         }
 
         return Flux.empty();
+    }
+
+    private record AgentChatChunk(ChatResponse response, boolean stateSnapshot) {
     }
 
     private String inferType(NodeOutput output) {
