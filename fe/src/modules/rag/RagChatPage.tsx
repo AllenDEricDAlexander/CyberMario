@@ -76,6 +76,7 @@ function RagChatPage() {
     const updateAssistantMessageRef = useRef<UpdateAssistantMessage | null>(null)
     const historyRequestSeqRef = useRef(0)
     const sessionListRequestSeqRef = useRef(0)
+    const knowledgeBaseListRequestSeqRef = useRef(0)
     const isMountedRef = useRef(true)
     const canCreateFeedback = canUseRbacButton(auth, ragButtonCodes.feedback.create)
 
@@ -101,10 +102,19 @@ function RagChatPage() {
     }, [])
 
     const loadKnowledgeBases = useCallback(async () => {
+        knowledgeBaseListRequestSeqRef.current += 1
+        const requestToken = knowledgeBaseListRequestSeqRef.current
+        const isLatestRequest = () => isMountedRef.current && knowledgeBaseListRequestSeqRef.current === requestToken
         try {
             const page = await getRagKnowledgeBases({page: 1, size: 200})
+            if (!isLatestRequest()) {
+                return
+            }
             setKnowledgeBases(page.records)
         } catch (requestError) {
+            if (!isLatestRequest()) {
+                return
+            }
             reportGlobalError(requestError)
         }
     }, [])

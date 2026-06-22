@@ -97,6 +97,7 @@ function AgentDebugPage() {
     const updateAssistantMessageRef = useRef<UpdateAssistantMessage | null>(null)
     const historyRequestSeqRef = useRef(0)
     const sessionListRequestSeqRef = useRef(0)
+    const presetListRequestSeqRef = useRef(0)
     const isMountedRef = useRef(true)
 
     const selectedPresetId = Form.useWatch('presetId', form)
@@ -124,14 +125,27 @@ function AgentDebugPage() {
     }, [])
 
     const loadPresets = useCallback(async () => {
-        setLoading(true)
+        presetListRequestSeqRef.current += 1
+        const requestToken = presetListRequestSeqRef.current
+        const isLatestRequest = () => isMountedRef.current && presetListRequestSeqRef.current === requestToken
+        if (isMountedRef.current) {
+            setLoading(true)
+        }
         try {
             const page = await getAgentPresets({page: 1, size: 200})
+            if (!isLatestRequest()) {
+                return
+            }
             setPresets(page.records)
         } catch (requestError) {
+            if (!isLatestRequest()) {
+                return
+            }
             reportGlobalError(requestError)
         } finally {
-            setLoading(false)
+            if (isLatestRequest()) {
+                setLoading(false)
+            }
         }
     }, [])
 
