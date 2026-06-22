@@ -89,7 +89,7 @@ public class RagChatServiceImpl implements RagChatService {
         List<SourceReferenceResponse> sources;
         try {
             sources = retrieveSources(request, principal);
-        } catch (Throwable error) {
+        } catch (Exception error) {
             return failAssistantEvents(session, turnNo, error, traceId, messageId);
         }
         Flux<RagStreamEvent> retrieval = Flux.just(event("retrieval", Map.of("sources", sources,
