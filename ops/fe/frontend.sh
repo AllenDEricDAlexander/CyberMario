@@ -20,6 +20,7 @@ find_project_root() {
 
 PROJECT_ROOT="$(find_project_root)"
 FRONTEND_DIR="${PROJECT_ROOT}/fe"
+BUN_BIN="${BUN_BIN:-bun}"
 VITE_BIN="${FRONTEND_DIR}/node_modules/.bin/vite"
 LOG_DIR="${SCRIPT_DIR}/logs"
 LOG_FILE="${LOG_DIR}/frontend.log"
@@ -106,7 +107,7 @@ get_running_pid() {
         return 0
     fi
 
-    running="$(pgrep -f "node .*vite.* --port ${FE_PORT}" 2>/dev/null || true)"
+    running="$(pgrep -f "(node|bun).*vite.* --port ${FE_PORT}" 2>/dev/null || true)"
     if [[ -n "${running}" ]]; then
         echo "${running%%$'\n'*}"
         return 0
@@ -116,6 +117,11 @@ get_running_pid() {
 
 # Start frontend in background and append logs to frontend.log.
 start_frontend() {
+    if ! command -v "${BUN_BIN}" >/dev/null 2>&1; then
+        echo "Bun executable not found. Install Bun first."
+        exit 1
+    fi
+
     if [[ ! -x "${VITE_BIN}" ]]; then
         echo "Vite executable not found. Run bun install under ${FRONTEND_DIR} first."
         exit 1
@@ -125,7 +131,7 @@ start_frontend() {
     local old_dir
     old_dir="$(pwd)"
     cd "${FRONTEND_DIR}"
-    nohup "${VITE_BIN}" --host "${FE_HOST}" --port "${FE_PORT}" </dev/null >> "${LOG_FILE}" 2>&1 &
+    nohup "${BUN_BIN}" run --bun vite --host "${FE_HOST}" --port "${FE_PORT}" </dev/null >> "${LOG_FILE}" 2>&1 &
     local pid=$!
     cd "${old_dir}"
     disown "${pid}" 2>/dev/null || true

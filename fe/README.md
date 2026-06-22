@@ -29,6 +29,9 @@ bun run analyze
 - `build` runs typecheck and Vite production build.
 - `analyze` builds with bundle analysis output at `dist/stats.html`.
 
+The package scripts explicitly run frontend CLI tools with `bun run --bun`, so Vite, TypeScript, ESLint, and Vitest use
+Bun's runtime instead of the local Node executable. Vite remains the development server and production build tool.
+
 ## Backend Target
 
 Vite proxies `/api` and `/demo` to the backend. The target is resolved in this order:

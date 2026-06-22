@@ -104,6 +104,9 @@ cd fe
 bun run dev
 ```
 
+Frontend package scripts force Bun runtime with `bun run --bun` while keeping Vite as the dev server and production
+build tool.
+
 The Vite dev server proxies `/api` and `/demo` to the backend. The proxy target is resolved from
 `VITE_BACKEND_TARGET`, then `VITE_API_BASE_URL`, then `http://localhost:${VITE_BACKEND_PORT || BACKEND_PORT || 28080}`.
 
