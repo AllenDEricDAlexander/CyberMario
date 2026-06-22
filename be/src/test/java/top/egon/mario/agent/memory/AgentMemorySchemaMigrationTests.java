@@ -30,4 +30,18 @@ class AgentMemorySchemaMigrationTests {
         assertThat(sql).contains("long_term_extraction_enabled BOOLEAN                  NOT NULL DEFAULT TRUE");
         assertThat(sql).contains("short_term_window_turns      INTEGER                  NOT NULL DEFAULT 10");
     }
+
+    @Test
+    void postgresCheckpointMigrationCreatesIdempotentGraphSchema() throws IOException {
+        String sql = Files.readString(Path.of(
+                "src/main/resources/db/postgresql/V23__create_agent_checkpoint_schema.sql"));
+
+        assertThat(sql).contains("CREATE TABLE IF NOT EXISTS GraphThread");
+        assertThat(sql).contains("CREATE TABLE IF NOT EXISTS GraphCheckpoint");
+        assertThat(sql).containsPattern("state_data\\s+JSONB\\s+NOT NULL");
+        assertThat(sql).contains("CREATE INDEX IF NOT EXISTS idx_lg4jcheckpoint_thread_id");
+        assertThat(sql).contains("CREATE INDEX IF NOT EXISTS idx_lg4jcheckpoint_thread_id_saved_at_desc");
+        assertThat(sql).contains("CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_lg4jthread_thread_name_unreleased");
+        assertThat(sql).contains("WHERE is_released = FALSE");
+    }
 }

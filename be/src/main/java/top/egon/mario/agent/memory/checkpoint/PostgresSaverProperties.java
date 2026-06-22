@@ -10,7 +10,7 @@ public class PostgresSaverProperties {
 
     private boolean enabled;
 
-    private boolean createTables = true;
+    private boolean createTables;
 
     private boolean dropTablesFirst;
 

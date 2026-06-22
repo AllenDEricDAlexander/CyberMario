@@ -190,5 +190,6 @@ mario:
     memory:
       checkpointer:
         enabled: ${AGENT_MEMORY_CHECKPOINTER_ENABLED:true}
-        create-tables: ${AGENT_MEMORY_CHECKPOINTER_CREATE_TABLES:true}
+        # checkpoint 表由 Flyway V23 管理，避免依赖启动时重复执行非幂等索引 DDL。
+        create-tables: ${AGENT_MEMORY_CHECKPOINTER_CREATE_TABLES:false}
         drop-tables-first: ${AGENT_MEMORY_CHECKPOINTER_DROP_TABLES_FIRST:false}
