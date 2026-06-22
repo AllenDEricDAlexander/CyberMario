@@ -189,6 +189,6 @@ mario:
   agent:
     memory:
       checkpointer:
-        enabled: ${AGENT_MEMORY_CHECKPOINTER_ENABLED:false}
+        enabled: ${AGENT_MEMORY_CHECKPOINTER_ENABLED:true}
         create-tables: ${AGENT_MEMORY_CHECKPOINTER_CREATE_TABLES:true}
         drop-tables-first: ${AGENT_MEMORY_CHECKPOINTER_DROP_TABLES_FIRST:false}
