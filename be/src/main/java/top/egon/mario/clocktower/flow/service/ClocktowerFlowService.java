@@ -1,4 +1,4 @@
-package top.egon.mario.clocktower.flow;
+package top.egon.mario.clocktower.flow.service;
 
 import top.egon.mario.clocktower.flow.dto.ClocktowerFlowResponse;
 import top.egon.mario.clocktower.flow.dto.CloseNominationRequest;

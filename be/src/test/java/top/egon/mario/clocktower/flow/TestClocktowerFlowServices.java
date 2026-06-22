@@ -3,6 +3,7 @@ package top.egon.mario.clocktower.flow;
 import org.springframework.core.io.DefaultResourceLoader;
 import top.egon.mario.clocktower.engine.ClocktowerRuleEngine;
 import top.egon.mario.clocktower.engine.ClocktowerRuleEngineConfiguration;
+import top.egon.mario.clocktower.flow.service.ClocktowerFlowService;
 import top.egon.mario.clocktower.flow.service.impl.ClocktowerFlowServiceImpl;
 import top.egon.mario.clocktower.grimoire.service.impl.ClocktowerGrimoireServiceImpl;
 import top.egon.mario.clocktower.room.ClocktowerRoomTestFactory;
