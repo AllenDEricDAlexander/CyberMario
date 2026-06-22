@@ -1,12 +1,20 @@
 # Clocktower Flow Rule Engine Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:
+> executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a rule-driven Clocktower flow so the storyteller can run first night, day, nomination, execution, night, and game-end suggestions without invalid phase jumps.
+**Goal:** Build a rule-driven Clocktower flow so the storyteller can run first night, day, nomination, execution, night,
+and game-end suggestions without invalid phase jumps.
 
-**Architecture:** Keep Java services as the persistent state machine and event writer. Add a focused Drools-backed flow decision path for transitions, blocking reasons, nomination/vote legality, execution candidates, and victory suggestions. Model execution resolution separately from death: confirming an execution consumes the day's execution slot, while death/revival/public-life changes remain explicit rulings with reasons. Remove the old generic `storytellerAction=ADVANCE_PHASE` path; normal progression uses `/flow/advance`, and forced phase changes use the ruling API.
+**Architecture:** Keep Java services as the persistent state machine and event writer. Add a focused Drools-backed flow
+decision path for transitions, blocking reasons, nomination/vote legality, execution candidates, and victory
+suggestions. Model execution resolution separately from death: confirming an execution consumes the day's execution
+slot, while death/revival/public-life changes remain explicit rulings with reasons. Remove the old generic
+`storytellerAction=ADVANCE_PHASE` path; normal progression uses `/flow/advance`, and forced phase changes use the ruling
+API.
 
-**Tech Stack:** Java 21, Spring Boot 3.5, Spring Data JPA, Drools/KIE, JUnit 5, Mockito, AssertJ, React 19, TypeScript, Ant Design 6, Vitest.
+**Tech Stack:** Java 21, Spring Boot 3.5, Spring Data JPA, Drools/KIE, JUnit 5, Mockito, AssertJ, React 19, TypeScript,
+Ant Design 6, Vitest.
 
 ---
 
@@ -22,27 +30,33 @@ This plan covers the core flow engine only:
 - Core victory suggestions.
 - Storyteller grimoire flow UI.
 
-This plan intentionally does not implement full role ability automation, Agent autoplay changes, jBPM/Kogito, BPMN workflow execution, or automatic game end.
+This plan intentionally does not implement full role ability automation, Agent autoplay changes, jBPM/Kogito, BPMN
+workflow execution, or automatic game end.
 
 ## File Structure
 
 Backend files to create:
 
 - `be/src/main/java/top/egon/mario/clocktower/flow/ClocktowerFlowService.java`: flow service interface.
-- `be/src/main/java/top/egon/mario/clocktower/flow/service/impl/ClocktowerFlowServiceImpl.java`: orchestration for flow decisions and state changes.
+- `be/src/main/java/top/egon/mario/clocktower/flow/service/impl/ClocktowerFlowServiceImpl.java`: orchestration for flow
+  decisions and state changes.
 - `be/src/main/java/top/egon/mario/clocktower/flow/web/ClocktowerFlowController.java`: flow API.
 - `be/src/main/java/top/egon/mario/clocktower/flow/dto/ClocktowerFlowResponse.java`: current flow decision response.
 - `be/src/main/java/top/egon/mario/clocktower/flow/dto/ClocktowerFlowTransition.java`: normal next-transition enum.
 - `be/src/main/java/top/egon/mario/clocktower/flow/dto/NightTaskSummaryResponse.java`: night task summary.
 - `be/src/main/java/top/egon/mario/clocktower/flow/dto/NominationSummaryResponse.java`: open nomination summary.
-- `be/src/main/java/top/egon/mario/clocktower/flow/dto/ExecutionCandidateResponse.java`: execution candidate and no-execution result.
-- `be/src/main/java/top/egon/mario/clocktower/flow/dto/ClocktowerExecutionDeathPolicy.java`: explicit optional death policy used during execution confirmation.
+- `be/src/main/java/top/egon/mario/clocktower/flow/dto/ExecutionCandidateResponse.java`: execution candidate and
+  no-execution result.
+- `be/src/main/java/top/egon/mario/clocktower/flow/dto/ClocktowerExecutionDeathPolicy.java`: explicit optional death
+  policy used during execution confirmation.
 - `be/src/main/java/top/egon/mario/clocktower/flow/dto/VictoryCandidateResponse.java`: storyteller victory suggestion.
 - `be/src/main/java/top/egon/mario/clocktower/flow/dto/SkipNightTaskRequest.java`: skip task request.
 - `be/src/main/java/top/egon/mario/clocktower/flow/dto/CloseNominationRequest.java`: close nomination request.
-- `be/src/main/java/top/egon/mario/clocktower/flow/dto/ExecutionConfirmRequest.java`: execution/no-execution confirmation request.
+- `be/src/main/java/top/egon/mario/clocktower/flow/dto/ExecutionConfirmRequest.java`: execution/no-execution
+  confirmation request.
 - `be/src/main/java/top/egon/mario/clocktower/engine/flow/ClocktowerFlowFact.java`: Drools flow facts.
-- `be/src/main/java/top/egon/mario/clocktower/engine/flow/ClocktowerFlowDecisionCollector.java`: Drools decision collector.
+- `be/src/main/java/top/egon/mario/clocktower/engine/flow/ClocktowerFlowDecisionCollector.java`: Drools decision
+  collector.
 - `be/src/main/java/top/egon/mario/clocktower/engine/flow/ExecutionCandidateDecision.java`: execution decision.
 - `be/src/main/java/top/egon/mario/clocktower/engine/flow/VictoryCandidateDecision.java`: victory decision.
 - `be/src/main/resources/clocktower/rules/flow/flow-transition.drl`: transition and blocking rules.
@@ -53,20 +67,33 @@ Backend files to modify:
 
 - `be/src/main/java/top/egon/mario/clocktower/engine/ClocktowerRuleEngine.java`: add `evaluateFlow`.
 - `be/src/main/java/top/egon/mario/clocktower/engine/ClocktowerRuleEngineConfiguration.java`: add flow `KieBase`.
-- `be/src/main/java/top/egon/mario/clocktower/common/enums/ClocktowerEventType.java`: add execution-skipped event type for no-execution resolution.
-- `be/src/main/java/top/egon/mario/clocktower/grimoire/service/impl/ClocktowerGrimoireServiceImpl.java`: remove generic phase advance from storyteller action and limit night task sync to night phases.
-- `be/src/main/java/top/egon/mario/clocktower/ruling/service/impl/ClocktowerRulingServiceImpl.java`: make `EXECUTE_PLAYER` not mutate life status, and make `SKIP_EXECUTION` usable without a nomination.
-- `be/src/main/java/top/egon/mario/clocktower/event/repository/ClocktowerEventRepository.java`: add current-day execution resolution lookup.
-- `be/src/main/java/top/egon/mario/clocktower/action/service/impl/ClocktowerActionServiceImpl.java`: route nomination/vote legality through flow service and apply daily/dead-vote rules.
-- `be/src/main/java/top/egon/mario/clocktower/grimoire/repository/ClocktowerNominationRepository.java`: add day/status query helpers.
-- `be/src/main/java/top/egon/mario/clocktower/grimoire/repository/ClocktowerVoteRepository.java`: add dead-vote query helper.
-- `be/src/main/java/top/egon/mario/clocktower/grimoire/repository/ClocktowerStorytellerTaskRepository.java`: add room/night/status query helpers.
+- `be/src/main/java/top/egon/mario/clocktower/common/enums/ClocktowerEventType.java`: add execution-skipped event type
+  for no-execution resolution.
+- `be/src/main/java/top/egon/mario/clocktower/grimoire/service/impl/ClocktowerGrimoireServiceImpl.java`: remove generic
+  phase advance from storyteller action and limit night task sync to night phases.
+- `be/src/main/java/top/egon/mario/clocktower/ruling/service/impl/ClocktowerRulingServiceImpl.java`: make
+  `EXECUTE_PLAYER` not mutate life status, and make `SKIP_EXECUTION` usable without a nomination.
+- `be/src/main/java/top/egon/mario/clocktower/event/repository/ClocktowerEventRepository.java`: add current-day
+  execution resolution lookup.
+- `be/src/main/java/top/egon/mario/clocktower/action/service/impl/ClocktowerActionServiceImpl.java`: route
+  nomination/vote legality through flow service and apply daily/dead-vote rules.
+- `be/src/main/java/top/egon/mario/clocktower/grimoire/repository/ClocktowerNominationRepository.java`: add day/status
+  query helpers.
+- `be/src/main/java/top/egon/mario/clocktower/grimoire/repository/ClocktowerVoteRepository.java`: add dead-vote query
+  helper.
+- `be/src/main/java/top/egon/mario/clocktower/grimoire/repository/ClocktowerStorytellerTaskRepository.java`: add
+  room/night/status query helpers.
 - `be/src/main/java/top/egon/mario/clocktower/resource/ClocktowerRbacResourceProvider.java`: register flow APIs.
-- `be/src/test/java/top/egon/mario/clocktower/room/ClocktowerRoomTestFactory.java`: update mock repositories with new helper methods.
-- `be/src/test/java/top/egon/mario/clocktower/action/ClocktowerActionServiceTests.java`: nomination/vote regression tests.
-- `be/src/test/java/top/egon/mario/clocktower/ruling/ClocktowerRulingServiceTests.java`: execution/death separation regression tests.
-- `be/src/test/java/top/egon/mario/clocktower/grimoire/ClocktowerStorytellerActionServiceTests.java`: old `ADVANCE_PHASE` rejection test.
-- `be/src/test/java/top/egon/mario/clocktower/resource/ClocktowerRbacResourceProviderTests.java`: flow API RBAC assertions.
+- `be/src/test/java/top/egon/mario/clocktower/room/ClocktowerRoomTestFactory.java`: update mock repositories with new
+  helper methods.
+- `be/src/test/java/top/egon/mario/clocktower/action/ClocktowerActionServiceTests.java`: nomination/vote regression
+  tests.
+- `be/src/test/java/top/egon/mario/clocktower/ruling/ClocktowerRulingServiceTests.java`: execution/death separation
+  regression tests.
+- `be/src/test/java/top/egon/mario/clocktower/grimoire/ClocktowerStorytellerActionServiceTests.java`: old`ADVANCE_PHASE`
+  rejection test.
+- `be/src/test/java/top/egon/mario/clocktower/resource/ClocktowerRbacResourceProviderTests.java`: flow API RBAC
+  assertions.
 
 Frontend files to modify:
 
@@ -75,11 +102,14 @@ Frontend files to modify:
 - `fe/src/modules/clocktower/clocktowerService.test.ts`: client endpoint tests.
 - `fe/src/modules/clocktower/StorytellerGrimoirePage.tsx`: add "流程" tab and load flow state.
 - `fe/src/modules/clocktower/StorytellerGrimoirePage.test.tsx`: flow tab rendering tests.
-- `fe/src/modules/clocktower/components/NightChecklist.tsx`: hide current pending night state outside night phases through parent flow usage, and render skipped status.
-- `fe/src/modules/clocktower/GameRoomPage.tsx`: ensure nomination entry remains available in `DAY` and `NOMINATION` based on backend actions.
+- `fe/src/modules/clocktower/components/NightChecklist.tsx`: hide current pending night state outside night phases
+  through parent flow usage, and render skipped status.
+- `fe/src/modules/clocktower/GameRoomPage.tsx`: ensure nomination entry remains available in `DAY` and `NOMINATION`based
+  on backend actions.
 - `fe/src/modules/clocktower/GameRoomPage.test.tsx`: nomination action regression.
 
-No Flyway migration is planned for this implementation. Existing string status fields, event day/night counters, ruling rows, and vote/nomination columns support the first version.
+No Flyway migration is planned for this implementation. Existing string status fields, event day/night counters, ruling
+rows, and vote/nomination columns support the first version.
 
 ## Shared Contracts
 
@@ -163,6 +193,7 @@ npx antd lint src/modules/clocktower/StorytellerGrimoirePage.tsx --format json
 ### Task 1: Add Flow Decision DTOs And Drools Rule Entry
 
 **Files:**
+
 - Create: `be/src/main/java/top/egon/mario/clocktower/flow/dto/ClocktowerFlowTransition.java`
 - Create: `be/src/main/java/top/egon/mario/clocktower/flow/dto/ClocktowerFlowResponse.java`
 - Create: `be/src/main/java/top/egon/mario/clocktower/flow/dto/NightTaskSummaryResponse.java`
@@ -250,7 +281,8 @@ cd /Users/mario/SelfProject/CyberMario/be
 ./mvnw -Dmaven.build.cache.enabled=false -Dtest=ClocktowerFlowRuleEngineTests test
 ```
 
-Expected: FAIL because `ClocktowerFlowFact`, `ClocktowerFlowTransition`, `ClocktowerExecutionDeathPolicy`, `clocktowerFlowKieBase`, and `evaluateFlow` do not exist.
+Expected: FAIL because `ClocktowerFlowFact`, `ClocktowerFlowTransition`, `ClocktowerExecutionDeathPolicy`,
+`clocktowerFlowKieBase`, and `evaluateFlow` do not exist.
 
 - [ ] **Step 3: Add flow DTOs**
 
@@ -487,98 +519,204 @@ import top.egon.mario.clocktower.flow.dto.ClocktowerFlowTransition;
 
 rule "first night blocked by pending tasks"
 when
-    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.FIRST_NIGHT, pendingNightTaskCount > 0)
-    $collector : ClocktowerFlowDecisionCollector()
+$fact :
+
+ClocktowerFlowFact(phase ==ClocktowerPhase.FIRST_NIGHT, pendingNightTaskCount >0)
+
+$collector :
+
+ClocktowerFlowDecisionCollector()
+
 then
-    $collector.block(ClocktowerFlowTransition.COMPLETE_FIRST_NIGHT, "CLOCKTOWER_NIGHT_TASKS_PENDING");
+    $collector.
+
+block(ClocktowerFlowTransition.COMPLETE_FIRST_NIGHT, "CLOCKTOWER_NIGHT_TASKS_PENDING");
+
 end
 
 rule "first night can complete"
 when
-    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.FIRST_NIGHT, pendingNightTaskCount == 0)
-    $collector : ClocktowerFlowDecisionCollector()
+$fact :
+
+ClocktowerFlowFact(phase ==ClocktowerPhase.FIRST_NIGHT, pendingNightTaskCount ==0)
+
+$collector :
+
+ClocktowerFlowDecisionCollector()
+
 then
-    $collector.allow(ClocktowerFlowTransition.COMPLETE_FIRST_NIGHT);
+    $collector.
+
+allow(ClocktowerFlowTransition.COMPLETE_FIRST_NIGHT);
+
 end
 
 rule "day can start nomination"
 when
-    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.DAY)
-    $collector : ClocktowerFlowDecisionCollector()
+$fact :
+
+ClocktowerFlowFact(phase ==ClocktowerPhase.DAY)
+
+$collector :
+
+ClocktowerFlowDecisionCollector()
+
 then
-    $collector.allow(ClocktowerFlowTransition.START_NOMINATION);
+    $collector.
+
+allow(ClocktowerFlowTransition.START_NOMINATION);
+
 end
 
 rule "nomination blocked by open nomination"
 when
-    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.NOMINATION, openNominationExists == true)
-    $collector : ClocktowerFlowDecisionCollector()
+$fact :
+
+ClocktowerFlowFact(phase ==ClocktowerPhase.NOMINATION, openNominationExists ==true)
+
+$collector :
+
+ClocktowerFlowDecisionCollector()
+
 then
-    $collector.block(ClocktowerFlowTransition.START_EXECUTION, "CLOCKTOWER_OPEN_NOMINATION_EXISTS");
+    $collector.
+
+block(ClocktowerFlowTransition.START_EXECUTION, "CLOCKTOWER_OPEN_NOMINATION_EXISTS");
+
 end
 
 rule "nomination can start execution"
 when
-    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.NOMINATION, openNominationExists == false)
-    $collector : ClocktowerFlowDecisionCollector()
+$fact :
+
+ClocktowerFlowFact(phase ==ClocktowerPhase.NOMINATION, openNominationExists ==false)
+
+$collector :
+
+ClocktowerFlowDecisionCollector()
+
 then
-    $collector.allow(ClocktowerFlowTransition.START_EXECUTION);
+    $collector.
+
+allow(ClocktowerFlowTransition.START_EXECUTION);
+
 end
 
 rule "execution blocked until resolved"
 when
-    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.EXECUTION, executionResolved == false)
-    $collector : ClocktowerFlowDecisionCollector()
+$fact :
+
+ClocktowerFlowFact(phase ==ClocktowerPhase.EXECUTION, executionResolved ==false)
+
+$collector :
+
+ClocktowerFlowDecisionCollector()
+
 then
-    $collector.block(ClocktowerFlowTransition.START_NIGHT, "CLOCKTOWER_EXECUTION_NOT_RESOLVED");
+    $collector.
+
+block(ClocktowerFlowTransition.START_NIGHT, "CLOCKTOWER_EXECUTION_NOT_RESOLVED");
+
 end
 
 rule "execution can start night"
 when
-    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.EXECUTION, executionResolved == true)
-    $collector : ClocktowerFlowDecisionCollector()
+$fact :
+
+ClocktowerFlowFact(phase ==ClocktowerPhase.EXECUTION, executionResolved ==true)
+
+$collector :
+
+ClocktowerFlowDecisionCollector()
+
 then
-    $collector.allow(ClocktowerFlowTransition.START_NIGHT);
+    $collector.
+
+allow(ClocktowerFlowTransition.START_NIGHT);
+
 end
 
 rule "night blocked by pending tasks"
 when
-    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.NIGHT, pendingNightTaskCount > 0)
-    $collector : ClocktowerFlowDecisionCollector()
+$fact :
+
+ClocktowerFlowFact(phase ==ClocktowerPhase.NIGHT, pendingNightTaskCount >0)
+
+$collector :
+
+ClocktowerFlowDecisionCollector()
+
 then
-    $collector.block(ClocktowerFlowTransition.COMPLETE_NIGHT, "CLOCKTOWER_NIGHT_TASKS_PENDING");
+    $collector.
+
+block(ClocktowerFlowTransition.COMPLETE_NIGHT, "CLOCKTOWER_NIGHT_TASKS_PENDING");
+
 end
 
 rule "night can complete"
 when
-    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.NIGHT, pendingNightTaskCount == 0)
-    $collector : ClocktowerFlowDecisionCollector()
+$fact :
+
+ClocktowerFlowFact(phase ==ClocktowerPhase.NIGHT, pendingNightTaskCount ==0)
+
+$collector :
+
+ClocktowerFlowDecisionCollector()
+
 then
-    $collector.allow(ClocktowerFlowTransition.COMPLETE_NIGHT);
+    $collector.
+
+allow(ClocktowerFlowTransition.COMPLETE_NIGHT);
+
 end
 
 rule "ended has no transition"
 when
-    $fact : ClocktowerFlowFact(phase == ClocktowerPhase.ENDED)
-    $collector : ClocktowerFlowDecisionCollector()
+$fact :
+
+ClocktowerFlowFact(phase ==ClocktowerPhase.ENDED)
+
+$collector :
+
+ClocktowerFlowDecisionCollector()
+
 then
-    $collector.block(ClocktowerFlowTransition.NONE, "CLOCKTOWER_GAME_ALREADY_ENDED");
+    $collector.
+
+block(ClocktowerFlowTransition.NONE, "CLOCKTOWER_GAME_ALREADY_ENDED");
+
 end
 
 rule "all demons dead suggests good victory"
 when
-    $fact : ClocktowerFlowFact(allDemonsDead == true)
-    $collector : ClocktowerFlowDecisionCollector()
+$fact :
+
+ClocktowerFlowFact(allDemonsDead ==true)
+
+$collector :
+
+ClocktowerFlowDecisionCollector()
+
 then
-    $collector.victoryCandidate(new VictoryCandidateDecision("GOOD", "ALL_DEMONS_DEAD"));
+    $collector.
+
+victoryCandidate(new VictoryCandidateDecision("GOOD", "ALL_DEMONS_DEAD"));
 end
 
 rule "two alive with demon suggests evil victory"
 when
-    $fact : ClocktowerFlowFact(realAliveCount <= 2, demonAlive == true)
-    $collector : ClocktowerFlowDecisionCollector()
+$fact :
+
+ClocktowerFlowFact(realAliveCount <=2, demonAlive ==true)
+
+$collector :
+
+ClocktowerFlowDecisionCollector()
+
 then
-    $collector.victoryCandidate(new VictoryCandidateDecision("EVIL", "TWO_ALIVE_WITH_LIVING_DEMON"));
+    $collector.
+
+victoryCandidate(new VictoryCandidateDecision("EVIL", "TWO_ALIVE_WITH_LIVING_DEMON"));
 end
 ```
 
@@ -586,9 +724,11 @@ end
 
 Modify `be/src/main/java/top/egon/mario/clocktower/engine/ClocktowerRuleEngineConfiguration.java`.
 
-Change the existing board bean method from package-private to public so cross-package tests can build the engine directly:
+Change the existing board bean method from package-private to public so cross-package tests can build the engine
+directly:
 
 ```java
+
 @Bean
 public KieBase clocktowerBoardValidationKieBase(ResourceLoader resourceLoader) {
     return new KieHelper()
@@ -610,7 +750,8 @@ public KieBase clocktowerFlowKieBase(ResourceLoader resourceLoader) {
 }
 ```
 
-Modify `be/src/main/java/top/egon/mario/clocktower/engine/ClocktowerRuleEngine.java` so the constructor has two `KieBase` dependencies and add `evaluateFlow`:
+Modify `be/src/main/java/top/egon/mario/clocktower/engine/ClocktowerRuleEngine.java` so the constructor has two`KieBase`
+dependencies and add `evaluateFlow`:
 
 ```java
 private final KieBase clocktowerBoardValidationKieBase;
@@ -634,7 +775,8 @@ import top.egon.mario.clocktower.engine.flow.ClocktowerFlowDecisionCollector;
 import top.egon.mario.clocktower.engine.flow.ClocktowerFlowFact;
 ```
 
-Modify `be/src/test/java/top/egon/mario/clocktower/board/ClocktowerBoardTestFactory.java` so the test subclass constructor matches the new parent constructor:
+Modify `be/src/test/java/top/egon/mario/clocktower/board/ClocktowerBoardTestFactory.java` so the test subclass
+constructor matches the new parent constructor:
 
 ```java
 private TestClocktowerRuleEngine() {
@@ -681,6 +823,7 @@ git commit -m "feat(clocktower): add flow decision rules"
 ### Task 2: Add Flow Service Read API And RBAC
 
 **Files:**
+
 - Create: `be/src/main/java/top/egon/mario/clocktower/flow/ClocktowerFlowService.java`
 - Create: `be/src/main/java/top/egon/mario/clocktower/flow/service/impl/ClocktowerFlowServiceImpl.java`
 - Create: `be/src/main/java/top/egon/mario/clocktower/flow/web/ClocktowerFlowController.java`
@@ -831,28 +974,96 @@ List<ClocktowerNominationPo> findByRoomIdAndDayNoAndStatusAndDeletedFalseOrderBy
 Update `ClocktowerRoomTestFactory` mocks with matching answers:
 
 ```java
-when(taskRepository.findByRoomIdAndNightNoAndDeletedFalseOrderBySortOrderAsc(any(), anyInt()))
-        .thenAnswer(invocation -> tasks.stream()
-                .filter(task -> !task.isDeleted()
-                        && task.getRoomId().equals(invocation.getArgument(0))
-                        && task.getNightNo() == (Integer) invocation.getArgument(1))
-                .sorted(Comparator.comparing(ClocktowerStorytellerTaskPo::getSortOrder))
-                .toList());
-when(nominationRepository.findByRoomIdAndDayNoAndDeletedFalseOrderByIdAsc(any(), anyInt()))
-        .thenAnswer(invocation -> nominations.stream()
-                .filter(nomination -> !nomination.isDeleted()
-                        && nomination.getRoomId().equals(invocation.getArgument(0))
-                        && nomination.getDayNo() == (Integer) invocation.getArgument(1))
-                .sorted(Comparator.comparing(ClocktowerNominationPo::getId))
-                .toList());
-when(nominationRepository.findByRoomIdAndDayNoAndStatusAndDeletedFalseOrderByIdAsc(any(), anyInt(), any()))
-        .thenAnswer(invocation -> nominations.stream()
-                .filter(nomination -> !nomination.isDeleted()
-                        && nomination.getRoomId().equals(invocation.getArgument(0))
-                        && nomination.getDayNo() == (Integer) invocation.getArgument(1)
-                        && nomination.getStatus().equals(invocation.getArgument(2)))
-                .sorted(Comparator.comparing(ClocktowerNominationPo::getId))
-                .toList());
+when(taskRepository.findByRoomIdAndNightNoAndDeletedFalseOrderBySortOrderAsc(any(),anyInt()))
+        .
+
+thenAnswer(invocation ->tasks.
+
+stream()
+                .
+
+filter(task ->!task.
+
+isDeleted()
+                        &&task.
+
+getRoomId().
+
+equals(invocation.getArgument(0))
+        &&task.
+
+getNightNo() ==(Integer)invocation.
+
+getArgument(1))
+        .
+
+sorted(Comparator.comparing(ClocktowerStorytellerTaskPo::getSortOrder))
+        .
+
+toList());
+
+when(nominationRepository.findByRoomIdAndDayNoAndDeletedFalseOrderByIdAsc(any(),anyInt()))
+        .
+
+thenAnswer(invocation ->nominations.
+
+stream()
+                .
+
+filter(nomination ->!nomination.
+
+isDeleted()
+                        &&nomination.
+
+getRoomId().
+
+equals(invocation.getArgument(0))
+        &&nomination.
+
+getDayNo() ==(Integer)invocation.
+
+getArgument(1))
+        .
+
+sorted(Comparator.comparing(ClocktowerNominationPo::getId))
+        .
+
+toList());
+
+when(nominationRepository.findByRoomIdAndDayNoAndStatusAndDeletedFalseOrderByIdAsc(any(),anyInt(),
+
+any()))
+        .
+
+thenAnswer(invocation ->nominations.
+
+stream()
+                .
+
+filter(nomination ->!nomination.
+
+isDeleted()
+                        &&nomination.
+
+getRoomId().
+
+equals(invocation.getArgument(0))
+        &&nomination.
+
+getDayNo() ==(Integer)invocation.
+
+getArgument(1)
+                        &&nomination.
+
+getStatus().
+
+equals(invocation.getArgument(2)))
+        .
+
+sorted(Comparator.comparing(ClocktowerNominationPo::getId))
+        .
+
+toList());
 ```
 
 - [ ] **Step 4: Add flow service interface**
@@ -932,7 +1143,7 @@ import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
 import top.egon.mario.clocktower.engine.ClocktowerRuleEngine;
 import top.egon.mario.clocktower.engine.flow.ClocktowerFlowFact;
-import top.egon.mario.clocktower.flow.ClocktowerFlowService;
+import top.egon.mario.clocktower.flow.service.ClocktowerFlowService;
 import top.egon.mario.clocktower.flow.dto.ClocktowerFlowResponse;
 import top.egon.mario.clocktower.flow.dto.ClocktowerFlowTransition;
 import top.egon.mario.clocktower.flow.dto.CloseNominationRequest;
@@ -1125,7 +1336,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 import top.egon.mario.clocktower.common.web.ClocktowerReactiveSupport;
-import top.egon.mario.clocktower.flow.ClocktowerFlowService;
+import top.egon.mario.clocktower.flow.service.ClocktowerFlowService;
 import top.egon.mario.clocktower.flow.dto.ClocktowerFlowResponse;
 import top.egon.mario.clocktower.flow.dto.CloseNominationRequest;
 import top.egon.mario.clocktower.flow.dto.ExecutionConfirmRequest;
@@ -1183,14 +1394,20 @@ public class ClocktowerFlowController extends ClocktowerReactiveSupport {
 Modify `ClocktowerRbacResourceProvider.resources()` by adding:
 
 ```java
-resources.add(api("api:clocktower:rooms:storyteller:flow", "Clocktower storyteller flow", "ANY",
-        "/api/clocktower/rooms/*/flow/**", ApiRiskLevel.HIGH));
-resources.add(api("api:clocktower:rooms:storyteller:night-task", "Clocktower storyteller night task", "ANY",
-        "/api/clocktower/rooms/*/night-tasks/**", ApiRiskLevel.HIGH));
-resources.add(api("api:clocktower:rooms:storyteller:nomination", "Clocktower storyteller nomination", "ANY",
-        "/api/clocktower/rooms/*/nominations/**", ApiRiskLevel.HIGH));
-resources.add(api("api:clocktower:rooms:storyteller:execution", "Clocktower storyteller execution", "ANY",
-        "/api/clocktower/rooms/*/execution/**", ApiRiskLevel.HIGH));
+resources.add(api("api:clocktower:rooms:storyteller:flow", "Clocktower storyteller flow","ANY",
+        "/api/clocktower/rooms/*/flow/**",ApiRiskLevel.HIGH));
+        resources.
+
+add(api("api:clocktower:rooms:storyteller:night-task", "Clocktower storyteller night task","ANY",
+        "/api/clocktower/rooms/*/night-tasks/**",ApiRiskLevel.HIGH));
+        resources.
+
+add(api("api:clocktower:rooms:storyteller:nomination", "Clocktower storyteller nomination","ANY",
+        "/api/clocktower/rooms/*/nominations/**",ApiRiskLevel.HIGH));
+        resources.
+
+add(api("api:clocktower:rooms:storyteller:execution", "Clocktower storyteller execution","ANY",
+        "/api/clocktower/rooms/*/execution/**",ApiRiskLevel.HIGH));
 ```
 
 Modify the `CLOCKTOWER_STORYTELLER` preset list by adding those four permission codes.
@@ -1198,16 +1415,21 @@ Modify the `CLOCKTOWER_STORYTELLER` preset list by adding those four permission 
 Add assertions to `ClocktowerRbacResourceProviderTests`:
 
 ```java
-assertThat(codes).contains(
+assertThat(codes).
+
+contains(
         "api:clocktower:rooms:storyteller:flow",
-        "api:clocktower:rooms:storyteller:night-task",
-        "api:clocktower:rooms:storyteller:nomination",
-        "api:clocktower:rooms:storyteller:execution");
-assertThat(storyteller.permissionCodes()).contains(
+                "api:clocktower:rooms:storyteller:night-task",
+                "api:clocktower:rooms:storyteller:nomination",
+                "api:clocktower:rooms:storyteller:execution");
+
+assertThat(storyteller.permissionCodes()).
+
+contains(
         "api:clocktower:rooms:storyteller:flow",
-        "api:clocktower:rooms:storyteller:night-task",
-        "api:clocktower:rooms:storyteller:nomination",
-        "api:clocktower:rooms:storyteller:execution");
+                "api:clocktower:rooms:storyteller:night-task",
+                "api:clocktower:rooms:storyteller:nomination",
+                "api:clocktower:rooms:storyteller:execution");
 ```
 
 - [ ] **Step 9: Run service and RBAC tests**
@@ -1240,6 +1462,7 @@ git commit -m "feat(clocktower): expose flow decision api"
 ### Task 3: Implement Night Task Guard, Skip, And Normal Night Advance
 
 **Files:**
+
 - Modify: `be/src/main/java/top/egon/mario/clocktower/flow/service/impl/ClocktowerFlowServiceImpl.java`
 - Modify: `be/src/main/java/top/egon/mario/clocktower/grimoire/service/impl/ClocktowerGrimoireServiceImpl.java`
 - Test: `be/src/test/java/top/egon/mario/clocktower/flow/ClocktowerFlowServiceTests.java`
@@ -1250,6 +1473,7 @@ git commit -m "feat(clocktower): expose flow decision api"
 Append to `ClocktowerFlowServiceTests`:
 
 ```java
+
 @Test
 void firstNightCannotAdvanceUntilTasksDoneOrSkipped() {
     Long roomId = startedRoom();
@@ -1315,20 +1539,42 @@ In `ClocktowerFlowServiceImpl.skipNightTask`, replace the unsupported throw with
 ```java
 ClocktowerRoomPo room = roomRepository.findLockedByIdAndDeletedFalse(roomId)
         .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
-ClocktowerAccess.requireStoryteller(room, principal);
-if (!StringUtils.hasText(request.reason())) {
-    throw new ClocktowerException("CLOCKTOWER_NIGHT_TASK_SKIP_REASON_REQUIRED");
+ClocktowerAccess.
+
+requireStoryteller(room, principal);
+if(!StringUtils.
+
+hasText(request.reason())){
+        throw new
+
+ClocktowerException("CLOCKTOWER_NIGHT_TASK_SKIP_REASON_REQUIRED");
 }
 ClocktowerStorytellerTaskPo task = taskRepository.findById(taskId)
         .filter(candidate -> !candidate.isDeleted() && candidate.getRoomId().equals(roomId))
         .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_TASK_NOT_FOUND"));
-if (!isNight(room.getPhase()) || task.getNightNo() != room.getCurrentNightNo()) {
-    throw new ClocktowerException("CLOCKTOWER_NIGHT_TASK_NOT_CURRENT");
+if(!
+
+isNight(room.getPhase())||task.
+
+getNightNo() !=room.
+
+getCurrentNightNo()){
+        throw new
+
+ClocktowerException("CLOCKTOWER_NIGHT_TASK_NOT_CURRENT");
 }
-task.setStatus(STATUS_SKIPPED);
-task.setNote(request.reason());
-taskRepository.save(task);
-return buildFlow(room);
+        task.
+
+setStatus(STATUS_SKIPPED);
+task.
+
+setNote(request.reason());
+        taskRepository.
+
+save(task);
+return
+
+buildFlow(room);
 ```
 
 In `ClocktowerFlowServiceImpl.advance`, replace the unsupported throw with:
@@ -1336,30 +1582,73 @@ In `ClocktowerFlowServiceImpl.advance`, replace the unsupported throw with:
 ```java
 ClocktowerRoomPo room = roomRepository.findLockedByIdAndDeletedFalse(roomId)
         .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
-ClocktowerAccess.requireStoryteller(room, principal);
+ClocktowerAccess.
+
+requireStoryteller(room, principal);
+
 ClocktowerFlowResponse flow = buildFlow(room);
-if (!flow.advanceAllowed()) {
-    throw new ClocktowerException(flow.blockingReasons().getFirst());
-}
-switch (flow.nextTransition()) {
-    case COMPLETE_FIRST_NIGHT -> {
-        room.setPhase(ClocktowerPhase.DAY);
-        room.setCurrentDayNo(1);
+if(!flow.
+
+advanceAllowed()){
+        throw new
+
+ClocktowerException(flow.blockingReasons().
+
+getFirst());
+        }
+        switch(flow.
+
+nextTransition()){
+        case COMPLETE_FIRST_NIGHT ->{
+        room.
+
+setPhase(ClocktowerPhase.DAY);
+        room.
+
+setCurrentDayNo(1);
     }
-    case COMPLETE_NIGHT -> {
-        room.setPhase(ClocktowerPhase.DAY);
-        room.setCurrentDayNo(room.getCurrentDayNo() + 1);
-    }
-    default -> throw new ClocktowerException("CLOCKTOWER_FLOW_TRANSITION_UNSUPPORTED");
+            case COMPLETE_NIGHT ->{
+        room.
+
+setPhase(ClocktowerPhase.DAY);
+        room.
+
+setCurrentDayNo(room.getCurrentDayNo() +1);
+        }
+default ->throw new
+
+ClocktowerException("CLOCKTOWER_FLOW_TRANSITION_UNSUPPORTED");
 }
-roomRepository.save(room);
-eventService.append(new top.egon.mario.clocktower.event.dto.ClocktowerEventAppendRequest(room.getId(),
-        top.egon.mario.clocktower.common.enums.ClocktowerEventType.PHASE_CHANGED,
-        room.getPhase(), room.getCurrentDayNo(), room.getCurrentNightNo(),
-        principal == null ? null : principal.userId(), null, null,
-        top.egon.mario.clocktower.common.enums.ClocktowerVisibility.PUBLIC, List.of(),
-        java.util.Map.of("phase", room.getPhase().name())));
-return buildFlow(room);
+        roomRepository.
+
+save(room);
+eventService.
+
+append(new top.egon.mario.clocktower.event.dto.ClocktowerEventAppendRequest(room.getId(),
+
+top.egon.mario.clocktower.common.enums.ClocktowerEventType.PHASE_CHANGED,
+        room.
+
+getPhase(),room.
+
+getCurrentDayNo(),room.
+
+getCurrentNightNo(),
+
+principal ==null?null:principal.
+
+userId(), null,null,
+top.egon.mario.clocktower.common.enums.ClocktowerVisibility.PUBLIC,List.
+
+of(),
+        java.util.Map.
+
+of("phase",room.getPhase().
+
+name())));
+        return
+
+buildFlow(room);
 ```
 
 - [ ] **Step 4: Restrict grimoire night task sync to night phases**
@@ -1376,11 +1665,17 @@ private static boolean canHaveNightTasks(ClocktowerRoomPo room) {
 Modify `nightChecklist` so non-night phases return an empty checklist with `completed=false`:
 
 ```java
-if (room.getPhase() != ClocktowerPhase.FIRST_NIGHT && room.getPhase() != ClocktowerPhase.NIGHT) {
-    ClocktowerNightType nightType = room.getCurrentNightNo() <= 1
-            ? ClocktowerNightType.FIRST_NIGHT : ClocktowerNightType.OTHER_NIGHT;
-    return new NightChecklistResponse(room.getCurrentNightNo(), nightType, List.of(), false);
-}
+if(room.getPhase() !=ClocktowerPhase.FIRST_NIGHT &&room.
+
+getPhase() !=ClocktowerPhase.NIGHT){
+ClocktowerNightType nightType = room.getCurrentNightNo() <= 1
+        ? ClocktowerNightType.FIRST_NIGHT : ClocktowerNightType.OTHER_NIGHT;
+    return new
+
+NightChecklistResponse(room.getCurrentNightNo(),nightType,List.
+
+of(), false);
+        }
 ```
 
 Place the guard after access checks and before loading seats.
@@ -1390,6 +1685,7 @@ Place the guard after access checks and before loading seats.
 Append to `ClocktowerNightChecklistServiceTests`:
 
 ```java
+
 @Test
 void dayPhaseDoesNotExposeCurrentNightPendingSteps() {
     ClocktowerRoomTestFactory.Context context = ClocktowerRoomTestFactory.context();
@@ -1408,7 +1704,8 @@ void dayPhaseDoesNotExposeCurrentNightPendingSteps() {
 }
 ```
 
-If `startedRoom` or `storytellerPrincipal` are private in that test, copy the helper implementations from `ClocktowerFlowServiceTests` into `ClocktowerNightChecklistServiceTests`.
+If `startedRoom` or `storytellerPrincipal` are private in that test, copy the helper implementations from
+`ClocktowerFlowServiceTests` into `ClocktowerNightChecklistServiceTests`.
 
 - [ ] **Step 6: Run night tests**
 
@@ -1437,6 +1734,7 @@ git commit -m "feat(clocktower): gate night phase advancement"
 ### Task 4: Remove Old Phase Advance And Implement Day/Nomination/Execution/Night Transitions
 
 **Files:**
+
 - Modify: `be/src/main/java/top/egon/mario/clocktower/flow/service/impl/ClocktowerFlowServiceImpl.java`
 - Modify: `be/src/main/java/top/egon/mario/clocktower/grimoire/service/impl/ClocktowerGrimoireServiceImpl.java`
 - Test: `be/src/test/java/top/egon/mario/clocktower/flow/ClocktowerFlowServiceTests.java`
@@ -1447,6 +1745,7 @@ git commit -m "feat(clocktower): gate night phase advancement"
 Append to `ClocktowerFlowServiceTests`:
 
 ```java
+
 @Test
 void normalFlowMovesDayToNominationThenExecution() {
     Long roomId = dayRoom();
@@ -1498,6 +1797,7 @@ private Long executionResolvedRoom() {
 Append to `ClocktowerStorytellerActionServiceTests`:
 
 ```java
+
 @Test
 void oldAdvancePhaseActionIsRejected() {
     var response = service.storytellerAction(roomId,
@@ -1509,7 +1809,8 @@ void oldAdvancePhaseActionIsRejected() {
 }
 ```
 
-If the test class uses different field names, create the room using its existing helper and instantiate `ClocktowerGrimoireServiceImpl` the same way its current tests do.
+If the test class uses different field names, create the room using its existing helper and instantiate
+`ClocktowerGrimoireServiceImpl` the same way its current tests do.
 
 - [ ] **Step 2: Run failing transition tests**
 
@@ -1527,26 +1828,36 @@ Expected: FAIL because `advance` does not yet handle day/nomination/execution an
 Modify the `storytellerAction` switch in `ClocktowerGrimoireServiceImpl`:
 
 ```java
-case "ADVANCE_PHASE" -> StorytellerActionResponse.rejected(
-        "CLOCKTOWER_ADVANCE_PHASE_REPLACED_BY_FLOW", getGrimoire(roomId, principal));
+case"ADVANCE_PHASE"->StorytellerActionResponse.rejected(
+        "CLOCKTOWER_ADVANCE_PHASE_REPLACED_BY_FLOW",getGrimoire(roomId, principal));
 ```
 
-Delete the private `advancePhase` and `targetPhase` methods from `ClocktowerGrimoireServiceImpl`. If another method uses `targetPhase`, stop and inspect that call before deleting.
+Delete the private `advancePhase` and `targetPhase` methods from `ClocktowerGrimoireServiceImpl`. If another method uses
+`targetPhase`, stop and inspect that call before deleting.
 
 - [ ] **Step 4: Implement remaining normal transitions**
 
 In `ClocktowerFlowServiceImpl.advance`, extend the switch:
 
 ```java
-case START_NOMINATION -> room.setPhase(ClocktowerPhase.NOMINATION);
-case START_EXECUTION -> room.setPhase(ClocktowerPhase.EXECUTION);
-case START_NIGHT -> {
-    room.setPhase(ClocktowerPhase.NIGHT);
-    room.setCurrentNightNo(room.getCurrentNightNo() + 1);
-}
+case START_NOMINATION ->room.
+
+setPhase(ClocktowerPhase.NOMINATION);
+case START_EXECUTION ->room.
+
+setPhase(ClocktowerPhase.EXECUTION);
+case START_NIGHT ->{
+        room.
+
+setPhase(ClocktowerPhase.NIGHT);
+    room.
+
+setCurrentNightNo(room.getCurrentNightNo() +1);
+        }
 ```
 
-Keep the existing `COMPLETE_FIRST_NIGHT` and `COMPLETE_NIGHT` branches from Task 3. Keep throwing `CLOCKTOWER_FLOW_TRANSITION_UNSUPPORTED` for `NONE`.
+Keep the existing `COMPLETE_FIRST_NIGHT` and `COMPLETE_NIGHT` branches from Task 3. Keep throwing
+`CLOCKTOWER_FLOW_TRANSITION_UNSUPPORTED` for `NONE`.
 
 - [ ] **Step 5: Run transition tests**
 
@@ -1575,6 +1886,7 @@ git commit -m "feat(clocktower): replace generic phase advance"
 ### Task 5: Enforce Nomination And Vote Rules
 
 **Files:**
+
 - Modify: `be/src/main/java/top/egon/mario/clocktower/action/service/impl/ClocktowerActionServiceImpl.java`
 - Modify: `be/src/main/java/top/egon/mario/clocktower/grimoire/repository/ClocktowerVoteRepository.java`
 - Modify: `be/src/test/java/top/egon/mario/clocktower/room/ClocktowerRoomTestFactory.java`
@@ -1585,6 +1897,7 @@ git commit -m "feat(clocktower): replace generic phase advance"
 Append to `ClocktowerActionServiceTests`:
 
 ```java
+
 @Test
 void nominationRejectsDeadNominatorAndDeadNominee() {
     Long roomId = runningDayRoom();
@@ -1663,6 +1976,7 @@ import top.egon.mario.clocktower.room.po.ClocktowerSeatPo;
 Append to `ClocktowerActionServiceTests`:
 
 ```java
+
 @Test
 void publiclyDeadPlayerSpendsOnlyOneDeadVoteAcrossGame() {
     Long roomId = runningNominationRoom();
@@ -1757,12 +2071,30 @@ boolean existsByRoomIdAndVoterSeatIdAndUsedDeadVoteTrueAndDeletedFalse(Long room
 Update `ClocktowerRoomTestFactory`:
 
 ```java
-when(voteRepository.existsByRoomIdAndVoterSeatIdAndUsedDeadVoteTrueAndDeletedFalse(any(), any()))
-        .thenAnswer(invocation -> votes.stream()
-                .anyMatch(vote -> !vote.isDeleted()
-                        && vote.getRoomId().equals(invocation.getArgument(0))
-                        && vote.getVoterSeatId().equals(invocation.getArgument(1))
-                        && vote.isUsedDeadVote()));
+when(voteRepository.existsByRoomIdAndVoterSeatIdAndUsedDeadVoteTrueAndDeletedFalse(any(),any()))
+        .
+
+thenAnswer(invocation ->votes.
+
+stream()
+                .
+
+anyMatch(vote ->!vote.
+
+isDeleted()
+                        &&vote.
+
+getRoomId().
+
+equals(invocation.getArgument(0))
+        &&vote.
+
+getVoterSeatId().
+
+equals(invocation.getArgument(1))
+        &&vote.
+
+isUsedDeadVote()));
 ```
 
 - [ ] **Step 5: Implement nomination rules**
@@ -1770,40 +2102,102 @@ when(voteRepository.existsByRoomIdAndVoterSeatIdAndUsedDeadVoteTrueAndDeletedFal
 In `ClocktowerActionServiceImpl.nominate`, after target lookup and life checks, replace old logic with:
 
 ```java
-if (room.getPhase() != ClocktowerPhase.DAY && room.getPhase() != ClocktowerPhase.NOMINATION) {
-    return reject(room, actor, principal, "CLOCKTOWER_NOMINATION_PHASE_INVALID");
+if(room.getPhase() !=ClocktowerPhase.DAY &&room.
+
+getPhase() !=ClocktowerPhase.NOMINATION){
+        return
+
+reject(room, actor, principal, "CLOCKTOWER_NOMINATION_PHASE_INVALID");
 }
-if (!"ALIVE".equals(actor.getLifeStatus())) {
-    return reject(room, actor, principal, "CLOCKTOWER_NOMINATOR_NOT_ALIVE");
+        if(!"ALIVE".
+
+equals(actor.getLifeStatus())){
+        return
+
+reject(room, actor, principal, "CLOCKTOWER_NOMINATOR_NOT_ALIVE");
 }
 Long targetSeatId = firstTarget(request);
 ClocktowerSeatPo target = seat(room.getId(), targetSeatId);
-if (!"ALIVE".equals(target.getLifeStatus())) {
-    return reject(room, actor, principal, "CLOCKTOWER_NOMINEE_NOT_ALIVE");
+if(!"ALIVE".
+
+equals(target.getLifeStatus())){
+        return
+
+reject(room, actor, principal, "CLOCKTOWER_NOMINEE_NOT_ALIVE");
 }
-if (nominationRepository.findTopByRoomIdAndStatusAndDeletedFalseOrderByIdDesc(room.getId(), "OPEN").isPresent()) {
-    return reject(room, actor, principal, "CLOCKTOWER_OPEN_NOMINATION_EXISTS");
+        if(nominationRepository.
+
+findTopByRoomIdAndStatusAndDeletedFalseOrderByIdDesc(room.getId(), "OPEN").
+
+isPresent()){
+        return
+
+reject(room, actor, principal, "CLOCKTOWER_OPEN_NOMINATION_EXISTS");
 }
 List<ClocktowerNominationPo> today = nominationRepository
         .findByRoomIdAndDayNoAndDeletedFalseOrderByIdAsc(room.getId(), room.getCurrentDayNo());
-if (today.stream().anyMatch(nomination -> nomination.getNominatorSeatId().equals(actor.getId()))) {
-    return reject(room, actor, principal, "CLOCKTOWER_NOMINATOR_ALREADY_NOMINATED_TODAY");
+if(today.
+
+stream().
+
+anyMatch(nomination ->nomination.
+
+getNominatorSeatId().
+
+equals(actor.getId()))){
+        return
+
+reject(room, actor, principal, "CLOCKTOWER_NOMINATOR_ALREADY_NOMINATED_TODAY");
 }
-if (today.stream().anyMatch(nomination -> nomination.getNomineeSeatId().equals(target.getId()))) {
-    return reject(room, actor, principal, "CLOCKTOWER_NOMINEE_ALREADY_NOMINATED_TODAY");
+        if(today.
+
+stream().
+
+anyMatch(nomination ->nomination.
+
+getNomineeSeatId().
+
+equals(target.getId()))){
+        return
+
+reject(room, actor, principal, "CLOCKTOWER_NOMINEE_ALREADY_NOMINATED_TODAY");
 }
 ClocktowerNominationPo nomination = new ClocktowerNominationPo();
-nomination.setRoomId(room.getId());
-nomination.setDayNo(room.getCurrentDayNo());
-nomination.setNominatorSeatId(actor.getId());
-nomination.setNomineeSeatId(target.getId());
-nomination.setStatus("OPEN");
-nominationRepository.save(nomination);
-room.setPhase(ClocktowerPhase.NOMINATION);
-roomRepository.save(room);
-return append(room, actor, request, principal, ClocktowerEventType.PLAYER_NOMINATED,
-        ClocktowerVisibility.PUBLIC, List.of(),
-        Map.of("nominationId", nomination.getId(), "targetSeatId", target.getId(), "content", text(request.content())));
+nomination.
+
+setRoomId(room.getId());
+        nomination.
+
+setDayNo(room.getCurrentDayNo());
+        nomination.
+
+setNominatorSeatId(actor.getId());
+        nomination.
+
+setNomineeSeatId(target.getId());
+        nomination.
+
+setStatus("OPEN");
+nominationRepository.
+
+save(nomination);
+room.
+
+setPhase(ClocktowerPhase.NOMINATION);
+roomRepository.
+
+save(room);
+return
+
+append(room, actor, request, principal, ClocktowerEventType.PLAYER_NOMINATED,
+       ClocktowerVisibility.PUBLIC, List.of(),
+        Map.
+
+of("nominationId",nomination.getId(), "targetSeatId",target.
+
+getId(), "content",
+
+text(request.content())));
 ```
 
 - [ ] **Step 6: Implement vote rules**
@@ -1811,19 +2205,37 @@ return append(room, actor, request, principal, ClocktowerEventType.PLAYER_NOMINA
 In `ClocktowerActionServiceImpl.vote`, replace dead-vote calculation with:
 
 ```java
-if (room.getPhase() != ClocktowerPhase.NOMINATION) {
-    return reject(room, actor, principal, "CLOCKTOWER_VOTE_PHASE_INVALID");
+if(room.getPhase() !=ClocktowerPhase.NOMINATION){
+        return
+
+reject(room, actor, principal, "CLOCKTOWER_VOTE_PHASE_INVALID");
 }
 ClocktowerNominationPo nomination = nominationRepository
         .findTopByRoomIdAndStatusAndDeletedFalseOrderByIdDesc(room.getId(), "OPEN")
         .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_NOMINATION_NOT_FOUND"));
-if (voteRepository.findByNominationIdAndVoterSeatIdAndDeletedFalse(nomination.getId(), actor.getId()).isPresent()) {
-    return reject(room, actor, principal, "CLOCKTOWER_VOTE_ALREADY_CAST");
+if(voteRepository.
+
+findByNominationIdAndVoterSeatIdAndDeletedFalse(nomination.getId(),actor.
+
+getId()).
+
+isPresent()){
+        return
+
+reject(room, actor, principal, "CLOCKTOWER_VOTE_ALREADY_CAST");
 }
 boolean usedDeadVote = "DEAD".equals(actor.getLifeStatus()) || "DEAD".equals(actor.getPublicLifeStatus());
-if (usedDeadVote && (!actor.isHasDeadVote()
-        || voteRepository.existsByRoomIdAndVoterSeatIdAndUsedDeadVoteTrueAndDeletedFalse(room.getId(), actor.getId()))) {
-    return reject(room, actor, principal, "CLOCKTOWER_DEAD_VOTE_ALREADY_SPENT");
+if(usedDeadVote &&(!actor.
+
+isHasDeadVote()
+        ||voteRepository.
+
+existsByRoomIdAndVoterSeatIdAndUsedDeadVoteTrueAndDeletedFalse(room.getId(),actor.
+
+getId()))){
+        return
+
+reject(room, actor, principal, "CLOCKTOWER_DEAD_VOTE_ALREADY_SPENT");
 }
 ```
 
@@ -1856,6 +2268,7 @@ git commit -m "feat(clocktower): enforce nomination and vote flow rules"
 ### Task 6: Close Nominations, Resolve Execution, And Suggest Victory
 
 **Files:**
+
 - Modify: `be/src/main/java/top/egon/mario/clocktower/common/enums/ClocktowerEventType.java`
 - Modify: `be/src/main/java/top/egon/mario/clocktower/event/repository/ClocktowerEventRepository.java`
 - Modify: `be/src/main/java/top/egon/mario/clocktower/flow/service/impl/ClocktowerFlowServiceImpl.java`
@@ -1868,6 +2281,7 @@ git commit -m "feat(clocktower): enforce nomination and vote flow rules"
 Append to `ClocktowerFlowServiceTests`:
 
 ```java
+
 @Test
 void closeNominationLocksOpenNominationAndAllowsExecutionTransition() {
     Long roomId = dayRoom();
@@ -1995,14 +2409,15 @@ import top.egon.mario.clocktower.grimoire.po.ClocktowerNominationPo;
 In `ClocktowerRulingServiceTests`, replace the existing execution tests that expect `PLAYER_DIED` with:
 
 ```java
+
 @Test
 void executePlayerCanTargetAnySeatWithoutChangingLifeStatus() {
     ClocktowerRoomResponse room = startedRoom();
     Long targetSeatId = room.seats().get(3).seatId();
 
     ClocktowerRulingApplyResponse response = rulingService.create(room.roomId(), new ClocktowerRulingCreateRequest(
-            ClocktowerRulingType.EXECUTE_PLAYER, targetSeatId, null, null, null, null,
-            ClocktowerRulingReason.ROLE_ABILITY, "猎手开枪处决邪恶玩家", "一名玩家被处决", ClocktowerVisibility.PUBLIC, false),
+                    ClocktowerRulingType.EXECUTE_PLAYER, targetSeatId, null, null, null, null,
+                    ClocktowerRulingReason.ROLE_ABILITY, "猎手开枪处决邪恶玩家", "一名玩家被处决", ClocktowerVisibility.PUBLIC, false),
             storytellerPrincipal());
 
     assertThat(response.events()).extracting(event -> event.eventType())
@@ -2063,7 +2478,8 @@ cd /Users/mario/SelfProject/CyberMario/be
 ./mvnw -Dmaven.build.cache.enabled=false -Dtest='ClocktowerFlowServiceTests,ClocktowerRulingServiceTests' test
 ```
 
-Expected: FAIL because close/confirm are unsupported, execution still mutates life status, no-execution still requires a nomination, and tie calculation may not be complete.
+Expected: FAIL because close/confirm are unsupported, execution still mutates life status, no-execution still requires a
+nomination, and tie calculation may not be complete.
 
 - [ ] **Step 3: Improve execution candidate tie calculation**
 
@@ -2073,8 +2489,12 @@ In `ClocktowerFlowServiceImpl.executionCandidate`, after computing `topVote`, us
 List<ClocktowerNominationPo> top = closed.stream()
         .filter(nomination -> nomination.getVoteCount() == topVote)
         .toList();
-if (top.size() != 1) {
-    return new ExecutionCandidateResponse(false, false, null, null, topVote, threshold, "TIED_TOP_VOTE");
+if(top.
+
+size() !=1){
+        return new
+
+ExecutionCandidateResponse(false,false,null,null,topVote, threshold, "TIED_TOP_VOTE");
 }
 ```
 
@@ -2087,18 +2507,34 @@ Replace unsupported throw in `closeNomination`:
 ```java
 ClocktowerRoomPo room = roomRepository.findLockedByIdAndDeletedFalse(roomId)
         .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
-ClocktowerAccess.requireStoryteller(room, principal);
-if (room.getPhase() != ClocktowerPhase.NOMINATION) {
-    throw new ClocktowerException("CLOCKTOWER_NOMINATION_PHASE_INVALID");
+ClocktowerAccess.
+
+requireStoryteller(room, principal);
+if(room.
+
+getPhase() !=ClocktowerPhase.NOMINATION){
+        throw new
+
+ClocktowerException("CLOCKTOWER_NOMINATION_PHASE_INVALID");
 }
 ClocktowerNominationPo nomination = nominationRepository.findByIdAndRoomIdAndDeletedFalse(nominationId, roomId)
         .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_NOMINATION_NOT_FOUND"));
-if (!NOMINATION_OPEN.equals(nomination.getStatus())) {
-    throw new ClocktowerException("CLOCKTOWER_NOMINATION_NOT_OPEN");
+if(!NOMINATION_OPEN.
+
+equals(nomination.getStatus())){
+        throw new
+
+ClocktowerException("CLOCKTOWER_NOMINATION_NOT_OPEN");
 }
-nomination.setStatus(NOMINATION_CLOSED);
-nominationRepository.save(nomination);
-return buildFlow(room);
+        nomination.
+
+setStatus(NOMINATION_CLOSED);
+nominationRepository.
+
+save(nomination);
+return
+
+buildFlow(room);
 ```
 
 - [ ] **Step 5: Separate execution, death, and no-execution persistence**
@@ -2141,7 +2577,8 @@ private boolean executionResolved(ClocktowerRoomPo room, List<ClocktowerNominati
 }
 ```
 
-Update `TestClocktowerFlowServices.flowService` in `ClocktowerFlowServiceTests` so the new constructor dependencies are available:
+Update `TestClocktowerFlowServices.flowService` in `ClocktowerFlowServiceTests` so the new constructor dependencies are
+available:
 
 ```java
 static ClocktowerFlowService flowService(ClocktowerRoomTestFactory.Context context) {
@@ -2178,7 +2615,9 @@ private boolean requiresNomination(ClocktowerRulingType rulingType) {
 Replace the `SKIP_EXECUTION` branch in `apply`:
 
 ```java
-case SKIP_EXECUTION -> applySkipExecution(room, ruling, principal);
+case SKIP_EXECUTION ->
+
+applySkipExecution(room, ruling, principal);
 ```
 
 Replace `applyExecution` so execution does not kill the target:
@@ -2222,53 +2661,97 @@ Replace unsupported throw in `confirmExecution`:
 ```java
 ClocktowerRoomPo room = roomRepository.findLockedByIdAndDeletedFalse(roomId)
         .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
-ClocktowerAccess.requireStoryteller(room, principal);
-if (room.getPhase() != ClocktowerPhase.EXECUTION) {
-    throw new ClocktowerException("CLOCKTOWER_EXECUTION_PHASE_INVALID");
+ClocktowerAccess.
+
+requireStoryteller(room, principal);
+if(room.
+
+getPhase() !=ClocktowerPhase.EXECUTION){
+        throw new
+
+ClocktowerException("CLOCKTOWER_EXECUTION_PHASE_INVALID");
 }
-if (request == null || !StringUtils.hasText(request.note())) {
-    throw new ClocktowerException("CLOCKTOWER_EXECUTION_NOTE_REQUIRED");
+        if(request ==null||!StringUtils.
+
+hasText(request.note())){
+        throw new
+
+ClocktowerException("CLOCKTOWER_EXECUTION_NOTE_REQUIRED");
 }
 ClocktowerExecutionDeathPolicy deathPolicy = request.deathPolicy() == null
         ? ClocktowerExecutionDeathPolicy.NO_CHANGE
         : request.deathPolicy();
 ClocktowerFlowResponse flow = buildFlow(room);
 ExecutionCandidateResponse candidate = flow.executionCandidate();
-if (Boolean.TRUE.equals(request.execute())) {
-    if (!candidate.executable() || candidate.nominationId() == null || candidate.nomineeSeatId() == null) {
-        throw new ClocktowerException("CLOCKTOWER_EXECUTION_CANDIDATE_REQUIRED");
+if(Boolean.TRUE.
+
+equals(request.execute())){
+        if(!candidate.
+
+executable() ||candidate.
+
+nominationId() ==null||candidate.
+
+nomineeSeatId() ==null){
+        throw new
+
+ClocktowerException("CLOCKTOWER_EXECUTION_CANDIDATE_REQUIRED");
     }
-    rulingService.create(roomId, new ClocktowerRulingCreateRequest(
-            ClocktowerRulingType.EXECUTE_PLAYER, candidate.nomineeSeatId(), candidate.nominationId(),
-            null, null, null, ClocktowerRulingReason.VOTE_EXECUTION, request.note(),
-            "一名玩家被处决", ClocktowerVisibility.PUBLIC, false), principal);
-    if (deathPolicy == ClocktowerExecutionDeathPolicy.MARK_DEAD) {
-        ClocktowerSeatPo nominee = seatRepository
-                .findByIdAndRoomIdAndDeletedFalse(candidate.nomineeSeatId(), roomId)
-                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_SEAT_NOT_FOUND"));
-        if ("DEAD".equals(nominee.getLifeStatus())) {
-            throw new ClocktowerException("CLOCKTOWER_EXECUTION_TARGET_ALREADY_DEAD");
+            rulingService.
+
+create(roomId, new ClocktowerRulingCreateRequest(
+        ClocktowerRulingType.EXECUTE_PLAYER, candidate.nomineeSeatId(),candidate.
+
+nominationId(),
+            null,null,null,ClocktowerRulingReason.VOTE_EXECUTION,request.
+
+note(),
+            "一名玩家被处决",ClocktowerVisibility.PUBLIC,false),principal);
+        if(deathPolicy ==ClocktowerExecutionDeathPolicy.MARK_DEAD){
+ClocktowerSeatPo nominee = seatRepository
+        .findByIdAndRoomIdAndDeletedFalse(candidate.nomineeSeatId(), roomId)
+        .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_SEAT_NOT_FOUND"));
+        if("DEAD".
+
+equals(nominee.getLifeStatus())){
+        throw new
+
+ClocktowerException("CLOCKTOWER_EXECUTION_TARGET_ALREADY_DEAD");
         }
-        rulingService.create(roomId, new ClocktowerRulingCreateRequest(
-                ClocktowerRulingType.MARK_DEAD, candidate.nomineeSeatId(), null,
-                null, null, null, ClocktowerRulingReason.VOTE_EXECUTION, request.note(),
-                "一名玩家死亡", ClocktowerVisibility.PUBLIC, false), principal);
+                rulingService.
+
+create(roomId, new ClocktowerRulingCreateRequest(
+        ClocktowerRulingType.MARK_DEAD, candidate.nomineeSeatId(), null,
+        null,null,null,ClocktowerRulingReason.VOTE_EXECUTION,request.
+
+note(),
+                "一名玩家死亡",ClocktowerVisibility.PUBLIC,false),principal);
+        }
+        }else{
+        if(deathPolicy ==ClocktowerExecutionDeathPolicy.MARK_DEAD){
+        throw new
+
+ClocktowerException("CLOCKTOWER_EXECUTION_DEATH_POLICY_INVALID");
     }
-} else {
-    if (deathPolicy == ClocktowerExecutionDeathPolicy.MARK_DEAD) {
-        throw new ClocktowerException("CLOCKTOWER_EXECUTION_DEATH_POLICY_INVALID");
+            if(candidate.
+
+executable()){
+        throw new
+
+ClocktowerException("CLOCKTOWER_EXECUTION_CANDIDATE_EXISTS");
     }
-    if (candidate.executable()) {
-        throw new ClocktowerException("CLOCKTOWER_EXECUTION_CANDIDATE_EXISTS");
-    }
-    rulingService.create(roomId, new ClocktowerRulingCreateRequest(
-            ClocktowerRulingType.SKIP_EXECUTION, null, null, null,
-            null, null, ClocktowerRulingReason.VOTE_EXECUTION, request.note(),
-            "今日无人被处决", ClocktowerVisibility.PUBLIC, false), principal);
-}
+            rulingService.
+
+create(roomId, new ClocktowerRulingCreateRequest(
+        ClocktowerRulingType.SKIP_EXECUTION, null,null,null,
+               null,null,ClocktowerRulingReason.VOTE_EXECUTION, request.note(),
+            "今日无人被处决",ClocktowerVisibility.PUBLIC,false),principal);
+        }
 ClocktowerRoomPo refreshed = roomRepository.findByIdAndDeletedFalse(roomId)
         .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
-return buildFlow(refreshed);
+return
+
+buildFlow(refreshed);
 ```
 
 Add imports to `ClocktowerFlowServiceImpl`:
@@ -2297,6 +2780,7 @@ Expected: PASS.
 Append to `ClocktowerFlowServiceTests`:
 
 ```java
+
 @Test
 void demonDeathSuggestsGoodVictory() {
     Long roomId = dayRoom();
@@ -2355,6 +2839,7 @@ git commit -m "feat(clocktower): resolve execution flow"
 ### Task 7: Add Frontend Flow Client And Storyteller Flow Tab
 
 **Files:**
+
 - Modify: `fe/src/modules/clocktower/clocktowerTypes.ts`
 - Modify: `fe/src/modules/clocktower/clocktowerService.ts`
 - Modify: `fe/src/modules/clocktower/clocktowerService.test.ts`
@@ -2501,9 +2986,9 @@ Add imports to `clocktowerService.ts`:
 
 ```ts
 ClocktowerFlowResponse,
-CloseNominationRequest,
-ExecutionConfirmRequest,
-SkipNightTaskRequest,
+    CloseNominationRequest,
+    ExecutionConfirmRequest,
+    SkipNightTaskRequest,
 ```
 
 Add functions after `getClocktowerNightChecklist`:
@@ -2563,13 +3048,29 @@ getClocktowerFlow: vi.fn().mockResolvedValue({
     blockingReasons: ['CLOCKTOWER_NIGHT_TASKS_PENDING'],
     nightTaskSummary: {total: 2, pending: 2, done: 0, skipped: 0},
     openNomination: null,
-    executionCandidate: {resolved: false, executable: false, nominationId: null, nomineeSeatId: null, voteCount: 0, threshold: 3, reason: 'NO_CLOSED_NOMINATION'},
+    executionCandidate: {
+        resolved: false,
+        executable: false,
+        nominationId: null,
+        nomineeSeatId: null,
+        voteCount: 0,
+        threshold: 3,
+        reason: 'NO_CLOSED_NOMINATION'
+    },
     victoryCandidate: null,
 }),
-advanceClocktowerFlow: vi.fn(),
-skipClocktowerNightTask: vi.fn(),
-closeClocktowerNomination: vi.fn(),
-confirmClocktowerExecution: vi.fn(),
+    advanceClocktowerFlow
+:
+vi.fn(),
+    skipClocktowerNightTask
+:
+vi.fn(),
+    closeClocktowerNomination
+:
+vi.fn(),
+    confirmClocktowerExecution
+:
+vi.fn(),
 ```
 
 Add import:
@@ -2592,7 +3093,15 @@ test('renders flow panel with blocking reason', () => {
                 blockingReasons: ['CLOCKTOWER_NIGHT_TASKS_PENDING'],
                 nightTaskSummary: {total: 2, pending: 2, done: 0, skipped: 0},
                 openNomination: null,
-                executionCandidate: {resolved: false, executable: false, nominationId: null, nomineeSeatId: null, voteCount: 0, threshold: 3, reason: 'NO_CLOSED_NOMINATION'},
+                executionCandidate: {
+                    resolved: false,
+                    executable: false,
+                    nominationId: null,
+                    nomineeSeatId: null,
+                    voteCount: 0,
+                    threshold: 3,
+                    reason: 'NO_CLOSED_NOMINATION'
+                },
                 victoryCandidate: null,
             }}
             loading={false}
@@ -2619,7 +3128,15 @@ test('renders execution resolution controls with required note', () => {
                 blockingReasons: ['CLOCKTOWER_EXECUTION_NOT_RESOLVED'],
                 nightTaskSummary: {total: 0, pending: 0, done: 0, skipped: 0},
                 openNomination: null,
-                executionCandidate: {resolved: false, executable: true, nominationId: 12, nomineeSeatId: 3, voteCount: 4, threshold: 3, reason: 'EXECUTION_CANDIDATE'},
+                executionCandidate: {
+                    resolved: false,
+                    executable: true,
+                    nominationId: 12,
+                    nomineeSeatId: 3,
+                    voteCount: 4,
+                    threshold: 3,
+                    reason: 'EXECUTION_CANDIDATE'
+                },
                 victoryCandidate: null,
             }}
             loading={false}
@@ -2739,8 +3256,12 @@ Add a tab item before "待处理任务":
 ```tsx
 {
     key: 'flow',
-    label: '流程',
-    children: (
+        label
+:
+    '流程',
+        children
+:
+    (
         <FlowPanel
             flow={flow}
             loading={flowLoading}
@@ -2749,19 +3270,20 @@ Add a tab item before "待处理任务":
             onConfirmNoExecution={confirmNoExecution}
         />
     ),
-},
+}
+,
 ```
 
 Export `FlowPanel`:
 
 ```tsx
 export function FlowPanel({
-    flow,
-    loading,
-    onAdvance,
-    onConfirmExecution,
-    onConfirmNoExecution,
-}: {
+                              flow,
+                              loading,
+                              onAdvance,
+                              onConfirmExecution,
+                              onConfirmNoExecution,
+                          }: {
     flow: ClocktowerFlowResponse | null
     loading: boolean
     onAdvance: () => Promise<void>
@@ -2936,6 +3458,7 @@ git commit -m "feat(clocktower): add storyteller flow panel"
 ### Task 8: Final Integration Validation And Review
 
 **Files:**
+
 - Review only unless validation reveals a defect.
 
 - [ ] **Step 1: Run all Clocktower backend tests**
@@ -2981,7 +3504,8 @@ npx eslint src/modules/clocktower/StorytellerGrimoirePage.tsx src/modules/clockt
 npx antd lint src/modules/clocktower/StorytellerGrimoirePage.tsx --format json
 ```
 
-Expected: ESLint exits with no errors. Existing warnings outside changed logic may be reported, but do not claim a clean lint if the command exits nonzero. AntD lint summary must show `"total": 0`.
+Expected: ESLint exits with no errors. Existing warnings outside changed logic may be reported, but do not claim a clean
+lint if the command exits nonzero. AntD lint summary must show `"total": 0`.
 
 - [ ] **Step 5: Run whitespace check**
 
@@ -2993,7 +3517,8 @@ git diff --check
 git status --short
 ```
 
-Expected: `git diff --check` prints nothing. `git status --short` shows only intended changed files before final commit, or is clean after commits.
+Expected: `git diff --check` prints nothing. `git status --short` shows only intended changed files before final commit,
+or is clean after commits.
 
 - [ ] **Step 6: Request code review**
 
@@ -3007,7 +3532,8 @@ Use `superpowers:requesting-code-review` and ask for review of:
 
 - [ ] **Step 7: Fix review findings**
 
-For each accepted finding, make the smallest scoped code change, run the targeted test from the affected task, and commit with one of:
+For each accepted finding, make the smallest scoped code change, run the targeted test from the affected task, and
+commit with one of:
 
 ```bash
 git commit -m "fix(clocktower): harden flow transition rules"
@@ -3025,4 +3551,5 @@ git log --oneline -8
 git status --short
 ```
 
-Expected: latest commits are the flow implementation commits and worktree is clean except unrelated user-owned untracked files.
+Expected: latest commits are the flow implementation commits and worktree is clean except unrelated user-owned untracked
+files.
