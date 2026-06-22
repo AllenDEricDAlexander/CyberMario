@@ -77,10 +77,12 @@ Backend context and memory semantics:
 - Modify `be/src/main/java/top/egon/mario/agent/memory/service/AgentMemoryContextService.java`
 - Modify `be/src/main/java/top/egon/mario/agent/memory/service/impl/AgentMemoryContextServiceImpl.java`
 - Modify `be/src/main/java/top/egon/mario/agent/memory/hook/AgentMemoryMessagesHook.java`
+- Modify `be/src/main/java/top/egon/mario/rag/service/impl/RagChatServiceImpl.java`
 - Create `be/src/main/java/top/egon/mario/agent/context/service/AgentContextAssemblyService.java`
 - Create `be/src/main/java/top/egon/mario/agent/context/service/impl/AgentContextAssemblyServiceImpl.java`
 - Create `be/src/main/java/top/egon/mario/agent/context/service/model/AgentContext.java`
 - Test `be/src/test/java/top/egon/mario/agent/memory/AgentMemoryContextServiceTests.java`
+- Test `be/src/test/java/top/egon/mario/rag/service/RagChatMemoryServiceTests.java`
 - Test `be/src/test/java/top/egon/mario/agent/context/AgentContextAssemblyServiceTests.java`
 
 Backend auto-evolution and chat integration:
@@ -1047,6 +1049,7 @@ git commit -m "feat(agent): add soulmd self-service api"
 - Modify: `be/src/main/java/top/egon/mario/agent/memory/service/AgentMemoryContextService.java`
 - Modify: `be/src/main/java/top/egon/mario/agent/memory/service/impl/AgentMemoryContextServiceImpl.java`
 - Modify: `be/src/main/java/top/egon/mario/agent/memory/hook/AgentMemoryMessagesHook.java`
+- Modify: `be/src/main/java/top/egon/mario/rag/service/impl/RagChatServiceImpl.java`
 - Create: `be/src/main/java/top/egon/mario/agent/context/service/model/AgentContext.java`
 - Create: `be/src/main/java/top/egon/mario/agent/context/service/AgentContextAssemblyService.java`
 - Create: `be/src/main/java/top/egon/mario/agent/context/service/impl/AgentContextAssemblyServiceImpl.java`
@@ -1055,6 +1058,7 @@ git commit -m "feat(agent): add soulmd self-service api"
 - Modify: `be/src/main/java/top/egon/mario/rag/dto/request/RagChatRequest.java`
 - Modify: `be/src/main/java/top/egon/mario/agent/memory/dto/request/AgentMemorySessionRequest.java`
 - Modify: `be/src/main/java/top/egon/mario/agent/memory/dto/response/AgentMemorySessionResponse.java`
+- Modify: `be/src/test/java/top/egon/mario/rag/service/RagChatMemoryServiceTests.java`
 - Modify backend call sites in `ReactAgentChatService`, `AgentMemoryController`, and RAG chat handling that still call
   `request.memoryEnabled()` for chat or memory session requests.
 
@@ -1166,7 +1170,59 @@ and in the static `from` mapper, pass the same value twice:
 
 This keeps existing clients working while the frontend switches to `memoryContextEnabled`.
 
-- [ ] **Step 5: Update memory context service interface and implementation**
+- [ ] **Step 5: Update RAG chat service call sites for the renamed field and new memory context signature**
+
+In `be/src/main/java/top/egon/mario/rag/service/impl/RagChatServiceImpl.java`, keep session creation using the compatibility accessor:
+
+```java
+            AgentMemorySessionPo session = memorySessionService.resolveOrCreate(
+                    AgentMemoryEntryType.RAG_CHAT,
+                    request.sessionId(),
+                    request.memoryEnabled(),
+                    request.longTermExtractionEnabled(),
+                    principal);
+```
+
+Replace the memory context call with:
+
+```java
+            AgentMemoryContext memoryContext = memoryContextService.contextFor(session, principal, false);
+```
+
+RAG chat never injects long-term memory as prompt context; it still injects recent session turns.
+
+Update the metadata map to emit the new field and keep the old field for compatibility:
+
+```java
+                    "memoryContextEnabled", session.isMemoryEnabled(),
+                    "memoryEnabled", session.isMemoryEnabled(),
+```
+
+In `be/src/test/java/top/egon/mario/rag/service/RagChatMemoryServiceTests.java`, update all stubs from:
+
+```java
+given(memoryContextService.contextFor(any(), any()))
+```
+
+to:
+
+```java
+given(memoryContextService.contextFor(any(), any(), eq(false)))
+```
+
+Update metadata expectations to assert `memoryContextEnabled` while keeping existing `memoryEnabled` assertions:
+
+```java
+&& Boolean.TRUE.equals(event.data().get("memoryContextEnabled"))
+```
+
+and:
+
+```java
+&& Boolean.FALSE.equals(event.data().get("memoryContextEnabled"))
+```
+
+- [ ] **Step 6: Update memory context service interface and implementation**
 
 Replace `be/src/main/java/top/egon/mario/agent/memory/service/AgentMemoryContextService.java` with:
 
@@ -1211,7 +1267,7 @@ body to:
     }
 ```
 
-- [ ] **Step 6: Add context assembly model and service**
+- [ ] **Step 7: Add context assembly model and service**
 
 Create `be/src/main/java/top/egon/mario/agent/context/service/model/AgentContext.java`:
 
@@ -1299,7 +1355,7 @@ public class AgentContextAssemblyServiceImpl implements AgentContextAssemblyServ
 }
 ```
 
-- [ ] **Step 7: Extend `AgentMemoryMessagesHook` metadata and injection order**
+- [ ] **Step 8: Extend `AgentMemoryMessagesHook` metadata and injection order**
 
 In `be/src/main/java/top/egon/mario/agent/memory/hook/AgentMemoryMessagesHook.java`, add constants:
 
@@ -1343,7 +1399,7 @@ Replace the `beforeModel` method with:
 
 Keep the existing `metadataString` method unchanged.
 
-- [ ] **Step 8: Add context assembly tests**
+- [ ] **Step 9: Add context assembly tests**
 
 Create `be/src/test/java/top/egon/mario/agent/context/AgentContextAssemblyServiceTests.java`:
 
@@ -1402,17 +1458,17 @@ class AgentContextAssemblyServiceTests {
 }
 ```
 
-- [ ] **Step 9: Run context tests**
+- [ ] **Step 10: Run context tests**
 
 Run:
 
 ```bash
-cd be && mvn test -Dtest=AgentMemoryContextServiceTests,AgentContextAssemblyServiceTests
+cd be && mvn test -Dtest=AgentMemoryContextServiceTests,RagChatMemoryServiceTests,AgentContextAssemblyServiceTests
 ```
 
 Expected: PASS.
 
-- [ ] **Step 10: Commit Task 3**
+- [ ] **Step 11: Commit Task 3**
 
 ```bash
 git add be/src/test/java/top/egon/mario/agent/memory/AgentMemoryContextServiceTests.java \
@@ -1420,6 +1476,7 @@ git add be/src/test/java/top/egon/mario/agent/memory/AgentMemoryContextServiceTe
   be/src/main/java/top/egon/mario/agent/memory/service/AgentMemoryContextService.java \
   be/src/main/java/top/egon/mario/agent/memory/service/impl/AgentMemoryContextServiceImpl.java \
   be/src/main/java/top/egon/mario/agent/memory/hook/AgentMemoryMessagesHook.java \
+  be/src/main/java/top/egon/mario/rag/service/impl/RagChatServiceImpl.java \
   be/src/main/java/top/egon/mario/agent/context/service/model/AgentContext.java \
   be/src/main/java/top/egon/mario/agent/context/service/AgentContextAssemblyService.java \
   be/src/main/java/top/egon/mario/agent/context/service/impl/AgentContextAssemblyServiceImpl.java \
@@ -1427,7 +1484,8 @@ git add be/src/test/java/top/egon/mario/agent/memory/AgentMemoryContextServiceTe
   be/src/main/java/top/egon/mario/agent/dto/request/AgentDebugChatRequest.java \
   be/src/main/java/top/egon/mario/rag/dto/request/RagChatRequest.java \
   be/src/main/java/top/egon/mario/agent/memory/dto/request/AgentMemorySessionRequest.java \
-  be/src/main/java/top/egon/mario/agent/memory/dto/response/AgentMemorySessionResponse.java
+  be/src/main/java/top/egon/mario/agent/memory/dto/response/AgentMemorySessionResponse.java \
+  be/src/test/java/top/egon/mario/rag/service/RagChatMemoryServiceTests.java
 git commit -m "feat(agent): assemble soul and memory context"
 ```
 
