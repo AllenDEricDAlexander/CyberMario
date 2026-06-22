@@ -5,7 +5,9 @@ import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
 import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
@@ -57,9 +59,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 class ReactAgentChatServiceTests {
 
@@ -136,18 +139,19 @@ class ReactAgentChatServiceTests {
                         && messages.get(0).messageType() == AgentConversationMessageType.MESSAGE
                         && messages.get(0).content().equals("答案")), any(Instant.class));
         verify(support.runAuditService).complete(eq(support.runAuditContext), eq("答案"), eq(null), any(Instant.class));
-        verify(support.memoryMessageService).appendAll(org.mockito.ArgumentMatchers.argThat(records ->
-                records.size() == 2
+        InOrder successfulMemoryOrder = inOrder(support.memoryMessageService);
+        successfulMemoryOrder.verify(support.memoryMessageService).appendAll(org.mockito.ArgumentMatchers.argThat(records ->
+                records.size() == 1
                         && records.get(0).role() == AgentMemoryMessageRole.USER
                         && records.get(0).messageType() == AgentMemoryMessageType.MESSAGE
                         && records.get(0).messageStatus() == AgentMemoryMessageStatus.SUCCEEDED
-                        && records.get(1).role() == AgentMemoryMessageRole.ASSISTANT
-                        && records.get(1).messageType() == AgentMemoryMessageType.MESSAGE
-                        && records.get(1).messageStatus() == AgentMemoryMessageStatus.SUCCEEDED
-                        && records.get(1).errorCode() == null
-                        && records.get(1).errorMessage() == null
-                        && records.get(1).metadataJson() == null
-                        && records.get(1).content().equals("答案")));
+                        && records.get(0).content().equals("你好")));
+        successfulMemoryOrder.verify(support.memoryMessageService).appendAll(org.mockito.ArgumentMatchers.argThat(records ->
+                records.size() == 1
+                        && records.get(0).role() == AgentMemoryMessageRole.ASSISTANT
+                        && records.get(0).messageType() == AgentMemoryMessageType.MESSAGE
+                        && records.get(0).messageStatus() == AgentMemoryMessageStatus.SUCCEEDED
+                        && records.get(0).content().equals("答案")));
         verify(support.memoryExtractionService).extractAfterTurn(any(AgentMemoryExtractionRequest.class));
     }
 
@@ -234,6 +238,90 @@ class ReactAgentChatServiceTests {
     }
 
     @Test
+    void chatPersistsOnlyFinalCumulativeAssistantMessage() throws Exception {
+        ReactAgent agent = mock(ReactAgent.class);
+        TestSupport support = new TestSupport(agent);
+        given(agent.stream(eq("你好"), any(RunnableConfig.class)))
+                .willReturn(Flux.just(messageOutput("你"), messageOutput("你好"), messageOutput("你好，Mario")));
+
+        StepVerifier.create(support.chatService.chat("你好", "thread-1", null))
+                .expectNext(new ChatResponse("thread-1", "你", "message"))
+                .expectNext(new ChatResponse("thread-1", "你好", "message"))
+                .expectNext(new ChatResponse("thread-1", "你好，Mario", "message"))
+                .verifyComplete();
+
+        InOrder inOrder = inOrder(support.memoryMessageService);
+        inOrder.verify(support.memoryMessageService).appendAll(org.mockito.ArgumentMatchers.argThat(records ->
+                records.size() == 1
+                        && records.get(0).role() == AgentMemoryMessageRole.USER
+                        && records.get(0).content().equals("你好")));
+        inOrder.verify(support.memoryMessageService).appendAll(org.mockito.ArgumentMatchers.argThat(records ->
+                records.size() == 1
+                        && records.get(0).role() == AgentMemoryMessageRole.ASSISTANT
+                        && records.get(0).messageType() == AgentMemoryMessageType.MESSAGE
+                        && records.get(0).messageStatus() == AgentMemoryMessageStatus.SUCCEEDED
+                        && records.get(0).content().equals("你好，Mario")));
+    }
+
+    @Test
+    void chatPersistsOnlyFinalCumulativeThinkingMessage() throws Exception {
+        ReactAgent agent = mock(ReactAgent.class);
+        TestSupport support = new TestSupport(agent);
+        given(agent.stream(eq("分析一下"), any(RunnableConfig.class)))
+                .willReturn(Flux.just(
+                        directOutput(new AssistantMessage("分析"), "THINKING"),
+                        directOutput(new AssistantMessage("分析问题"), "THINKING"),
+                        messageOutput("最终回答")));
+
+        StepVerifier.create(support.chatService.chat("分析一下", "thread-1", null))
+                .expectNext(new ChatResponse("thread-1", "分析", "think"))
+                .expectNext(new ChatResponse("thread-1", "分析问题", "think"))
+                .expectNext(new ChatResponse("thread-1", "最终回答", "message"))
+                .verifyComplete();
+
+        verify(support.memoryMessageService).appendAll(org.mockito.ArgumentMatchers.argThat(records ->
+                records.size() == 2
+                        && records.get(0).messageType() == AgentMemoryMessageType.THINK
+                        && records.get(0).content().equals("分析问题")
+                        && records.get(1).messageType() == AgentMemoryMessageType.MESSAGE
+                        && records.get(1).content().equals("最终回答")));
+    }
+
+    @Test
+    void chatPersistsUserAndAssistantErrorWhenAgentFails() throws Exception {
+        ReactAgent agent = mock(ReactAgent.class);
+        TestSupport support = new TestSupport(agent);
+        IllegalArgumentException failure = new IllegalArgumentException("[InvalidParameter] url error");
+        given(agent.stream(eq("查这个链接"), any(RunnableConfig.class))).willReturn(Flux.error(failure));
+
+        StepVerifier.create(support.chatService.chat("查这个链接", "thread-1", null))
+                .assertNext(response -> {
+                    assertThat(response.threadId()).isEqualTo("thread-1");
+                    assertThat(response.type()).isEqualTo("error");
+                    assertThat(response.message()).contains("模型调用失败");
+                    assertThat(response.message()).contains("url error");
+                })
+                .verifyComplete();
+
+        InOrder inOrder = inOrder(support.memoryMessageService);
+        inOrder.verify(support.memoryMessageService).appendAll(org.mockito.ArgumentMatchers.argThat(records ->
+                records.size() == 1
+                        && records.get(0).role() == AgentMemoryMessageRole.USER
+                        && records.get(0).messageType() == AgentMemoryMessageType.MESSAGE
+                        && records.get(0).messageStatus() == AgentMemoryMessageStatus.SUCCEEDED
+                        && records.get(0).content().equals("查这个链接")));
+        inOrder.verify(support.memoryMessageService).appendAll(org.mockito.ArgumentMatchers.argThat(records ->
+                records.size() == 1
+                        && records.get(0).role() == AgentMemoryMessageRole.ASSISTANT
+                        && records.get(0).messageType() == AgentMemoryMessageType.ERROR
+                        && records.get(0).messageStatus() == AgentMemoryMessageStatus.FAILED
+                        && records.get(0).content().contains("模型调用失败")
+                        && records.get(0).errorCode().equals(IllegalArgumentException.class.getName())
+                        && records.get(0).errorMessage().equals("[InvalidParameter] url error")));
+        verify(support.memoryExtractionService, never()).extractAfterTurn(any());
+    }
+
+    @Test
     void chatTreatsSessionIdAsConversationThreadAndKeepsThreadIdCompatibility() throws Exception {
         ReactAgent agent = mock(ReactAgent.class);
         TestSupport support = new TestSupport(agent);
@@ -268,6 +356,10 @@ class ReactAgentChatServiceTests {
 
     private NodeOutput messageOutput(String text) {
         return NodeOutput.of("node", "agent", new OverAllState(Map.of("messages", java.util.List.of(new AssistantMessage(text)))), null);
+    }
+
+    private NodeOutput directOutput(Message message, String outputType) {
+        return new DirectMessageOutput(message, outputType);
     }
 
     private NodeOutput userMessageOutput(String text) {
@@ -324,6 +416,27 @@ class ReactAgentChatServiceTests {
             this.chatService = new ReactAgentChatService(presetService, runtimeFactory, auditService, runAuditService,
                     Schedulers.immediate(), userContext, memorySessionService, memoryMessageService,
                     memoryContextService, memoryExtractionService);
+        }
+    }
+
+    private static final class DirectMessageOutput extends NodeOutput {
+
+        private final Message message;
+
+        private final String outputType;
+
+        private DirectMessageOutput(Message message, String outputType) {
+            super("node", "agent", new OverAllState(Map.of()));
+            this.message = message;
+            this.outputType = outputType;
+        }
+
+        public Message message() {
+            return message;
+        }
+
+        public String getOutputType() {
+            return outputType;
         }
     }
 

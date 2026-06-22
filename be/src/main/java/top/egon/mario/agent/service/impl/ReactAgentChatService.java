@@ -18,6 +18,7 @@ import top.egon.mario.agent.memory.hook.AgentMemoryMessagesHook;
 import top.egon.mario.agent.memory.po.AgentMemorySessionPo;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryEntryType;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageRole;
+import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageStatus;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageType;
 import top.egon.mario.agent.memory.service.AgentMemoryContextService;
 import top.egon.mario.agent.memory.service.AgentMemoryExtractionService;
@@ -26,6 +27,7 @@ import top.egon.mario.agent.memory.service.AgentMemorySessionService;
 import top.egon.mario.agent.memory.service.model.AgentMemoryContext;
 import top.egon.mario.agent.memory.service.model.AgentMemoryExtractionRequest;
 import top.egon.mario.agent.memory.service.model.AgentMemoryMessageRecord;
+import top.egon.mario.agent.memory.service.model.AgentMemoryTextAccumulator;
 import top.egon.mario.agent.model.dto.enums.ModelScenario;
 import top.egon.mario.agent.model.service.model.ModelCallContext;
 import top.egon.mario.agent.observability.service.AgentRunAuditService;
@@ -47,6 +49,7 @@ import top.egon.mario.pojo.request.ChatRequest;
 import top.egon.mario.pojo.response.ChatResponse;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
+import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -137,8 +140,10 @@ public class ReactAgentChatService implements ChatAgentService {
             AgentRuntimeFactory.AgentRuntime runtime = agentRuntimeFactory.runtime(spec, modelCallContext);
             AtomicReference<Long> auditId = new AtomicReference<>();
             AtomicReference<AgentRunAuditContext> runAuditContext = new AtomicReference<>();
-            List<String> messageChunks = new ArrayList<>();
-            List<String> thinkChunks = new ArrayList<>();
+            int turnNo = memoryMessageService.nextTurnNo(memorySession.getSessionId());
+            persistUserMemory(memorySession, message, turnNo, requestId, traceId);
+            AgentMemoryTextAccumulator messageContent = new AgentMemoryTextAccumulator();
+            AgentMemoryTextAccumulator thinkContent = new AgentMemoryTextAccumulator();
             TraceContext.withMdc(traceId, () -> LogUtil.info(log).log("agent chat started, threadId={}, messageLength={}",
                     conversationThreadId, message == null ? 0 : message.length()));
             return Mono.just(RunnableConfig.builder().threadId(conversationThreadId).build())
@@ -162,16 +167,19 @@ public class ReactAgentChatService implements ChatAgentService {
                             () -> LogUtil.error(log).log("agent chat failed, threadId={}", conversationThreadId, error)))
                     .subscribeOn(blockingScheduler)
                     .flatMap(output -> toChatResponse(output, conversationThreadId))
-                    .doOnNext(response -> collectAuditChunk(response, messageChunks, thinkChunks))
+                    .doOnNext(response -> collectAuditChunk(response, messageContent, thinkContent))
                     .doFinally(signalType -> {
-                        finishAudit(signalType, auditId.get(), messageChunks, thinkChunks, null);
-                        finishRunAudit(signalType, runAuditContext.get(), messageChunks, thinkChunks, null);
-                        finishMemory(signalType, memorySession, message, messageChunks, thinkChunks, requestId, traceId);
+                        finishAudit(signalType, auditId.get(), messageContent, thinkContent, null);
+                        finishRunAudit(signalType, runAuditContext.get(), messageContent, thinkContent, null);
+                        finishAssistantMemory(signalType, memorySession, turnNo, messageContent, thinkContent,
+                                requestId, traceId);
                     })
                     .onErrorResume(error -> {
+                        String userFacingError = errorMessage(error);
                         failAudit(auditId.get(), error);
                         failRunAudit(runAuditContext.get(), error);
-                        return Flux.just(new ChatResponse(conversationThreadId, errorMessage(error), "error"));
+                        failAssistantMemory(memorySession, turnNo, userFacingError, error, requestId, traceId);
+                        return Flux.just(new ChatResponse(conversationThreadId, userFacingError, "error"));
                     });
         });
     }
@@ -228,18 +236,22 @@ public class ReactAgentChatService implements ChatAgentService {
         return builder.build();
     }
 
-    private void collectAuditChunk(ChatResponse response, List<String> messageChunks, List<String> thinkChunks) {
+    private void collectAuditChunk(ChatResponse response, AgentMemoryTextAccumulator messageContent,
+                                   AgentMemoryTextAccumulator thinkContent) {
         if (response == null || response.message() == null) {
             return;
         }
         if ("think".equals(response.type())) {
-            thinkChunks.add(response.message());
+            thinkContent.accept(response.message());
             return;
         }
-        messageChunks.add(response.message());
+        if ("message".equals(response.type())) {
+            messageContent.accept(response.message());
+        }
     }
 
-    private void finishAudit(SignalType signalType, Long auditId, List<String> messageChunks, List<String> thinkChunks, Throwable error) {
+    private void finishAudit(SignalType signalType, Long auditId, AgentMemoryTextAccumulator messageContent,
+                             AgentMemoryTextAccumulator thinkContent, Throwable error) {
         if (auditId == null || error != null) {
             return;
         }
@@ -249,15 +261,15 @@ public class ReactAgentChatService implements ChatAgentService {
         }
         if (signalType == SignalType.ON_COMPLETE) {
             List<AgentConversationMessageRecord> messages = new ArrayList<>();
-            String thinkContent = String.join("", thinkChunks);
-            if (StringUtils.hasText(thinkContent)) {
+            String finalThinkContent = thinkContent.normalizedContent();
+            if (StringUtils.hasText(finalThinkContent)) {
                 messages.add(new AgentConversationMessageRecord(AgentConversationRole.ASSISTANT,
-                        AgentConversationMessageType.THINK, thinkContent));
+                        AgentConversationMessageType.THINK, finalThinkContent));
             }
-            String messageContent = String.join("", messageChunks);
-            if (StringUtils.hasText(messageContent)) {
+            String finalMessageContent = messageContent.normalizedContent();
+            if (StringUtils.hasText(finalMessageContent)) {
                 messages.add(new AgentConversationMessageRecord(AgentConversationRole.ASSISTANT,
-                        AgentConversationMessageType.MESSAGE, messageContent));
+                        AgentConversationMessageType.MESSAGE, finalMessageContent));
             }
             auditService.complete(auditId, messages, Instant.now());
         }
@@ -270,8 +282,9 @@ public class ReactAgentChatService implements ChatAgentService {
         auditService.fail(auditId, error.getClass().getName(), error.getMessage(), Instant.now());
     }
 
-    private void finishRunAudit(SignalType signalType, AgentRunAuditContext context, List<String> messageChunks,
-                                List<String> thinkChunks, Throwable error) {
+    private void finishRunAudit(SignalType signalType, AgentRunAuditContext context,
+                                AgentMemoryTextAccumulator messageContent,
+                                AgentMemoryTextAccumulator thinkContent, Throwable error) {
         if (context == null || error != null) {
             return;
         }
@@ -280,9 +293,8 @@ public class ReactAgentChatService implements ChatAgentService {
             return;
         }
         if (signalType == SignalType.ON_COMPLETE) {
-            String thinkContent = normalizeContent(String.join("", thinkChunks));
-            String messageContent = normalizeContent(String.join("", messageChunks));
-            runAuditService.complete(context, messageContent, thinkContent, Instant.now());
+            runAuditService.complete(context, messageContent.normalizedContent(),
+                    thinkContent.normalizedContent(), Instant.now());
         }
     }
 
@@ -293,27 +305,41 @@ public class ReactAgentChatService implements ChatAgentService {
         runAuditService.fail(context, error.getClass().getName(), error.getMessage(), Instant.now());
     }
 
-    private void finishMemory(SignalType signalType, AgentMemorySessionPo session, String userMessage,
-                              List<String> messageChunks, List<String> thinkChunks,
-                              String requestId, String traceId) {
+    private void persistUserMemory(AgentMemorySessionPo session, String userMessage, int turnNo,
+                                   String requestId, String traceId) {
+        if (session == null) {
+            return;
+        }
+        memoryMessageService.appendAll(List.of(new AgentMemoryMessageRecord(session.getSessionId(),
+                session.getUserId(), session.getEntryType(), turnNo, AgentMemoryMessageRole.USER,
+                AgentMemoryMessageType.MESSAGE, userMessage, null, traceId, requestId,
+                AgentMemoryMessageStatus.SUCCEEDED, null, null, null)));
+    }
+
+    private void finishAssistantMemory(SignalType signalType, AgentMemorySessionPo session, int turnNo,
+                                       AgentMemoryTextAccumulator messageContent,
+                                       AgentMemoryTextAccumulator thinkContent,
+                                       String requestId, String traceId) {
         if (session == null || signalType != SignalType.ON_COMPLETE) {
             return;
         }
-        int turnNo = memoryMessageService.nextTurnNo(session.getSessionId());
         List<AgentMemoryMessageRecord> records = new ArrayList<>();
-        records.add(new AgentMemoryMessageRecord(session.getSessionId(), session.getUserId(), session.getEntryType(),
-                turnNo, AgentMemoryMessageRole.USER, AgentMemoryMessageType.MESSAGE, userMessage, null, traceId, requestId));
-        String thinkContent = normalizeContent(String.join("", thinkChunks));
-        if (StringUtils.hasText(thinkContent)) {
+        String finalThinkContent = thinkContent.normalizedContent();
+        if (StringUtils.hasText(finalThinkContent)) {
             records.add(new AgentMemoryMessageRecord(session.getSessionId(), session.getUserId(), session.getEntryType(),
                     turnNo, AgentMemoryMessageRole.ASSISTANT, AgentMemoryMessageType.THINK,
-                    thinkContent, null, traceId, requestId));
+                    finalThinkContent, null, traceId, requestId,
+                    AgentMemoryMessageStatus.SUCCEEDED, null, null, null));
         }
-        String messageContent = normalizeContent(String.join("", messageChunks));
-        if (StringUtils.hasText(messageContent)) {
+        String finalMessageContent = messageContent.normalizedContent();
+        if (StringUtils.hasText(finalMessageContent)) {
             records.add(new AgentMemoryMessageRecord(session.getSessionId(), session.getUserId(), session.getEntryType(),
                     turnNo, AgentMemoryMessageRole.ASSISTANT, AgentMemoryMessageType.MESSAGE,
-                    messageContent, null, traceId, requestId));
+                    finalMessageContent, null, traceId, requestId,
+                    AgentMemoryMessageStatus.SUCCEEDED, null, null, null));
+        }
+        if (records.isEmpty()) {
+            return;
         }
         memoryMessageService.appendAll(records);
         if (session.isLongTermExtractionEnabled()) {
@@ -322,14 +348,22 @@ public class ReactAgentChatService implements ChatAgentService {
         }
     }
 
-    private String normalizeContent(String content) {
-        return StringUtils.hasText(content) ? content : null;
+    private void failAssistantMemory(AgentMemorySessionPo session, int turnNo, String userFacingError,
+                                     Throwable error, String requestId, String traceId) {
+        if (session == null) {
+            return;
+        }
+        memoryMessageService.appendAll(List.of(AgentMemoryMessageRecord.failed(session.getSessionId(),
+                session.getUserId(), session.getEntryType(), turnNo, AgentMemoryMessageRole.ASSISTANT,
+                AgentMemoryMessageType.ERROR, userFacingError, traceId, requestId,
+                error == null ? null : error.getClass().getName(),
+                error == null ? null : error.getMessage())));
     }
 
     private Flux<ChatResponse> toChatResponse(NodeOutput output, String threadId) {
         // 1) Direct message via reflection-friendly access
         try {
-            Object msg = output.getClass().getMethod("message").invoke(output);
+            Object msg = invokeOutputMethod(output, "message");
             if (msg instanceof Message m && StringUtils.hasText(m.getText())) {
                 String type = inferType(output);
                 return Flux.just(new ChatResponse(threadId, m.getText(), type));
@@ -362,13 +396,21 @@ public class ReactAgentChatService implements ChatAgentService {
 
     private String inferType(NodeOutput output) {
         try {
-            Object ot = output.getClass().getMethod("getOutputType").invoke(output);
+            Object ot = invokeOutputMethod(output, "getOutputType");
             if (ot != null && "THINKING".equalsIgnoreCase(ot.toString())) {
                 return "think";
             }
         } catch (Exception ignored) {
         }
         return "message";
+    }
+
+    private Object invokeOutputMethod(NodeOutput output, String methodName) throws ReflectiveOperationException {
+        Method method = output.getClass().getMethod(methodName);
+        if (!method.canAccess(output)) {
+            method.setAccessible(true);
+        }
+        return method.invoke(output);
     }
 
     private String extractText(Object msg) {
