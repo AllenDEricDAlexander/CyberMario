@@ -45,6 +45,8 @@ import top.egon.mario.agent.service.model.AgentModelConfig;
 import top.egon.mario.agent.service.model.AgentOptions;
 import top.egon.mario.agent.service.model.AgentRuntimeSpec;
 import top.egon.mario.agent.service.model.AgentToolConfig;
+import top.egon.mario.agent.soul.po.enums.AgentSoulSourceType;
+import top.egon.mario.agent.soul.service.AgentSoulService;
 import top.egon.mario.agent.tools.arxiv.ArxivToolUserContext;
 import top.egon.mario.pojo.request.ChatRequest;
 import top.egon.mario.pojo.response.ChatResponse;
@@ -171,6 +173,7 @@ class ReactAgentChatServiceTests {
                         && records.get(0).messageStatus() == AgentMemoryMessageStatus.SUCCEEDED
                         && records.get(0).content().equals("答案")));
         verify(support.memoryExtractionService).extractAfterTurn(any(AgentMemoryExtractionRequest.class));
+        verify(support.soulService, never()).maybeEvolveAfterChat(any());
     }
 
     @Test
@@ -221,6 +224,56 @@ class ReactAgentChatServiceTests {
     }
 
     @Test
+    void chatEvolvesSoulAfterSuccessfulNormalChat() throws Exception {
+        ReactAgent agent = mock(ReactAgent.class);
+        TestSupport support = new TestSupport(agent);
+        RbacPrincipal principal = new RbacPrincipal(8L, "luigi", Set.of("CHAT_BASIC"), Set.of(), "v1");
+        AgentMemoryContext memoryContext = new AgentMemoryContext("raw recent", "raw long");
+        given(support.memoryContextService.contextFor(any(), eq(principal), eq(true)))
+                .willReturn(memoryContext);
+        given(support.contextAssemblyService.assemble(eq(principal), eq(memoryContext), eq(true)))
+                .willReturn(new AgentContext("safety prompt", "soul prompt", "long prompt", "recent prompt"));
+        given(agent.stream(eq("你好"), any(RunnableConfig.class)))
+                .willReturn(Flux.just(messageOutput("答案")));
+
+        StepVerifier.create(support.chatService.chat("你好", "thread-1", principal))
+                .expectNext(new ChatResponse("thread-1", "答案", "message"))
+                .verifyComplete();
+
+        verify(support.soulService).maybeEvolveAfterChat(org.mockito.ArgumentMatchers.argThat(request ->
+                request.principal().equals(principal)
+                        && request.sessionId().equals("thread-1")
+                        && request.userMessage().equals("你好")
+                        && request.assistantMessage().equals("答案")
+                        && request.recentContextPrompt().equals("recent prompt")
+                        && request.sourceType() == AgentSoulSourceType.AGENT_CHAT
+                        && request.requestId() != null
+                        && !request.requestId().isBlank()));
+    }
+
+    @Test
+    void debugChatDoesNotEvolveSoulWhenResolvedSessionWasNormalChat() throws Exception {
+        ReactAgent agent = mock(ReactAgent.class);
+        AgentRuntimeSpec debugSpec = runtimeSpec("debug-fingerprint");
+        TestSupport support = new TestSupport(agent);
+        RbacPrincipal principal = new RbacPrincipal(8L, "luigi", Set.of("CHAT_BASIC"), Set.of(), "v1");
+        given(support.presetService.resolveRuntimeSpec(any(AgentDebugChatRequest.class))).willReturn(debugSpec);
+        given(support.memorySessionService.resolveOrCreate(
+                eq(AgentMemoryEntryType.AGENT_DEBUG), eq("thread-1"), isNull(), isNull(), eq(principal)))
+                .willReturn(session("thread-1", AgentMemoryEntryType.AGENT_CHAT));
+        given(agent.stream(eq("你好"), any(RunnableConfig.class)))
+                .willReturn(Flux.just(messageOutput("答案")));
+
+        StepVerifier.create(support.chatService.debugChat(
+                        new AgentDebugChatRequest("你好", "thread-1", null, null, null, 9L, null),
+                        principal))
+                .expectNext(new ChatResponse("thread-1", "答案", "message"))
+                .verifyComplete();
+
+        verify(support.soulService, never()).maybeEvolveAfterChat(any());
+    }
+
+    @Test
     void debugChatMarksAuditFailedAndReturnsErrorChunkWhenAgentFails() throws Exception {
         ReactAgent agent = mock(ReactAgent.class);
         TestSupport support = new TestSupport(agent);
@@ -236,6 +289,7 @@ class ReactAgentChatServiceTests {
         verify(support.auditService).fail(eq(99L), eq(IllegalStateException.class.getName()), eq("boom"), any(Instant.class));
         verify(support.runAuditService).fail(eq(support.runAuditContext), eq(IllegalStateException.class.getName()),
                 eq("boom"), any(Instant.class));
+        verify(support.soulService, never()).maybeEvolveAfterChat(any());
     }
 
     @Test
@@ -259,6 +313,7 @@ class ReactAgentChatServiceTests {
                 eq("[InvalidParameter] url error, please check url"), any(Instant.class));
         verify(support.runAuditService).fail(eq(support.runAuditContext), eq(IllegalArgumentException.class.getName()),
                 eq("[InvalidParameter] url error, please check url"), any(Instant.class));
+        verify(support.soulService, never()).maybeEvolveAfterChat(any());
     }
 
     @Test
@@ -467,6 +522,7 @@ class ReactAgentChatServiceTests {
         private final AgentMemoryContextService memoryContextService = mock(AgentMemoryContextService.class);
         private final AgentContextAssemblyService contextAssemblyService = mock(AgentContextAssemblyService.class);
         private final AgentMemoryExtractionService memoryExtractionService = mock(AgentMemoryExtractionService.class);
+        private final AgentSoulService soulService = mock(AgentSoulService.class);
         private final ArxivToolUserContext userContext = new ArxivToolUserContext();
         private final AgentRunAuditContext runAuditContext = new AgentRunAuditContext(7L, "request-1", "trace-1",
                 8L, "luigi", "thread-1", 9L, "fingerprint-1", new AtomicInteger(-1), new AtomicInteger(0),
@@ -498,7 +554,7 @@ class ReactAgentChatServiceTests {
             doAnswer(invocation -> null).when(auditService).complete(any(), any(), any());
             this.chatService = new ReactAgentChatService(presetService, runtimeFactory, auditService, runAuditService,
                     Schedulers.immediate(), userContext, memorySessionService, memoryMessageService,
-                    memoryContextService, contextAssemblyService, memoryExtractionService);
+                    memoryContextService, contextAssemblyService, memoryExtractionService, soulService);
         }
     }
 

@@ -14,6 +14,7 @@ import top.egon.mario.agent.service.AgentRuntimeFactory;
 import top.egon.mario.agent.service.ChatAgentService;
 import top.egon.mario.agent.service.impl.ReactAgentChatService;
 import top.egon.mario.agent.service.model.AgentRuntimeDefaults;
+import top.egon.mario.agent.soul.service.AgentSoulService;
 import top.egon.mario.agent.tools.arxiv.ArxivToolUserContext;
 
 import java.math.BigDecimal;
@@ -55,7 +56,8 @@ class AgentConfigurationTests {
                 mock(AgentMemoryMessageService.class),
                 mock(AgentMemoryContextService.class),
                 mock(AgentContextAssemblyService.class),
-                mock(AgentMemoryExtractionService.class)
+                mock(AgentMemoryExtractionService.class),
+                mock(AgentSoulService.class)
         );
 
         assertThat(service).isInstanceOf(ReactAgentChatService.class);

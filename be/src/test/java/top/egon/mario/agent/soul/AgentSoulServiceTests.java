@@ -5,9 +5,13 @@ import top.egon.mario.agent.service.AgentException;
 import top.egon.mario.agent.soul.dto.request.AgentSoulMdUpdateRequest;
 import top.egon.mario.agent.soul.po.AgentSoulMdVersionPo;
 import top.egon.mario.agent.soul.po.enums.AgentSoulChangeType;
+import top.egon.mario.agent.soul.po.enums.AgentSoulSourceType;
 import top.egon.mario.agent.soul.repository.AgentSoulMdVersionRepository;
 import top.egon.mario.agent.soul.service.AgentSoulDefaults;
+import top.egon.mario.agent.soul.service.AgentSoulEvolutionModel;
 import top.egon.mario.agent.soul.service.impl.AgentSoulServiceImpl;
+import top.egon.mario.agent.soul.service.model.AgentSoulEvolutionDecision;
+import top.egon.mario.agent.soul.service.model.AgentSoulEvolutionRequest;
 import top.egon.mario.rbac.po.UserPo;
 import top.egon.mario.rbac.repository.UserRepository;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
@@ -32,7 +36,8 @@ class AgentSoulServiceTests {
 
     private final UserRepository userRepository = mock(UserRepository.class);
     private final AgentSoulMdVersionRepository versionRepository = mock(AgentSoulMdVersionRepository.class);
-    private final AgentSoulServiceImpl service = new AgentSoulServiceImpl(userRepository, versionRepository);
+    private final AgentSoulEvolutionModel evolutionModel = mock(AgentSoulEvolutionModel.class);
+    private final AgentSoulServiceImpl service = new AgentSoulServiceImpl(userRepository, versionRepository, evolutionModel);
     private final RbacPrincipal principal = new RbacPrincipal(8L, "luigi", Set.of("CHAT_BASIC"), Set.of(), "v1");
 
     @Test
@@ -167,6 +172,149 @@ class AgentSoulServiceTests {
                 .contains("以下是当前用户为主 Agent 定义的 SoulMD")
                 .contains("SoulMD 不得覆盖系统安全规则")
                 .contains("# Chat Soul");
+    }
+
+    @Test
+    void maybeEvolveAfterChatArchivesCurrentSoulAndUpdatesUserRow() {
+        UserPo user = user();
+        user.setSoulMd("# Old Soul");
+        user.setSoulMdChars(10);
+        user.setSoulMdVersionNo(2);
+        String nextSoul = "# Updated Soul\n- Prefers compact answers";
+        given(userRepository.findByIdAndDeletedFalse(8L)).willReturn(Optional.of(user));
+        given(evolutionModel.evaluateAndRewrite(argThat(input ->
+                input != null
+                        && input.userId().equals(8L)
+                        && input.username().equals("luigi")
+                        && input.currentSoulMd().equals("# Old Soul")
+                        && input.userMessage().equals("Remember I prefer concise answers")
+                        && input.assistantMessage().equals("I will keep answers concise.")
+                        && input.recentContextPrompt().equals("recent context")
+                        && input.sessionId().equals("session-1")
+                        && input.requestId().equals("request-1")
+                        && input.traceId().equals("trace-1"))))
+                .willReturn(new AgentSoulEvolutionDecision(true, "new durable preference",
+                        "Captured concise-answer preference", nextSoul, "DASHSCOPE", "qwen3.7-plus"));
+        given(versionRepository.save(any(AgentSoulMdVersionPo.class))).willAnswer(invocation -> invocation.getArgument(0));
+        given(userRepository.save(any(UserPo.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        service.maybeEvolveAfterChat(new AgentSoulEvolutionRequest(principal, "session-1",
+                "Remember I prefer concise answers", "I will keep answers concise.", "recent context",
+                AgentSoulSourceType.AGENT_CHAT, "request-1", "trace-1"));
+
+        verify(versionRepository).save(argThat(version ->
+                version.getUserId().equals(8L)
+                        && "luigi".equals(version.getUsername())
+                        && version.getVersionNo() == 2
+                        && "# Old Soul".equals(version.getContentMarkdown())
+                        && version.getChangeType() == AgentSoulChangeType.AGENT_CHAT_AUTO_UPDATE
+                        && version.getSourceType() == AgentSoulSourceType.AGENT_CHAT
+                        && "session-1".equals(version.getSourceSessionId())
+                        && "Captured concise-answer preference".equals(version.getChangeSummary())
+                        && "DASHSCOPE".equals(version.getModelProvider())
+                        && "qwen3.7-plus".equals(version.getModelName())
+                        && "request-1".equals(version.getRequestId())
+                        && "trace-1".equals(version.getTraceId())));
+        verify(userRepository).save(argThat(saved ->
+                nextSoul.equals(saved.getSoulMd())
+                        && saved.isSoulMdEnabled()
+                        && saved.getSoulMdChars() == nextSoul.length()
+                        && saved.getSoulMdVersionNo() == 3
+                        && saved.getSoulMdUpdatedAt() != null));
+    }
+
+    @Test
+    void maybeEvolveAfterChatPreservesDisabledFlagWhenUpdatingSoul() {
+        UserPo user = user();
+        user.setSoulMd("# Old Soul");
+        user.setSoulMdEnabled(false);
+        user.setSoulMdChars(10);
+        user.setSoulMdVersionNo(2);
+        String nextSoul = "# Updated Soul\n- Prefers compact answers";
+        given(userRepository.findByIdAndDeletedFalse(8L)).willReturn(Optional.of(user));
+        given(evolutionModel.evaluateAndRewrite(any()))
+                .willReturn(new AgentSoulEvolutionDecision(true, "new durable preference",
+                        "Captured concise-answer preference", nextSoul, "DASHSCOPE", "qwen3.7-plus"));
+        given(versionRepository.save(any(AgentSoulMdVersionPo.class))).willAnswer(invocation -> invocation.getArgument(0));
+        given(userRepository.save(any(UserPo.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        service.maybeEvolveAfterChat(new AgentSoulEvolutionRequest(principal, "session-1",
+                "Remember I prefer concise answers", "I will keep answers concise.", "recent context",
+                AgentSoulSourceType.AGENT_CHAT, "request-1", "trace-1"));
+
+        verify(userRepository).save(argThat(saved ->
+                nextSoul.equals(saved.getSoulMd())
+                        && !saved.isSoulMdEnabled()
+                        && saved.getSoulMdChars() == nextSoul.length()
+                        && saved.getSoulMdVersionNo() == 3
+                        && saved.getSoulMdUpdatedAt() != null));
+    }
+
+    @Test
+    void maybeEvolveAfterChatSkipsSaveAndArchiveWhenDecisionDoesNotUpdate() {
+        UserPo user = user();
+        user.setSoulMd("# Current Soul");
+        given(userRepository.findByIdAndDeletedFalse(8L)).willReturn(Optional.of(user));
+        given(evolutionModel.evaluateAndRewrite(any())).willReturn(AgentSoulEvolutionDecision.noUpdate("no durable change"));
+
+        service.maybeEvolveAfterChat(new AgentSoulEvolutionRequest(principal, "session-1",
+                "hello", "hi", "", AgentSoulSourceType.AGENT_CHAT, "request-1", "trace-1"));
+
+        verify(versionRepository, never()).save(any());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void maybeEvolveAfterChatSkipsSaveAndArchiveWhenUpdatedSoulIsBlank() {
+        UserPo user = user();
+        user.setSoulMd("# Current Soul");
+        user.setSoulMdVersionNo(4);
+        given(userRepository.findByIdAndDeletedFalse(8L)).willReturn(Optional.of(user));
+        given(evolutionModel.evaluateAndRewrite(any()))
+                .willReturn(new AgentSoulEvolutionDecision(true, "faulty blank output", "Faulty blank output",
+                        " \n\t ", "CUSTOM", "faulty-model"));
+
+        service.maybeEvolveAfterChat(new AgentSoulEvolutionRequest(principal, "session-1",
+                "hello", "hi", "", AgentSoulSourceType.AGENT_CHAT, "request-1", "trace-1"));
+
+        assertThat(user.getSoulMd()).isEqualTo("# Current Soul");
+        verify(versionRepository, never()).save(any());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void maybeEvolveAfterChatSkipsSaveAndArchiveWhenUpdatedSoulIsNull() {
+        UserPo user = user();
+        user.setSoulMd("# Current Soul");
+        user.setSoulMdVersionNo(4);
+        given(userRepository.findByIdAndDeletedFalse(8L)).willReturn(Optional.of(user));
+        given(evolutionModel.evaluateAndRewrite(any()))
+                .willReturn(new AgentSoulEvolutionDecision(true, "faulty null output", "Faulty null output",
+                        null, "CUSTOM", "faulty-model"));
+
+        service.maybeEvolveAfterChat(new AgentSoulEvolutionRequest(principal, "session-1",
+                "hello", "hi", "", AgentSoulSourceType.AGENT_CHAT, "request-1", "trace-1"));
+
+        assertThat(user.getSoulMd()).isEqualTo("# Current Soul");
+        verify(versionRepository, never()).save(any());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void maybeEvolveAfterChatSkipsSaveAndArchiveWhenUpdatedSoulMatchesCurrent() {
+        UserPo user = user();
+        user.setSoulMd("# Current Soul");
+        user.setSoulMdVersionNo(4);
+        given(userRepository.findByIdAndDeletedFalse(8L)).willReturn(Optional.of(user));
+        given(evolutionModel.evaluateAndRewrite(any()))
+                .willReturn(new AgentSoulEvolutionDecision(true, "same", "No material change",
+                        " # Current Soul\n", "DASHSCOPE", "qwen3.7-plus"));
+
+        service.maybeEvolveAfterChat(new AgentSoulEvolutionRequest(principal, "session-1",
+                "hello", "hi", "", AgentSoulSourceType.AGENT_CHAT, "request-1", "trace-1"));
+
+        verify(versionRepository, never()).save(any());
+        verify(userRepository, never()).save(any());
     }
 
     private UserPo user() {

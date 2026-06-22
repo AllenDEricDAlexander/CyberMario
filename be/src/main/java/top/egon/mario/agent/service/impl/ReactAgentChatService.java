@@ -43,6 +43,9 @@ import top.egon.mario.agent.service.ChatAgentService;
 import top.egon.mario.agent.service.model.AgentConversationAuditStart;
 import top.egon.mario.agent.service.model.AgentConversationMessageRecord;
 import top.egon.mario.agent.service.model.AgentRuntimeSpec;
+import top.egon.mario.agent.soul.po.enums.AgentSoulSourceType;
+import top.egon.mario.agent.soul.service.AgentSoulService;
+import top.egon.mario.agent.soul.service.model.AgentSoulEvolutionRequest;
 import top.egon.mario.agent.tools.arxiv.ArxivToolUserContext;
 import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.common.utils.LogUtil;
@@ -79,6 +82,7 @@ public class ReactAgentChatService implements ChatAgentService {
     private final AgentMemoryContextService memoryContextService;
     private final AgentContextAssemblyService contextAssemblyService;
     private final AgentMemoryExtractionService memoryExtractionService;
+    private final AgentSoulService soulService;
 
     public ReactAgentChatService(AgentPresetService agentPresetService, AgentRuntimeFactory agentRuntimeFactory,
                                  AgentConversationAuditService auditService, AgentRunAuditService runAuditService,
@@ -87,7 +91,8 @@ public class ReactAgentChatService implements ChatAgentService {
                                  AgentMemoryMessageService memoryMessageService,
                                  AgentMemoryContextService memoryContextService,
                                  AgentContextAssemblyService contextAssemblyService,
-                                 AgentMemoryExtractionService memoryExtractionService) {
+                                 AgentMemoryExtractionService memoryExtractionService,
+                                 AgentSoulService soulService) {
         this.agentPresetService = agentPresetService;
         this.agentRuntimeFactory = agentRuntimeFactory;
         this.auditService = auditService;
@@ -99,6 +104,7 @@ public class ReactAgentChatService implements ChatAgentService {
         this.memoryContextService = memoryContextService;
         this.contextAssemblyService = contextAssemblyService;
         this.memoryExtractionService = memoryExtractionService;
+        this.soulService = soulService;
     }
 
     @Override
@@ -183,6 +189,8 @@ public class ReactAgentChatService implements ChatAgentService {
                         finishRunAudit(signalType, runAuditContext.get(), messageContent, thinkContent, null);
                         finishAssistantMemory(signalType, memorySession, turnNo, messageContent, thinkContent,
                                 requestId, traceId);
+                        maybeEvolveSoulAfterChat(signalType, entryType, memorySession, principal, message, messageContent,
+                                agentContext, requestId, traceId);
                     })
                     .onErrorResume(error -> {
                         String userFacingError = errorMessage(error);
@@ -376,6 +384,36 @@ public class ReactAgentChatService implements ChatAgentService {
         if (session.isLongTermExtractionEnabled()) {
             memoryExtractionService.extractAfterTurn(new AgentMemoryExtractionRequest(session.getSessionId(),
                     requestId, traceId));
+        }
+    }
+
+    private void maybeEvolveSoulAfterChat(SignalType signalType, AgentMemoryEntryType currentEntryType,
+                                          AgentMemorySessionPo session,
+                                          RbacPrincipal principal, String userMessage,
+                                          AgentMemoryTextAccumulator messageContent,
+                                          AgentContext agentContext, String requestId, String traceId) {
+        if (signalType != SignalType.ON_COMPLETE || currentEntryType != AgentMemoryEntryType.AGENT_CHAT
+                || session == null) {
+            return;
+        }
+        String finalMessageContent = messageContent.normalizedContent();
+        if (!StringUtils.hasText(finalMessageContent)) {
+            return;
+        }
+        try {
+            soulService.maybeEvolveAfterChat(new AgentSoulEvolutionRequest(
+                    principal,
+                    session.getSessionId(),
+                    userMessage,
+                    finalMessageContent,
+                    agentContext == null ? "" : agentContext.recentTurnsPrompt(),
+                    AgentSoulSourceType.AGENT_CHAT,
+                    requestId,
+                    traceId
+            ));
+        } catch (Exception error) {
+            TraceContext.withMdc(traceId, () -> LogUtil.warn(log)
+                    .log("agent soul evolution failed, threadId={}", session.getSessionId(), error));
         }
     }
 

@@ -1,7 +1,11 @@
 package top.egon.mario.agent.soul.service.impl;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 import top.egon.mario.agent.service.AgentException;
 import top.egon.mario.agent.soul.dto.request.AgentSoulMdUpdateRequest;
@@ -12,7 +16,11 @@ import top.egon.mario.agent.soul.po.enums.AgentSoulChangeType;
 import top.egon.mario.agent.soul.po.enums.AgentSoulSourceType;
 import top.egon.mario.agent.soul.repository.AgentSoulMdVersionRepository;
 import top.egon.mario.agent.soul.service.AgentSoulDefaults;
+import top.egon.mario.agent.soul.service.AgentSoulEvolutionModel;
 import top.egon.mario.agent.soul.service.AgentSoulService;
+import top.egon.mario.agent.soul.service.model.AgentSoulEvolutionDecision;
+import top.egon.mario.agent.soul.service.model.AgentSoulEvolutionInput;
+import top.egon.mario.agent.soul.service.model.AgentSoulEvolutionRequest;
 import top.egon.mario.rbac.po.UserPo;
 import top.egon.mario.rbac.repository.UserRepository;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
@@ -28,10 +36,30 @@ public class AgentSoulServiceImpl implements AgentSoulService {
 
     private final UserRepository userRepository;
     private final AgentSoulMdVersionRepository versionRepository;
+    private final AgentSoulEvolutionModel evolutionModel;
+    private final TransactionOperations transactionOperations;
 
-    public AgentSoulServiceImpl(UserRepository userRepository, AgentSoulMdVersionRepository versionRepository) {
+    @Autowired
+    public AgentSoulServiceImpl(UserRepository userRepository, AgentSoulMdVersionRepository versionRepository,
+                                AgentSoulEvolutionModel evolutionModel,
+                                PlatformTransactionManager transactionManager) {
+        this(userRepository, versionRepository, evolutionModel, new TransactionTemplate(transactionManager));
+    }
+
+    public AgentSoulServiceImpl(UserRepository userRepository, AgentSoulMdVersionRepository versionRepository,
+                                AgentSoulEvolutionModel evolutionModel) {
+        this(userRepository, versionRepository, evolutionModel, TransactionOperations.withoutTransaction());
+    }
+
+    public AgentSoulServiceImpl(UserRepository userRepository, AgentSoulMdVersionRepository versionRepository,
+                                AgentSoulEvolutionModel evolutionModel,
+                                TransactionOperations transactionOperations) {
         this.userRepository = userRepository;
         this.versionRepository = versionRepository;
+        this.evolutionModel = evolutionModel;
+        this.transactionOperations = transactionOperations == null
+                ? TransactionOperations.withoutTransaction()
+                : transactionOperations;
     }
 
     @Override
@@ -85,6 +113,38 @@ public class AgentSoulServiceImpl implements AgentSoulService {
         return AgentSoulDefaults.userSoulPrompt(currentMarkdown(user));
     }
 
+    @Override
+    public void maybeEvolveAfterChat(AgentSoulEvolutionRequest request) {
+        if (request == null || !StringUtils.hasText(request.assistantMessage())) {
+            return;
+        }
+        UserPo user = requireUser(request.principal());
+        String current = currentMarkdown(user);
+        AgentSoulEvolutionDecision decision = evolutionModel.evaluateAndRewrite(new AgentSoulEvolutionInput(
+                user.getId(),
+                user.getUsername(),
+                current,
+                request.userMessage(),
+                request.assistantMessage(),
+                request.recentContextPrompt(),
+                request.sessionId(),
+                request.requestId(),
+                request.traceId()
+        ));
+        if (decision == null || !decision.shouldUpdate()) {
+            return;
+        }
+        if (!StringUtils.hasText(decision.updatedSoulMd())) {
+            return;
+        }
+        String next = normalizeMarkdown(decision.updatedSoulMd());
+        if (next.equals(current)) {
+            return;
+        }
+        transactionOperations.executeWithoutResult(status ->
+                applyEvolutionUpdate(request, decision, current, next));
+    }
+
     protected AgentSoulMdVersionPo archiveCurrent(UserPo user, AgentSoulChangeType changeType, String changeSummary,
                                                   AgentSoulSourceType sourceType, String sourceSessionId,
                                                   String sourceMessageIds, String modelProvider, String modelName,
@@ -109,6 +169,24 @@ public class AgentSoulServiceImpl implements AgentSoulService {
         return versionRepository.save(version);
     }
 
+    private void applyEvolutionUpdate(AgentSoulEvolutionRequest request, AgentSoulEvolutionDecision decision,
+                                      String expectedCurrent, String next) {
+        UserPo user = requireUser(request.principal());
+        String current = currentMarkdown(user);
+        if (!current.equals(expectedCurrent) || next.equals(current)) {
+            return;
+        }
+        archiveCurrent(user, AgentSoulChangeType.AGENT_CHAT_AUTO_UPDATE, changeSummary(decision),
+                request.sourceType(), request.sessionId(), null, decision.modelProvider(), decision.modelName(),
+                request.requestId(), request.traceId());
+        Instant now = Instant.now();
+        user.setSoulMd(next);
+        user.setSoulMdChars(next.length());
+        user.setSoulMdVersionNo(Math.max(user.getSoulMdVersionNo(), 1) + 1);
+        user.setSoulMdUpdatedAt(now);
+        userRepository.save(user);
+    }
+
     private AgentSoulMdResponse response(UserPo user, String markdown) {
         return new AgentSoulMdResponse(
                 markdown,
@@ -118,6 +196,16 @@ public class AgentSoulServiceImpl implements AgentSoulService {
                 Math.max(user.getSoulMdVersionNo(), 1),
                 user.getSoulMdUpdatedAt()
         );
+    }
+
+    private String changeSummary(AgentSoulEvolutionDecision decision) {
+        if (StringUtils.hasText(decision.changeSummary())) {
+            return decision.changeSummary().trim();
+        }
+        if (StringUtils.hasText(decision.reason())) {
+            return decision.reason().trim();
+        }
+        return "Agent chat SoulMD auto update";
     }
 
     private String currentMarkdown(UserPo user) {

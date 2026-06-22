@@ -1,6 +1,7 @@
 package top.egon.mario.agent.config;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import reactor.core.scheduler.Scheduler;
@@ -16,6 +17,8 @@ import top.egon.mario.agent.service.AgentRuntimeFactory;
 import top.egon.mario.agent.service.ChatAgentService;
 import top.egon.mario.agent.service.impl.ReactAgentChatService;
 import top.egon.mario.agent.service.model.AgentRuntimeDefaults;
+import top.egon.mario.agent.soul.config.AgentSoulProperties;
+import top.egon.mario.agent.soul.service.AgentSoulService;
 import top.egon.mario.agent.tools.arxiv.ArxivToolUserContext;
 
 /**
@@ -23,6 +26,7 @@ import top.egon.mario.agent.tools.arxiv.ArxivToolUserContext;
  */
 @Configuration
 @Slf4j
+@EnableConfigurationProperties(AgentSoulProperties.class)
 public class AgentConfiguration {
 
     /**
@@ -47,10 +51,11 @@ public class AgentConfiguration {
                                              AgentMemoryMessageService memoryMessageService,
                                              AgentMemoryContextService memoryContextService,
                                              AgentContextAssemblyService contextAssemblyService,
-                                             AgentMemoryExtractionService memoryExtractionService) {
+                                             AgentMemoryExtractionService memoryExtractionService,
+                                             AgentSoulService soulService) {
         return new ReactAgentChatService(agentPresetService, agentRuntimeFactory, auditService, runAuditService,
                 blockingScheduler, arxivToolUserContext, memorySessionService, memoryMessageService,
-                memoryContextService, contextAssemblyService, memoryExtractionService);
+                memoryContextService, contextAssemblyService, memoryExtractionService, soulService);
     }
 
 }
