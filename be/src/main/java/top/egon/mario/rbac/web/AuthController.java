@@ -25,6 +25,7 @@ import top.egon.mario.rbac.dto.response.LoginResponse;
 import top.egon.mario.rbac.po.enums.ApiMatcherType;
 import top.egon.mario.rbac.po.enums.ApiRiskLevel;
 import top.egon.mario.rbac.service.resource.annotation.RbacApi;
+import top.egon.mario.rbac.service.security.BrowserAuthCookieService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 /**
@@ -38,23 +39,28 @@ import top.egon.mario.rbac.service.security.RbacPrincipal;
 public class AuthController extends ReactiveRbacSupport {
 
     private final RbacAuthApplication authApplication;
+    private final BrowserAuthCookieService browserAuthCookieService;
 
     @RbacApi(appCode = "rbac", code = "api:rbac:auth:login", name = "RBAC 用户登录", publicFlag = true)
     @PostMapping("/login")
     public Mono<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request, ServerWebExchange exchange) {
-        return blocking(() -> authApplication.login(request, clientIp(exchange), userAgent(exchange)));
+        return blocking(() -> authApplication.login(request, clientIp(exchange), userAgent(exchange)))
+                .map(response -> browserTokenResponse(response, exchange));
     }
 
     @RbacApi(appCode = "rbac", code = "api:rbac:auth:register", name = "RBAC 用户注册", publicFlag = true)
     @PostMapping("/register")
     public Mono<ApiResponse<LoginResponse>> register(@Valid @RequestBody RegisterRequest request, ServerWebExchange exchange) {
-        return blocking(() -> authApplication.register(request, clientIp(exchange), userAgent(exchange)));
+        return blocking(() -> authApplication.register(request, clientIp(exchange), userAgent(exchange)))
+                .map(response -> browserTokenResponse(response, exchange));
     }
 
     @RbacApi(appCode = "rbac", code = "api:rbac:auth:refresh", name = "RBAC 刷新令牌", publicFlag = true)
     @PostMapping("/refresh")
-    public Mono<ApiResponse<LoginResponse>> refresh(@Valid @RequestBody RefreshTokenRequest request, ServerWebExchange exchange) {
-        return blocking(() -> authApplication.refresh(request.refreshToken(), clientIp(exchange), userAgent(exchange)));
+    public Mono<ApiResponse<LoginResponse>> refresh(@Valid @RequestBody(required = false) RefreshTokenRequest request,
+                                                    ServerWebExchange exchange) {
+        return blocking(() -> authApplication.refresh(refreshToken(request, exchange), clientIp(exchange), userAgent(exchange)))
+                .map(response -> browserTokenResponse(response, exchange));
     }
 
     @RbacApi(appCode = "rbac", code = "api:rbac:auth:csrf", name = "RBAC CSRF 令牌", publicFlag = true)
@@ -69,8 +75,20 @@ public class AuthController extends ReactiveRbacSupport {
     @RbacApi(appCode = "rbac", code = "api:rbac:auth:self", name = "RBAC 认证自助接口",
             method = "ANY", pattern = "/api/auth/**", matcher = ApiMatcherType.ANT, risk = ApiRiskLevel.MEDIUM)
     @PostMapping("/logout")
-    public Mono<ApiResponse<Void>> logout(@Valid @RequestBody RefreshTokenRequest request) {
-        return blockingVoid(() -> authApplication.logout(request.refreshToken()));
+    public Mono<ApiResponse<Void>> logout(@Valid @RequestBody(required = false) RefreshTokenRequest request,
+                                          ServerWebExchange exchange) {
+        boolean browserClient = browserAuthCookieService.isBrowserClient(exchange);
+        String refreshToken = refreshToken(request, exchange);
+        return blockingVoid(() -> {
+                    if (!browserClient || (refreshToken != null && !refreshToken.isBlank())) {
+                        authApplication.logout(refreshToken);
+                    }
+                })
+                .doOnNext(response -> {
+                    if (browserClient) {
+                        browserAuthCookieService.clearTokenCookies(exchange);
+                    }
+                });
     }
 
     @GetMapping("/me")
@@ -84,6 +102,27 @@ public class AuthController extends ReactiveRbacSupport {
 
     private String clientIp(ServerWebExchange exchange) {
         return exchange.getRequest().getRemoteAddress() == null ? null : exchange.getRequest().getRemoteAddress().getAddress().getHostAddress();
+    }
+
+    private String refreshToken(RefreshTokenRequest request, ServerWebExchange exchange) {
+        if (browserAuthCookieService.isBrowserClient(exchange)) {
+            return browserAuthCookieService.readRefreshToken(exchange);
+        }
+        return request == null ? null : request.refreshToken();
+    }
+
+    private ApiResponse<LoginResponse> browserTokenResponse(ApiResponse<LoginResponse> response, ServerWebExchange exchange) {
+        if (!browserAuthCookieService.isBrowserClient(exchange)) {
+            return response;
+        }
+        browserAuthCookieService.writeTokenCookies(exchange, response.data());
+        return new ApiResponse<>(
+                response.code(),
+                response.message(),
+                browserAuthCookieService.withoutBodyTokens(response.data()),
+                response.traceId(),
+                response.timestamp()
+        );
     }
 
 }
