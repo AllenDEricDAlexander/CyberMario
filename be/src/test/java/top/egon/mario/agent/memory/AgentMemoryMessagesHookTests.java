@@ -1,6 +1,7 @@
 package top.egon.mario.agent.memory;
 
 import com.alibaba.cloud.ai.graph.RunnableConfig;
+import com.alibaba.cloud.ai.graph.agent.hook.HookPosition;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
@@ -17,6 +18,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AgentMemoryMessagesHookTests {
 
     @Test
+    void declaresBeforeModelPositionSoReactAgentExecutesTheHook() {
+        AgentMemoryMessagesHook hook = new AgentMemoryMessagesHook();
+
+        assertThat(hook.getHookPositions()).containsExactly(HookPosition.BEFORE_MODEL);
+    }
+
+    @Test
     void injectsLongAndShortTermPromptsAheadOfCurrentMessages() {
         AgentMemoryMessagesHook hook = new AgentMemoryMessagesHook();
         RunnableConfig config = RunnableConfig.builder()
@@ -31,6 +39,25 @@ class AgentMemoryMessagesHookTests {
         assertThat(commandMessages(command).get(0).getText()).contains("长期记忆");
         assertThat(commandMessages(command).get(1).getText()).contains("短期记忆");
         assertThat(commandMessages(command).get(2).getText()).isEqualTo("你好");
+    }
+
+    @Test
+    void replacesPreviouslyInjectedContextMessagesInsteadOfStackingThem() {
+        AgentMemoryMessagesHook hook = new AgentMemoryMessagesHook();
+        RunnableConfig config = RunnableConfig.builder()
+                .addMetadata(AgentMemoryMessagesHook.SAFETY_PROMPT_METADATA_KEY, "安全规则")
+                .addMetadata(AgentMemoryMessagesHook.SOUL_PROMPT_METADATA_KEY, "SoulMD")
+                .build();
+
+        List<Message> firstPass = commandMessages(hook.beforeModel(List.of(new UserMessage("你好")), config));
+        List<Message> secondPass = commandMessages(hook.beforeModel(firstPass, config));
+
+        assertThat(secondPass).hasSize(3);
+        assertThat(secondPass.get(0)).isInstanceOf(SystemMessage.class);
+        assertThat(secondPass.get(0).getText()).isEqualTo("安全规则");
+        assertThat(secondPass.get(1)).isInstanceOf(SystemMessage.class);
+        assertThat(secondPass.get(1).getText()).isEqualTo("SoulMD");
+        assertThat(secondPass.get(2).getText()).isEqualTo("你好");
     }
 
     @Test
