@@ -62,6 +62,10 @@ Core request utilities live in `src/services/request.ts`.
 - `streamJsonLines<T>()` reads NDJSON events and uses the same backend error envelope when the stream request fails.
 - `buildSearchParams()` in `src/services/urlSearch.ts` builds encoded query strings for service APIs.
 
+Browser requests automatically send `X-Client-Type: browser`, include same-origin credentials, and attach
+`X-XSRF-TOKEN` for unsafe methods after initializing `/api/auth/csrf` when needed. Access and refresh tokens are not
+stored in browser localStorage.
+
 ## Validation
 
 Before handing frontend changes back, run:

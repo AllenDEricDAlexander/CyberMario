@@ -75,6 +75,7 @@ REDIS_PASSWORD=your-password
 JWT_SECRET=replace-with-a-local-secret-at-least-32-bytes
 SERVER_PORT=28080
 VITE_BACKEND_PORT=28080
+BROWSER_AUTH_COOKIE_SECURE=false
 AGENT_MEMORY_CHECKPOINTER_ENABLED=false
 ```
 
@@ -109,6 +110,10 @@ build tool.
 
 The Vite dev server proxies `/api` and `/demo` to the backend. The proxy target is resolved from
 `VITE_BACKEND_TARGET`, then `VITE_API_BASE_URL`, then `http://localhost:${VITE_BACKEND_PORT || BACKEND_PORT || 28080}`.
+
+Browser clients send `X-Client-Type: browser` and use HttpOnly auth cookies plus `X-XSRF-TOKEN` CSRF protection.
+Non-browser clients continue to use `Authorization: Bearer`. Local HTTP development should set
+`BROWSER_AUTH_COOKIE_SECURE=false`; production should keep secure cookies enabled.
 
 The repository also includes background helper scripts:
 
