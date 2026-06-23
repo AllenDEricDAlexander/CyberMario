@@ -22,7 +22,13 @@ function readCookie(name: string, cookieSource?: string) {
         return null
     }
 
-    const decodedValue = decodeURIComponent(value)
+    let decodedValue: string
+    try {
+        decodedValue = decodeURIComponent(value)
+    } catch {
+        return null
+    }
+
     if (!decodedValue.trim()) {
         return null
     }
@@ -35,7 +41,7 @@ export function readCsrfToken(cookieSource?: string) {
 }
 
 export function isUnsafeMethod(method?: string) {
-    return UNSAFE_METHODS.has((method ?? 'GET').toUpperCase())
+    return UNSAFE_METHODS.has((method ?? 'GET').trim().toUpperCase())
 }
 
 export function csrfHeaderFor(method?: string, cookieSource?: string): Record<string, string> {
