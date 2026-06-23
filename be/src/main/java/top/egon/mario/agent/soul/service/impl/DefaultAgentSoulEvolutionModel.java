@@ -51,7 +51,7 @@ public class DefaultAgentSoulEvolutionModel implements AgentSoulEvolutionModel {
                 properties.evolutionProvider(),
                 properties.evolutionModel(),
                 new ModelOptions(properties.evolutionTemperature(), properties.evolutionMaxTokens(),
-                        null, null, false, null, false, false, Map.of()),
+                        null, null, false, null, false, true, Map.of()),
                 new ModelCallContext(input.userId(), input.traceId(), input.sessionId(), input.sessionId(),
                         ModelScenario.AGENT_SOUL_EVOLUTION, input.requestId(), null, null)
         ));
@@ -110,22 +110,22 @@ public class DefaultAgentSoulEvolutionModel implements AgentSoulEvolutionModel {
                 User id: %s
                 Username: %s
                 Session id: %s
-
+                
                 Current SoulMD:
                 <current_soul_md>
                 %s
                 </current_soul_md>
-
+                
                 Recent session context:
                 <recent_context>
                 %s
                 </recent_context>
-
+                
                 User message:
                 <user_message>
                 %s
                 </user_message>
-
+                
                 Assistant reply:
                 <assistant_message>
                 %s
