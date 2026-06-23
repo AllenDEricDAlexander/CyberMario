@@ -40,7 +40,7 @@ class AgentSoulPropertiesTests {
 
         assertThat(properties.evolutionEnabled()).isTrue();
         assertThat(properties.evolutionProvider()).isEqualTo(ModelProviderType.DASHSCOPE);
-        assertThat(properties.evolutionModel()).isEqualTo("qwen3.7-plus");
+        assertThat(properties.evolutionModel()).isEqualTo("qwen3.6-plus-2026-04-02");
         assertThat(properties.evolutionTemperature()).isEqualByComparingTo(new BigDecimal("0.2"));
         assertThat(properties.evolutionMaxTokens()).isEqualTo(4096);
     }

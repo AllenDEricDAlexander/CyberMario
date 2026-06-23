@@ -190,7 +190,7 @@ mario:
     soul:
       evolution-enabled: ${AGENT_SOUL_EVOLUTION_ENABLED:true}
       evolution-provider: ${AGENT_SOUL_EVOLUTION_PROVIDER:DASHSCOPE}
-      evolution-model: ${AGENT_SOUL_EVOLUTION_MODEL:${AI_CHAT_MODEL:qwen3.7-plus}}
+      evolution-model: ${AGENT_SOUL_EVOLUTION_MODEL:qwen3.6-plus-2026-04-02}
       evolution-temperature: ${AGENT_SOUL_EVOLUTION_TEMPERATURE:0.2}
       evolution-max-tokens: ${AGENT_SOUL_EVOLUTION_MAX_TOKENS:4096}
     memory:

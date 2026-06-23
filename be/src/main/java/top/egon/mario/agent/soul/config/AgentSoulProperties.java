@@ -17,7 +17,7 @@ public record AgentSoulProperties(
         boolean evolutionEnabled,
         @DefaultValue("DASHSCOPE")
         ModelProviderType evolutionProvider,
-        @DefaultValue("qwen3.7-plus")
+        @DefaultValue("qwen3.6-plus-2026-04-02")
         String evolutionModel,
         @DefaultValue("0.2")
         BigDecimal evolutionTemperature,
@@ -25,14 +25,16 @@ public record AgentSoulProperties(
         Integer evolutionMaxTokens
 ) {
 
+    private static final String DEFAULT_EVOLUTION_MODEL = "qwen3.6-plus-2026-04-02";
+
     public AgentSoulProperties() {
-        this(true, ModelProviderType.DASHSCOPE, "qwen3.7-plus", new BigDecimal("0.2"), 4096);
+        this(true, ModelProviderType.DASHSCOPE, DEFAULT_EVOLUTION_MODEL, new BigDecimal("0.2"), 4096);
     }
 
     @ConstructorBinding
     public AgentSoulProperties {
         evolutionProvider = evolutionProvider == null ? ModelProviderType.DASHSCOPE : evolutionProvider;
-        evolutionModel = StringUtils.hasText(evolutionModel) ? evolutionModel.trim() : "qwen3.7-plus";
+        evolutionModel = StringUtils.hasText(evolutionModel) ? evolutionModel.trim() : DEFAULT_EVOLUTION_MODEL;
         evolutionTemperature = evolutionTemperature == null ? new BigDecimal("0.2") : evolutionTemperature;
         evolutionMaxTokens = evolutionMaxTokens == null || evolutionMaxTokens <= 0 ? 4096 : evolutionMaxTokens;
     }
