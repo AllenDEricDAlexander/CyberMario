@@ -47,14 +47,14 @@ public class BrowserAuthCookieService {
     }
 
     public String readAccessToken(ServerWebExchange exchange) {
-        if (!properties.isEnabled()) {
+        if (!isBrowserClient(exchange)) {
             return null;
         }
         return readCookie(exchange, properties.getAccessCookieName());
     }
 
     public String readRefreshToken(ServerWebExchange exchange) {
-        if (!properties.isEnabled()) {
+        if (!isBrowserClient(exchange)) {
             return null;
         }
         return readCookie(exchange, properties.getRefreshCookieName());

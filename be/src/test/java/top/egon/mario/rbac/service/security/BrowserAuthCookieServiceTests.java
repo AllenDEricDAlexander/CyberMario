@@ -1,6 +1,7 @@
 package top.egon.mario.rbac.service.security;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpCookie;
 import org.springframework.http.ResponseCookie;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
@@ -81,6 +82,31 @@ class BrowserAuthCookieServiceTests {
     }
 
     @Test
+    void readsAccessAndRefreshTokenCookiesForBrowserClient() {
+        MockServerWebExchange exchange = tokenCookieExchange(true);
+
+        assertThat(service.readAccessToken(exchange)).isEqualTo("access-token");
+        assertThat(service.readRefreshToken(exchange)).isEqualTo("refresh-token");
+    }
+
+    @Test
+    void doesNotReadTokenCookiesWithoutBrowserHeader() {
+        MockServerWebExchange exchange = tokenCookieExchange(false);
+
+        assertThat(service.readAccessToken(exchange)).isNull();
+        assertThat(service.readRefreshToken(exchange)).isNull();
+    }
+
+    @Test
+    void doesNotReadTokenCookiesWhenDisabled() {
+        properties.setEnabled(false);
+        MockServerWebExchange exchange = tokenCookieExchange(true);
+
+        assertThat(service.readAccessToken(exchange)).isNull();
+        assertThat(service.readRefreshToken(exchange)).isNull();
+    }
+
+    @Test
     void clearsAccessAndRefreshTokenCookies() {
         MockServerWebExchange exchange = exchange();
 
@@ -102,6 +128,16 @@ class BrowserAuthCookieServiceTests {
 
     private MockServerWebExchange exchange() {
         return MockServerWebExchange.from(MockServerHttpRequest.get("/api/auth/login").build());
+    }
+
+    private MockServerWebExchange tokenCookieExchange(boolean browserHeader) {
+        MockServerHttpRequest.BaseBuilder<?> request = MockServerHttpRequest.get("/api/admin/users")
+                .cookie(new HttpCookie("CM_ACCESS_TOKEN", "access-token"))
+                .cookie(new HttpCookie("CM_REFRESH_TOKEN", "refresh-token"));
+        if (browserHeader) {
+            request.header("X-Client-Type", "browser");
+        }
+        return MockServerWebExchange.from(request.build());
     }
 
     private LoginResponse loginResponse() {
