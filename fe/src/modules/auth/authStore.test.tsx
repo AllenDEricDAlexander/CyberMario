@@ -1,8 +1,9 @@
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest'
 import {bootstrapAuthSession} from './authStore'
 
+const ACCESS_TOKEN_KEY = 'cyber-mario-access-token'
 const LEGACY_TOKEN_KEYS = [
-    'cyber-mario-access-token',
+    ACCESS_TOKEN_KEY,
     'cyber-mario-refresh-token',
     'cyber-mario-access-token-expires-at',
     'cyber-mario-refresh-token-expires-at',
@@ -49,6 +50,21 @@ describe('bootstrapAuthSession', () => {
         })
 
         LEGACY_TOKEN_KEYS.forEach((key) => expect(localStorage.getItem(key)).toBeNull())
+    })
+
+    test('uses custom legacy token cleanup without also running default cleanup', async () => {
+        localStorage.setItem(ACCESS_TOKEN_KEY, 'legacy-access-token')
+        const clearLegacyTokens = vi.fn()
+
+        await bootstrapAuthSession({
+            reload: vi.fn().mockResolvedValue(undefined),
+            clearSession: vi.fn(),
+            finish: vi.fn(),
+            clearLegacyTokens,
+        })
+
+        expect(clearLegacyTokens).toHaveBeenCalledTimes(1)
+        expect(localStorage.getItem(ACCESS_TOKEN_KEY)).toBe('legacy-access-token')
     })
 
     test('clears in-memory session and finishes bootstrapping when current user reload fails', async () => {

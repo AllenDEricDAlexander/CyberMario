@@ -48,11 +48,12 @@ type BootstrapAuthSessionActions = {
 }
 
 export async function bootstrapAuthSession(actions: BootstrapAuthSessionActions) {
-    actions.clearLegacyTokens?.() ?? clearTokens()
+    const clearLegacyTokens = actions.clearLegacyTokens ?? clearTokens
+    clearLegacyTokens()
     try {
         await actions.reload()
     } catch {
-        actions.clearLegacyTokens?.() ?? clearTokens()
+        clearLegacyTokens()
         actions.clearSession()
     } finally {
         actions.finish()
