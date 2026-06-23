@@ -1,0 +1,105 @@
+package top.egon.mario.config;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.reactive.server.WebTestClient;
+import top.egon.mario.rbac.application.RbacAuthApplication;
+import top.egon.mario.rbac.service.security.RbacPrincipal;
+
+import java.util.List;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.mockito.BDDMockito.given;
+
+/**
+ * Verifies browser-cookie CSRF behavior for the RBAC security filter chain.
+ */
+@SpringBootTest(properties = "spring.ai.dashscope.api-key=test-api-key")
+@AutoConfigureWebTestClient
+class RbacSecurityConfigCsrfTests {
+
+    @Autowired
+    private WebTestClient webTestClient;
+
+    @MockitoBean
+    private ChatModel chatModel;
+
+    @MockitoBean
+    private RbacAuthApplication authApplication;
+
+    @Test
+    void csrfEndpointReturnsTokenMetadataAndCookie() {
+        webTestClient.get()
+                .uri("/api/auth/csrf")
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().value(HttpHeaders.SET_COOKIE, containsString("XSRF-TOKEN"))
+                .expectBody()
+                .jsonPath("$.data.headerName").isEqualTo("X-XSRF-TOKEN")
+                .jsonPath("$.data.parameterName").exists()
+                .jsonPath("$.data.token").isNotEmpty();
+    }
+
+    @Test
+    void unsafeBrowserLoginWithoutCsrfIsForbidden() {
+        webTestClient.post()
+                .uri("/api/auth/login")
+                .header("X-Client-Type", "browser")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(invalidLoginBody())
+                .exchange()
+                .expectStatus().isForbidden()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("AUTH_CSRF_INVALID");
+    }
+
+    @Test
+    void unsafeNonBrowserLoginWithoutCsrfReachesValidation() {
+        webTestClient.post()
+                .uri("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(invalidLoginBody())
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("VALIDATION_ERROR");
+    }
+
+    @Test
+    void bearerPostWithoutCsrfReachesValidation() {
+        given(authApplication.authenticateAccessToken("api-token"))
+                .willReturn(new UsernamePasswordAuthenticationToken(
+                        new RbacPrincipal(1L, "mario", Set.of("ROLE_ADMIN"), Set.of("api:demo"), "permission-v1"),
+                        "api-token",
+                        List.of()
+                ));
+
+        webTestClient.post()
+                .uri("/api/auth/login")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer api-token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(invalidLoginBody())
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("VALIDATION_ERROR");
+    }
+
+    private String invalidLoginBody() {
+        return """
+                {
+                  "username": "",
+                  "password": ""
+                }
+                """;
+    }
+
+}

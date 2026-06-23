@@ -15,6 +15,11 @@ class RbacPublicApiPolicyTests {
     }
 
     @Test
+    void csrfTokenEndpointIsAllowedAsPublicGetEndpoint() {
+        assertThat(RbacPublicApiPolicy.isAllowedPublicRule("GET", "/api/auth/csrf")).isTrue();
+    }
+
+    @Test
     void currentUserSelfServiceEndpointsRemainAuthenticated() {
         assertThat(RbacPublicApiPolicy.isAllowedPublicRule("PUT", "/api/me/profile")).isFalse();
         assertThat(RbacPublicApiPolicy.isAllowedPublicRule("PUT", "/api/me/password")).isFalse();

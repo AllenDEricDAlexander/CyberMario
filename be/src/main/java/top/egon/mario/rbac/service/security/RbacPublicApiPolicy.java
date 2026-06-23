@@ -14,13 +14,16 @@ public final class RbacPublicApiPolicy {
             "/api/auth/register",
             "/api/auth/refresh"
     };
+    public static final String[] PUBLIC_AUTH_CSRF_ENDPOINTS = {
+            "/api/auth/csrf"
+    };
     public static final String[] PUBLIC_ACTUATOR_ENDPOINTS = {
             "/actuator/health/**",
             "/actuator/info"
     };
 
     private static final Set<String> PUBLIC_POST_PATHS = Set.of(PUBLIC_AUTH_ENDPOINTS);
-    private static final Set<String> PUBLIC_GET_PATHS = Set.of("/actuator/health", "/actuator/info");
+    private static final Set<String> PUBLIC_GET_PATHS = Set.of("/api/auth/csrf", "/actuator/health", "/actuator/info");
 
     private RbacPublicApiPolicy() {
     }

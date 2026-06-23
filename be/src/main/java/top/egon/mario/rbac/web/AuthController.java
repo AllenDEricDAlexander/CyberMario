@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.web.server.csrf.CsrfToken;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,10 +15,12 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 import top.egon.mario.common.api.ApiResponse;
+import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.rbac.application.RbacAuthApplication;
 import top.egon.mario.rbac.dto.request.LoginRequest;
 import top.egon.mario.rbac.dto.request.RefreshTokenRequest;
 import top.egon.mario.rbac.dto.request.RegisterRequest;
+import top.egon.mario.rbac.dto.response.CsrfTokenResponse;
 import top.egon.mario.rbac.dto.response.LoginResponse;
 import top.egon.mario.rbac.po.enums.ApiMatcherType;
 import top.egon.mario.rbac.po.enums.ApiRiskLevel;
@@ -52,6 +55,15 @@ public class AuthController extends ReactiveRbacSupport {
     @PostMapping("/refresh")
     public Mono<ApiResponse<LoginResponse>> refresh(@Valid @RequestBody RefreshTokenRequest request, ServerWebExchange exchange) {
         return blocking(() -> authApplication.refresh(request.refreshToken(), clientIp(exchange), userAgent(exchange)));
+    }
+
+    @RbacApi(appCode = "rbac", code = "api:rbac:auth:csrf", name = "RBAC CSRF 令牌", publicFlag = true)
+    @GetMapping("/csrf")
+    public Mono<ApiResponse<CsrfTokenResponse>> csrf(ServerWebExchange exchange) {
+        Mono<CsrfToken> csrfToken = exchange.getAttributeOrDefault(CsrfToken.class.getName(), Mono.empty());
+        return Mono.deferContextual(contextView -> csrfToken
+                .map(token -> new CsrfTokenResponse(token.getHeaderName(), token.getParameterName(), token.getToken()))
+                .map(response -> ApiResponse.ok(response, TraceContext.traceId(contextView))));
     }
 
     @RbacApi(appCode = "rbac", code = "api:rbac:auth:self", name = "RBAC 认证自助接口",
