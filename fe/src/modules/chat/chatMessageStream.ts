@@ -1,5 +1,7 @@
 import type {ChatMessage, ChatResponse} from './chatTypes'
 
+const EXACT_SNAPSHOT_DEDUP_MIN_LENGTH = 16
+
 export function appendChatChunk(message: ChatMessage, chunk: ChatResponse): ChatMessage {
     const chunkText = chunk.message ?? ''
     if (chunk.type === 'error') {
@@ -30,6 +32,9 @@ export function mergeStreamText(currentText: string | null | undefined, chunkTex
     }
     if (!current) {
         return chunk
+    }
+    if (chunk === current && chunk.length >= EXACT_SNAPSHOT_DEDUP_MIN_LENGTH) {
+        return current
     }
     if (chunk.length > current.length && chunk.startsWith(current)) {
         return chunk

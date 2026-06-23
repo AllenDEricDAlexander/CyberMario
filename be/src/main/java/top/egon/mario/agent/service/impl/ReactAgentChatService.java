@@ -37,6 +37,7 @@ import top.egon.mario.agent.observability.service.model.AgentRunAuditStart;
 import top.egon.mario.agent.po.enums.AgentConversationMessageType;
 import top.egon.mario.agent.po.enums.AgentConversationRole;
 import top.egon.mario.agent.service.AgentConversationAuditService;
+import top.egon.mario.agent.service.AgentException;
 import top.egon.mario.agent.service.AgentPresetService;
 import top.egon.mario.agent.service.AgentRuntimeFactory;
 import top.egon.mario.agent.service.ChatAgentService;
@@ -70,6 +71,8 @@ import java.util.concurrent.atomic.AtomicReference;
 @Slf4j
 @Validated
 public class ReactAgentChatService implements ChatAgentService {
+
+    private static final String FRAMEWORK_EXCEPTION_PREFIX = "Exception:";
 
     private final AgentPresetService agentPresetService;
     private final AgentRuntimeFactory agentRuntimeFactory;
@@ -181,7 +184,7 @@ public class ReactAgentChatService implements ChatAgentService {
                             () -> LogUtil.error(log).log("agent chat failed, threadId={}", conversationThreadId, error)))
                     .subscribeOn(blockingScheduler)
                     .flatMap(output -> toChatChunk(output, conversationThreadId))
-                    .filter(chunk -> shouldEmitChunk(chunk, lastStateSnapshotKey))
+                    .filter(chunk -> shouldEmitChunk(chunk, lastStateSnapshotKey, messageContent, thinkContent))
                     .doOnNext(chunk -> collectAuditChunk(chunk, messageContent, thinkContent))
                     .map(AgentChatChunk::response)
                     .doFinally(signalType -> {
@@ -253,17 +256,40 @@ public class ReactAgentChatService implements ChatAgentService {
         return builder.build();
     }
 
-    private boolean shouldEmitChunk(AgentChatChunk chunk, AtomicReference<String> lastStateSnapshotKey) {
-        if (chunk == null || !chunk.stateSnapshot()) {
+    private boolean shouldEmitChunk(AgentChatChunk chunk, AtomicReference<String> lastStateSnapshotKey,
+                                    AgentMemoryTextAccumulator messageContent,
+                                    AgentMemoryTextAccumulator thinkContent) {
+        if (chunk == null) {
+            return false;
+        }
+        if (!chunk.stateSnapshot()) {
             return true;
         }
         ChatResponse response = chunk.response();
+        if (response == null || isAlreadyAccumulatedSnapshot(response, messageContent, thinkContent)) {
+            return false;
+        }
         String key = response.type() + "\n" + response.message();
         if (key.equals(lastStateSnapshotKey.get())) {
             return false;
         }
         lastStateSnapshotKey.set(key);
         return true;
+    }
+
+    private boolean isAlreadyAccumulatedSnapshot(ChatResponse response,
+                                                 AgentMemoryTextAccumulator messageContent,
+                                                 AgentMemoryTextAccumulator thinkContent) {
+        if (response.message() == null) {
+            return false;
+        }
+        if ("think".equals(response.type())) {
+            return response.message().equals(thinkContent.content());
+        }
+        if ("message".equals(response.type())) {
+            return response.message().equals(messageContent.content());
+        }
+        return false;
     }
 
     private void collectAuditChunk(AgentChatChunk chunk, AgentMemoryTextAccumulator messageContent,
@@ -435,7 +461,7 @@ public class ReactAgentChatService implements ChatAgentService {
             Object msg = invokeOutputMethod(output, "message");
             if (msg instanceof Message m && StringUtils.hasText(m.getText())) {
                 String type = inferType(output);
-                return Flux.just(new AgentChatChunk(new ChatResponse(threadId, m.getText(), type), false));
+                return chatChunk(threadId, m.getText(), type, false);
             }
         } catch (Exception ignored) {
             // method not available
@@ -456,11 +482,32 @@ public class ReactAgentChatService implements ChatAgentService {
             }
             String text = extractText(last);
             if (StringUtils.hasText(text)) {
-                return Flux.just(new AgentChatChunk(new ChatResponse(threadId, text, "message"), true));
+                return chatChunk(threadId, text, "message", true);
             }
         }
 
         return Flux.empty();
+    }
+
+    private Flux<AgentChatChunk> chatChunk(String threadId, String text, String type, boolean stateSnapshot) {
+        RuntimeException frameworkError = frameworkError(text);
+        if (frameworkError != null) {
+            return Flux.error(frameworkError);
+        }
+        return Flux.just(new AgentChatChunk(new ChatResponse(threadId, text, type), stateSnapshot));
+    }
+
+    private RuntimeException frameworkError(String text) {
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        String trimmed = text.trim();
+        if (!trimmed.startsWith(FRAMEWORK_EXCEPTION_PREFIX)) {
+            return null;
+        }
+        String message = trimmed.substring(FRAMEWORK_EXCEPTION_PREFIX.length()).trim();
+        return new AgentException("MODEL_CALL_FAILED",
+                StringUtils.hasText(message) ? message : "请检查模型配置后重试");
     }
 
     private record AgentChatChunk(ChatResponse response, boolean stateSnapshot) {

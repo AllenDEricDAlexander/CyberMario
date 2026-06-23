@@ -14,6 +14,10 @@ describe('chatMessageStream', () => {
         expect(mergeStreamText('你', '你好')).toBe('你好')
         expect(mergeStreamText('哈', '哈')).toBe('哈哈')
         expect(mergeStreamText('你好', '好')).toBe('你好好')
+        expect(mergeStreamText(
+            "Hello! I'm CyberMario. How can I assist you today?",
+            "Hello! I'm CyberMario. How can I assist you today?",
+        )).toBe("Hello! I'm CyberMario. How can I assist you today?")
         expect(mergeStreamText('hello', '')).toBe('hello')
         expect(mergeStreamText('hello', null)).toBe('hello')
         expect(mergeStreamText('hello', undefined)).toBe('hello')
