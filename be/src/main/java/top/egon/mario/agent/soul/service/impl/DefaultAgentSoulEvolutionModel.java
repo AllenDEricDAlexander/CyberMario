@@ -45,7 +45,7 @@ public class DefaultAgentSoulEvolutionModel implements AgentSoulEvolutionModel {
             return AgentSoulEvolutionDecision.noUpdate("SoulMD evolution is disabled");
         }
         if (input == null) {
-            return AgentSoulEvolutionDecision.noUpdate("SoulMD evolution input is required");
+            return AgentSoulEvolutionDecision.noUpdateFailure("SoulMD evolution input is required");
         }
         ModelResolveResult result = modelFactory.resolve(new ModelRequest(
                 properties.evolutionProvider(),
@@ -60,22 +60,25 @@ public class DefaultAgentSoulEvolutionModel implements AgentSoulEvolutionModel {
                 new UserMessage(userPrompt(input))
         )));
         if (!StringUtils.hasText(responseText)) {
-            return AgentSoulEvolutionDecision.noUpdate("SoulMD evolution model returned no response");
+            return AgentSoulEvolutionDecision.noUpdateFailure("SoulMD evolution model returned no response");
         }
         RawDecision rawDecision;
         try {
             rawDecision = objectMapper.readValue(responseText.trim(), RawDecision.class);
         } catch (JsonProcessingException e) {
-            return AgentSoulEvolutionDecision.noUpdate("Invalid SoulMD evolution JSON: " + e.getOriginalMessage());
+            return AgentSoulEvolutionDecision.noUpdateFailure("Invalid SoulMD evolution JSON");
         }
         if (rawDecision == null) {
-            return AgentSoulEvolutionDecision.noUpdate("SoulMD evolution model returned null decision");
+            return AgentSoulEvolutionDecision.noUpdateFailure("SoulMD evolution model returned null decision");
+        }
+        if (rawDecision.shouldUpdate() == null) {
+            return AgentSoulEvolutionDecision.noUpdateFailure("SoulMD evolution decision omitted shouldUpdate");
         }
         if (!Boolean.TRUE.equals(rawDecision.shouldUpdate())) {
             return AgentSoulEvolutionDecision.noUpdate(safeReason(rawDecision.reason(), "SoulMD evolution found no durable update"));
         }
         if (!StringUtils.hasText(rawDecision.updatedSoulMd())) {
-            return AgentSoulEvolutionDecision.noUpdate("SoulMD evolution update omitted updatedSoulMd");
+            return AgentSoulEvolutionDecision.noUpdateFailure("SoulMD evolution update omitted updatedSoulMd");
         }
         return new AgentSoulEvolutionDecision(true,
                 safeReason(rawDecision.reason(), "SoulMD evolution requested an update"),

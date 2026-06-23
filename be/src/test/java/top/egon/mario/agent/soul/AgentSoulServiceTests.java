@@ -1,6 +1,10 @@
 package top.egon.mario.agent.soul;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import top.egon.mario.agent.service.AgentException;
 import top.egon.mario.agent.soul.dto.request.AgentSoulMdUpdateRequest;
 import top.egon.mario.agent.soul.po.AgentSoulMdVersionPo;
@@ -265,6 +269,95 @@ class AgentSoulServiceTests {
     }
 
     @Test
+    void maybeEvolveAfterChatWarnsAndSkipsSaveWhenDecisionIsFailureNoUpdate() {
+        UserPo user = user();
+        user.setSoulMd("# Current Soul");
+        given(userRepository.findByIdAndDeletedFalse(8L)).willReturn(Optional.of(user));
+        given(evolutionModel.evaluateAndRewrite(any()))
+                .willReturn(AgentSoulEvolutionDecision.noUpdateFailure("Invalid SoulMD evolution JSON"));
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(AgentSoulServiceImpl.class);
+        ListAppender<ILoggingEvent> appender = new PreparedListAppender();
+        Level previousLevel = logger.getLevel();
+        boolean previousAdditive = logger.isAdditive();
+        appender.start();
+        logger.addAppender(appender);
+        logger.setLevel(Level.WARN);
+        logger.setAdditive(false);
+        try {
+            service.maybeEvolveAfterChat(new AgentSoulEvolutionRequest(principal, "session-1",
+                    "hello", "hi", "private recent context", AgentSoulSourceType.AGENT_CHAT,
+                    "request-1", "trace-1"));
+        } finally {
+            logger.detachAppender(appender);
+            logger.setLevel(previousLevel);
+            logger.setAdditive(previousAdditive);
+            appender.stop();
+        }
+
+        assertThat(appender.list).hasSize(1);
+        ILoggingEvent event = appender.list.get(0);
+        assertThat(event.getLevel()).isEqualTo(Level.WARN);
+        assertThat(event.getFormattedMessage()).isEqualTo("SoulMD evolution skipped after failure no-update decision");
+        assertThat(event.getMDCPropertyMap())
+                .containsEntry("sessionId", "session-1")
+                .containsEntry("requestId", "request-1")
+                .containsEntry("traceId", "trace-1")
+                .containsEntry("reason", "Invalid SoulMD evolution JSON");
+        assertThat(event.getFormattedMessage())
+                .doesNotContain("# Current Soul")
+                .doesNotContain("hello")
+                .doesNotContain("hi")
+                .doesNotContain("private recent context");
+        verify(versionRepository, never()).save(any());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void maybeEvolveAfterChatWarnsAndSkipsSaveWhenDecisionIsNull() {
+        UserPo user = user();
+        user.setSoulMd("# Current Soul");
+        given(userRepository.findByIdAndDeletedFalse(8L)).willReturn(Optional.of(user));
+        given(evolutionModel.evaluateAndRewrite(any())).willReturn(null);
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(AgentSoulServiceImpl.class);
+        ListAppender<ILoggingEvent> appender = new PreparedListAppender();
+        Level previousLevel = logger.getLevel();
+        boolean previousAdditive = logger.isAdditive();
+        appender.start();
+        logger.addAppender(appender);
+        logger.setLevel(Level.WARN);
+        logger.setAdditive(false);
+        try {
+            service.maybeEvolveAfterChat(new AgentSoulEvolutionRequest(principal, "session-1",
+                    "hello", "hi", "private recent context", AgentSoulSourceType.AGENT_CHAT,
+                    "request-1", "trace-1"));
+        } finally {
+            logger.detachAppender(appender);
+            logger.setLevel(previousLevel);
+            logger.setAdditive(previousAdditive);
+            appender.stop();
+        }
+
+        assertThat(appender.list).hasSize(1);
+        ILoggingEvent event = appender.list.get(0);
+        assertThat(event.getLevel()).isEqualTo(Level.WARN);
+        assertThat(event.getFormattedMessage()).isEqualTo("SoulMD evolution skipped after failure no-update decision");
+        assertThat(event.getMDCPropertyMap())
+                .containsEntry("sessionId", "session-1")
+                .containsEntry("requestId", "request-1")
+                .containsEntry("traceId", "trace-1")
+                .containsEntry("reason", "SoulMD evolution returned null decision");
+        assertThat(event.getFormattedMessage())
+                .doesNotContain("# Current Soul")
+                .doesNotContain("hello")
+                .doesNotContain("hi")
+                .doesNotContain("private recent context");
+        verify(versionRepository, never()).save(any());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
     void maybeEvolveAfterChatSkipsSaveAndArchiveWhenUpdatedSoulIsBlank() {
         UserPo user = user();
         user.setSoulMd("# Current Soul");
@@ -338,5 +431,14 @@ class AgentSoulServiceTests {
         version.setSourceMessageIds("1,2");
         version.setCreatedAt(java.time.Instant.parse("2026-06-22T00:00:00Z"));
         return version;
+    }
+
+    private static final class PreparedListAppender extends ListAppender<ILoggingEvent> {
+
+        @Override
+        protected void append(ILoggingEvent eventObject) {
+            eventObject.prepareForDeferredProcessing();
+            super.append(eventObject);
+        }
     }
 }

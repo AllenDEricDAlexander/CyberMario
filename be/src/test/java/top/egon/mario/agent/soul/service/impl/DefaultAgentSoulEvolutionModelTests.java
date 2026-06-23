@@ -37,6 +37,7 @@ class DefaultAgentSoulEvolutionModelTests {
         var decision = model.evaluateAndRewrite(input());
 
         assertThat(decision.shouldUpdate()).isFalse();
+        assertThat(decision.failureNoUpdate()).isFalse();
         assertThat(decision.reason()).contains("disabled");
         assertThat(factory.request).isNull();
     }
@@ -77,6 +78,7 @@ class DefaultAgentSoulEvolutionModelTests {
         var decision = model.evaluateAndRewrite(input());
 
         assertThat(decision.shouldUpdate()).isFalse();
+        assertThat(decision.failureNoUpdate()).isTrue();
         assertThat(decision.reason()).contains("Invalid SoulMD evolution JSON");
     }
 
@@ -89,7 +91,83 @@ class DefaultAgentSoulEvolutionModelTests {
         AgentSoulEvolutionDecision decision = assertDoesNotThrow(() -> model.evaluateAndRewrite(input()));
 
         assertThat(decision.shouldUpdate()).isFalse();
+        assertThat(decision.failureNoUpdate()).isTrue();
         assertThat(decision.reason()).contains("null decision");
+    }
+
+    @Test
+    void blankModelResponseReturnsFailureNoUpdate() {
+        CapturingModelFactory factory = new CapturingModelFactory(response(" \n\t "));
+        DefaultAgentSoulEvolutionModel model = new DefaultAgentSoulEvolutionModel(factory, new ObjectMapper(),
+                new AgentSoulProperties(true, ModelProviderType.DASHSCOPE, "qwen-test", new BigDecimal("0.2"), 512));
+
+        var decision = model.evaluateAndRewrite(input());
+
+        assertThat(decision.shouldUpdate()).isFalse();
+        assertThat(decision.failureNoUpdate()).isTrue();
+        assertThat(decision.reason()).contains("no response");
+    }
+
+    @Test
+    void missingUpdatedSoulMdReturnsFailureNoUpdate() {
+        String json = """
+                {
+                  "shouldUpdate": true,
+                  "reason": "durable preference",
+                  "changeSummary": "Captured concise-answer preference",
+                  "updatedSoulMd": ""
+                }
+                """;
+        CapturingModelFactory factory = new CapturingModelFactory(response(json));
+        DefaultAgentSoulEvolutionModel model = new DefaultAgentSoulEvolutionModel(factory, new ObjectMapper(),
+                new AgentSoulProperties(true, ModelProviderType.DASHSCOPE, "qwen-test", new BigDecimal("0.2"), 512));
+
+        var decision = model.evaluateAndRewrite(input());
+
+        assertThat(decision.shouldUpdate()).isFalse();
+        assertThat(decision.failureNoUpdate()).isTrue();
+        assertThat(decision.reason()).contains("omitted updatedSoulMd");
+    }
+
+    @Test
+    void missingShouldUpdateReturnsFailureNoUpdate() {
+        String json = """
+                {
+                  "reason": "missing flag",
+                  "changeSummary": "",
+                  "updatedSoulMd": ""
+                }
+                """;
+        CapturingModelFactory factory = new CapturingModelFactory(response(json));
+        DefaultAgentSoulEvolutionModel model = new DefaultAgentSoulEvolutionModel(factory, new ObjectMapper(),
+                new AgentSoulProperties(true, ModelProviderType.DASHSCOPE, "qwen-test", new BigDecimal("0.2"), 512));
+
+        var decision = model.evaluateAndRewrite(input());
+
+        assertThat(decision.shouldUpdate()).isFalse();
+        assertThat(decision.failureNoUpdate()).isTrue();
+        assertThat(decision.reason()).isEqualTo("SoulMD evolution decision omitted shouldUpdate");
+    }
+
+    @Test
+    void shouldUpdateFalseModelDecisionReturnsNormalNoUpdate() {
+        String json = """
+                {
+                  "shouldUpdate": false,
+                  "reason": "no durable change",
+                  "changeSummary": "",
+                  "updatedSoulMd": ""
+                }
+                """;
+        CapturingModelFactory factory = new CapturingModelFactory(response(json));
+        DefaultAgentSoulEvolutionModel model = new DefaultAgentSoulEvolutionModel(factory, new ObjectMapper(),
+                new AgentSoulProperties(true, ModelProviderType.DASHSCOPE, "qwen-test", new BigDecimal("0.2"), 512));
+
+        var decision = model.evaluateAndRewrite(input());
+
+        assertThat(decision.shouldUpdate()).isFalse();
+        assertThat(decision.failureNoUpdate()).isFalse();
+        assertThat(decision.reason()).isEqualTo("no durable change");
     }
 
     private AgentSoulEvolutionInput input() {

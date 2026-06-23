@@ -1,5 +1,6 @@
 package top.egon.mario.agent.soul.service.impl;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -21,6 +22,7 @@ import top.egon.mario.agent.soul.service.AgentSoulService;
 import top.egon.mario.agent.soul.service.model.AgentSoulEvolutionDecision;
 import top.egon.mario.agent.soul.service.model.AgentSoulEvolutionInput;
 import top.egon.mario.agent.soul.service.model.AgentSoulEvolutionRequest;
+import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.po.UserPo;
 import top.egon.mario.rbac.repository.UserRepository;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
@@ -32,6 +34,7 @@ import java.util.List;
  * Manages current-user Agent SoulMD document and immutable previous snapshots.
  */
 @Service
+@Slf4j
 public class AgentSoulServiceImpl implements AgentSoulService {
 
     private final UserRepository userRepository;
@@ -132,6 +135,9 @@ public class AgentSoulServiceImpl implements AgentSoulService {
                 request.traceId()
         ));
         if (decision == null || !decision.shouldUpdate()) {
+            if (decision == null || decision.failureNoUpdate()) {
+                logEvolutionFailureNoUpdate(request, decision);
+            }
             return;
         }
         if (!StringUtils.hasText(decision.updatedSoulMd())) {
@@ -143,6 +149,25 @@ public class AgentSoulServiceImpl implements AgentSoulService {
         }
         transactionOperations.executeWithoutResult(status ->
                 applyEvolutionUpdate(request, decision, current, next));
+    }
+
+    private void logEvolutionFailureNoUpdate(AgentSoulEvolutionRequest request, AgentSoulEvolutionDecision decision) {
+        LogUtil.warn(log)
+                .field("sessionId", request.sessionId())
+                .field("requestId", request.requestId())
+                .field("traceId", request.traceId())
+                .reason(failureReason(decision))
+                .log("SoulMD evolution skipped after failure no-update decision");
+    }
+
+    private String failureReason(AgentSoulEvolutionDecision decision) {
+        if (decision == null) {
+            return "SoulMD evolution returned null decision";
+        }
+        if (StringUtils.hasText(decision.reason())) {
+            return decision.reason().trim();
+        }
+        return "SoulMD evolution returned failure no-update decision";
     }
 
     protected AgentSoulMdVersionPo archiveCurrent(UserPo user, AgentSoulChangeType changeType, String changeSummary,
