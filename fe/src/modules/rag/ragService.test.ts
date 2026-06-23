@@ -42,7 +42,7 @@ describe('ragService', () => {
 
         void streamRagChat({
             sessionId: 'rag-session-1',
-            memoryEnabled: true,
+            memoryContextEnabled: true,
             longTermExtractionEnabled: false,
             question: 'hello',
             knowledgeBaseIds: [1],
@@ -51,7 +51,7 @@ describe('ragService', () => {
         expect(streamJsonLines).toHaveBeenCalledWith('/api/rag/chat/stream', {
             body: {
                 sessionId: 'rag-session-1',
-                memoryEnabled: true,
+                memoryContextEnabled: true,
                 longTermExtractionEnabled: false,
                 question: 'hello',
                 knowledgeBaseIds: [1],

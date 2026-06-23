@@ -87,10 +87,13 @@ function AgentMemoryPage() {
             render: (value) => <Tag color={value === 'ACTIVE' ? 'success' : 'default'}>{value}</Tag>,
         },
         {
-            title: 'Memory',
-            dataIndex: 'memoryEnabled',
+            title: '长期记忆',
+            dataIndex: 'memoryContextEnabled',
             width: 100,
-            render: (value) => <Tag color={value ? 'green' : 'default'}>{value ? 'ON' : 'OFF'}</Tag>,
+            render: (_, record) => {
+                const enabled = record.memoryContextEnabled ?? record.memoryEnabled
+                return <Tag color={enabled ? 'green' : 'default'}>{enabled ? '开启' : '关闭'}</Tag>
+            },
         },
         {
             title: '长期提取',

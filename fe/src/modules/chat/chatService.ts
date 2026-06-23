@@ -14,7 +14,7 @@ export function streamChatResponse(
                 message: request.message,
                 threadId: request.threadId,
                 sessionId: request.sessionId,
-                memoryEnabled: request.memoryEnabled,
+                memoryContextEnabled: request.memoryContextEnabled,
             },
             signal: request.signal,
         },

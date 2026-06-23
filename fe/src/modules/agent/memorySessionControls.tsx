@@ -6,7 +6,7 @@ type MemorySessionControlsProps = {
     entryType: AgentMemoryEntryType
     sessions: AgentMemorySessionResponse[]
     sessionId?: string
-    memoryEnabled: boolean
+    memoryContextEnabled: boolean
     longTermExtractionEnabled?: boolean
     showExtractionSwitch?: boolean
     loading?: boolean
@@ -44,9 +44,9 @@ export function MemorySessionControls(props: MemorySessionControlsProps) {
                 新会话
             </Button>
             <Switch
-                checked={props.memoryEnabled}
-                checkedChildren="Memory"
-                unCheckedChildren="Memory"
+                checked={props.memoryContextEnabled}
+                checkedChildren="长期记忆"
+                unCheckedChildren="长期记忆"
                 onChange={props.onMemoryChange}
             />
             {props.showExtractionSwitch && (

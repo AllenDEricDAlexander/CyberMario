@@ -11,7 +11,7 @@ export type ChatRequest = {
     message: string
     threadId?: string
     sessionId?: string
-    memoryEnabled?: boolean
+    memoryContextEnabled?: boolean
 }
 
 export type ChatResponse = {

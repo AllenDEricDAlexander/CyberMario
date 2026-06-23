@@ -64,7 +64,7 @@ function RagChatPage() {
     const [sessions, setSessions] = useState<AgentMemorySessionResponse[]>([])
     const [sessionId, setSessionId] = useState('')
     const [sessionLoading, setSessionLoading] = useState(false)
-    const [memoryEnabled, setMemoryEnabled] = useState(true)
+    const [memoryContextEnabled, setMemoryContextEnabled] = useState(true)
     const [longTermExtractionEnabled, setLongTermExtractionEnabled] = useState(true)
     const [ragConfig, setRagConfig] = useState<RagConfig>(defaultRagConfig)
     const [input, setInput] = useState('')
@@ -160,7 +160,7 @@ function RagChatPage() {
             await streamRagChat(
                 {
                     sessionId: requestParams.conversationKey,
-                    memoryEnabled,
+                    memoryContextEnabled,
                     longTermExtractionEnabled,
                     question: requestParams.message,
                     knowledgeBaseIds: ragConfig.knowledgeBaseIds,
@@ -205,7 +205,7 @@ function RagChatPage() {
                 abortControllerRef.current = null
             }
         }
-    }, [longTermExtractionEnabled, memoryEnabled, ragConfig])
+    }, [longTermExtractionEnabled, memoryContextEnabled, ragConfig])
 
     const handleWorkspaceAbort = useCallback(() => {
         abortControllerRef.current?.abort()
@@ -260,7 +260,7 @@ function RagChatPage() {
         try {
             const session = await createAgentMemorySession({
                 entryType: 'RAG_CHAT',
-                memoryEnabled,
+                memoryContextEnabled,
                 longTermExtractionEnabled,
             })
             if (!isMountedRef.current) {
@@ -328,7 +328,7 @@ function RagChatPage() {
         const requestToken = nextHistoryRequestToken()
         const session = sessions.find((item) => item.sessionId === conversationKey)
         if (session) {
-            setMemoryEnabled(session.memoryEnabled)
+            setMemoryContextEnabled(session.memoryContextEnabled ?? session.memoryEnabled ?? true)
             setLongTermExtractionEnabled(session.longTermExtractionEnabled)
         }
         setMessages(initialMessages)
@@ -410,10 +410,10 @@ function RagChatPage() {
                 headerActions={(
                     <Space wrap>
                         <Switch
-                            checked={memoryEnabled}
-                            checkedChildren="记忆"
-                            unCheckedChildren="记忆"
-                            onChange={setMemoryEnabled}
+                            checked={memoryContextEnabled}
+                            checkedChildren="长期记忆"
+                            unCheckedChildren="长期记忆"
+                            onChange={setMemoryContextEnabled}
                         />
                         <Switch
                             checked={longTermExtractionEnabled}

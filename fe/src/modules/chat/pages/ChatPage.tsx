@@ -41,7 +41,7 @@ export function ChatPage() {
     const [sessionId, setSessionId] = useState('')
     const [sessions, setSessions] = useState<AgentMemorySessionResponse[]>([])
     const [sessionLoading, setSessionLoading] = useState(false)
-    const [memoryEnabled, setMemoryEnabled] = useState(true)
+    const [memoryContextEnabled, setMemoryContextEnabled] = useState(true)
     const [error, setError] = useState('')
     const abortControllerRef = useRef<AbortController | null>(null)
     const updateAssistantMessageRef = useRef<UpdateAssistantMessage | null>(null)
@@ -82,7 +82,7 @@ export function ChatPage() {
                 {
                     message: requestParams.message,
                     sessionId: requestParams.conversationKey,
-                    memoryEnabled,
+                    memoryContextEnabled,
                     signal: abortController.signal,
                 },
                 (chunk) => {
@@ -116,7 +116,7 @@ export function ChatPage() {
                 abortControllerRef.current = null
             }
         }
-    }, [memoryEnabled])
+    }, [memoryContextEnabled])
 
     const handleWorkspaceAbort = useCallback(() => {
         abortControllerRef.current?.abort()
@@ -190,7 +190,7 @@ export function ChatPage() {
         abort()
         const requestToken = nextHistoryRequestToken()
         try {
-            const session = await createAgentMemorySession({entryType: 'AGENT_CHAT', memoryEnabled})
+            const session = await createAgentMemorySession({entryType: 'AGENT_CHAT', memoryContextEnabled})
             if (!isMountedRef.current) {
                 return
             }
@@ -255,7 +255,7 @@ export function ChatPage() {
         const requestToken = nextHistoryRequestToken()
         const session = sessions.find((item) => item.sessionId === conversationKey)
         if (session) {
-            setMemoryEnabled(session.memoryEnabled)
+            setMemoryContextEnabled(session.memoryContextEnabled ?? session.memoryEnabled ?? true)
         }
         setMessages(initialMessages)
         setInput('')
@@ -329,10 +329,10 @@ export function ChatPage() {
             headerActions={(
                 <Space wrap>
                     <Switch
-                        checked={memoryEnabled}
-                        checkedChildren="Memory"
-                        unCheckedChildren="Memory"
-                        onChange={setMemoryEnabled}
+                        checked={memoryContextEnabled}
+                        checkedChildren="长期记忆"
+                        unCheckedChildren="长期记忆"
+                        onChange={setMemoryContextEnabled}
                     />
                     <Tag>{threadLabel}</Tag>
                 </Space>

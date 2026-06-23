@@ -70,7 +70,7 @@ describe('agentService', () => {
             message: 'hello',
             threadId: 'thread-1',
             sessionId: 'session-1',
-            memoryEnabled: true,
+            memoryContextEnabled: true,
             longTermExtractionEnabled: false,
             presetId: 9,
             overrides: {systemPrompt: 'prompt'},
@@ -81,7 +81,7 @@ describe('agentService', () => {
                 message: 'hello',
                 threadId: 'thread-1',
                 sessionId: 'session-1',
-                memoryEnabled: true,
+                memoryContextEnabled: true,
                 longTermExtractionEnabled: false,
                 presetId: 9,
                 overrides: {systemPrompt: 'prompt'},
@@ -141,7 +141,7 @@ describe('agentService', () => {
 
         void getAgentMemorySessions({page: 2, size: 30, entryType: 'AGENT_CHAT'})
         void createAgentMemorySession({entryType: 'AGENT_CHAT', title: 'Chat'})
-        void updateAgentMemorySession('session-1', {memoryEnabled: false})
+        void updateAgentMemorySession('session-1', {memoryContextEnabled: false})
         void releaseAgentMemorySession('session-1')
         void restoreAgentMemorySession('session-1')
         void archiveAgentMemorySession('session-1')
@@ -161,7 +161,7 @@ describe('agentService', () => {
         })
         expect(requestJson).toHaveBeenNthCalledWith(3, '/api/agent/memory/sessions/session-1', {
             method: 'PATCH',
-            body: {memoryEnabled: false},
+            body: {memoryContextEnabled: false},
         })
         expect(requestJson).toHaveBeenNthCalledWith(4, '/api/agent/memory/sessions/session-1/release', {
             method: 'POST',

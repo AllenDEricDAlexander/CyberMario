@@ -60,6 +60,7 @@ const memorySession: AgentMemorySessionResponse = {
     entryType: 'AGENT_CHAT',
     title: 'Agent research',
     status: 'ACTIVE',
+    memoryContextEnabled: true,
     memoryEnabled: true,
     longTermExtractionEnabled: false,
     shortTermWindowTurns: 8,

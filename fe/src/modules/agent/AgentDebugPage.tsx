@@ -90,7 +90,7 @@ function AgentDebugPage() {
     const [sessionId, setSessionId] = useState('')
     const [sessions, setSessions] = useState<AgentMemorySessionResponse[]>([])
     const [sessionLoading, setSessionLoading] = useState(false)
-    const [memoryEnabled, setMemoryEnabled] = useState(true)
+    const [memoryContextEnabled, setMemoryContextEnabled] = useState(true)
     const [longTermExtractionEnabled, setLongTermExtractionEnabled] = useState(true)
     const [error, setError] = useState('')
     const abortControllerRef = useRef<AbortController | null>(null)
@@ -267,7 +267,7 @@ function AgentDebugPage() {
             await streamAgentDebugChat({
                 message: requestParams.message,
                 sessionId: requestParams.conversationKey,
-                memoryEnabled,
+                memoryContextEnabled,
                 longTermExtractionEnabled,
                 presetId: values.presetId,
                 overrides: toConfig(values),
@@ -301,7 +301,7 @@ function AgentDebugPage() {
                 abortControllerRef.current = null
             }
         }
-    }, [form, longTermExtractionEnabled, memoryEnabled])
+    }, [form, longTermExtractionEnabled, memoryContextEnabled])
 
     const handleWorkspaceAbort = useCallback(() => {
         abortControllerRef.current?.abort()
@@ -348,7 +348,7 @@ function AgentDebugPage() {
         try {
             const session = await createAgentMemorySession({
                 entryType: 'AGENT_DEBUG',
-                memoryEnabled,
+                memoryContextEnabled,
                 longTermExtractionEnabled,
             })
             if (!isMountedRef.current) {
@@ -414,7 +414,7 @@ function AgentDebugPage() {
         const requestToken = nextHistoryRequestToken()
         const session = sessions.find((item) => item.sessionId === conversationKey)
         if (session) {
-            setMemoryEnabled(session.memoryEnabled)
+            setMemoryContextEnabled(session.memoryContextEnabled ?? session.memoryEnabled ?? true)
             setLongTermExtractionEnabled(session.longTermExtractionEnabled)
         }
         setMessages(initialMessages)
@@ -489,10 +489,10 @@ function AgentDebugPage() {
             headerActions={(
                 <Space wrap>
                     <Switch
-                        checked={memoryEnabled}
-                        checkedChildren="记忆"
-                        unCheckedChildren="记忆"
-                        onChange={setMemoryEnabled}
+                        checked={memoryContextEnabled}
+                        checkedChildren="长期记忆"
+                        unCheckedChildren="长期记忆"
+                        onChange={setMemoryContextEnabled}
                     />
                     <Switch
                         checked={longTermExtractionEnabled}

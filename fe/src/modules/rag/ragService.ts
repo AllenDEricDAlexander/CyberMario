@@ -160,7 +160,18 @@ export function getRagRetrievalTrace(traceId: string) {
 }
 
 export function streamRagChat(request: RagChatRequest, signal: AbortSignal, onChunk: (event: RagStreamEvent) => void) {
-    return streamJsonLines<RagStreamEvent>('/api/rag/chat/stream', {body: request, signal}, onChunk)
+    return streamJsonLines<RagStreamEvent>('/api/rag/chat/stream', {
+        body: {
+            sessionId: request.sessionId,
+            memoryContextEnabled: request.memoryContextEnabled,
+            longTermExtractionEnabled: request.longTermExtractionEnabled,
+            question: request.question,
+            knowledgeBaseIds: request.knowledgeBaseIds,
+            ...(request.retrievalOptions ? {retrievalOptions: request.retrievalOptions} : {}),
+            ...(request.withSources === undefined ? {} : {withSources: request.withSources}),
+        },
+        signal,
+    }, onChunk)
 }
 
 export function createRagFeedback(request: RagFeedbackRequest) {

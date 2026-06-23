@@ -155,7 +155,7 @@ export type RetrievalSearchResponse = {
 
 export type RagChatRequest = {
     sessionId?: string
-    memoryEnabled?: boolean
+    memoryContextEnabled?: boolean
     longTermExtractionEnabled?: boolean
     question: string
     knowledgeBaseIds: number[]
@@ -176,7 +176,7 @@ export type RagStreamEvent =
         traceId: string
         searchMode?: RagSearchMode
         sessionId?: string
-        memoryEnabled?: boolean
+        memoryContextEnabled?: boolean
         longTermExtractionEnabled?: boolean
     }
 }

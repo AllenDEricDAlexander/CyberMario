@@ -85,7 +85,7 @@ export type AgentDebugChatRequest = {
     message: string
     threadId?: string
     sessionId?: string
-    memoryEnabled?: boolean
+    memoryContextEnabled?: boolean
     longTermExtractionEnabled?: boolean
     presetId?: number
     overrides?: AgentPresetConfig
@@ -96,7 +96,8 @@ export type AgentMemorySessionResponse = {
     entryType: AgentMemoryEntryType
     title?: string
     status: AgentMemorySessionStatus
-    memoryEnabled: boolean
+    memoryContextEnabled: boolean
+    memoryEnabled?: boolean
     longTermExtractionEnabled: boolean
     shortTermWindowTurns: number
     lastActiveAt?: string
@@ -109,7 +110,7 @@ export type AgentMemorySessionResponse = {
 export type AgentMemorySessionRequest = {
     entryType: AgentMemoryEntryType
     title?: string
-    memoryEnabled?: boolean
+    memoryContextEnabled?: boolean
     longTermExtractionEnabled?: boolean
 }
 
