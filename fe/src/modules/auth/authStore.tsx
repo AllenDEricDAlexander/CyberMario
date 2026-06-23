@@ -40,6 +40,25 @@ type AuthProviderProps = {
     children: ReactNode
 }
 
+type BootstrapAuthSessionActions = {
+    reload: () => Promise<void>
+    clearSession: () => void
+    finish: () => void
+    clearLegacyTokens?: () => void
+}
+
+export async function bootstrapAuthSession(actions: BootstrapAuthSessionActions) {
+    actions.clearLegacyTokens?.() ?? clearTokens()
+    try {
+        await actions.reload()
+    } catch {
+        actions.clearLegacyTokens?.() ?? clearTokens()
+        actions.clearSession()
+    } finally {
+        actions.finish()
+    }
+}
+
 export function AuthProvider({children}: AuthProviderProps) {
     const [bootstrapping, setBootstrapping] = useState(true)
     const [session, setSession] = useState<LoginResponse | null>(null)
@@ -82,17 +101,17 @@ export function AuthProvider({children}: AuthProviderProps) {
     }, [applySession])
 
     useEffect(() => {
-        clearTokens()
-        reload()
-            .catch(() => {
-                clearTokens()
+        void bootstrapAuthSession({
+            reload,
+            clearSession: () => {
                 sessionRef.current = null
                 setSession(null)
                 setPermissionChange(undefined)
-            })
-            .finally(() => {
+            },
+            finish: () => {
                 setBootstrapping(false)
-            })
+            },
+        })
     }, [reload])
 
     useEffect(() => subscribePermissionVersion((permissionVersion) => {
