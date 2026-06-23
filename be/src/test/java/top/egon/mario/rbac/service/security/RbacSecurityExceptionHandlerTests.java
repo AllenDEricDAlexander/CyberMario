@@ -8,6 +8,7 @@ import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.InsufficientAuthenticationException;
+import org.springframework.security.web.server.csrf.CsrfException;
 import reactor.test.StepVerifier;
 import top.egon.mario.common.api.TraceContext;
 
@@ -51,6 +52,21 @@ class RbacSecurityExceptionHandlerTests {
                 .contains("\"code\":\"AUTH_FORBIDDEN\"")
                 .contains("\"message\":\"access is denied\"")
                 .contains("\"traceId\":\"trace-403\"");
+    }
+
+    @Test
+    void writesCsrfApiResponseWhenCsrfTokenIsInvalid() {
+        MockServerWebExchange exchange = exchange();
+
+        StepVerifier.create(handler.handle(exchange, new CsrfException("invalid csrf token"))
+                        .contextWrite(context -> context.put(TraceContext.CONTEXT_KEY, "trace-csrf")))
+                .verifyComplete();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(exchange.getResponse().getBodyAsString().block())
+                .contains("\"code\":\"AUTH_CSRF_INVALID\"")
+                .contains("\"message\":\"csrf token is invalid\"")
+                .contains("\"traceId\":\"trace-csrf\"");
     }
 
     private MockServerWebExchange exchange() {

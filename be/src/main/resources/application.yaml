@@ -142,6 +142,8 @@ mario:
       secret: ${JWT_SECRET:CyberMarioLocalJwtSecretForRbac1PermissionsAtLeast32Bytes}
       access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:PT30M}
       refresh-token-ttl: ${JWT_REFRESH_TOKEN_TTL:P14D}
+    browser-cookie:
+      secure: ${BROWSER_AUTH_COOKIE_SECURE:true}
   rbac:
     resource-sync:
       enabled: ${RBAC_RESOURCE_SYNC_ENABLED:true}

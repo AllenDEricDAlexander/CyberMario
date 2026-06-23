@@ -22,7 +22,7 @@ import top.egon.mario.rbac.application.RbacAuthApplication;
 import top.egon.mario.rbac.service.RbacException;
 
 /**
- * Extracts Bearer access tokens and publishes RBAC Authentication into Reactor context.
+ * Extracts access tokens and publishes RBAC Authentication into Reactor context.
  */
 @Component
 @RequiredArgsConstructor
@@ -31,16 +31,17 @@ public class JwtAuthenticationWebFilter implements WebFilter {
 
     public static final String PERMISSION_VERSION_HEADER = "X-Rbac-Permission-Version";
     private final RbacAuthApplication authApplication;
+    private final BrowserAuthCookieService browserAuthCookieService;
     private final ObjectMapper objectMapper;
     private final Scheduler blockingScheduler;
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
-        String token = bearerToken(exchange);
+        String token = resolveAccessToken(exchange);
         if (token == null) {
             return chain.filter(exchange);
         }
-        LogUtil.debug(log).log("bearer token detected, path={}", exchange.getRequest().getPath().value());
+        LogUtil.debug(log).log("access token detected, path={}", exchange.getRequest().getPath().value());
         return Mono.deferContextual(contextView -> {
             String traceId = TraceContext.traceId(contextView);
             return Mono.fromCallable(() -> TraceContext.withMdc(traceId, () -> authApplication.authenticateAccessToken(token)))
@@ -51,10 +52,30 @@ public class JwtAuthenticationWebFilter implements WebFilter {
                                 .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(new SecurityContextImpl(authentication))));
                     })
                     .doOnError(error -> TraceContext.withMdc(traceId,
-                            () -> LogUtil.warn(log).log("bearer token authentication failed, path={}",
+                            () -> LogUtil.warn(log).log("access token authentication failed, path={}",
                                     exchange.getRequest().getPath().value())))
                     .onErrorResume(RbacException.class, error -> writeRejectedAccessTokenResponse(exchange, traceId, error));
         });
+    }
+
+    private String resolveAccessToken(ServerWebExchange exchange) {
+        String bearer = bearerToken(exchange);
+        if (bearer != null) {
+            return bearer;
+        }
+        if (isPublicEndpoint(exchange)) {
+            return null;
+        }
+        return browserAuthCookieService.readAccessToken(exchange);
+    }
+
+    private boolean isPublicEndpoint(ServerWebExchange exchange) {
+        var method = exchange.getRequest().getMethod();
+        if (method == null) {
+            return false;
+        }
+        String path = exchange.getRequest().getPath().pathWithinApplication().value();
+        return RbacPublicApiPolicy.isAllowedPublicRule(method.name(), path);
     }
 
     private String bearerToken(ServerWebExchange exchange) {

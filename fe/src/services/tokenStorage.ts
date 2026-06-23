@@ -2,6 +2,12 @@ const ACCESS_TOKEN_KEY = 'cyber-mario-access-token'
 const REFRESH_TOKEN_KEY = 'cyber-mario-refresh-token'
 const ACCESS_TOKEN_EXPIRES_AT_KEY = 'cyber-mario-access-token-expires-at'
 const REFRESH_TOKEN_EXPIRES_AT_KEY = 'cyber-mario-refresh-token-expires-at'
+const LEGACY_TOKEN_KEYS = [
+    ACCESS_TOKEN_KEY,
+    REFRESH_TOKEN_KEY,
+    ACCESS_TOKEN_EXPIRES_AT_KEY,
+    REFRESH_TOKEN_EXPIRES_AT_KEY,
+]
 
 export type TokenSnapshot = {
     accessToken?: string | null
@@ -11,55 +17,25 @@ export type TokenSnapshot = {
 }
 
 export function getAccessToken() {
-    return localStorage.getItem(ACCESS_TOKEN_KEY)
+    return null
 }
 
 export function getRefreshToken() {
-    return localStorage.getItem(REFRESH_TOKEN_KEY)
+    return null
 }
 
-export function shouldRefreshAccessToken(skewMilliseconds: number) {
-    const accessToken = getAccessToken()
-    const refreshToken = getRefreshToken()
-    const expiresAt = getTokenExpiresAt(ACCESS_TOKEN_EXPIRES_AT_KEY)
-    return Boolean(accessToken && refreshToken && expiresAt !== null && expiresAt - Date.now() <= skewMilliseconds)
+export function shouldRefreshAccessToken(_skewMilliseconds: number) {
+    return false
 }
 
-export function saveTokens(tokens: TokenSnapshot) {
-    if (tokens.accessToken) {
-        localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken)
-        saveTokenExpiresAt(ACCESS_TOKEN_EXPIRES_AT_KEY, tokens.accessTokenExpiresInSeconds)
-    }
-    if (tokens.refreshToken) {
-        localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken)
-        saveTokenExpiresAt(REFRESH_TOKEN_EXPIRES_AT_KEY, tokens.refreshTokenExpiresInSeconds)
-    }
+export function saveTokens(_tokens: TokenSnapshot) {
+    clearTokens()
 }
 
 export function clearTokens() {
-    localStorage.removeItem(ACCESS_TOKEN_KEY)
-    localStorage.removeItem(REFRESH_TOKEN_KEY)
-    localStorage.removeItem(ACCESS_TOKEN_EXPIRES_AT_KEY)
-    localStorage.removeItem(REFRESH_TOKEN_EXPIRES_AT_KEY)
+    LEGACY_TOKEN_KEYS.forEach((key) => localStorage.removeItem(key))
 }
 
 export function hasStoredToken() {
-    return Boolean(getAccessToken() || getRefreshToken())
-}
-
-function getTokenExpiresAt(key: string) {
-    const value = localStorage.getItem(key)
-    if (!value) {
-        return null
-    }
-    const expiresAt = Number(value)
-    return Number.isFinite(expiresAt) ? expiresAt : null
-}
-
-function saveTokenExpiresAt(key: string, expiresInSeconds?: number | null) {
-    if (expiresInSeconds && Number.isFinite(expiresInSeconds)) {
-        localStorage.setItem(key, String(Date.now() + expiresInSeconds * 1000))
-        return
-    }
-    localStorage.removeItem(key)
+    return false
 }

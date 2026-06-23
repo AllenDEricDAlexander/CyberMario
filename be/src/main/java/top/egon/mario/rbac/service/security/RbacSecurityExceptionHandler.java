@@ -10,6 +10,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.server.ServerAuthenticationEntryPoint;
 import org.springframework.security.web.server.authorization.ServerAccessDeniedHandler;
+import org.springframework.security.web.server.csrf.CsrfException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
@@ -25,6 +26,7 @@ public class RbacSecurityExceptionHandler implements ServerAuthenticationEntryPo
 
     private static final String AUTH_UNAUTHENTICATED = "AUTH_UNAUTHENTICATED";
     private static final String AUTH_FORBIDDEN = "AUTH_FORBIDDEN";
+    private static final String AUTH_CSRF_INVALID = "AUTH_CSRF_INVALID";
     private final ObjectMapper objectMapper;
 
     @Override
@@ -35,6 +37,10 @@ public class RbacSecurityExceptionHandler implements ServerAuthenticationEntryPo
 
     @Override
     public Mono<Void> handle(ServerWebExchange exchange, AccessDeniedException denied) {
+        if (denied instanceof CsrfException) {
+            return Mono.deferContextual(contextView -> writeResponse(exchange, HttpStatus.FORBIDDEN,
+                    AUTH_CSRF_INVALID, "csrf token is invalid", TraceContext.traceId(contextView)));
+        }
         return Mono.deferContextual(contextView -> writeResponse(exchange, HttpStatus.FORBIDDEN,
                 AUTH_FORBIDDEN, "access is denied", TraceContext.traceId(contextView)));
     }

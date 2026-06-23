@@ -1,6 +1,6 @@
 import {createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {subscribePermissionVersion} from '../../services/permissionVersionEvents'
-import {clearTokens, hasStoredToken, saveTokens} from '../../services/tokenStorage'
+import {clearTokens, saveTokens} from '../../services/tokenStorage'
 import type {MenuTreeResponse, UserResponse} from '../rbac/rbacTypes'
 import {
     fetchCurrentUser,
@@ -38,6 +38,26 @@ const AuthContext = createContext<AuthState | null>(null)
 
 type AuthProviderProps = {
     children: ReactNode
+}
+
+type BootstrapAuthSessionActions = {
+    reload: () => Promise<void>
+    clearSession: () => void
+    finish: () => void
+    clearLegacyTokens?: () => void
+}
+
+export async function bootstrapAuthSession(actions: BootstrapAuthSessionActions) {
+    const clearLegacyTokens = actions.clearLegacyTokens ?? clearTokens
+    clearLegacyTokens()
+    try {
+        await actions.reload()
+    } catch {
+        clearLegacyTokens()
+        actions.clearSession()
+    } finally {
+        actions.finish()
+    }
 }
 
 export function AuthProvider({children}: AuthProviderProps) {
@@ -82,20 +102,17 @@ export function AuthProvider({children}: AuthProviderProps) {
     }, [applySession])
 
     useEffect(() => {
-        if (!hasStoredToken()) {
-            setBootstrapping(false)
-            return
-        }
-
-        reload()
-            .catch(() => {
-                clearTokens()
+        void bootstrapAuthSession({
+            reload,
+            clearSession: () => {
                 sessionRef.current = null
                 setSession(null)
-            })
-            .finally(() => {
+                setPermissionChange(undefined)
+            },
+            finish: () => {
                 setBootstrapping(false)
-            })
+            },
+        })
     }, [reload])
 
     useEffect(() => subscribePermissionVersion((permissionVersion) => {
