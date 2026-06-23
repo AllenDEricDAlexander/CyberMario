@@ -211,7 +211,7 @@ class AuthControllerBrowserCookieTests {
         ResponseCookie refreshCookie = exchange.getResponse().getCookies().getFirst("CM_REFRESH_TOKEN");
         assertThat(accessCookie).isNotNull();
         assertThat(accessCookie.getValue()).isEqualTo(accessToken);
-        assertThat(accessCookie.getPath()).isEqualTo("/api");
+        assertThat(accessCookie.getPath()).isEqualTo("/");
         assertThat(accessCookie.getMaxAge()).isEqualTo(Duration.ofSeconds(1800));
         assertThat(refreshCookie).isNotNull();
         assertThat(refreshCookie.getValue()).isEqualTo(refreshToken);

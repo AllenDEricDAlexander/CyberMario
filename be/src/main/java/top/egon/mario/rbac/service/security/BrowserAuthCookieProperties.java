@@ -17,7 +17,7 @@ public class BrowserAuthCookieProperties {
     private String sameSite = "Lax";
     private String accessCookieName = "CM_ACCESS_TOKEN";
     private String refreshCookieName = "CM_REFRESH_TOKEN";
-    private String accessCookiePath = "/api";
+    private String accessCookiePath = "/";
     private String refreshCookiePath = "/api/auth";
     private String browserHeaderName = "X-Client-Type";
     private String browserHeaderValue = "browser";

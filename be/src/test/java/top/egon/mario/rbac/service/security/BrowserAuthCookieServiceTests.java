@@ -47,13 +47,18 @@ class BrowserAuthCookieServiceTests {
 
         ResponseCookie accessCookie = exchange.getResponse().getCookies().getFirst("CM_ACCESS_TOKEN");
         ResponseCookie refreshCookie = exchange.getResponse().getCookies().getFirst("CM_REFRESH_TOKEN");
+        List<ResponseCookie> accessCookies = exchange.getResponse().getCookies().get("CM_ACCESS_TOKEN");
         assertThat(accessCookie).isNotNull();
         assertThat(accessCookie.getValue()).isEqualTo("access-token");
         assertThat(accessCookie.isHttpOnly()).isTrue();
         assertThat(accessCookie.isSecure()).isFalse();
-        assertThat(accessCookie.getPath()).isEqualTo("/api");
+        assertThat(accessCookie.getPath()).isEqualTo("/");
         assertThat(accessCookie.getMaxAge()).isEqualTo(Duration.ofSeconds(1800));
         assertThat(accessCookie.getSameSite()).isEqualTo("Lax");
+        assertThat(accessCookies).hasSize(2);
+        assertThat(accessCookies.get(1).getValue()).isEmpty();
+        assertThat(accessCookies.get(1).getPath()).isEqualTo("/api");
+        assertThat(accessCookies.get(1).getMaxAge()).isEqualTo(Duration.ZERO);
         assertThat(refreshCookie).isNotNull();
         assertThat(refreshCookie.getValue()).isEqualTo("refresh-token");
         assertThat(refreshCookie.isHttpOnly()).isTrue();
@@ -114,11 +119,16 @@ class BrowserAuthCookieServiceTests {
 
         ResponseCookie accessCookie = exchange.getResponse().getCookies().getFirst("CM_ACCESS_TOKEN");
         ResponseCookie refreshCookie = exchange.getResponse().getCookies().getFirst("CM_REFRESH_TOKEN");
+        List<ResponseCookie> accessCookies = exchange.getResponse().getCookies().get("CM_ACCESS_TOKEN");
         assertThat(accessCookie).isNotNull();
         assertThat(accessCookie.getValue()).isEmpty();
         assertThat(accessCookie.getMaxAge()).isEqualTo(Duration.ZERO);
         assertThat(accessCookie.isHttpOnly()).isTrue();
-        assertThat(accessCookie.getPath()).isEqualTo("/api");
+        assertThat(accessCookie.getPath()).isEqualTo("/");
+        assertThat(accessCookies).hasSize(2);
+        assertThat(accessCookies.get(1).getValue()).isEmpty();
+        assertThat(accessCookies.get(1).getPath()).isEqualTo("/api");
+        assertThat(accessCookies.get(1).getMaxAge()).isEqualTo(Duration.ZERO);
         assertThat(refreshCookie).isNotNull();
         assertThat(refreshCookie.getValue()).isEmpty();
         assertThat(refreshCookie.getMaxAge()).isEqualTo(Duration.ZERO);

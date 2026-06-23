@@ -16,6 +16,8 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class BrowserAuthCookieService {
 
+    private static final String LEGACY_ACCESS_COOKIE_PATH = "/api";
+
     private final BrowserAuthCookieProperties properties;
 
     public boolean isBrowserClient(ServerWebExchange exchange) {
@@ -37,6 +39,7 @@ public class BrowserAuthCookieService {
                 properties.getAccessCookiePath(),
                 Duration.ofSeconds(response.accessTokenExpiresInSeconds())
         );
+        expireLegacyAccessCookie(exchange);
         writeCookie(
                 exchange,
                 properties.getRefreshCookieName(),
@@ -65,6 +68,7 @@ public class BrowserAuthCookieService {
             return;
         }
         expireCookie(exchange, properties.getAccessCookieName(), properties.getAccessCookiePath());
+        expireLegacyAccessCookie(exchange);
         expireCookie(exchange, properties.getRefreshCookieName(), properties.getRefreshCookiePath());
     }
 
@@ -106,6 +110,12 @@ public class BrowserAuthCookieService {
                 .path(path)
                 .maxAge(Duration.ZERO)
                 .build());
+    }
+
+    private void expireLegacyAccessCookie(ServerWebExchange exchange) {
+        if (!LEGACY_ACCESS_COOKIE_PATH.equals(properties.getAccessCookiePath())) {
+            expireCookie(exchange, properties.getAccessCookieName(), LEGACY_ACCESS_COOKIE_PATH);
+        }
     }
 
 }
