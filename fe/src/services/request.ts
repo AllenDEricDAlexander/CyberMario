@@ -5,11 +5,13 @@ import {
     publishPermissionVersion,
     publishResponsePermissionVersion,
 } from './permissionVersionEvents'
-import {clearTokens, getAccessToken, getRefreshToken, saveTokens, shouldRefreshAccessToken} from './tokenStorage'
+import {csrfHeaderFor, isUnsafeMethod, readCsrfToken} from './csrfToken'
 
 export const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL ?? '')
 const TRACE_ID_HEADER = 'X-Trace-Id'
-const ACCESS_TOKEN_REFRESH_SKEW_MILLISECONDS = 60_000
+const CLIENT_TYPE_HEADER = 'X-Client-Type'
+const CLIENT_TYPE_VALUE = 'browser'
+const AUTH_CSRF_INVALID_CODE = 'AUTH_CSRF_INVALID'
 const apiClient = axios.create({
     baseURL: API_BASE_URL || undefined,
     validateStatus: () => true,
@@ -25,14 +27,8 @@ type RequestOptions = {
 type JsonLineHandler<T> = (chunk: T) => void
 type ServerSentEventHandler<T> = (event: T) => void
 
-type RefreshLoginResponse = {
-    accessToken?: string | null
-    refreshToken?: string | null
-    accessTokenExpiresInSeconds?: number | null
-    refreshTokenExpiresInSeconds?: number | null
-}
-
 let refreshPromise: Promise<boolean> | null = null
+let csrfPromise: Promise<void> | null = null
 
 export async function requestJson<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     return requestJsonInternal<T>(endpoint, options, true)
@@ -43,10 +39,12 @@ export async function requestFormData<T>(endpoint: string, formData: FormData, o
         () => apiClient.request<ApiResponse<T>>({
             data: formData,
             method: options.method ?? 'POST',
-            headers: buildHeaders(options, false),
+            headers: buildHeaders({...options, method: options.method ?? 'POST'}, false),
             url: endpoint,
+            withCredentials: true,
         }),
         options,
+        options.method ?? 'POST',
     )
 
     return unwrapAxiosApiResponse<T>(response)
@@ -63,8 +61,10 @@ async function requestJsonInternal<T>(
             method: options.method ?? 'GET',
             headers: buildHeaders(options),
             url: endpoint,
+            withCredentials: true,
         }),
         options,
+        options.method ?? 'GET',
         allowRefresh,
     )
 
@@ -82,11 +82,13 @@ export async function streamJsonLines<T>(
     const response = await fetchWithAuthRetry(
         () => fetch(`${API_BASE_URL}${endpoint}`, {
             method: 'POST',
-            headers: buildHeaders({headers: {Accept: 'application/x-ndjson'}}),
+            headers: buildHeaders({method: 'POST', headers: {Accept: 'application/x-ndjson'}}),
             body: JSON.stringify(request.body),
+            credentials: 'same-origin',
             signal: request.signal,
         }),
         {},
+        'POST',
     )
 
     if (!response.ok) {
@@ -109,10 +111,12 @@ export async function streamServerSentEvents<T>(
     const response = await fetchWithAuthRetry(
         () => fetch(`${API_BASE_URL}${endpoint}`, {
             method: 'GET',
-            headers: buildHeaders({headers: {Accept: 'text/event-stream'}}, false),
+            headers: buildHeaders({method: 'GET', headers: {Accept: 'text/event-stream'}}, false),
+            credentials: 'same-origin',
             signal: request.signal,
         }),
         {},
+        'GET',
     )
 
     if (!response.ok) {
@@ -203,16 +207,18 @@ function buildHeaders(options: RequestOptions, includeJsonContentType = true) {
     if (!hasHeader(headers, 'Accept')) {
         setHeader(headers, 'Accept', 'application/json')
     }
+    if (!hasHeader(headers, CLIENT_TYPE_HEADER)) {
+        setHeader(headers, CLIENT_TYPE_HEADER, CLIENT_TYPE_VALUE)
+    }
     if (!hasHeader(headers, TRACE_ID_HEADER)) {
         setHeader(headers, TRACE_ID_HEADER, createUuidV7())
     }
     if (includeJsonContentType && !hasHeader(headers, 'Content-Type')) {
         setHeader(headers, 'Content-Type', 'application/json')
     }
-    const accessToken = options.auth === false ? null : getAccessToken()
-    if (accessToken) {
-        setHeader(headers, 'Authorization', `Bearer ${accessToken}`)
-    }
+    Object.entries(csrfHeaderFor(options.method)).forEach(([name, value]) => {
+        setHeader(headers, name, value)
+    })
     return headers
 }
 
@@ -295,13 +301,16 @@ function defaultHttpErrorMessage(status: number) {
 async function fetchWithAuthRetry(
     fetcher: () => Promise<Response>,
     options: Pick<RequestOptions, 'auth'>,
+    method: string,
     allowRefresh = true,
 ) {
-    if (options.auth !== false && shouldRefreshAccessToken(ACCESS_TOKEN_REFRESH_SKEW_MILLISECONDS)) {
-        await refreshAccessToken()
-    }
+    await ensureCsrfFor(method)
 
-    const response = await fetcher()
+    let response = await fetcher()
+    if (await isCsrfInvalidFetchResponse(response)) {
+        await refreshCsrf()
+        response = await fetcher()
+    }
     if (response.status !== 401 || options.auth === false || !allowRefresh) {
         publishResponsePermissionVersion(response)
         return response
@@ -316,13 +325,16 @@ async function fetchWithAuthRetry(
 async function axiosWithAuthRetry<T>(
     requester: () => Promise<AxiosResponse<ApiResponse<T> | string>>,
     options: Pick<RequestOptions, 'auth'>,
+    method: string,
     allowRefresh = true,
 ) {
-    if (options.auth !== false && shouldRefreshAccessToken(ACCESS_TOKEN_REFRESH_SKEW_MILLISECONDS)) {
-        await refreshAccessToken()
-    }
+    await ensureCsrfFor(method)
 
-    const response = await requester()
+    let response = await requester()
+    if (isCsrfInvalidAxiosResponse(response)) {
+        await refreshCsrf()
+        response = await requester()
+    }
     if (response.status !== 401 || options.auth === false || !allowRefresh) {
         publishAxiosResponsePermissionVersion(response)
         return response
@@ -335,34 +347,68 @@ async function axiosWithAuthRetry<T>(
 }
 
 async function refreshAccessToken() {
-    const refreshToken = getRefreshToken()
-    if (!refreshToken) {
-        clearTokens()
-        return false
-    }
-
     if (!refreshPromise) {
-        refreshPromise = apiClient.request<ApiResponse<RefreshLoginResponse>>({
-            data: {refreshToken},
-            method: 'POST',
-            headers: buildHeaders({auth: false}),
-            url: '/api/auth/refresh',
-        })
+        refreshPromise = ensureCsrfFor('POST')
+            .then(() => apiClient.request<ApiResponse<unknown>>({
+                data: undefined,
+                method: 'POST',
+                headers: buildHeaders({auth: false, method: 'POST'}),
+                url: '/api/auth/refresh',
+                withCredentials: true,
+            }))
             .then((response) => {
-                const data = unwrapAxiosApiResponse<RefreshLoginResponse>(response)
-                saveTokens(data)
-                return Boolean(data.accessToken)
+                unwrapAxiosApiResponse<unknown>(response)
+                return true
             })
-            .catch(() => {
-                clearTokens()
-                return false
-            })
+            .catch(() => false)
             .finally(() => {
                 refreshPromise = null
             })
     }
 
     return refreshPromise
+}
+
+async function ensureCsrfFor(method?: string) {
+    if (!isUnsafeMethod(method) || readCsrfToken()) {
+        return
+    }
+    await refreshCsrf()
+}
+
+async function refreshCsrf() {
+    if (!csrfPromise) {
+        csrfPromise = apiClient.request<ApiResponse<unknown>>({
+            method: 'GET',
+            headers: buildHeaders({auth: false, method: 'GET'}, false),
+            url: '/api/auth/csrf',
+            withCredentials: true,
+        })
+            .then((response) => {
+                unwrapAxiosApiResponse<unknown>(response)
+            })
+            .finally(() => {
+                csrfPromise = null
+            })
+    }
+
+    return csrfPromise
+}
+
+function isCsrfInvalidAxiosResponse(response: AxiosResponse<ApiResponse<unknown> | string>) {
+    return response.status === 403 && parseAxiosApiResponse<unknown>(response.data)?.code === AUTH_CSRF_INVALID_CODE
+}
+
+async function isCsrfInvalidFetchResponse(response: Response) {
+    if (response.status !== 403) {
+        return false
+    }
+    try {
+        const payload = parseTextApiResponse<unknown>(await response.clone().text())
+        return payload?.code === AUTH_CSRF_INVALID_CODE
+    } catch {
+        return false
+    }
 }
 
 function createHeadersRecord(init?: HeadersInit) {

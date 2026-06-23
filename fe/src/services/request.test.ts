@@ -1,4 +1,5 @@
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest'
+import {logout} from '../modules/auth/authService'
 import {ApiRequestError} from '../types/api'
 import {requestFormData, requestJson, streamJsonLines, streamServerSentEvents} from './request'
 
@@ -68,10 +69,17 @@ function installLocalStorage() {
     })
 }
 
+function installDocumentCookie(cookie = '') {
+    vi.stubGlobal('document', {
+        cookie,
+    })
+}
+
 describe('requestJson', () => {
     beforeEach(() => {
         axiosRequestMock.mockReset()
         installLocalStorage()
+        installDocumentCookie('XSRF-TOKEN=csrf-request')
     })
 
     afterEach(() => {
@@ -92,6 +100,65 @@ describe('requestJson', () => {
             url: '/api/profile',
         }))
         expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    test('includes browser client header and axios credentials without authorization header', async () => {
+        axiosRequestMock.mockResolvedValueOnce(axiosResponse(apiResponse({name: 'Mario'})))
+
+        await requestJson('/api/me/profile')
+
+        const request = axiosRequestMock.mock.calls[0][0] as {
+            headers: Record<string, string>
+            withCredentials?: boolean
+        }
+        expect(request.headers).toMatchObject({
+            'X-Client-Type': 'browser',
+        })
+        expect(request.withCredentials).toBe(true)
+        expect(request.headers).not.toHaveProperty('Authorization')
+    })
+
+    test('initializes csrf before unsafe requests when csrf cookie is missing', async () => {
+        installDocumentCookie()
+        axiosRequestMock
+            .mockImplementationOnce(() => {
+                document.cookie = 'XSRF-TOKEN=csrf-init'
+                return Promise.resolve(axiosResponse(apiResponse(null)))
+            })
+            .mockResolvedValueOnce(axiosResponse(apiResponse({loggedIn: true})))
+
+        await requestJson('/api/auth/login', {
+            method: 'POST',
+            body: {username: 'mario', password: 'secret'},
+            auth: false,
+        })
+
+        expect(axiosRequestMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+            method: 'GET',
+            url: '/api/auth/csrf',
+            withCredentials: true,
+        }))
+        expect(axiosRequestMock.mock.calls[0][0].headers).toMatchObject({
+            'X-Client-Type': 'browser',
+        })
+        expect(axiosRequestMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+            method: 'POST',
+            url: '/api/auth/login',
+        }))
+    })
+
+    test('sends csrf header on unsafe requests when csrf cookie exists', async () => {
+        installDocumentCookie('XSRF-TOKEN=csrf-1')
+        axiosRequestMock.mockResolvedValueOnce(axiosResponse(apiResponse(null)))
+
+        await requestJson('/api/auth/logout', {
+            method: 'POST',
+        })
+
+        const request = axiosRequestMock.mock.calls[0][0] as { headers: Record<string, string> }
+        expect(request.headers).toMatchObject({
+            'X-XSRF-TOKEN': 'csrf-1',
+        })
     })
 
     test('rejects business errors with ApiRequestError details', async () => {
@@ -119,27 +186,13 @@ describe('requestJson', () => {
         })
     })
 
-    test('refreshes access token and retries normal requests through axios', async () => {
-        localStorage.setItem('cyber-mario-access-token', 'old-access-token')
-        localStorage.setItem('cyber-mario-refresh-token', 'refresh-token')
+    test('refreshes with browser cookies and retries normal requests through axios after 401', async () => {
+        installDocumentCookie('XSRF-TOKEN=csrf-refresh')
         const fetchMock = vi.fn()
-            .mockResolvedValueOnce(jsonResponse(apiResponse(null), {status: 401}))
-            .mockResolvedValueOnce(jsonResponse(apiResponse({
-                accessToken: 'new-access-token',
-                refreshToken: 'new-refresh-token',
-                accessTokenExpiresInSeconds: 3600,
-                refreshTokenExpiresInSeconds: 7200,
-            })))
-            .mockResolvedValueOnce(jsonResponse(apiResponse({username: 'mario'})))
         vi.stubGlobal('fetch', fetchMock)
         axiosRequestMock
             .mockResolvedValueOnce(axiosResponse(apiResponse(null), {status: 401}))
-            .mockResolvedValueOnce(axiosResponse(apiResponse({
-                accessToken: 'new-access-token',
-                refreshToken: 'new-refresh-token',
-                accessTokenExpiresInSeconds: 3600,
-                refreshTokenExpiresInSeconds: 7200,
-            })))
+            .mockResolvedValueOnce(axiosResponse(apiResponse(null)))
             .mockResolvedValueOnce(axiosResponse(apiResponse({username: 'mario'})))
 
         await expect(requestJson<{ username: string }>('/api/me/profile')).resolves.toEqual({username: 'mario'})
@@ -148,15 +201,22 @@ describe('requestJson', () => {
             url: '/api/me/profile',
         }))
         expect(axiosRequestMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
-            data: {refreshToken: 'refresh-token'},
+            data: undefined,
             method: 'POST',
             url: '/api/auth/refresh',
+            withCredentials: true,
         }))
+        expect(axiosRequestMock.mock.calls[1][0].headers).toMatchObject({
+            'X-Client-Type': 'browser',
+            'X-XSRF-TOKEN': 'csrf-refresh',
+        })
+        expect(axiosRequestMock.mock.calls[1][0].data).not.toMatchObject({
+            refreshToken: expect.anything(),
+        })
         expect(axiosRequestMock).toHaveBeenNthCalledWith(3, expect.objectContaining({
             url: '/api/me/profile',
         }))
         expect(fetchMock).not.toHaveBeenCalled()
-        expect(localStorage.getItem('cyber-mario-access-token')).toBe('new-access-token')
     })
 })
 
@@ -164,6 +224,7 @@ describe('requestFormData', () => {
     beforeEach(() => {
         axiosRequestMock.mockReset()
         installLocalStorage()
+        installDocumentCookie('XSRF-TOKEN=csrf-form')
     })
 
     afterEach(() => {
@@ -199,6 +260,7 @@ describe('streamJsonLines', () => {
     beforeEach(() => {
         axiosRequestMock.mockReset()
         installLocalStorage()
+        installDocumentCookie('XSRF-TOKEN=csrf-stream')
     })
 
     afterEach(() => {
@@ -224,6 +286,30 @@ describe('streamJsonLines', () => {
         ])
     })
 
+    test('sends credentials and csrf header on streaming POST requests', async () => {
+        installDocumentCookie('XSRF-TOKEN=csrf-stream')
+        const fetchMock = vi.fn((..._args: Parameters<typeof fetch>): ReturnType<typeof fetch> => Promise.resolve(
+            ndjsonResponse([
+                '{"type":"done"}\n',
+            ]),
+        ))
+        vi.stubGlobal('fetch', fetchMock)
+
+        await streamJsonLines('/api/rag/chat/stream', {
+            body: {question: 'hello'},
+            signal: new AbortController().signal,
+        }, vi.fn())
+
+        const request = fetchMock.mock.calls[0][1] as {
+            credentials?: RequestCredentials
+            headers: Record<string, string>
+        }
+        expect(request.credentials).toBe('same-origin')
+        expect(request.headers).toMatchObject({
+            'X-XSRF-TOKEN': 'csrf-stream',
+        })
+    })
+
     test('uses backend ApiResponse details for failed streaming responses', async () => {
         vi.stubGlobal('fetch', vi.fn(() => jsonResponse(
             apiResponse(null, {code: 'RAG_STREAM_FAILED', message: '流式请求失败', traceId: 'trace-stream'}),
@@ -240,6 +326,35 @@ describe('streamJsonLines', () => {
             status: 503,
             traceId: 'trace-stream',
         } satisfies Partial<ApiRequestError>)
+    })
+})
+
+describe('authService.logout', () => {
+    beforeEach(() => {
+        axiosRequestMock.mockReset()
+        installLocalStorage()
+        installDocumentCookie('XSRF-TOKEN=csrf-logout')
+    })
+
+    afterEach(() => {
+        vi.unstubAllGlobals()
+    })
+
+    test('sends browser cookie logout request without requiring a stored refresh token', async () => {
+        axiosRequestMock.mockResolvedValueOnce(axiosResponse(apiResponse(null)))
+
+        await logout()
+
+        expect(axiosRequestMock).toHaveBeenCalledWith(expect.objectContaining({
+            data: undefined,
+            method: 'POST',
+            url: '/api/auth/logout',
+            withCredentials: true,
+        }))
+        expect(axiosRequestMock.mock.calls[0][0].headers).toMatchObject({
+            'X-Client-Type': 'browser',
+            'X-XSRF-TOKEN': 'csrf-logout',
+        })
     })
 })
 

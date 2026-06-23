@@ -1,5 +1,4 @@
 import {requestJson} from '../../services/request'
-import {getRefreshToken} from '../../services/tokenStorage'
 import type {LoginRequest, LoginResponse, RegisterRequest} from './authTypes'
 
 export function login(request: LoginRequest) {
@@ -23,12 +22,7 @@ export function fetchCurrentUser() {
 }
 
 export function logout() {
-    const refreshToken = getRefreshToken()
-    if (!refreshToken) {
-        return Promise.resolve()
-    }
     return requestJson<void>('/api/auth/logout', {
         method: 'POST',
-        body: {refreshToken},
     })
 }
