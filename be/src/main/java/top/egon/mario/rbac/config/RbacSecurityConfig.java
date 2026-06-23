@@ -17,6 +17,7 @@ import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import reactor.core.publisher.Mono;
+import top.egon.mario.rbac.service.security.BrowserAuthCookieProperties;
 import top.egon.mario.rbac.service.security.DynamicAuthorizationManager;
 import top.egon.mario.rbac.service.security.JwtAuthenticationWebFilter;
 import top.egon.mario.rbac.service.security.JwtProperties;
@@ -32,7 +33,7 @@ import java.util.Map;
 @EnableWebFluxSecurity
 @EnableReactiveMethodSecurity
 @RequiredArgsConstructor
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, BrowserAuthCookieProperties.class})
 @Slf4j
 public class RbacSecurityConfig {
 
