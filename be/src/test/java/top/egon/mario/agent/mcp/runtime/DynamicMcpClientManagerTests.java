@@ -66,6 +66,24 @@ class DynamicMcpClientManagerTests {
     }
 
     @Test
+    void shutdownClosesInstalledClients() {
+        McpServerConfigRepository serverRepository = mock(McpServerConfigRepository.class);
+        McpClientFactory clientFactory = mock(McpClientFactory.class);
+        McpSyncClient client = mock(McpSyncClient.class);
+        McpServerConfigPo server = server();
+        given(serverRepository.findByIdAndDeletedFalse(9L)).willReturn(Optional.of(server));
+        given(serverRepository.save(any(McpServerConfigPo.class))).willAnswer(invocation -> invocation.getArgument(0));
+        given(clientFactory.create(server)).willReturn(client);
+        DynamicMcpClientManager manager = new DynamicMcpClientManager(serverRepository, clientFactory);
+        manager.refreshServer(9L);
+
+        manager.shutdown();
+
+        verify(client).closeGracefully();
+        assertThat(manager.client(9L)).isEmpty();
+    }
+
+    @Test
     void refreshServerClosesCreatedClientWhenPersistenceFailsBeforeInstall() {
         McpServerConfigRepository serverRepository = mock(McpServerConfigRepository.class);
         McpClientFactory clientFactory = mock(McpClientFactory.class);

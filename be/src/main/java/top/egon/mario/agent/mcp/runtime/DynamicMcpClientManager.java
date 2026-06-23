@@ -1,6 +1,7 @@
 package top.egon.mario.agent.mcp.runtime;
 
 import io.modelcontextprotocol.client.McpSyncClient;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -88,6 +89,18 @@ public class DynamicMcpClientManager {
 
     public Map<Long, McpSyncClient> clients() {
         return Map.copyOf(clients);
+    }
+
+    /**
+     * Closes dynamic clients before Spring tears down Reactor resources.
+     */
+    @PreDestroy
+    public void shutdown() {
+        for (Map.Entry<Long, McpSyncClient> entry : clients.entrySet()) {
+            if (clients.remove(entry.getKey(), entry.getValue())) {
+                closeClientQuietly(entry.getValue());
+            }
+        }
     }
 
     private void closeClient(McpSyncClient client) {
