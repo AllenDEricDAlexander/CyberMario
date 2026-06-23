@@ -55,10 +55,15 @@ public class DefaultAgentSoulEvolutionModel implements AgentSoulEvolutionModel {
                 new ModelCallContext(input.userId(), input.traceId(), input.sessionId(), input.sessionId(),
                         ModelScenario.AGENT_SOUL_EVOLUTION, input.requestId(), null, null)
         ));
-        String responseText = responseText(result.chatModel().call(new Prompt(
-                new SystemMessage(systemPrompt()),
-                new UserMessage(userPrompt(input))
-        )));
+        String responseText;
+        try {
+            responseText = responseText(result.chatModel().call(new Prompt(
+                    new SystemMessage(systemPrompt()),
+                    new UserMessage(userPrompt(input))
+            )));
+        } catch (RuntimeException error) {
+            return AgentSoulEvolutionDecision.noUpdateFailure(modelCallFailureReason(error));
+        }
         if (!StringUtils.hasText(responseText)) {
             return AgentSoulEvolutionDecision.noUpdateFailure("SoulMD evolution model returned no response");
         }
@@ -139,6 +144,14 @@ public class DefaultAgentSoulEvolutionModel implements AgentSoulEvolutionModel {
 
     private String safeReason(String reason, String fallback) {
         return StringUtils.hasText(reason) ? reason.trim() : fallback;
+    }
+
+    private String modelCallFailureReason(RuntimeException error) {
+        if (error == null || !StringUtils.hasText(error.getMessage())) {
+            String type = error == null ? "unknown" : error.getClass().getSimpleName();
+            return "SoulMD evolution model call failed: " + type;
+        }
+        return "SoulMD evolution model call failed: " + error.getMessage().trim();
     }
 
     private String safe(String value) {

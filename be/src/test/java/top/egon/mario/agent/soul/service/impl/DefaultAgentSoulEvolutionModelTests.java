@@ -7,6 +7,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.retry.NonTransientAiException;
 import reactor.core.publisher.Flux;
 import top.egon.mario.agent.model.dto.enums.ModelProviderType;
 import top.egon.mario.agent.model.dto.enums.ModelScenario;
@@ -80,6 +81,21 @@ class DefaultAgentSoulEvolutionModelTests {
         assertThat(decision.shouldUpdate()).isFalse();
         assertThat(decision.failureNoUpdate()).isTrue();
         assertThat(decision.reason()).contains("Invalid SoulMD evolution JSON");
+    }
+
+    @Test
+    void providerRuntimeFailureReturnsFailureNoUpdate() {
+        CapturingModelFactory factory = new CapturingModelFactory(new NonTransientAiException(
+                "400 - {\"code\":\"InvalidParameter\",\"message\":\"url error, please check url\"}"));
+        DefaultAgentSoulEvolutionModel model = new DefaultAgentSoulEvolutionModel(factory, new ObjectMapper(),
+                new AgentSoulProperties(true, ModelProviderType.DASHSCOPE, "qwen-test", new BigDecimal("0.2"), 512));
+
+        AgentSoulEvolutionDecision decision = assertDoesNotThrow(() -> model.evaluateAndRewrite(input()));
+
+        assertThat(decision.shouldUpdate()).isFalse();
+        assertThat(decision.failureNoUpdate()).isTrue();
+        assertThat(decision.reason()).contains("SoulMD evolution model call failed");
+        assertThat(decision.reason()).contains("url error");
     }
 
     @Test
@@ -182,16 +198,23 @@ class DefaultAgentSoulEvolutionModelTests {
     private static final class CapturingModelFactory implements MarioModelFactory {
 
         private final ChatResponse response;
+        private final RuntimeException failure;
         private ModelRequest request;
 
         private CapturingModelFactory(ChatResponse response) {
             this.response = response;
+            this.failure = null;
+        }
+
+        private CapturingModelFactory(RuntimeException failure) {
+            this.response = null;
+            this.failure = failure;
         }
 
         @Override
         public ModelResolveResult resolve(ModelRequest request) {
             this.request = request;
-            return new ModelResolveResult(new StubChatModel(response), request.provider(), request.model(),
+            return new ModelResolveResult(new StubChatModel(response, failure), request.provider(), request.model(),
                     request.options(), request.context(), null);
         }
     }
@@ -199,13 +222,18 @@ class DefaultAgentSoulEvolutionModelTests {
     private static final class StubChatModel implements ChatModel {
 
         private final ChatResponse response;
+        private final RuntimeException failure;
 
-        private StubChatModel(ChatResponse response) {
+        private StubChatModel(ChatResponse response, RuntimeException failure) {
             this.response = response;
+            this.failure = failure;
         }
 
         @Override
         public ChatResponse call(Prompt prompt) {
+            if (failure != null) {
+                throw failure;
+            }
             return response;
         }
 
