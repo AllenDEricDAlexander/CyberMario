@@ -1,6 +1,7 @@
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest'
 import {logout} from '../modules/auth/authService'
 import {ApiRequestError} from '../types/api'
+import {clearCsrfToken, saveCsrfToken} from './csrfToken'
 import {requestFormData, requestJson, streamJsonLines, streamServerSentEvents} from './request'
 
 const {axiosRequestMock} = vi.hoisted(() => ({
@@ -75,6 +76,10 @@ function installDocumentCookie(cookie = '') {
     })
 }
 
+afterEach(() => {
+    clearCsrfToken()
+})
+
 describe('requestJson', () => {
     beforeEach(() => {
         axiosRequestMock.mockReset()
@@ -122,8 +127,12 @@ describe('requestJson', () => {
         installDocumentCookie()
         axiosRequestMock
             .mockImplementationOnce(() => {
-                document.cookie = 'XSRF-TOKEN=csrf-init'
-                return Promise.resolve(axiosResponse(apiResponse(null)))
+                document.cookie = 'XSRF-TOKEN=raw-cookie-token'
+                return Promise.resolve(axiosResponse(apiResponse({
+                    headerName: 'X-XSRF-TOKEN',
+                    parameterName: '_csrf',
+                    token: 'masked-csrf-init',
+                })))
             })
             .mockResolvedValueOnce(axiosResponse(apiResponse({loggedIn: true})))
 
@@ -145,10 +154,14 @@ describe('requestJson', () => {
             method: 'POST',
             url: '/api/auth/login',
         }))
+        expect(axiosRequestMock.mock.calls[1][0].headers).toMatchObject({
+            'X-XSRF-TOKEN': 'masked-csrf-init',
+        })
     })
 
-    test('sends csrf header on unsafe requests when csrf cookie exists', async () => {
-        installDocumentCookie('XSRF-TOKEN=csrf-1')
+    test('sends cached csrf response token on unsafe requests', async () => {
+        installDocumentCookie('XSRF-TOKEN=raw-csrf-1')
+        saveCsrfToken('masked-csrf-1')
         axiosRequestMock.mockResolvedValueOnce(axiosResponse(apiResponse(null)))
 
         await requestJson('/api/auth/logout', {
@@ -157,20 +170,25 @@ describe('requestJson', () => {
 
         const request = axiosRequestMock.mock.calls[0][0] as { headers: Record<string, string> }
         expect(request.headers).toMatchObject({
-            'X-XSRF-TOKEN': 'csrf-1',
+            'X-XSRF-TOKEN': 'masked-csrf-1',
         })
     })
 
     test('refreshes csrf and retries the original unsafe request once when csrf is invalid', async () => {
-        installDocumentCookie('XSRF-TOKEN=old-csrf')
+        installDocumentCookie('XSRF-TOKEN=old-raw-cookie-token')
+        saveCsrfToken('old-masked-csrf')
         axiosRequestMock
             .mockResolvedValueOnce(axiosResponse(
                 apiResponse(null, {code: 'AUTH_CSRF_INVALID', message: 'csrf token is invalid'}),
                 {status: 403},
             ))
             .mockImplementationOnce(() => {
-                document.cookie = 'XSRF-TOKEN=new-csrf'
-                return Promise.resolve(axiosResponse(apiResponse(null)))
+                document.cookie = 'XSRF-TOKEN=new-raw-cookie-token'
+                return Promise.resolve(axiosResponse(apiResponse({
+                    headerName: 'X-XSRF-TOKEN',
+                    parameterName: '_csrf',
+                    token: 'new-masked-csrf',
+                })))
             })
             .mockResolvedValueOnce(axiosResponse(apiResponse({loggedOut: true})))
 
@@ -184,7 +202,7 @@ describe('requestJson', () => {
             url: '/api/auth/logout',
         }))
         expect(axiosRequestMock.mock.calls[0][0].headers).toMatchObject({
-            'X-XSRF-TOKEN': 'old-csrf',
+            'X-XSRF-TOKEN': 'old-masked-csrf',
         })
         expect(axiosRequestMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
             method: 'GET',
@@ -196,7 +214,7 @@ describe('requestJson', () => {
             url: '/api/auth/logout',
         }))
         expect(axiosRequestMock.mock.calls[2][0].headers).toMatchObject({
-            'X-XSRF-TOKEN': 'new-csrf',
+            'X-XSRF-TOKEN': 'new-masked-csrf',
         })
     })
 
@@ -226,7 +244,7 @@ describe('requestJson', () => {
     })
 
     test('refreshes with browser cookies and retries normal requests through axios after 401', async () => {
-        installDocumentCookie('XSRF-TOKEN=csrf-refresh')
+        saveCsrfToken('csrf-refresh')
         const fetchMock = vi.fn()
         vi.stubGlobal('fetch', fetchMock)
         axiosRequestMock
@@ -259,7 +277,7 @@ describe('requestJson', () => {
     })
 
     test('renews csrf and retries cookie refresh once when refresh csrf is invalid', async () => {
-        installDocumentCookie('XSRF-TOKEN=old-refresh-csrf')
+        saveCsrfToken('old-refresh-csrf')
         const fetchMock = vi.fn()
         vi.stubGlobal('fetch', fetchMock)
         axiosRequestMock
@@ -269,8 +287,11 @@ describe('requestJson', () => {
                 {status: 403},
             ))
             .mockImplementationOnce(() => {
-                document.cookie = 'XSRF-TOKEN=new-refresh-csrf'
-                return Promise.resolve(axiosResponse(apiResponse(null)))
+                return Promise.resolve(axiosResponse(apiResponse({
+                    headerName: 'X-XSRF-TOKEN',
+                    parameterName: '_csrf',
+                    token: 'new-refresh-csrf',
+                })))
             })
             .mockResolvedValueOnce(axiosResponse(apiResponse(null)))
             .mockResolvedValueOnce(axiosResponse(apiResponse({username: 'mario'})))
@@ -320,7 +341,7 @@ describe('requestFormData', () => {
     beforeEach(() => {
         axiosRequestMock.mockReset()
         installLocalStorage()
-        installDocumentCookie('XSRF-TOKEN=csrf-form')
+        saveCsrfToken('csrf-form')
     })
 
     afterEach(() => {
@@ -356,7 +377,7 @@ describe('streamJsonLines', () => {
     beforeEach(() => {
         axiosRequestMock.mockReset()
         installLocalStorage()
-        installDocumentCookie('XSRF-TOKEN=csrf-stream')
+        saveCsrfToken('csrf-stream')
     })
 
     afterEach(() => {
@@ -383,7 +404,7 @@ describe('streamJsonLines', () => {
     })
 
     test('sends credentials and csrf header on streaming POST requests', async () => {
-        installDocumentCookie('XSRF-TOKEN=csrf-stream')
+        saveCsrfToken('csrf-stream')
         const fetchMock = vi.fn((..._args: Parameters<typeof fetch>): ReturnType<typeof fetch> => Promise.resolve(
             ndjsonResponse([
                 '{"type":"done"}\n',
@@ -407,7 +428,7 @@ describe('streamJsonLines', () => {
     })
 
     test('refreshes csrf and retries streaming POST once when csrf is invalid', async () => {
-        installDocumentCookie('XSRF-TOKEN=old-stream-csrf')
+        saveCsrfToken('old-stream-csrf')
         let fetchCallCount = 0
         const fetchMock = vi.fn((..._args: Parameters<typeof fetch>): ReturnType<typeof fetch> => Promise.resolve(
             ++fetchCallCount === 1
@@ -419,8 +440,11 @@ describe('streamJsonLines', () => {
         ))
         vi.stubGlobal('fetch', fetchMock)
         axiosRequestMock.mockImplementationOnce(() => {
-            document.cookie = 'XSRF-TOKEN=new-stream-csrf'
-            return Promise.resolve(axiosResponse(apiResponse(null)))
+            return Promise.resolve(axiosResponse(apiResponse({
+                headerName: 'X-XSRF-TOKEN',
+                parameterName: '_csrf',
+                token: 'new-stream-csrf',
+            })))
         })
 
         await streamJsonLines('/api/rag/chat/stream', {
@@ -466,7 +490,7 @@ describe('authService.logout', () => {
     beforeEach(() => {
         axiosRequestMock.mockReset()
         installLocalStorage()
-        installDocumentCookie('XSRF-TOKEN=csrf-logout')
+        saveCsrfToken('csrf-logout')
     })
 
     afterEach(() => {

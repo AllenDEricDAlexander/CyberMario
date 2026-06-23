@@ -3,6 +3,7 @@ package top.egon.mario.rbac.service.cache;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.stereotype.Component;
@@ -22,7 +23,7 @@ public class RbacCacheEvictionSubscriber implements MessageListener {
     private final RbacTwoLevelCacheManager cacheManager;
 
     @Override
-    public void onMessage(Message message, byte[] pattern) {
+    public void onMessage(@NonNull Message message, byte[] pattern) {
         try {
             RbacCacheEvictionMessage evictionMessage = objectMapper.readValue(message.getBody(), RbacCacheEvictionMessage.class);
             if (evictionMessage.scope() == RbacCacheEvictionMessage.Scope.PERMISSION_ALL) {

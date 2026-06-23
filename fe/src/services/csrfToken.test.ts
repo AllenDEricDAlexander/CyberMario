@@ -1,26 +1,32 @@
 import {afterEach, describe, expect, test, vi} from 'vitest'
 import {
+    clearCsrfToken,
     CSRF_HEADER_NAME,
     csrfHeaderFor,
     isUnsafeMethod,
     readCsrfToken,
+    saveCsrfToken,
 } from './csrfToken'
 
 describe('csrfToken', () => {
     afterEach(() => {
+        clearCsrfToken()
         vi.unstubAllGlobals()
     })
 
-    test('reads XSRF token from document cookie', () => {
-        vi.stubGlobal('document', {
-            cookie: 'theme=dark; XSRF-TOKEN=abc%20123; session=active',
-        })
+    test('stores csrf token from endpoint response in memory', () => {
+        saveCsrfToken('masked-token')
 
-        expect(readCsrfToken()).toBe('abc 123')
+        expect(readCsrfToken()).toBe('masked-token')
     })
 
-    test('matches the exact XSRF token cookie name', () => {
-        expect(readCsrfToken('MY-XSRF-TOKEN=bad; XSRF-TOKEN=good')).toBe('good')
+    test('does not use raw XSRF cookie value as request token', () => {
+        vi.stubGlobal('document', {
+            cookie: 'theme=dark; XSRF-TOKEN=raw-cookie-token; session=active',
+        })
+
+        expect(readCsrfToken()).toBeNull()
+        expect(csrfHeaderFor('POST')).toEqual({})
     })
 
     test('detects unsafe request methods', () => {
@@ -37,10 +43,12 @@ describe('csrfToken', () => {
     })
 
     test('returns csrf header only for unsafe requests with token', () => {
-        expect(csrfHeaderFor('POST', 'XSRF-TOKEN=token-123')).toEqual({
-            [CSRF_HEADER_NAME]: 'token-123',
+        saveCsrfToken('masked-token-123')
+
+        expect(csrfHeaderFor('POST')).toEqual({
+            [CSRF_HEADER_NAME]: 'masked-token-123',
         })
-        expect(csrfHeaderFor('GET', 'XSRF-TOKEN=token-123')).toEqual({})
+        expect(csrfHeaderFor('GET')).toEqual({})
     })
 
     test('does not throw when document is missing', () => {
@@ -49,13 +57,16 @@ describe('csrfToken', () => {
     })
 
     test('returns empty headers for blank or missing tokens', () => {
-        expect(readCsrfToken('XSRF-TOKEN=')).toBeNull()
-        expect(readCsrfToken('XSRF-TOKEN=%20')).toBeNull()
-        expect(readCsrfToken('XSRF-TOKEN=%')).toBeNull()
-        expect(readCsrfToken('theme=dark')).toBeNull()
-        expect(csrfHeaderFor('POST', 'XSRF-TOKEN=')).toEqual({})
-        expect(csrfHeaderFor('POST', 'XSRF-TOKEN=%20')).toEqual({})
-        expect(csrfHeaderFor('POST', 'XSRF-TOKEN=%')).toEqual({})
-        expect(csrfHeaderFor('POST', 'theme=dark')).toEqual({})
+        saveCsrfToken('')
+        expect(readCsrfToken()).toBeNull()
+        expect(csrfHeaderFor('POST')).toEqual({})
+
+        saveCsrfToken('   ')
+        expect(readCsrfToken()).toBeNull()
+        expect(csrfHeaderFor('POST')).toEqual({})
+
+        clearCsrfToken()
+        expect(readCsrfToken()).toBeNull()
+        expect(csrfHeaderFor('POST')).toEqual({})
     })
 })

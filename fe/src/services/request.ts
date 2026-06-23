@@ -5,7 +5,7 @@ import {
     publishPermissionVersion,
     publishResponsePermissionVersion,
 } from './permissionVersionEvents'
-import {csrfHeaderFor, isUnsafeMethod, readCsrfToken} from './csrfToken'
+import {csrfHeaderFor, isUnsafeMethod, readCsrfToken, saveCsrfToken} from './csrfToken'
 
 export const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL ?? '')
 const TRACE_ID_HEADER = 'X-Trace-Id'
@@ -26,6 +26,11 @@ type RequestOptions = {
 
 type JsonLineHandler<T> = (chunk: T) => void
 type ServerSentEventHandler<T> = (event: T) => void
+type CsrfTokenResponse = {
+    headerName: string
+    parameterName: string
+    token: string
+}
 
 let refreshPromise: Promise<boolean> | null = null
 let csrfPromise: Promise<void> | null = null
@@ -389,14 +394,15 @@ async function ensureCsrfFor(method?: string) {
 
 async function refreshCsrf() {
     if (!csrfPromise) {
-        csrfPromise = apiClient.request<ApiResponse<unknown>>({
+        csrfPromise = apiClient.request<ApiResponse<CsrfTokenResponse>>({
             method: 'GET',
             headers: buildHeaders({auth: false, method: 'GET'}, false),
             url: '/api/auth/csrf',
             withCredentials: true,
         })
             .then((response) => {
-                unwrapAxiosApiResponse<unknown>(response)
+                const csrfToken = unwrapAxiosApiResponse<CsrfTokenResponse>(response)
+                saveCsrfToken(csrfToken.token)
             })
             .finally(() => {
                 csrfPromise = null
