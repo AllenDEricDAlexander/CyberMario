@@ -58,6 +58,25 @@ describe('tokenStorage', () => {
         expect(localStorage.getItem('cyber-mario-refresh-token-expires-at')).toBeNull()
     })
 
+    test('removes legacy token keys when saving tokens', () => {
+        localStorage.setItem('cyber-mario-access-token', 'old-access-token')
+        localStorage.setItem('cyber-mario-refresh-token', 'old-refresh-token')
+        localStorage.setItem('cyber-mario-access-token-expires-at', '1767225600000')
+        localStorage.setItem('cyber-mario-refresh-token-expires-at', '1767225600000')
+
+        saveTokens({
+            accessToken: 'access-token',
+            refreshToken: 'refresh-token',
+            accessTokenExpiresInSeconds: 120,
+            refreshTokenExpiresInSeconds: 600,
+        })
+
+        expect(localStorage.getItem('cyber-mario-access-token')).toBeNull()
+        expect(localStorage.getItem('cyber-mario-refresh-token')).toBeNull()
+        expect(localStorage.getItem('cyber-mario-access-token-expires-at')).toBeNull()
+        expect(localStorage.getItem('cyber-mario-refresh-token-expires-at')).toBeNull()
+    })
+
     test('does not treat legacy tokens as an active browser session', () => {
         localStorage.setItem('cyber-mario-access-token', 'access-token')
         localStorage.setItem('cyber-mario-refresh-token', 'refresh-token')
