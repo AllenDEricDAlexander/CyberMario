@@ -4,7 +4,7 @@
 
 **Goal:** Refactor Clocktower room, IM, and game lifecycle so a room is a long-lived space, a game is one playable round inside that room, and IM is a reusable channel/group/conversation/message capability that can be used by Clocktower and future modules.
 
-**Status:** User-approved design direction. Implementation must be planned separately before code changes.
+**Status:** User-approved approach A. Use a modular monolith with reusable Room/IM cores and Clocktower adapters. Implementation must be planned separately before code changes.
 
 ---
 
@@ -61,8 +61,211 @@ The refactor intentionally does not preserve existing development room data. Old
 | State Machine | Room and game status transitions | Prevent illegal transitions such as changing seats after a game starts |
 | Observer / Domain Event | Room, game, invitation, and message events | Let SSE, audit, replay, and projections react without tight coupling |
 | Specification | Visibility and message/history queries | Keep complex "what can this user see" queries testable and reusable |
+| Factory | Game snapshots and default IM structures | Centralize creation of game seats, channel groups, and scoped conversations |
+| Command, optional | Player and storyteller actions if action count grows | Use only when action branching becomes too large for direct service methods |
 
 These patterns are justified because Room and IM are expected to be reused in other product areas. A direct implementation would hard-code Clocktower assumptions and make future reuse expensive.
+
+### 3.3 Selected Backend Architecture
+
+The selected backend architecture is a modular monolith:
+
+```text
+Controller
+  -> Clocktower application service
+      -> RoomFacade
+      -> ImFacade
+      -> Clocktower repositories
+      -> Domain events published after commit
+```
+
+The generic Room and IM modules own reusable capability. Clocktower owns game rules and orchestration. Room and IM should not import Clocktower packages. Clocktower may depend on Room and IM through facades, policy interfaces, and context adapters.
+
+`RoomFacade` and `ImFacade` are stable application entry points for other modules. They hide internal membership, invitation, ban, channel, conversation, message, and read-state services. The facades may write data, but the transaction boundary for cross-module Clocktower workflows stays in the Clocktower application service.
+
+Policy implementations are selected by `contextType`. Use Spring bean registration backed by a policy registry or bean map:
+
+```text
+RoomAccessPolicy<CLOCKTOWER>
+SeatAssignmentPolicy<CLOCKTOWER>
+ChatSendPolicy<CLOCKTOWER>
+ChatVisibilityPolicy<CLOCKTOWER>
+```
+
+Future modules add their own policy beans without changing generic Room or IM core services.
+
+### 3.4 Transaction Boundaries
+
+Room and Game operations require strong consistency. IM requires local consistency for messages and read state, then integrates with Clocktower replay/audit through after-commit events.
+
+Transaction boundaries:
+
+| Boundary | Owner | Rule |
+|---|---|---|
+| Single Room operation | `RoomApplicationService` or `RoomFacade` | Use `@Transactional` when no outer Clocktower transaction exists |
+| Single IM operation | `ImApplicationService` or `ImFacade` | Use `@Transactional` for conversation/message/read-state writes |
+| Clocktower room/game workflow | Clocktower application service | One outer `@Transactional` controls Room, Game, IM activation, and event append |
+| Policy evaluation | Policy classes | No database writes; may load read-only context through adapters |
+| Context mapping | Adapter classes | No transaction ownership; map Room/IM context to Clocktower context |
+| SSE and projections | Domain event listeners | Publish only after transaction commit |
+
+Existing `TransactionSynchronization.afterCommit()` style should be preserved for SSE and external projections. A client must not receive a room/game/message update before the database transaction commits.
+
+### 3.5 Concurrency Model
+
+Use pessimistic locks for user-facing state transitions that must serialize per room or per conversation. Keep the existing `@Version` optimistic lock columns as a secondary guard.
+
+Lock order must be stable:
+
+```text
+room -> game -> room seat/invitation/member -> im channel/group/conversation -> message/event
+```
+
+Important operations:
+
+| Scenario | Concurrency handling |
+|---|---|
+| Claim or release seat | Lock room, then validate and update the room seat draft |
+| Accept seat invitation | Lock room, invitation, and target seat draft in one transaction |
+| Switch board | Lock room, count occupied/reserved seats, then update board snapshot and seat draft |
+| Start game | Lock room, validate board/seats/invitations/ready, create game and immutable game seats, activate IM conversations |
+| End or abort game | Lock game and room, then perform a single legal state transition |
+| Storyteller offline timeout | Scheduler locks candidate room/game, rechecks heartbeat expiry, then aborts/disbands once |
+| Send message | Lock conversation or allocate message sequence through a unique database constraint |
+| Mark read | Update read state idempotently; do not block message sending |
+
+Message order must be conversation-local. `im_message` should use `message_seq` unique per `conversation_id`. If sequence allocation races, retry a small number of times like the existing Clocktower event append retry.
+
+State changes should be idempotent where possible. Ending an already ended game, accepting an already accepted invitation by the same user, and marking read to an older sequence should return the current state or fail with a clear domain error instead of partially writing data.
+
+### 3.6 Generic Room Internal Design
+
+Generic Room is a reusable space capability. It does not know Clocktower board, phase, role, or game-seat rules.
+
+```text
+top.egon.mario.room
+  facade/
+    RoomFacade
+  service/
+    RoomApplicationService
+    RoomMembershipService
+    RoomInvitationService
+    RoomBanService
+    RoomHeartbeatService
+  policy/
+    RoomAccessPolicy
+    RoomJoinPolicy
+    RoomInvitationPolicy
+    SeatAssignmentPolicy
+  context/
+    RoomContext
+    RoomContextAdapter
+    RoomPolicyRegistry
+  po/
+    RoomSpacePo
+    RoomMemberPo
+    RoomInvitationPo
+    RoomBanPo
+```
+
+Pattern usage:
+
+| Pattern | Room usage |
+|---|---|
+| Facade | `RoomFacade.enterRoom`, `invite`, `acceptInvitation`, `kick`, `ban`, `heartbeat` |
+| Strategy / Policy | Context-specific access, invitation, join, and seat-assignment decisions |
+| Adapter | Clocktower maps room owner, room status, member role, and seat target into `RoomContext` |
+| Specification | Visible room list, acceptable invitation, active ban, and member lookup predicates |
+| Domain Service | Membership, invitation, ban, and heartbeat orchestration |
+| Domain Event | `RoomEnteredEvent`, `RoomInvitationAcceptedEvent`, `RoomMemberKickedEvent`, `RoomBannedEvent` |
+
+Room invariants:
+
+- A user has at most one active `room_member` row per room.
+- A banned user cannot enter, spectate, claim a seat, or accept an invitation.
+- A seat-level invitation reserves a target seat only while active.
+- Room heartbeat is room-local and updates member activity for that room only.
+- Room services never decide Clocktower day/night/chat rules.
+
+### 3.7 Generic IM Internal Design
+
+Generic IM owns channel, group, conversation, message, and read-state persistence. It does not hard-code Clocktower night chat, spectator, or storyteller visibility rules.
+
+```text
+top.egon.mario.im
+  facade/
+    ImFacade
+  service/
+    ImChannelService
+    ImConversationService
+    ImMessageService
+    ImReadStateService
+  policy/
+    ChatSendPolicy
+    ChatVisibilityPolicy
+    ChatConversationPolicy
+  context/
+    ImContext
+    ImContextAdapter
+    ImPolicyRegistry
+  factory/
+    ImChannelFactory
+    ImConversationFactory
+  po/
+    ImChannelPo
+    ImGroupPo
+    ImConversationPo
+    ImConversationMemberPo
+    ImMessagePo
+    ImReadStatePo
+```
+
+Pattern usage:
+
+| Pattern | IM usage |
+|---|---|
+| Facade | `ImFacade.sendMessage`, `history`, `createConversation`, `markRead` |
+| Strategy / Policy | Context-specific send, visibility, and conversation-creation rules |
+| Adapter | Clocktower maps room, game, seat, phase, day number, and viewer mode into `ImContext` |
+| Specification | Message history, unread counts, normal visibility, and management audit queries |
+| Factory | Create Clocktower default channel, groups, and game-scoped conversations |
+| Domain Event | `ImMessageSentEvent`, `ImConversationCreatedEvent`, `ImReadStateUpdatedEvent` |
+
+IM invariants:
+
+- A channel belongs to one business context, such as one Clocktower room.
+- A conversation belongs to one group and may be scoped to a room or game.
+- Private one-to-one conversations are identified by a stable participant key so duplicate conversations are not created.
+- Normal visibility comes from conversation membership plus `ChatVisibilityPolicy`.
+- Management audit can bypass normal visibility only through admin audit APIs.
+- Message sending always evaluates `ChatSendPolicy` before persisting the message.
+
+### 3.8 Clocktower Integration Flow
+
+Clocktower remains the owner of game lifecycle and game rules.
+
+Start game flow:
+
+1. `ClocktowerGameLifecycleService.startGame` locks the room.
+2. It validates board snapshot, seat draft, invitations, ready state, and real users.
+3. It creates `clocktower_game`.
+4. It uses a factory to copy `clocktower_room_seat` into immutable `clocktower_game_seat`.
+5. It changes room status from `OPEN` to `IN_GAME` and game status to `RUNNING`.
+6. It calls `ImFacade.activateGameConversations` to create game public, private, spectator, and system conversations.
+7. It appends `GAME_STARTED` to the game event stream.
+8. It publishes room/game/IM notifications only after commit.
+
+Clocktower-specific policies:
+
+| Policy | Responsibility |
+|---|---|
+| `ClocktowerRoomAccessPolicy` | Public/private room visibility, invited-user access, banned-user rejection |
+| `ClocktowerSeatAssignmentPolicy` | Open seating, approval required, invite-only, ready/start constraints |
+| `ClocktowerChatSendPolicy` | Day/night chat restrictions, spectator send restrictions, private chat window |
+| `ClocktowerChatVisibilityPolicy` | Player, storyteller, spectator, replay, and management-audit visibility |
+| `ClocktowerGameStateMachine` | Legal room/game/phase transitions |
+
+The state machine should be direct and explicit. Do not introduce a generic state-machine framework unless the implementation proves that hard-coded transition checks are no longer readable.
 
 ---
 
@@ -133,6 +336,7 @@ Channel
 
 - Persistent message record.
 - Includes channel, group, conversation, sender, message type, content, metadata, and audit classification.
+- Includes `message_seq`, unique per conversation, for stable conversation-local ordering.
 
 ### 4.3 Clocktower Tables
 
@@ -164,6 +368,28 @@ Channel
 - Used for replay and audit. Spectator channel chat does not become a game fact event.
 
 Existing Clocktower rule data, board config, grimoire, flow, ruling, and replay code should be reused where practical after adapting them from room id to game id.
+
+### 4.4 Database Integrity
+
+The migration should add database constraints that enforce concurrency assumptions:
+
+| Table | Constraint |
+|---|---|
+| `room_member` | Unique active membership by `room_id + user_id` |
+| `room_invitation` | Unique active seat reservation by `room_id + target_seat_no` where applicable |
+| `room_ban` | Indexed active ban lookup by `room_id + user_id + expires_at` |
+| `clocktower_room_profile` | Unique profile by `room_id` |
+| `clocktower_room_seat` | Unique active seat draft by `room_id + seat_no` |
+| `clocktower_game` | Unique game number by `room_id + game_no` |
+| `clocktower_game_seat` | Unique game seat by `game_id + seat_no`; unique game user by `game_id + user_id` where user id is present |
+| `im_channel` | Unique channel by `context_type + context_id + channel_type` |
+| `im_group` | Unique group by `channel_id + group_type` where the group type is singleton |
+| `im_conversation` | Unique scoped conversation by `group_id + scope_type + scope_id + conversation_type + participant_key` |
+| `im_conversation_member` | Unique member by `conversation_id + user_id` |
+| `im_message` | Unique message sequence by `conversation_id + message_seq` |
+| `im_read_state` | Unique read state by `conversation_id + user_id` |
+
+Use partial unique indexes only when the project already uses PostgreSQL-specific migration style for that area. Otherwise, model active status explicitly and enforce uniqueness in service locks plus standard constraints.
 
 ---
 
@@ -505,6 +731,11 @@ The `/clocktower/rooms/{roomId}/play` route should no longer assume every viewer
 
 Backend tests:
 
+- Concurrent seat claim returns one success and one domain conflict.
+- Concurrent invitation accept and board switch cannot produce an invalid occupied/reserved seat count.
+- Concurrent start game requests create exactly one running game.
+- Concurrent storyteller timeout and manual end/abort produce one final state.
+- Concurrent message sends preserve unique per-conversation message sequences.
 - Room visibility: public/private/member/invited/banned.
 - Invitation: room-level, seat-level reservation, accept, decline, cancel, move, expire.
 - Seat policies: open, approval required, invite only.
