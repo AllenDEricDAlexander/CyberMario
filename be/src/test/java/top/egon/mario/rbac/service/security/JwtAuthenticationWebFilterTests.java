@@ -126,6 +126,27 @@ class JwtAuthenticationWebFilterTests {
     }
 
     @Test
+    void skipsBrowserAccessTokenCookieOnPublicAuthRecoveryEndpoint() {
+        given(authApplication.authenticateAccessToken("stale-access"))
+                .willThrow(new RbacException("AUTH_TOKEN_INVALID", "access token is inactive"));
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/auth/csrf")
+                .header("X-Client-Type", "browser")
+                .cookie(new HttpCookie("CM_ACCESS_TOKEN", "stale-access"))
+                .build());
+        AtomicBoolean chainCalled = new AtomicBoolean(false);
+
+        StepVerifier.create(filter.filter(exchange, chainExchange -> {
+                            chainCalled.set(true);
+                            return Mono.empty();
+                        })
+                        .contextWrite(context -> context.put(TraceContext.CONTEXT_KEY, "trace-1")))
+                .verifyComplete();
+
+        assertThat(chainCalled).isTrue();
+        then(authApplication).should(never()).authenticateAccessToken("stale-access");
+    }
+
+    @Test
     void writesUnauthorizedResponseOnlyWhenBearerAccessTokenExpired() {
         given(authApplication.authenticateAccessToken("expired-access"))
                 .willThrow(new RbacException("AUTH_TOKEN_EXPIRED", "token expired"));

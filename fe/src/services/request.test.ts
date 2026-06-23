@@ -400,7 +400,7 @@ describe('streamJsonLines', () => {
             credentials?: RequestCredentials
             headers: Record<string, string>
         }
-        expect(request.credentials).toBe('same-origin')
+        expect(request.credentials).toBe('include')
         expect(request.headers).toMatchObject({
             'X-XSRF-TOKEN': 'csrf-stream',
         })
@@ -523,7 +523,11 @@ describe('streamServerSentEvents', () => {
             method: 'GET',
             signal: expect.any(AbortSignal),
         }))
-        const request = fetchMock.mock.calls[0][1] as { headers: Record<string, string> }
+        const request = fetchMock.mock.calls[0][1] as {
+            credentials?: RequestCredentials
+            headers: Record<string, string>
+        }
+        expect(request.credentials).toBe('include')
         expect(request.headers).toMatchObject({Accept: 'text/event-stream'})
         expect(request.headers).not.toHaveProperty('Content-Type')
     })

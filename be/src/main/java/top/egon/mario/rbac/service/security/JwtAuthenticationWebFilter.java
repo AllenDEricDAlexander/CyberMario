@@ -63,7 +63,19 @@ public class JwtAuthenticationWebFilter implements WebFilter {
         if (bearer != null) {
             return bearer;
         }
+        if (isPublicEndpoint(exchange)) {
+            return null;
+        }
         return browserAuthCookieService.readAccessToken(exchange);
+    }
+
+    private boolean isPublicEndpoint(ServerWebExchange exchange) {
+        var method = exchange.getRequest().getMethod();
+        if (method == null) {
+            return false;
+        }
+        String path = exchange.getRequest().getPath().pathWithinApplication().value();
+        return RbacPublicApiPolicy.isAllowedPublicRule(method.name(), path);
     }
 
     private String bearerToken(ServerWebExchange exchange) {

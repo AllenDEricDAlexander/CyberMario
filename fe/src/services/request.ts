@@ -84,7 +84,7 @@ export async function streamJsonLines<T>(
             method: 'POST',
             headers: buildHeaders({method: 'POST', headers: {Accept: 'application/x-ndjson'}}),
             body: JSON.stringify(request.body),
-            credentials: 'same-origin',
+            credentials: 'include',
             signal: request.signal,
         }),
         {},
@@ -112,7 +112,7 @@ export async function streamServerSentEvents<T>(
         () => fetch(`${API_BASE_URL}${endpoint}`, {
             method: 'GET',
             headers: buildHeaders({method: 'GET', headers: {Accept: 'text/event-stream'}}, false),
-            credentials: 'same-origin',
+            credentials: 'include',
             signal: request.signal,
         }),
         {},

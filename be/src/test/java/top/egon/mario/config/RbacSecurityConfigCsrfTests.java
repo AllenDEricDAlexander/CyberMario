@@ -11,6 +11,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import top.egon.mario.rbac.application.RbacAuthApplication;
+import top.egon.mario.rbac.service.RbacException;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.util.List;
@@ -18,6 +19,8 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 /**
  * Verifies browser-cookie CSRF behavior for the RBAC security filter chain.
@@ -46,6 +49,23 @@ class RbacSecurityConfigCsrfTests {
                 .jsonPath("$.data.headerName").isEqualTo("X-XSRF-TOKEN")
                 .jsonPath("$.data.parameterName").exists()
                 .jsonPath("$.data.token").isNotEmpty();
+    }
+
+    @Test
+    void csrfEndpointIgnoresStaleBrowserAccessCookie() {
+        given(authApplication.authenticateAccessToken("stale-access"))
+                .willThrow(new RbacException("AUTH_TOKEN_INVALID", "access token is inactive"));
+
+        webTestClient.get()
+                .uri("/api/auth/csrf")
+                .header("X-Client-Type", "browser")
+                .cookie("CM_ACCESS_TOKEN", "stale-access")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.data.headerName").isEqualTo("X-XSRF-TOKEN");
+
+        then(authApplication).should(never()).authenticateAccessToken("stale-access");
     }
 
     @Test
