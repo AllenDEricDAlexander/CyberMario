@@ -15,6 +15,7 @@ import top.egon.mario.rbac.dto.request.RegisterRequest;
 import top.egon.mario.rbac.dto.response.LoginResponse;
 import top.egon.mario.rbac.dto.response.MenuTreeResponse;
 import top.egon.mario.rbac.dto.response.UserResponse;
+import top.egon.mario.rbac.service.RbacException;
 import top.egon.mario.rbac.service.security.BrowserAuthCookieProperties;
 import top.egon.mario.rbac.service.security.BrowserAuthCookieService;
 
@@ -25,6 +26,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -142,6 +144,19 @@ class AuthControllerBrowserCookieTests {
                 })
                 .verifyComplete();
         verify(authApplication).logout("cookie-refresh-token");
+    }
+
+    @Test
+    void browserLogoutClearsCookiesWhenApplicationLogoutFails() {
+        RbacException exception = new RbacException("AUTH_TOKEN_INVALID", "refresh token is invalid");
+        doThrow(exception).when(authApplication).logout("bad-token");
+        MockServerWebExchange exchange = tokenCookieExchange("/api/auth/logout", true, "bad-token");
+
+        StepVerifier.create(controller.logout(null, exchange))
+                .expectErrorSatisfies(error -> assertThat(error).isSameAs(exception))
+                .verify();
+        assertExpiredAuthCookies(exchange);
+        verify(authApplication).logout("bad-token");
     }
 
     @Test

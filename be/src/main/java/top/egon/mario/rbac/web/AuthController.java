@@ -79,16 +79,17 @@ public class AuthController extends ReactiveRbacSupport {
                                           ServerWebExchange exchange) {
         boolean browserClient = browserAuthCookieService.isBrowserClient(exchange);
         String refreshToken = refreshToken(request, exchange);
-        return blockingVoid(() -> {
-                    if (!browserClient || (refreshToken != null && !refreshToken.isBlank())) {
-                        authApplication.logout(refreshToken);
-                    }
-                })
-                .doOnNext(response -> {
-                    if (browserClient) {
-                        browserAuthCookieService.clearTokenCookies(exchange);
-                    }
-                });
+        Mono<ApiResponse<Void>> response = blockingVoid(() -> {
+            if (!browserClient || (refreshToken != null && !refreshToken.isBlank())) {
+                authApplication.logout(refreshToken);
+            }
+        });
+        if (!browserClient) {
+            return response;
+        }
+        return response
+                .doOnSuccess(ignored -> browserAuthCookieService.clearTokenCookies(exchange))
+                .doOnError(error -> browserAuthCookieService.clearTokenCookies(exchange));
     }
 
     @GetMapping("/me")
