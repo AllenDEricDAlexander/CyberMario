@@ -1,19 +1,37 @@
-import {KeyOutlined, SaveOutlined, UserOutlined} from '@ant-design/icons'
-import {App, Button, Card, Col, Form, Input, Row, Space, Typography} from 'antd'
-import {useEffect, useState} from 'react'
+import {FileTextOutlined, HistoryOutlined, KeyOutlined, SaveOutlined, UserOutlined} from '@ant-design/icons'
+import {App, Button, Card, Col, Form, Input, List, Row, Space, Switch, Typography} from 'antd'
+import {useCallback, useEffect, useState} from 'react'
 import {PageToolbar} from '../../../components/PageToolbar'
 import {voidify} from '../../../utils/async'
 import {useAuth} from '../../auth/authStore'
-import {changeCurrentUserPassword, updateCurrentUserProfile} from '../accountService'
-import type {ChangeCurrentUserPasswordRequest, UpdateCurrentUserProfileRequest} from '../accountTypes'
+import {
+    changeCurrentUserPassword,
+    getCurrentUserSoulMd,
+    getCurrentUserSoulMdVersions,
+    updateCurrentUserProfile,
+    updateCurrentUserSoulMd,
+} from '../accountService'
+import type {
+    AgentSoulMdResponse,
+    AgentSoulMdUpdateRequest,
+    AgentSoulMdVersionResponse,
+    ChangeCurrentUserPasswordRequest,
+    UpdateCurrentUserProfileRequest,
+} from '../accountTypes'
 
 function AccountSettingsPage() {
     const auth = useAuth()
     const {message} = App.useApp()
     const [profileForm] = Form.useForm<UpdateCurrentUserProfileRequest>()
     const [passwordForm] = Form.useForm<ChangeCurrentUserPasswordRequest>()
+    const [soulForm] = Form.useForm<AgentSoulMdUpdateRequest>()
+    const [soulMd, setSoulMd] = useState<AgentSoulMdResponse>()
+    const [soulVersions, setSoulVersions] = useState<AgentSoulMdVersionResponse[]>([])
     const [savingProfile, setSavingProfile] = useState(false)
     const [savingPassword, setSavingPassword] = useState(false)
+    const [loadingSoul, setLoadingSoul] = useState(false)
+    const [loadingSoulVersions, setLoadingSoulVersions] = useState(false)
+    const [savingSoul, setSavingSoul] = useState(false)
 
     useEffect(() => {
         profileForm.setFieldsValue({
@@ -43,6 +61,54 @@ function AccountSettingsPage() {
             message.success('密码已修改')
         } finally {
             setSavingPassword(false)
+        }
+    }
+
+    const loadSoulVersions = useCallback(async () => {
+        setLoadingSoulVersions(true)
+        try {
+            const versions = await getCurrentUserSoulMdVersions()
+            setSoulVersions(versions)
+        } finally {
+            setLoadingSoulVersions(false)
+        }
+    }, [])
+
+    const loadSoulMd = useCallback(async () => {
+        setLoadingSoul(true)
+        try {
+            const current = await getCurrentUserSoulMd()
+            setSoulMd(current)
+            soulForm.setFieldsValue({
+                contentMarkdown: current.contentMarkdown,
+                enabled: current.enabled,
+            })
+            voidify(loadSoulVersions)()
+        } finally {
+            setLoadingSoul(false)
+        }
+    }, [loadSoulVersions, soulForm])
+
+    useEffect(() => {
+        voidify(loadSoulMd)()
+    }, [loadSoulMd])
+
+    async function handleSoulSubmit(values: AgentSoulMdUpdateRequest) {
+        setSavingSoul(true)
+        try {
+            const saved = await updateCurrentUserSoulMd({
+                contentMarkdown: values.contentMarkdown ?? '',
+                enabled: values.enabled ?? false,
+            })
+            setSoulMd(saved)
+            soulForm.setFieldsValue({
+                contentMarkdown: saved.contentMarkdown,
+                enabled: saved.enabled,
+            })
+            voidify(loadSoulVersions)()
+            message.success('SoulMD 已保存')
+        } finally {
+            setSavingSoul(false)
         }
     }
 
@@ -80,6 +146,57 @@ function AccountSettingsPage() {
                                 保存资料
                             </Button>
                         </Form>
+                    </Card>
+                </Col>
+                <Col lg={14} xs={24}>
+                    <Card loading={loadingSoul} title={<Space><FileTextOutlined/>Agent SoulMD</Space>}>
+                        <Form<AgentSoulMdUpdateRequest>
+                            form={soulForm}
+                            initialValues={{contentMarkdown: '', enabled: false}}
+                            layout="vertical"
+                            onFinish={voidify(handleSoulSubmit)}
+                            requiredMark={false}
+                        >
+                            <Form.Item label="启用注入" name="enabled" valuePropName="checked">
+                                <Switch/>
+                            </Form.Item>
+                            <Form.Item
+                                label={`Markdown ${soulMd ? `${soulMd.contentChars}/${soulMd.maxChars}` : ''}`}
+                                name="contentMarkdown"
+                                rules={[{max: 50000, message: 'SoulMD 最多 50000 字符'}]}
+                            >
+                                <Input.TextArea
+                                    autoSize={{minRows: 16, maxRows: 28}}
+                                    maxLength={50000}
+                                    showCount
+                                />
+                            </Form.Item>
+                            <Button
+                                disabled={!soulMd || loadingSoul}
+                                icon={<SaveOutlined/>}
+                                htmlType="submit"
+                                loading={savingSoul}
+                                type="primary"
+                            >
+                                保存 SoulMD
+                            </Button>
+                        </Form>
+                    </Card>
+                </Col>
+                <Col lg={10} xs={24}>
+                    <Card loading={loadingSoulVersions} title={<Space><HistoryOutlined/>SoulMD 版本</Space>}>
+                        <List
+                            dataSource={soulVersions}
+                            locale={{emptyText: '暂无版本'}}
+                            renderItem={(item) => (
+                                <List.Item>
+                                    <List.Item.Meta
+                                        description={item.changeSummary || item.createdAt}
+                                        title={`v${item.versionNo} · ${item.changeType || '版本快照'}`}
+                                    />
+                                </List.Item>
+                            )}
+                        />
                     </Card>
                 </Col>
                 <Col lg={10} xs={24}>
