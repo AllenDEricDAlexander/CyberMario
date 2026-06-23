@@ -30,7 +30,7 @@ describe('tokenStorage', () => {
         vi.unstubAllGlobals()
     })
 
-    test('stores and clears access and refresh tokens', () => {
+    test('does not persist sensitive tokens in browser storage', () => {
         saveTokens({
             accessToken: 'access-token',
             refreshToken: 'refresh-token',
@@ -38,25 +38,39 @@ describe('tokenStorage', () => {
             refreshTokenExpiresInSeconds: 600,
         })
 
-        expect(getAccessToken()).toBe('access-token')
-        expect(getRefreshToken()).toBe('refresh-token')
-        expect(hasStoredToken()).toBe(true)
+        expect(localStorage.getItem('cyber-mario-access-token')).toBeNull()
+        expect(localStorage.getItem('cyber-mario-refresh-token')).toBeNull()
+        expect(getAccessToken()).toBeNull()
+        expect(getRefreshToken()).toBeNull()
+    })
+
+    test('removes legacy token keys when clearing tokens', () => {
+        localStorage.setItem('cyber-mario-access-token', 'access-token')
+        localStorage.setItem('cyber-mario-refresh-token', 'refresh-token')
+        localStorage.setItem('cyber-mario-access-token-expires-at', '1767225600000')
+        localStorage.setItem('cyber-mario-refresh-token-expires-at', '1767225600000')
 
         clearTokens()
 
-        expect(getAccessToken()).toBeNull()
-        expect(getRefreshToken()).toBeNull()
+        expect(localStorage.getItem('cyber-mario-access-token')).toBeNull()
+        expect(localStorage.getItem('cyber-mario-refresh-token')).toBeNull()
+        expect(localStorage.getItem('cyber-mario-access-token-expires-at')).toBeNull()
+        expect(localStorage.getItem('cyber-mario-refresh-token-expires-at')).toBeNull()
+    })
+
+    test('does not treat legacy tokens as an active browser session', () => {
+        localStorage.setItem('cyber-mario-access-token', 'access-token')
+        localStorage.setItem('cyber-mario-refresh-token', 'refresh-token')
+
         expect(hasStoredToken()).toBe(false)
     })
 
-    test('refreshes access token when it is within the configured skew', () => {
-        saveTokens({
-            accessToken: 'access-token',
-            refreshToken: 'refresh-token',
-            accessTokenExpiresInSeconds: 30,
-        })
+    test('does not refresh access tokens in browser cookie mode', () => {
+        localStorage.setItem('cyber-mario-access-token', 'access-token')
+        localStorage.setItem('cyber-mario-refresh-token', 'refresh-token')
+        localStorage.setItem('cyber-mario-access-token-expires-at', String(Date.now() + 30_000))
 
-        expect(shouldRefreshAccessToken(60_000)).toBe(true)
+        expect(shouldRefreshAccessToken(60_000)).toBe(false)
         expect(shouldRefreshAccessToken(10_000)).toBe(false)
     })
 })

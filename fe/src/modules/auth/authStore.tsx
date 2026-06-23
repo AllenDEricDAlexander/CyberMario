@@ -1,6 +1,6 @@
 import {createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {subscribePermissionVersion} from '../../services/permissionVersionEvents'
-import {clearTokens, hasStoredToken, saveTokens} from '../../services/tokenStorage'
+import {clearTokens, saveTokens} from '../../services/tokenStorage'
 import type {MenuTreeResponse, UserResponse} from '../rbac/rbacTypes'
 import {
     fetchCurrentUser,
@@ -82,16 +82,13 @@ export function AuthProvider({children}: AuthProviderProps) {
     }, [applySession])
 
     useEffect(() => {
-        if (!hasStoredToken()) {
-            setBootstrapping(false)
-            return
-        }
-
+        clearTokens()
         reload()
             .catch(() => {
                 clearTokens()
                 sessionRef.current = null
                 setSession(null)
+                setPermissionChange(undefined)
             })
             .finally(() => {
                 setBootstrapping(false)
