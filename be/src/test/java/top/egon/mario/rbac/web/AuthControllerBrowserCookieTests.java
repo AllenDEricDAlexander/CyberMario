@@ -145,6 +145,19 @@ class AuthControllerBrowserCookieTests {
     }
 
     @Test
+    void browserLogoutWithoutRefreshCookieClearsCookiesAndSkipsApplicationLogout() {
+        MockServerWebExchange exchange = exchange("/api/auth/logout", true);
+
+        StepVerifier.create(controller.logout(null, exchange))
+                .assertNext(response -> {
+                    assertThat(response.data()).isNull();
+                    assertExpiredAuthCookies(exchange);
+                })
+                .verifyComplete();
+        verify(authApplication, never()).logout(nullable(String.class));
+    }
+
+    @Test
     void nonBrowserLogoutReadsBodyAndDoesNotClearCookies() {
         RefreshTokenRequest request = new RefreshTokenRequest("body-refresh-token");
         MockServerWebExchange exchange = exchange("/api/auth/logout", false);
