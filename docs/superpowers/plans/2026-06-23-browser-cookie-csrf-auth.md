@@ -501,7 +501,7 @@ test hasStoredToken no longer treats legacy tokens as active browser session:
 Run:
 
 ```bash
-cd fe && bun test tokenStorage.test.ts
+cd fe && bun run test -- tokenStorage.test.ts
 ```
 
 Expected: FAIL because the current module stores and reads token strings.
@@ -549,7 +549,7 @@ on mount:
 Run:
 
 ```bash
-cd fe && bun test tokenStorage.test.ts
+cd fe && bun run test -- tokenStorage.test.ts
 ```
 
 Expected: PASS.
@@ -596,7 +596,7 @@ test csrf header is only returned for unsafe requests with token:
 Run:
 
 ```bash
-cd fe && bun test csrfToken.test.ts
+cd fe && bun run test -- csrfToken.test.ts
 ```
 
 Expected: FAIL because `csrfToken.ts` does not exist.
@@ -627,7 +627,7 @@ csrfHeaderFor(method):
 Run:
 
 ```bash
-cd fe && bun test csrfToken.test.ts
+cd fe && bun run test -- csrfToken.test.ts
 ```
 
 Expected: PASS.
@@ -689,7 +689,7 @@ test streamJsonLines POST includes credentials and csrf:
 Run:
 
 ```bash
-cd fe && bun test request.test.ts
+cd fe && bun run test -- request.test.ts
 ```
 
 Expected: FAIL because request.ts still reads localStorage tokens and does not initialize CSRF.
@@ -738,7 +738,7 @@ Auth service notes:
 Run:
 
 ```bash
-cd fe && bun test request.test.ts csrfToken.test.ts tokenStorage.test.ts
+cd fe && bun run test -- request.test.ts csrfToken.test.ts tokenStorage.test.ts
 ```
 
 Expected: PASS.
@@ -789,7 +789,7 @@ test failed current user leaves unauthenticated:
 Run the most specific existing auth-related test first. If no auth-provider test exists, add one and run:
 
 ```bash
-cd fe && bun test authStore.test.tsx
+cd fe && bun run test -- authStore.test.tsx
 ```
 
 Expected: FAIL because startup still depends on `hasStoredToken()`.
@@ -818,13 +818,13 @@ Preserve existing permission version reload behavior.
 Run:
 
 ```bash
-cd fe && bun test authStore.test.tsx tokenStorage.test.ts request.test.ts
+cd fe && bun run test -- authStore.test.tsx tokenStorage.test.ts request.test.ts
 ```
 
 If `authStore.test.tsx` is not added, run the existing test file that covers auth provider behavior plus:
 
 ```bash
-cd fe && bun test tokenStorage.test.ts request.test.ts
+cd fe && bun run test -- tokenStorage.test.ts request.test.ts
 ```
 
 Expected: PASS.
@@ -866,7 +866,7 @@ Expected: PASS with zero failures and zero errors.
 Run:
 
 ```bash
-cd fe && bun test request.test.ts csrfToken.test.ts tokenStorage.test.ts
+cd fe && bun run test -- request.test.ts csrfToken.test.ts tokenStorage.test.ts
 ```
 
 Expected: PASS with zero failures.
@@ -901,7 +901,7 @@ Run:
 
 ```bash
 cd be && ./mvnw -Dmaven.build.cache.enabled=false -Dtest='*Auth*Tests,*Security*Tests,RbacSecurityConfigCsrfTests,AuthControllerBrowserCookieTests' test
-cd fe && bun test request.test.ts csrfToken.test.ts tokenStorage.test.ts
+cd fe && bun run test -- request.test.ts csrfToken.test.ts tokenStorage.test.ts
 cd fe && bun run typecheck
 ```
 
