@@ -257,6 +257,63 @@ describe('requestJson', () => {
         }))
         expect(fetchMock).not.toHaveBeenCalled()
     })
+
+    test('renews csrf and retries cookie refresh once when refresh csrf is invalid', async () => {
+        installDocumentCookie('XSRF-TOKEN=old-refresh-csrf')
+        const fetchMock = vi.fn()
+        vi.stubGlobal('fetch', fetchMock)
+        axiosRequestMock
+            .mockResolvedValueOnce(axiosResponse(apiResponse(null), {status: 401}))
+            .mockResolvedValueOnce(axiosResponse(
+                apiResponse(null, {code: 'AUTH_CSRF_INVALID', message: 'csrf token is invalid'}),
+                {status: 403},
+            ))
+            .mockImplementationOnce(() => {
+                document.cookie = 'XSRF-TOKEN=new-refresh-csrf'
+                return Promise.resolve(axiosResponse(apiResponse(null)))
+            })
+            .mockResolvedValueOnce(axiosResponse(apiResponse(null)))
+            .mockResolvedValueOnce(axiosResponse(apiResponse({username: 'mario'})))
+
+        await expect(requestJson<{ username: string }>('/api/me/profile')).resolves.toEqual({username: 'mario'})
+
+        expect(axiosRequestMock).toHaveBeenCalledTimes(5)
+        expect(axiosRequestMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+            method: 'GET',
+            url: '/api/me/profile',
+        }))
+        expect(axiosRequestMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+            data: undefined,
+            method: 'POST',
+            url: '/api/auth/refresh',
+            withCredentials: true,
+        }))
+        expect(axiosRequestMock.mock.calls[1][0].headers).toMatchObject({
+            'X-XSRF-TOKEN': 'old-refresh-csrf',
+        })
+        expect(axiosRequestMock).toHaveBeenNthCalledWith(3, expect.objectContaining({
+            method: 'GET',
+            url: '/api/auth/csrf',
+            withCredentials: true,
+        }))
+        expect(axiosRequestMock).toHaveBeenNthCalledWith(4, expect.objectContaining({
+            data: undefined,
+            method: 'POST',
+            url: '/api/auth/refresh',
+            withCredentials: true,
+        }))
+        expect(axiosRequestMock.mock.calls[3][0].headers).toMatchObject({
+            'X-XSRF-TOKEN': 'new-refresh-csrf',
+        })
+        expect(axiosRequestMock.mock.calls[3][0].data).not.toMatchObject({
+            refreshToken: expect.anything(),
+        })
+        expect(axiosRequestMock).toHaveBeenNthCalledWith(5, expect.objectContaining({
+            method: 'GET',
+            url: '/api/me/profile',
+        }))
+        expect(fetchMock).not.toHaveBeenCalled()
+    })
 })
 
 describe('requestFormData', () => {

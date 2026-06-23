@@ -349,13 +349,14 @@ async function axiosWithAuthRetry<T>(
 async function refreshAccessToken() {
     if (!refreshPromise) {
         refreshPromise = ensureCsrfFor('POST')
-            .then(() => apiClient.request<ApiResponse<unknown>>({
-                data: undefined,
-                method: 'POST',
-                headers: buildHeaders({auth: false, method: 'POST'}),
-                url: '/api/auth/refresh',
-                withCredentials: true,
-            }))
+            .then(() => requestAccessTokenRefresh())
+            .then(async (response) => {
+                if (!isCsrfInvalidAxiosResponse(response)) {
+                    return response
+                }
+                await refreshCsrf()
+                return requestAccessTokenRefresh()
+            })
             .then((response) => {
                 unwrapAxiosApiResponse<unknown>(response)
                 return true
@@ -367,6 +368,16 @@ async function refreshAccessToken() {
     }
 
     return refreshPromise
+}
+
+function requestAccessTokenRefresh() {
+    return apiClient.request<ApiResponse<unknown>>({
+        data: undefined,
+        method: 'POST',
+        headers: buildHeaders({auth: false, method: 'POST'}),
+        url: '/api/auth/refresh',
+        withCredentials: true,
+    })
 }
 
 async function ensureCsrfFor(method?: string) {
