@@ -15,6 +15,7 @@ const AUTH_CSRF_INVALID_CODE = 'AUTH_CSRF_INVALID'
 const apiClient = axios.create({
     baseURL: API_BASE_URL || undefined,
     validateStatus: () => true,
+    withXSRFToken: false,
 })
 
 type RequestOptions = {

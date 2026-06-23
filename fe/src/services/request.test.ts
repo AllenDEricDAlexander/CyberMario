@@ -4,15 +4,19 @@ import {ApiRequestError} from '../types/api'
 import {clearCsrfToken, saveCsrfToken} from './csrfToken'
 import {requestFormData, requestJson, streamJsonLines, streamServerSentEvents} from './request'
 
-const {axiosRequestMock} = vi.hoisted(() => ({
-    axiosRequestMock: vi.fn(),
-}))
+const {axiosCreateMock, axiosRequestMock} = vi.hoisted(() => {
+    const request = vi.fn()
+    return {
+        axiosCreateMock: vi.fn(() => ({
+            request,
+        })),
+        axiosRequestMock: request,
+    }
+})
 
 vi.mock('axios', () => ({
     default: {
-        create: vi.fn(() => ({
-            request: axiosRequestMock,
-        })),
+        create: axiosCreateMock,
     },
 }))
 
@@ -78,6 +82,14 @@ function installDocumentCookie(cookie = '') {
 
 afterEach(() => {
     clearCsrfToken()
+})
+
+describe('apiClient', () => {
+    test('disables axios automatic xsrf cookie mirroring', () => {
+        expect(axiosCreateMock).toHaveBeenCalledWith(expect.objectContaining({
+            withXSRFToken: false,
+        }))
+    })
 })
 
 describe('requestJson', () => {
