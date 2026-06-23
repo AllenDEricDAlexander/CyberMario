@@ -161,6 +161,45 @@ describe('requestJson', () => {
         })
     })
 
+    test('refreshes csrf and retries the original unsafe request once when csrf is invalid', async () => {
+        installDocumentCookie('XSRF-TOKEN=old-csrf')
+        axiosRequestMock
+            .mockResolvedValueOnce(axiosResponse(
+                apiResponse(null, {code: 'AUTH_CSRF_INVALID', message: 'csrf token is invalid'}),
+                {status: 403},
+            ))
+            .mockImplementationOnce(() => {
+                document.cookie = 'XSRF-TOKEN=new-csrf'
+                return Promise.resolve(axiosResponse(apiResponse(null)))
+            })
+            .mockResolvedValueOnce(axiosResponse(apiResponse({loggedOut: true})))
+
+        await expect(requestJson<{ loggedOut: boolean }>('/api/auth/logout', {
+            method: 'POST',
+        })).resolves.toEqual({loggedOut: true})
+
+        expect(axiosRequestMock).toHaveBeenCalledTimes(3)
+        expect(axiosRequestMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+            method: 'POST',
+            url: '/api/auth/logout',
+        }))
+        expect(axiosRequestMock.mock.calls[0][0].headers).toMatchObject({
+            'X-XSRF-TOKEN': 'old-csrf',
+        })
+        expect(axiosRequestMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+            method: 'GET',
+            url: '/api/auth/csrf',
+            withCredentials: true,
+        }))
+        expect(axiosRequestMock).toHaveBeenNthCalledWith(3, expect.objectContaining({
+            method: 'POST',
+            url: '/api/auth/logout',
+        }))
+        expect(axiosRequestMock.mock.calls[2][0].headers).toMatchObject({
+            'X-XSRF-TOKEN': 'new-csrf',
+        })
+    })
+
     test('rejects business errors with ApiRequestError details', async () => {
         axiosRequestMock.mockResolvedValueOnce(axiosResponse(
             apiResponse(null, {code: 'RBAC_DENIED', message: '无权访问', traceId: 'trace-1'}),
@@ -307,6 +346,43 @@ describe('streamJsonLines', () => {
         expect(request.credentials).toBe('same-origin')
         expect(request.headers).toMatchObject({
             'X-XSRF-TOKEN': 'csrf-stream',
+        })
+    })
+
+    test('refreshes csrf and retries streaming POST once when csrf is invalid', async () => {
+        installDocumentCookie('XSRF-TOKEN=old-stream-csrf')
+        let fetchCallCount = 0
+        const fetchMock = vi.fn((..._args: Parameters<typeof fetch>): ReturnType<typeof fetch> => Promise.resolve(
+            ++fetchCallCount === 1
+                ? jsonResponse(
+                    apiResponse(null, {code: 'AUTH_CSRF_INVALID', message: 'csrf token is invalid'}),
+                    {status: 403},
+                )
+                : ndjsonResponse(['{"type":"done"}\n']),
+        ))
+        vi.stubGlobal('fetch', fetchMock)
+        axiosRequestMock.mockImplementationOnce(() => {
+            document.cookie = 'XSRF-TOKEN=new-stream-csrf'
+            return Promise.resolve(axiosResponse(apiResponse(null)))
+        })
+
+        await streamJsonLines('/api/rag/chat/stream', {
+            body: {question: 'hello'},
+            signal: new AbortController().signal,
+        }, vi.fn())
+
+        expect(fetchMock).toHaveBeenCalledTimes(2)
+        expect(axiosRequestMock).toHaveBeenCalledTimes(1)
+        expect(axiosRequestMock).toHaveBeenCalledWith(expect.objectContaining({
+            method: 'GET',
+            url: '/api/auth/csrf',
+            withCredentials: true,
+        }))
+        expect((fetchMock.mock.calls[0][1] as { headers: Record<string, string> }).headers).toMatchObject({
+            'X-XSRF-TOKEN': 'old-stream-csrf',
+        })
+        expect((fetchMock.mock.calls[1][1] as { headers: Record<string, string> }).headers).toMatchObject({
+            'X-XSRF-TOKEN': 'new-stream-csrf',
         })
     })
 
