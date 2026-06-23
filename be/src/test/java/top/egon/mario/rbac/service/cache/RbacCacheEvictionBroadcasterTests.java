@@ -24,8 +24,9 @@ class RbacCacheEvictionBroadcasterTests {
     void publishesPermissionEvictionMessageWhenBroadcastIsEnabled() throws Exception {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         ObjectMapper objectMapper = new ObjectMapper();
+        RbacCacheInstanceIdentity instanceIdentity = new RbacCacheInstanceIdentity();
         RbacCacheEvictionBroadcaster broadcaster = new RbacCacheEvictionBroadcaster(redisTemplate,
-                objectMapper, cacheProperties(true));
+                objectMapper, cacheProperties(true), instanceIdentity);
         var messageCaptor = forClass(String.class);
 
         broadcaster.publishUserPermissions(List.of(7L, 8L), "unit-test");
@@ -35,14 +36,14 @@ class RbacCacheEvictionBroadcasterTests {
         assertThat(message.scope()).isEqualTo(RbacCacheEvictionMessage.Scope.PERMISSION_USERS);
         assertThat(message.userIds()).containsExactly(7L, 8L);
         assertThat(message.reason()).isEqualTo("unit-test");
-        assertThat(message.sourceInstanceId()).isNotBlank();
+        assertThat(message.sourceInstanceId()).isEqualTo(instanceIdentity.sourceInstanceId());
     }
 
     @Test
     void skipsPublishingWhenBroadcastIsDisabled() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         RbacCacheEvictionBroadcaster broadcaster = new RbacCacheEvictionBroadcaster(redisTemplate,
-                new ObjectMapper(), cacheProperties(false));
+                new ObjectMapper(), cacheProperties(false), new RbacCacheInstanceIdentity());
 
         broadcaster.publishAllPermissions("unit-test");
 

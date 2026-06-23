@@ -21,11 +21,17 @@ public class RbacCacheEvictionSubscriber implements MessageListener {
 
     private final ObjectMapper objectMapper;
     private final RbacTwoLevelCacheManager cacheManager;
+    private final RbacCacheInstanceIdentity instanceIdentity;
 
     @Override
     public void onMessage(@NonNull Message message, byte[] pattern) {
         try {
             RbacCacheEvictionMessage evictionMessage = objectMapper.readValue(message.getBody(), RbacCacheEvictionMessage.class);
+            if (instanceIdentity.isLocalSource(evictionMessage.sourceInstanceId())) {
+                LogUtil.debug(log).log("rbac cache eviction broadcast skipped, reason=local_source, scope={}",
+                        evictionMessage.scope());
+                return;
+            }
             if (evictionMessage.scope() == RbacCacheEvictionMessage.Scope.PERMISSION_ALL) {
                 cacheManager.clearLocalAllPermissions();
             } else if (evictionMessage.scope() == RbacCacheEvictionMessage.Scope.PERMISSION_USERS) {
