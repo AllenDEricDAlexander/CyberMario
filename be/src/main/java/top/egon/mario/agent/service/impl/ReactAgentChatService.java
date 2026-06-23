@@ -65,7 +65,6 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Reactive adapter around Spring AI Alibaba ReactAgent's streaming API.
  * <p>
- * Uses {@link ReactAgent#stream(String, RunnableConfig)} for token-level
  * streaming and exposes both reasoning (think) and final message chunks.
  */
 @Slf4j
