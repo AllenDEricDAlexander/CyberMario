@@ -16,7 +16,7 @@ import top.egon.mario.rbac.service.security.RbacPrincipal;
 import java.util.List;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.containsString;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
 /**
@@ -41,7 +41,7 @@ class RbacSecurityConfigCsrfTests {
                 .uri("/api/auth/csrf")
                 .exchange()
                 .expectStatus().isOk()
-                .expectHeader().value(HttpHeaders.SET_COOKIE, containsString("XSRF-TOKEN"))
+                .expectHeader().values(HttpHeaders.SET_COOKIE, this::assertXsrfCookie)
                 .expectBody()
                 .jsonPath("$.data.headerName").isEqualTo("X-XSRF-TOKEN")
                 .jsonPath("$.data.parameterName").exists()
@@ -53,6 +53,19 @@ class RbacSecurityConfigCsrfTests {
         webTestClient.post()
                 .uri("/api/auth/login")
                 .header("X-Client-Type", "browser")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(invalidLoginBody())
+                .exchange()
+                .expectStatus().isForbidden()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("AUTH_CSRF_INVALID");
+    }
+
+    @Test
+    void unsafeAuthCookieLoginWithoutBrowserHeaderOrCsrfIsForbidden() {
+        webTestClient.post()
+                .uri("/api/auth/login")
+                .cookie("CM_ACCESS_TOKEN", "cookie-access")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(invalidLoginBody())
                 .exchange()
@@ -91,6 +104,19 @@ class RbacSecurityConfigCsrfTests {
                 .expectStatus().isBadRequest()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo("VALIDATION_ERROR");
+    }
+
+    private void assertXsrfCookie(List<String> setCookies) {
+        assertThat(setCookies)
+                .anySatisfy(cookie -> {
+                    assertThat(cookie).startsWith("XSRF-TOKEN=");
+                    assertThat(cookieAttributes(cookie)).contains("Path=/");
+                    assertThat(cookieAttributes(cookie)).doesNotContain("Secure");
+                });
+    }
+
+    private List<String> cookieAttributes(String cookie) {
+        return List.of(cookie.split(";\\s*"));
     }
 
     private String invalidLoginBody() {
