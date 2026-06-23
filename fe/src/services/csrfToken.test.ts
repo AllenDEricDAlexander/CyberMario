@@ -45,8 +45,10 @@ describe('csrfToken', () => {
 
     test('returns empty headers for blank or missing tokens', () => {
         expect(readCsrfToken('XSRF-TOKEN=')).toBeNull()
+        expect(readCsrfToken('XSRF-TOKEN=%20')).toBeNull()
         expect(readCsrfToken('theme=dark')).toBeNull()
         expect(csrfHeaderFor('POST', 'XSRF-TOKEN=')).toEqual({})
+        expect(csrfHeaderFor('POST', 'XSRF-TOKEN=%20')).toEqual({})
         expect(csrfHeaderFor('POST', 'theme=dark')).toEqual({})
     })
 })

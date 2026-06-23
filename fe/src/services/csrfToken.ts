@@ -22,7 +22,12 @@ function readCookie(name: string, cookieSource?: string) {
         return null
     }
 
-    return decodeURIComponent(value)
+    const decodedValue = decodeURIComponent(value)
+    if (!decodedValue.trim()) {
+        return null
+    }
+
+    return decodedValue
 }
 
 export function readCsrfToken(cookieSource?: string) {
