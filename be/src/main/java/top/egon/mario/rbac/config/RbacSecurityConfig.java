@@ -21,6 +21,7 @@ import top.egon.mario.rbac.service.security.DynamicAuthorizationManager;
 import top.egon.mario.rbac.service.security.JwtAuthenticationWebFilter;
 import top.egon.mario.rbac.service.security.JwtProperties;
 import top.egon.mario.rbac.service.security.RbacPublicApiPolicy;
+import top.egon.mario.rbac.service.security.RbacSecurityExceptionHandler;
 
 import java.util.Map;
 
@@ -40,6 +41,7 @@ public class RbacSecurityConfig {
     private static final int ARGON2_MEMORY_KIB = 19 * 1024;
     private final JwtAuthenticationWebFilter jwtAuthenticationWebFilter;
     private final DynamicAuthorizationManager dynamicAuthorizationManager;
+    private final RbacSecurityExceptionHandler securityExceptionHandler;
 
     @Bean
     public SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http) {
@@ -48,6 +50,10 @@ public class RbacSecurityConfig {
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .logout(ServerHttpSecurity.LogoutSpec::disable)
+                .exceptionHandling(exceptionHandling -> exceptionHandling
+                        .authenticationEntryPoint(securityExceptionHandler)
+                        .accessDeniedHandler(securityExceptionHandler)
+                )
                 .authorizeExchange(exchange -> exchange
                         .pathMatchers(HttpMethod.POST, RbacPublicApiPolicy.PUBLIC_AUTH_ENDPOINTS).permitAll()
                         .pathMatchers(HttpMethod.GET, RbacPublicApiPolicy.PUBLIC_ACTUATOR_ENDPOINTS).permitAll()
