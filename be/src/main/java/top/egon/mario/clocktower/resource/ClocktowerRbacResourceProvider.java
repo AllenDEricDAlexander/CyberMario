@@ -18,6 +18,41 @@ import java.util.List;
 public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
 
     private static final String APP_CODE = "clocktower";
+    private static final String ADMIN_APP_CODE = "admin";
+
+    private static final String SCRIPT_READ = "api:clocktower:script:read";
+    private static final String BOARD_ALL = "api:clocktower:board:*";
+    private static final String ROOM_READ = "api:clocktower:room:read";
+    private static final String ROOM_CREATE = "api:clocktower:room:create";
+    private static final String ROOM_MEMBERSHIP = "api:clocktower:room:membership";
+    private static final String ROOM_SEAT = "api:clocktower:room:seat";
+    private static final String ROOM_GOVERNANCE = "api:clocktower:room:governance";
+    private static final String GAME_READ = "api:clocktower:game:read";
+    private static final String GAME_LIFECYCLE = "api:clocktower:game:lifecycle";
+    private static final String GAME_ACTION = "api:clocktower:game:action";
+    private static final String GAME_STORYTELLER = "api:clocktower:game:storyteller";
+    private static final String GAME_EVENT_STREAM = "api:clocktower:game:event-stream";
+    private static final String GAME_REPLAY = "api:clocktower:game:replay";
+    private static final String CHAT_READ = "api:clocktower:chat:read";
+    private static final String CHAT_SEND = "api:clocktower:chat:send";
+    private static final String CHAT_CONVERSATION = "api:clocktower:chat:conversation";
+    private static final String CHAT_READ_STATE = "api:clocktower:chat:read-state";
+    private static final String ADMIN_AUDIT = "api:admin:clocktower:audit";
+    private static final String ADMIN_RULE_DATA = "api:admin:clocktower:rule-data";
+
+    private static final List<String> PLAYER_PERMISSION_CODES = List.of(
+            "menu:clocktower:rooms", "menu:clocktower:replays",
+            SCRIPT_READ, ROOM_READ, ROOM_MEMBERSHIP, ROOM_SEAT,
+            GAME_READ, GAME_ACTION, GAME_EVENT_STREAM, GAME_REPLAY,
+            CHAT_READ, CHAT_SEND, CHAT_CONVERSATION, CHAT_READ_STATE
+    );
+
+    private static final List<String> STORYTELLER_PERMISSION_CODES = List.of(
+            "menu:clocktower:boards", "menu:clocktower:rooms", "menu:clocktower:rules", "menu:clocktower:replays",
+            SCRIPT_READ, BOARD_ALL, ROOM_READ, ROOM_MEMBERSHIP, ROOM_SEAT, ROOM_CREATE, ROOM_GOVERNANCE,
+            GAME_READ, GAME_ACTION, GAME_EVENT_STREAM, GAME_REPLAY, GAME_LIFECYCLE, GAME_STORYTELLER,
+            CHAT_READ, CHAT_SEND, CHAT_CONVERSATION, CHAT_READ_STATE
+    );
 
     @Override
     public String appCode() {
@@ -32,64 +67,53 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
         resources.add(menu("menu:clocktower:rules", "钟楼规则", null, "/clocktower/rules", 30));
         resources.add(menu("menu:clocktower:replays", "钟楼回放", null, "/clocktower/replays", 40));
 
-        resources.add(api("api:clocktower:scripts:*", "Clocktower scripts", "GET", "/api/clocktower/scripts/**", ApiRiskLevel.LOW));
-        resources.add(api("api:clocktower:terms:read", "Clocktower terms", "GET",
-                "/api/clocktower/terms", ApiRiskLevel.LOW));
-        resources.add(api("api:clocktower:jinx-rules:read", "Clocktower jinx rules", "GET",
-                "/api/clocktower/jinx-rules", ApiRiskLevel.LOW));
-        resources.add(api("api:clocktower:boards:*", "Clocktower boards", "ANY", "/api/clocktower/boards/**", ApiRiskLevel.MEDIUM));
-        resources.add(api("api:clocktower:rooms:read:list", "Clocktower room list", "GET",
-                "/api/clocktower/rooms", ApiRiskLevel.LOW));
-        resources.add(api("api:clocktower:rooms:read:detail", "Clocktower room detail", "GET",
-                "/api/clocktower/rooms/*", ApiRiskLevel.LOW));
-        resources.add(api("api:clocktower:rooms:player:join", "Clocktower player join", "POST",
-                "/api/clocktower/rooms/*/join", ApiRiskLevel.MEDIUM));
-        resources.add(api("api:clocktower:rooms:player:leave", "Clocktower player leave", "POST",
-                "/api/clocktower/rooms/*/leave", ApiRiskLevel.MEDIUM));
-        resources.add(api("api:clocktower:rooms:player:view", "Clocktower player view", "GET",
-                "/api/clocktower/rooms/*/view", ApiRiskLevel.MEDIUM));
-        resources.add(api("api:clocktower:rooms:player:action", "Clocktower player action", "POST",
-                "/api/clocktower/rooms/*/actions", ApiRiskLevel.MEDIUM));
-        resources.add(api("api:clocktower:rooms:chat:*", "Clocktower room chat conversations", "GET",
-                "/api/clocktower/rooms/*/chat/**", ApiRiskLevel.MEDIUM));
-        resources.add(api("api:clocktower:chat:*", "Clocktower chat", "ANY",
-                "/api/clocktower/chat/**", ApiRiskLevel.MEDIUM));
-        resources.add(api("api:clocktower:rooms:storyteller:create", "Clocktower create room", "POST",
-                "/api/clocktower/rooms", ApiRiskLevel.MEDIUM));
-        resources.add(api("api:clocktower:rooms:storyteller:start", "Clocktower start room", "POST",
-                "/api/clocktower/rooms/*/start", ApiRiskLevel.HIGH));
-        resources.add(api("api:clocktower:rooms:storyteller:seat", "Clocktower update seat", "PATCH",
-                "/api/clocktower/rooms/*/seats/*", ApiRiskLevel.HIGH));
-        resources.add(api("api:clocktower:rooms:storyteller:game:start", "Clocktower start game", "POST",
-                "/api/clocktower/rooms/*/games/start", ApiRiskLevel.HIGH));
-        resources.add(api("api:clocktower:games:storyteller:end", "Clocktower end game", "POST",
-                "/api/clocktower/games/*/end", ApiRiskLevel.HIGH));
-        resources.add(api("api:clocktower:games:storyteller:abort", "Clocktower abort game", "POST",
-                "/api/clocktower/games/*/abort", ApiRiskLevel.HIGH));
-        resources.add(api("api:clocktower:rooms:storyteller:game:timeout-abort",
-                "Clocktower timeout abort game", "POST",
-                "/api/clocktower/rooms/*/games/timeout-abort", ApiRiskLevel.HIGH));
-        resources.add(api("api:clocktower:rooms:storyteller:night", "Clocktower night checklist", "GET",
-                "/api/clocktower/rooms/*/night-checklist", ApiRiskLevel.HIGH));
-        resources.add(api("api:clocktower:rooms:storyteller:flow", "Clocktower storyteller flow", "ANY",
-                "/api/clocktower/rooms/*/flow/**", ApiRiskLevel.HIGH));
-        resources.add(api("api:clocktower:rooms:storyteller:night-task", "Clocktower storyteller night task", "ANY",
-                "/api/clocktower/rooms/*/night-tasks/**", ApiRiskLevel.HIGH));
-        resources.add(api("api:clocktower:rooms:storyteller:nomination", "Clocktower storyteller nomination", "ANY",
-                "/api/clocktower/rooms/*/nominations/**", ApiRiskLevel.HIGH));
-        resources.add(api("api:clocktower:rooms:storyteller:execution", "Clocktower storyteller execution", "ANY",
-                "/api/clocktower/rooms/*/execution/**", ApiRiskLevel.HIGH));
-        resources.add(api("api:clocktower:rooms:storyteller:action", "Clocktower storyteller action", "POST",
-                "/api/clocktower/rooms/*/storyteller/actions", ApiRiskLevel.HIGH));
-        resources.add(api("api:clocktower:rooms:storyteller:ruling", "Clocktower storyteller rulings", "ANY",
-                "/api/clocktower/rooms/*/rulings", ApiRiskLevel.HIGH));
-        resources.add(api("api:clocktower:rooms:storyteller:ruling:detail", "Clocktower storyteller ruling detail", "ANY",
-                "/api/clocktower/rooms/*/rulings/**", ApiRiskLevel.HIGH));
-        resources.add(api("api:clocktower:events:stream", "Clocktower event stream", "GET",
-                "/api/clocktower/rooms/*/events/stream", ApiRiskLevel.MEDIUM));
-        resources.add(api("api:clocktower:grimoire:*", "Clocktower grimoire", "ANY",
-                "/api/clocktower/rooms/*/grimoire/**", ApiRiskLevel.HIGH));
-        resources.add(api("api:clocktower:replays:*", "Clocktower replays", "ANY", "/api/clocktower/replays/**", ApiRiskLevel.MEDIUM));
+        resources.add(api(SCRIPT_READ, "Clocktower script data", "GET",
+                "^/api/clocktower/(scripts(/.*)?|terms|jinx-rules)$", ApiMatcherType.REGEX, ApiRiskLevel.LOW));
+        resources.add(api(BOARD_ALL, "Clocktower boards", "ANY",
+                "^/api/clocktower/boards(/.*)?$", ApiMatcherType.REGEX, ApiRiskLevel.MEDIUM));
+        resources.add(api(ROOM_READ, "Clocktower room read", "GET",
+                "^/api/clocktower/rooms(/[^/]+)?$", ApiMatcherType.REGEX, ApiRiskLevel.LOW));
+        resources.add(api(ROOM_CREATE, "Clocktower room create", "POST",
+                "/api/clocktower/rooms", ApiMatcherType.EXACT, ApiRiskLevel.MEDIUM));
+        resources.add(api(ROOM_MEMBERSHIP, "Clocktower room membership", "POST",
+                "^/api/clocktower/rooms/[^/]+/(enter|heartbeat|join|leave|invitations/[^/]+/(accept|decline))$",
+                ApiMatcherType.REGEX, ApiRiskLevel.MEDIUM));
+        resources.add(api(ROOM_SEAT, "Clocktower room seats", "ANY",
+                "^/api/clocktower/rooms/[^/]+/seats(/.*)?$", ApiMatcherType.REGEX, ApiRiskLevel.MEDIUM));
+        resources.add(api(ROOM_GOVERNANCE, "Clocktower room governance", "ANY",
+                "^/api/clocktower/rooms/[^/]+/(board|invitations|members/[^/]+/(kick|ban)|start)$",
+                ApiMatcherType.REGEX, ApiRiskLevel.HIGH));
+        resources.add(api(GAME_READ, "Clocktower game read", "GET",
+                "^/api/clocktower/(games/[^/]+/view|rooms/[^/]+/view)$", ApiMatcherType.REGEX,
+                ApiRiskLevel.MEDIUM));
+        resources.add(api(GAME_LIFECYCLE, "Clocktower game lifecycle", "POST",
+                "^/api/clocktower/(rooms/[^/]+/games/(start|timeout-abort)|games/[^/]+/(end|abort))$",
+                ApiMatcherType.REGEX, ApiRiskLevel.HIGH));
+        resources.add(api(GAME_ACTION, "Clocktower game action", "POST",
+                "^/api/clocktower/(games/[^/]+|rooms/[^/]+)/actions$", ApiMatcherType.REGEX,
+                ApiRiskLevel.MEDIUM));
+        resources.add(api(GAME_STORYTELLER, "Clocktower game storyteller", "ANY",
+                "^/api/clocktower/rooms/[^/]+/(flow(/.*)?|night-tasks/.*|nominations/.*|execution/.*|"
+                        + "grimoire(/.*)?|night-checklist|storyteller/actions|rulings(/.*)?)$",
+                ApiMatcherType.REGEX, ApiRiskLevel.HIGH));
+        resources.add(api(GAME_EVENT_STREAM, "Clocktower game event stream", "GET",
+                "^/api/clocktower/(games|rooms)/[^/]+/events/stream$", ApiMatcherType.REGEX,
+                ApiRiskLevel.MEDIUM));
+        resources.add(api(GAME_REPLAY, "Clocktower game replay", "GET",
+                "^/api/clocktower/(games/([^/]+/replay|history)|replays(/.*)?)$", ApiMatcherType.REGEX,
+                ApiRiskLevel.MEDIUM));
+        resources.add(api(CHAT_CONVERSATION, "Clocktower chat conversations", "ANY",
+                "^/api/clocktower/(rooms/[^/]+/chat/conversations|chat/conversations)$", ApiMatcherType.REGEX,
+                ApiRiskLevel.MEDIUM));
+        resources.add(api(CHAT_READ, "Clocktower chat read", "GET",
+                "^/api/clocktower/chat/conversations/[^/]+/messages$", ApiMatcherType.REGEX,
+                ApiRiskLevel.MEDIUM));
+        resources.add(api(CHAT_SEND, "Clocktower chat send", "POST",
+                "^/api/clocktower/chat/conversations/[^/]+/messages$", ApiMatcherType.REGEX,
+                ApiRiskLevel.MEDIUM));
+        resources.add(api(CHAT_READ_STATE, "Clocktower chat read state", "POST",
+                "^/api/clocktower/chat/conversations/[^/]+/read$", ApiMatcherType.REGEX,
+                ApiRiskLevel.MEDIUM));
         return resources;
     }
 
@@ -98,54 +122,61 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
         return List.of(
                 new RbacRolePresetSeed(APP_CODE, "CLOCKTOWER_PLAYER", "Clocktower Player",
                         "System role for Clocktower players.", 40,
-                        List.of(
-                                "menu:clocktower:rooms", "menu:clocktower:replays",
-                                "api:clocktower:scripts:*", "api:clocktower:terms:read",
-                                "api:clocktower:jinx-rules:read", "api:clocktower:rooms:read:list",
-                                "api:clocktower:rooms:read:detail", "api:clocktower:rooms:player:join",
-                                "api:clocktower:rooms:player:leave", "api:clocktower:rooms:player:view",
-                                "api:clocktower:rooms:player:action",
-                                "api:clocktower:rooms:chat:*", "api:clocktower:chat:*",
-                                "api:clocktower:events:stream", "api:clocktower:replays:*"
-                        ), RbacResourceSource.PROVIDER),
+                        PLAYER_PERMISSION_CODES, RbacResourceSource.PROVIDER),
                 new RbacRolePresetSeed(APP_CODE, "CLOCKTOWER_STORYTELLER", "Clocktower Storyteller",
                         "System role for Clocktower storytellers.", 30,
-                        List.of(
-                                "menu:clocktower:boards", "menu:clocktower:rooms", "menu:clocktower:rules",
-                                "menu:clocktower:replays", "api:clocktower:scripts:*", "api:clocktower:terms:read",
-                                "api:clocktower:jinx-rules:read", "api:clocktower:boards:*",
-                                "api:clocktower:rooms:read:list", "api:clocktower:rooms:read:detail",
-                                "api:clocktower:rooms:player:join", "api:clocktower:rooms:player:leave",
-                                "api:clocktower:rooms:player:view", "api:clocktower:rooms:player:action",
-                                "api:clocktower:rooms:chat:*", "api:clocktower:chat:*",
-                                "api:clocktower:rooms:storyteller:create",
-                                "api:clocktower:rooms:storyteller:start",
-                                "api:clocktower:rooms:storyteller:seat",
-                                "api:clocktower:rooms:storyteller:game:start",
-                                "api:clocktower:games:storyteller:end",
-                                "api:clocktower:games:storyteller:abort",
-                                "api:clocktower:rooms:storyteller:game:timeout-abort",
-                                "api:clocktower:rooms:storyteller:night",
-                                "api:clocktower:rooms:storyteller:flow",
-                                "api:clocktower:rooms:storyteller:night-task",
-                                "api:clocktower:rooms:storyteller:nomination",
-                                "api:clocktower:rooms:storyteller:execution",
-                                "api:clocktower:rooms:storyteller:action",
-                                "api:clocktower:rooms:storyteller:ruling",
-                                "api:clocktower:rooms:storyteller:ruling:detail", "api:clocktower:events:stream",
-                                "api:clocktower:grimoire:*", "api:clocktower:replays:*"
-                        ), RbacResourceSource.PROVIDER)
+                        STORYTELLER_PERMISSION_CODES, RbacResourceSource.PROVIDER)
         );
     }
 
-    private RbacResourceSeed menu(String code, String name, String parentCode, String path, int sortNo) {
+    private static RbacResourceSeed menu(String code, String name, String parentCode, String path, int sortNo) {
         return RbacResourceSeed.menu(APP_CODE, APP_CODE, code, name, parentCode, PermissionStatus.ENABLED,
                 sortNo, null, new RbacMenuSeed(code.replace("menu:", ""), path, null, null, "CrownOutlined",
                         false, true, null), RbacResourceSource.PROVIDER);
     }
 
     private RbacResourceSeed api(String code, String name, String method, String pattern, ApiRiskLevel riskLevel) {
-        return RbacResourceSeed.api(APP_CODE, APP_CODE, code, name, PermissionStatus.ENABLED, 0, null,
-                new RbacApiSeed(method, pattern, ApiMatcherType.ANT, false, riskLevel), RbacResourceSource.PROVIDER);
+        return api(code, name, method, pattern, ApiMatcherType.ANT, riskLevel);
+    }
+
+    private RbacResourceSeed api(String code, String name, String method, String pattern, ApiMatcherType matcherType,
+                                 ApiRiskLevel riskLevel) {
+        return api(APP_CODE, APP_CODE, code, name, method, pattern, matcherType, riskLevel);
+    }
+
+    private static RbacResourceSeed api(String appCode, String serviceTag, String code, String name, String method,
+                                        String pattern, ApiMatcherType matcherType, ApiRiskLevel riskLevel) {
+        return RbacResourceSeed.api(appCode, serviceTag, code, name, PermissionStatus.ENABLED, 0, null,
+                new RbacApiSeed(method, pattern, matcherType, false, riskLevel), RbacResourceSource.PROVIDER);
+    }
+
+    @Component
+    public static class AdminProvider implements RbacResourceProvider {
+
+        @Override
+        public String appCode() {
+            return ADMIN_APP_CODE;
+        }
+
+        @Override
+        public List<RbacResourceSeed> resources() {
+            return List.of(
+                    api(ADMIN_APP_CODE, APP_CODE, ADMIN_AUDIT, "Clocktower admin audit", "GET",
+                            "^/api/admin/clocktower/(rooms/[^/]+/audit|games/[^/]+/audit|"
+                                    + "chat/conversations/[^/]+/messages)$",
+                            ApiMatcherType.REGEX, ApiRiskLevel.HIGH),
+                    api(ADMIN_APP_CODE, APP_CODE, ADMIN_RULE_DATA, "Clocktower rule data administration", "ANY",
+                            "^/api/admin/clocktower/(scripts(/.*)?|roles(/.*)?|rule-documents(/.*)?|"
+                                    + "rule-data(/.*)?)$",
+                            ApiMatcherType.REGEX, ApiRiskLevel.HIGH)
+            );
+        }
+
+        @Override
+        public List<RbacRolePresetSeed> rolePresets() {
+            return List.of(new RbacRolePresetSeed(ADMIN_APP_CODE, "CLOCKTOWER_ADMIN", "Clocktower Admin",
+                    "System role for Clocktower management operators.", 20,
+                    List.of(ADMIN_AUDIT, ADMIN_RULE_DATA), RbacResourceSource.PROVIDER));
+        }
     }
 }

@@ -1,6 +1,7 @@
 package top.egon.mario.clocktower;
 
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -326,5 +327,88 @@ class ClocktowerSchemaMigrationTests {
         assertThat(sql).contains("permission_version = permission_version + 1");
         assertThat(sql).contains("UPDATE sys_permission");
         assertThat(sql).contains("status = 0");
+    }
+
+    @Test
+    void oldClocktowerRbacResourceRetirementMigrationDisablesLegacyPermissionsOnly() {
+        DriverManagerDataSource dataSource = new DriverManagerDataSource();
+        dataSource.setDriverClassName("org.h2.Driver");
+        dataSource.setUrl("jdbc:h2:mem:clocktower_rbac_resource_retirement_%s;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1"
+                .formatted(UUID.randomUUID()));
+        dataSource.setUsername("sa");
+        dataSource.setPassword("");
+
+        Flyway.configure()
+                .dataSource(dataSource)
+                .locations("classpath:db/migration")
+                .target(MigrationVersion.fromVersion("26"))
+                .load()
+                .migrate();
+
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        jdbcTemplate.update("""
+                insert into sys_role (id, role_code, role_name, status, sort_no, built_in, description,
+                                      created_at, updated_at, version, deleted, permission_version, managed,
+                                      owner_app, source_type, source_key, sync_hash, last_synced_at)
+                values (9100, 'CLOCKTOWER_PLAYER', 'Clocktower Player', 1, 40, false, 'test role',
+                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, false, 0, true,
+                        'clocktower', 'PROVIDER', 'clocktower:CLOCKTOWER_PLAYER', 'old', CURRENT_TIMESTAMP)
+                """);
+        jdbcTemplate.update("""
+                insert into sys_permission (id, perm_code, perm_name, perm_type, status, sort_no, description,
+                                            created_at, updated_at, version, deleted, managed, owner_app,
+                                            source_type, source_key, sync_hash, last_synced_at, last_seen_at)
+                values (9200, 'api:clocktower:rooms:player:view', 'Old room view', 3, 1, 0, 'old permission',
+                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, false, true, 'clocktower',
+                        'PROVIDER', 'clocktower:api:clocktower:rooms:player:view', 'old', CURRENT_TIMESTAMP,
+                        CURRENT_TIMESTAMP)
+                """);
+        jdbcTemplate.update("""
+                insert into sys_permission (id, perm_code, perm_name, perm_type, status, sort_no, description,
+                                            created_at, updated_at, version, deleted, managed, owner_app,
+                                            source_type, source_key, sync_hash, last_synced_at, last_seen_at)
+                values (9201, 'api:clocktower:game:read', 'Game read', 3, 1, 0, 'canonical permission',
+                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, false, true, 'clocktower',
+                        'PROVIDER', 'clocktower:api:clocktower:game:read', 'new', CURRENT_TIMESTAMP,
+                        CURRENT_TIMESTAMP)
+                """);
+        jdbcTemplate.update("""
+                insert into sys_role_permission (id, role_id, permission_id, granted_at)
+                values (9300, 9100, 9200, CURRENT_TIMESTAMP)
+                """);
+        jdbcTemplate.update("""
+                insert into sys_role_permission (id, role_id, permission_id, granted_at)
+                values (9301, 9100, 9201, CURRENT_TIMESTAMP)
+                """);
+
+        Flyway.configure()
+                .dataSource(dataSource)
+                .locations("classpath:db/migration")
+                .load()
+                .migrate();
+
+        Integer oldGrantCount = jdbcTemplate.queryForObject("""
+                select count(*)
+                from sys_role_permission
+                where role_id = 9100
+                  and permission_id = 9200
+                """, Integer.class);
+        Integer canonicalGrantCount = jdbcTemplate.queryForObject("""
+                select count(*)
+                from sys_role_permission
+                where role_id = 9100
+                  and permission_id = 9201
+                """, Integer.class);
+
+        assertThat(oldGrantCount).isZero();
+        assertThat(canonicalGrantCount).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "select permission_version from sys_role where id = 9100", Long.class)).isEqualTo(1L);
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from sys_permission where id = 9200", Integer.class)).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "select version from sys_permission where id = 9200", Long.class)).isEqualTo(1L);
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from sys_permission where id = 9201", Integer.class)).isEqualTo(1);
     }
 }
