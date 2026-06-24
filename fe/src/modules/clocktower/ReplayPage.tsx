@@ -1,157 +1,161 @@
-import {SearchOutlined} from '@ant-design/icons'
-import {Button, Card, Col, Form, InputNumber, Row, Select, Space, Table, Tag, Typography} from 'antd'
-import type {ColumnsType} from 'antd/es/table'
-import {useEffect, useState} from 'react'
+import {ReloadOutlined} from '@ant-design/icons'
+import {Button, Card, Descriptions, Empty, Space, Tag, Tabs, Timeline, Typography} from 'antd'
+import type {DescriptionsProps} from 'antd'
+import {useCallback, useEffect, useMemo, useState} from 'react'
 import {useParams} from 'react-router'
 import {reportGlobalError} from '../../app/globalError'
+import {DateTimeText} from '../../components/DateTimeText'
 import {PageToolbar} from '../../components/PageToolbar'
 import {voidify} from '../../utils/async'
-import {hasAdminPermissionBypass, useAuth} from '../auth/authStore'
-import {getClocktowerReplay, getClocktowerReplayVotes} from './clocktowerService'
-import type {ClocktowerEventResponse, ClocktowerReplayResponse, ClocktowerVoteReplayResponse} from './clocktowerTypes'
-import {EventTimeline} from './components/EventTimeline'
-
-type ReplayFormValues = {
-    mode?: string
-    fromSeq?: number
-    toSeq?: number
-}
+import {getClocktowerGameReplay} from './clocktowerService'
+import type {ClocktowerGameEventResponse, ClocktowerGameReplayResponse} from './clocktowerTypes'
 
 function ReplayPage() {
-    const {roomId} = useParams()
-    const auth = useAuth()
-    const [form] = Form.useForm<ReplayFormValues>()
-    const [replay, setReplay] = useState<ClocktowerReplayResponse | null>(null)
-    const [votes, setVotes] = useState<ClocktowerVoteReplayResponse[]>([])
-    const [selected, setSelected] = useState<ClocktowerEventResponse | null>(null)
+    const {gameId} = useParams()
+    const numericGameId = Number(gameId)
+    const [replay, setReplay] = useState<ClocktowerGameReplayResponse | null>(null)
     const [loading, setLoading] = useState(false)
-    const numericRoomId = Number(roomId)
-    const canViewVoteReplay = auth.roleCodes.includes('CLOCKTOWER_STORYTELLER') || hasAdminPermissionBypass(auth)
 
-    useEffect(() => {
-        void loadReplay()
-    }, [roomId])
-
-    async function loadReplay() {
-        if (!Number.isFinite(numericRoomId)) {
+    const loadReplay = useCallback(async () => {
+        if (!Number.isFinite(numericGameId)) {
+            setReplay(null)
             return
         }
         setLoading(true)
         try {
-            const values = form.getFieldsValue()
-            const response = await getClocktowerReplay(numericRoomId, values)
-            setReplay(response)
-            setSelected(response.events[0] ?? null)
-            if (!canViewVoteReplay) {
-                setVotes([])
-                return
-            }
-            try {
-                setVotes(await getClocktowerReplayVotes(numericRoomId))
-            } catch (caught) {
-                setVotes([])
-                reportGlobalError(caught)
-            }
+            setReplay(await getClocktowerGameReplay(numericGameId))
         } catch (caught) {
             setReplay(null)
-            setVotes([])
-            setSelected(null)
             reportGlobalError(caught)
         } finally {
             setLoading(false)
         }
-    }
+    }, [numericGameId])
 
-    const voteColumns: ColumnsType<ClocktowerVoteReplayResponse> = [
-        {title: '投票 ID', dataIndex: 'voteId', width: 120},
-        {title: '提名 ID', dataIndex: 'nominationId', width: 120},
-        {title: '投票座位', dataIndex: 'voterSeatId', width: 120},
-        {
-            title: '投票',
-            dataIndex: 'voteValue',
-            width: 120,
-            render: (value: boolean) => <Tag color={value ? 'success' : 'default'}>{value ? '赞成' : '反对'}</Tag>,
-        },
-        {
-            title: '使用死票',
-            dataIndex: 'usedDeadVote',
-            width: 120,
-            render: (value: boolean) => <Tag color={value ? 'warning' : 'default'}>{value ? '是' : '否'}</Tag>,
-        },
-        {title: '事件 ID', dataIndex: 'eventId', width: 120, render: (value?: number | null) => value ?? '-'},
-    ]
+    useEffect(() => {
+        void loadReplay()
+    }, [loadReplay])
+
+    const publicEvents = useMemo(
+        () => (replay?.events ?? []).filter((event) => event.visibility === 'PUBLIC'),
+        [replay],
+    )
+    const privateEvents = useMemo(
+        () => (replay?.events ?? []).filter((event) => event.visibility !== 'PUBLIC'),
+        [replay],
+    )
 
     return (
         <>
             <PageToolbar
-                description="按事件序号查看公开或说书人视角的基础回放。"
+                actions={(
+                    <Button
+                        disabled={!Number.isFinite(numericGameId)}
+                        icon={<ReloadOutlined/>}
+                        loading={loading}
+                        onClick={voidify(loadReplay)}
+                    >
+                        刷新
+                    </Button>
+                )}
+                description="按游戏 ID 查看公开、私密与审计可见事件。"
                 title="钟楼回放"
             />
-            <Card style={{marginBottom: 16}}>
-                <Form form={form} initialValues={{mode: 'PUBLIC'}} layout="inline">
-                    <Form.Item label="模式" name="mode">
-                        <Select
-                            options={[
-                                {label: '公开', value: 'PUBLIC'},
-                                {label: '说书人', value: 'STORYTELLER'},
-                                {label: '审计', value: 'AUDIT'},
-                            ]}
-                            style={{width: 140}}
-                        />
-                    </Form.Item>
-                    <Form.Item label="起始序号" name="fromSeq">
-                        <InputNumber min={1}/>
-                    </Form.Item>
-                    <Form.Item label="结束序号" name="toSeq">
-                        <InputNumber min={1}/>
-                    </Form.Item>
-                    <Button icon={<SearchOutlined/>} loading={loading} onClick={voidify(loadReplay)} type="primary">
-                        查询
-                    </Button>
-                </Form>
+            <Card loading={loading} style={{marginBottom: 16}} title="游戏信息">
+                <Descriptions bordered column={{xs: 1, sm: 2, lg: 3}} items={metadataItems(replay, numericGameId)}/>
             </Card>
-            <Row gutter={[16, 16]}>
-                <Col lg={15} xs={24}>
-                    <Card loading={loading} title="事件时间线">
-                        <EventTimeline events={replay?.events ?? []}/>
-                    </Card>
-                </Col>
-                <Col lg={9} xs={24}>
-                    <Card title="事件详情">
-                        {selected ? (
-                            <Space orientation="vertical">
-                                <Space wrap>
-                                    <Tag>#{selected.seqNo}</Tag>
-                                    <Tag color="blue">{selected.eventType}</Tag>
-                                    <Tag>{selected.visibility}</Tag>
-                                </Space>
-                                <Typography.Text type="secondary">
-                                    {selected.phase} · 第 {selected.dayNo} 天 / 第 {selected.nightNo} 夜
-                                </Typography.Text>
-                                <Typography.Paragraph copyable code>
-                                    {JSON.stringify(selected.payload, null, 2)}
-                                </Typography.Paragraph>
-                            </Space>
-                        ) : (
-                            <Typography.Text type="secondary">暂无选中事件</Typography.Text>
-                        )}
-                    </Card>
-                </Col>
-            </Row>
-            {canViewVoteReplay && (
-                <Card style={{marginTop: 16}} title="投票复盘">
-                    <Table
-                        columns={voteColumns}
-                        dataSource={votes}
-                        loading={loading}
-                        pagination={false}
-                        rowKey="voteId"
-                        scroll={{x: 720}}
-                    />
-                </Card>
-            )}
+            <Card>
+                <Tabs
+                    items={[
+                        {
+                            key: 'public',
+                            label: '公开事件',
+                            children: <GameEventTimeline events={publicEvents}/>,
+                        },
+                        {
+                            key: 'private',
+                            label: '私密事件',
+                            children: <GameEventTimeline events={privateEvents}/>,
+                        },
+                        {
+                            key: 'all',
+                            label: '全量可见',
+                            children: <GameEventTimeline events={replay?.events ?? []}/>,
+                        },
+                    ]}
+                />
+            </Card>
         </>
     )
+}
+
+function metadataItems(
+    replay: ClocktowerGameReplayResponse | null,
+    numericGameId: number,
+): DescriptionsProps['items'] {
+    return [
+        {key: 'gameId', label: '游戏 ID', children: replay?.gameId ?? (Number.isFinite(numericGameId) ? numericGameId : '-')},
+        {key: 'roomId', label: '房间', children: replay ? `#${replay.roomId}` : '-'},
+        {key: 'viewerMode', label: '视角', children: replay?.viewerMode ?? '-'},
+        {key: 'eventCount', label: '事件数', children: replay?.events.length ?? '-'},
+    ]
+}
+
+function GameEventTimeline({events}: { events: ClocktowerGameEventResponse[] }) {
+    if (events.length === 0) {
+        return <Empty description="暂无事件"/>
+    }
+
+    return (
+        <Timeline
+            items={events.map((event) => ({
+                color: event.visibility === 'PUBLIC' ? 'green' : 'blue',
+                key: event.eventId,
+                title: (
+                    <Space wrap>
+                        <Tag>#{event.eventSeq}</Tag>
+                        <Tag color="blue">{event.eventType}</Tag>
+                        <Tag color={visibilityColor(event.visibility)}>{event.visibility}</Tag>
+                    </Space>
+                ),
+                content: (
+                    <Space orientation="vertical" size={4} style={{width: '100%'}}>
+                        <Typography.Text type="secondary">
+                            {event.phase} · 第 {event.dayNo} 天 / 第 {event.nightNo} 夜 · <DateTimeText value={event.occurredAt}/>
+                        </Typography.Text>
+                        <Space wrap>
+                            <Tag>actor={event.actorGameSeatId ?? '-'}</Tag>
+                            <Tag>target={event.targetGameSeatId ?? '-'}</Tag>
+                            <Tag>visible={event.visibleGameSeatIds.length > 0 ? event.visibleGameSeatIds.join(',') : '-'}</Tag>
+                        </Space>
+                        <Typography.Paragraph copyable style={{marginBottom: 0, whiteSpace: 'pre-wrap'}}>
+                            {formatPayload(event.payload)}
+                        </Typography.Paragraph>
+                    </Space>
+                ),
+            }))}
+        />
+    )
+}
+
+function visibilityColor(visibility: string) {
+    if (visibility === 'PUBLIC') {
+        return 'success'
+    }
+    if (visibility === 'PRIVATE') {
+        return 'processing'
+    }
+    if (visibility === 'STORYTELLER') {
+        return 'warning'
+    }
+    return 'default'
+}
+
+function formatPayload(payload: Record<string, unknown>) {
+    if (!payload || Object.keys(payload).length === 0) {
+        return '{}'
+    }
+    return JSON.stringify(payload, null, 2)
 }
 
 export const Component = ReplayPage

@@ -317,13 +317,41 @@ describe('admin menu authorization', () => {
         expect(clocktowerKeys).toContain('/clocktower/rooms')
         expect(clocktowerKeys).toContain('/clocktower/rules')
         expect(clocktowerKeys).toContain('/clocktower/replays')
+        expect(clocktowerKeys).not.toContain('/clocktower/admin/audit')
         expect(canAccessAdminPath('/clocktower/rule', clocktowerMenuTree, false, ['CLOCKTOWER_STORYTELLER']))
             .toBe(true)
         expect(canAccessAdminPath('/clocktower/replay', clocktowerMenuTree, false, ['CLOCKTOWER_STORYTELLER']))
             .toBe(true)
         expect(canAccessAdminPath('/clocktower/rooms/7/play', clocktowerMenuTree, false, ['CLOCKTOWER_STORYTELLER']))
             .toBe(true)
-        expect(canAccessAdminPath('/clocktower/replays/7', clocktowerMenuTree, false, ['CLOCKTOWER_STORYTELLER']))
+        expect(canAccessAdminPath('/clocktower/games/42/replay', clocktowerMenuTree, false, ['CLOCKTOWER_STORYTELLER']))
+            .toBe(true)
+        expect(canAccessAdminPath('/clocktower/admin/audit', clocktowerMenuTree, false, ['CLOCKTOWER_STORYTELLER']))
+            .toBe(false)
+    })
+
+    test('shows clocktower audit only when menu permission is present or bypass applies', () => {
+        const clocktowerAuditMenuTree: MenuTreeResponse[] = [
+            ...menuTree,
+            {
+                permissionId: 24,
+                permCode: 'menu:clocktower:admin-audit',
+                permName: '钟楼审计',
+                routePath: '/clocktower/admin/audit',
+                hidden: false,
+                cacheable: true,
+                sortNo: 24,
+                children: [],
+            },
+        ]
+
+        expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(clocktowerAuditMenuTree, false, ['CLOCKTOWER_STORYTELLER'])))
+            .toContain('/clocktower/admin/audit')
+        expect(canAccessAdminPath('/clocktower/admin/audit', clocktowerAuditMenuTree, false, ['CLOCKTOWER_STORYTELLER']))
+            .toBe(true)
+        expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, true, ['SUPER_ADMIN'])))
+            .toContain('/clocktower/admin/audit')
+        expect(canAccessAdminPath('/clocktower/admin/audit', menuTree, true, ['SUPER_ADMIN']))
             .toBe(true)
     })
 })

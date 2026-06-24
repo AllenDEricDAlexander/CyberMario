@@ -52,6 +52,7 @@ const menuPathByKey: Record<string, string> = {
     '/clocktower/rooms': '/clocktower/rooms',
     '/clocktower/rules': '/clocktower/rules',
     '/clocktower/replays': '/clocktower/replays',
+    '/clocktower/admin/audit': '/clocktower/admin/audit',
     '/rbac/users': '/rbac/users',
     '/rbac/roles': '/rbac/roles',
     '/rbac/permissions': '/rbac/permissions',
@@ -190,6 +191,11 @@ export const adminMenuItems: AdminMenuItem[] = [
                 icon: <FileSearchOutlined/>,
                 label: '钟楼回放',
             },
+            {
+                key: '/clocktower/admin/audit',
+                icon: <AuditOutlined/>,
+                label: '钟楼审计',
+            },
         ],
     },
     {
@@ -265,8 +271,9 @@ export function flattenMenuKeys(items: AdminMenuItem[]) {
 }
 
 export function selectedAdminMenuKey(pathname: string, menuKeys: string[]) {
+    const canonicalPathname = canonicalAdminPath(pathname)
     return menuKeys
-        .filter((key) => pathname === key || pathname.startsWith(`${key}/`))
+        .filter((key) => canonicalPathname === key || canonicalPathname.startsWith(`${key}/`))
         .sort((left, right) => right.length - left.length)[0]
 }
 
@@ -283,6 +290,9 @@ export function canAccessAdminPath(pathname: string, menus: MenuTreeResponse[], 
 }
 
 function canonicalAdminPath(pathname: string) {
+    if (/^\/clocktower\/games\/[^/]+\/replay$/.test(pathname)) {
+        return '/clocktower/replays'
+    }
     return compatibilityMenuPathAliases[pathname] ?? pathname
 }
 

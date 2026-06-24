@@ -14,7 +14,7 @@ const authState = ((globalThis as typeof globalThis & Record<string, MockAuthSta
 })
 
 vi.mock('react-router', () => ({
-    useParams: () => ({roomId: '7'}),
+    useParams: () => ({gameId: '42', roomId: '7'}),
 }))
 
 vi.mock('../auth/authStore', () => ({
@@ -26,6 +26,7 @@ vi.mock('../auth/authStore', () => ({
 }))
 
 vi.mock('./clocktowerService', () => ({
+    getClocktowerGameReplay: vi.fn().mockResolvedValue({gameId: 42, roomId: 7, viewerMode: 'PLAYER', events: []}),
     getClocktowerReplay: vi.fn().mockResolvedValue({roomId: 7, mode: 'PUBLIC', events: []}),
     getClocktowerReplayVotes: vi.fn().mockResolvedValue([]),
 }))
@@ -36,21 +37,23 @@ describe('ReplayPage', () => {
         authState.adminBypass = false
     })
 
-    test('renders replay timeline and vote review sections', () => {
+    test('renders game replay metadata and event visibility tabs', () => {
         const markup = renderToStaticMarkup(<ReplayPage/>)
 
         expect(markup).toContain('钟楼回放')
-        expect(markup).toContain('事件时间线')
-        expect(markup).toContain('投票复盘')
-        expect(markup).toContain('使用死票')
+        expect(markup).toContain('游戏信息')
+        expect(markup).toContain('公开事件')
+        expect(markup).toContain('私密事件')
+        expect(markup).toContain('全量可见')
+        expect(markup).not.toContain('投票复盘')
     })
 
-    test('does not render vote review section for player role', () => {
+    test('does not keep room vote replay on canonical game replay', () => {
         authState.roleCodes = ['CLOCKTOWER_PLAYER']
         const markup = renderToStaticMarkup(<ReplayPage/>)
 
         expect(markup).toContain('钟楼回放')
-        expect(markup).toContain('事件时间线')
+        expect(markup).toContain('全量可见')
         expect(markup).not.toContain('投票复盘')
         expect(markup).not.toContain('使用死票')
     })
