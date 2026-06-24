@@ -639,10 +639,14 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
         if (!StringUtils.hasText(seatingPolicy)) {
             return ClocktowerSeatAssignmentPolicy.OPEN_SEATING;
         }
+        if (ClocktowerSeatAssignmentPolicy.OPEN_SEATING.equals(seatingPolicy)
+                || ClocktowerSeatAssignmentPolicy.INVITE_ONLY.equals(seatingPolicy)) {
+            return seatingPolicy;
+        }
         if (ClocktowerSeatAssignmentPolicy.APPROVAL_REQUIRED.equals(seatingPolicy)) {
             throw new ClocktowerException("CLOCKTOWER_SEATING_POLICY_UNSUPPORTED");
         }
-        return seatingPolicy;
+        throw new ClocktowerException("CLOCKTOWER_SEATING_POLICY_INVALID");
     }
 
     private String seatingPolicy(ClocktowerRoomProfilePo profile) {

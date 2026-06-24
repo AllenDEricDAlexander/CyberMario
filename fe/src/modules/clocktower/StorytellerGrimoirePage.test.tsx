@@ -408,5 +408,8 @@ describe('StorytellerGrimoirePage', () => {
         expect(markup).toContain('EMPATH')
         expect(markup).toContain('玩家公聊')
         expect(markup).not.toContain('旁观席')
+        expect(markup).not.toContain('/clocktower/rooms/7/grimoire')
+        expect(markup).not.toContain('完整魔典')
+        expect(markup).not.toContain('进入裁定')
     })
 })

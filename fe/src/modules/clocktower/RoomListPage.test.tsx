@@ -116,6 +116,23 @@ describe('RoomListPage', () => {
         expect(markup).toContain('1')
     })
 
+    test('room list actions do not expose legacy grimoire navigation', () => {
+        const markup = renderToStaticMarkup(
+            <Table
+                columns={createRoomListColumns(vi.fn())}
+                dataSource={[roomFixture()]}
+                pagination={false}
+                rowKey="roomId"
+            />,
+        )
+
+        expect(markup).toContain('大 厅')
+        expect(markup).toContain('游 戏')
+        expect(markup).toContain('回 放')
+        expect(markup).not.toContain('魔 典')
+        expect(markup).not.toContain('/grimoire')
+    })
+
     test('does not describe missing room visibility as public', () => {
         const markup = renderToStaticMarkup(
             <Table

@@ -165,6 +165,18 @@ class ClocktowerRoomRefactorServiceTests {
     }
 
     @Test
+    void createRoomRejectsUnknownSeatingPolicyBeforeGenericRoomCreation() {
+        long roomCount = roomSpaceRepository.count();
+
+        assertThatThrownBy(() -> roomService.createRoom(createRequest("RANDOM_POLICY"),
+                principal(1L, "mario")))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_SEATING_POLICY_INVALID");
+
+        assertThat(roomSpaceRepository.count()).isEqualTo(roomCount);
+    }
+
+    @Test
     void claimSeatDefaultsMissingSeatingPolicyToOpenSeating() {
         ClocktowerRoomResponse room = roomService.createRoom(createRequest(null), principal(1L, "mario"));
 

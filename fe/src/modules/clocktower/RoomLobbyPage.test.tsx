@@ -5,6 +5,7 @@ import {
     RoomLobbyManagementActions,
     RoomLobbyTabs,
     canStartClocktowerRoom,
+    clocktowerRoomPlayPath,
     loadClocktowerRoomForLobby,
     roomLobbyCounts,
 } from './RoomLobbyPage'
@@ -277,5 +278,10 @@ describe('RoomLobbyPage', () => {
             ...ready,
             seats: [{...ready.seats[0], roleCode: null}, ...ready.seats.slice(1)],
         })).toBe(false)
+    })
+
+    test('routes started games to the refactor play surface', () => {
+        expect(clocktowerRoomPlayPath(7)).toBe('/clocktower/rooms/7/play')
+        expect(clocktowerRoomPlayPath(7)).not.toContain('/grimoire')
     })
 })

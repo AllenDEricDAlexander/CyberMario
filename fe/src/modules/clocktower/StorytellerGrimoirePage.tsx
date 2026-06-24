@@ -20,7 +20,7 @@ import {
     Typography,
 } from 'antd'
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {Link, useParams} from 'react-router'
+import {useParams} from 'react-router'
 import {reportGlobalError} from '../../app/globalError'
 import {PageToolbar} from '../../components/PageToolbar'
 import {resolveErrorMessage} from '../../services/request'
@@ -676,11 +676,6 @@ export function StorytellerGameSurface({
     return (
         <>
             <PageToolbar
-                actions={(
-                    <Link to={`/clocktower/rooms/${view.roomId}/grimoire`}>
-                        <Button>完整魔典</Button>
-                    </Link>
-                )}
                 description={`说书人视角 · ${view.phase}`}
                 title="说书人魔典"
             />
@@ -719,7 +714,7 @@ export function StorytellerGameSurface({
                                             <Typography.Text strong>当前阶段</Typography.Text>
                                             <Tag color="blue">{phaseText(view.phase)}</Tag>
                                             <Typography.Text type="secondary">
-                                                完整流程推进、夜晚任务和处决结算在完整魔典中处理。
+                                                当前游戏视图展示流程状态、事件和聊天监控。
                                             </Typography.Text>
                                         </Space>
                                     ),
@@ -731,11 +726,8 @@ export function StorytellerGameSurface({
                                         <Space orientation="vertical">
                                             <Typography.Text strong>裁定入口</Typography.Text>
                                             <Typography.Text type="secondary">
-                                                使用完整魔典记录死亡、复活、公开生死和胜负裁定。
+                                                裁定写入入口迁移完成前暂不在游戏视图开放。
                                             </Typography.Text>
-                                            <Link to={`/clocktower/rooms/${view.roomId}/grimoire`}>
-                                                <Button type="primary">进入裁定</Button>
-                                            </Link>
                                         </Space>
                                     ),
                                 },

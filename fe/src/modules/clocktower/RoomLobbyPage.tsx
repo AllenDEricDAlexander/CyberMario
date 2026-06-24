@@ -146,7 +146,7 @@ function RoomLobbyPage() {
         try {
             await startClocktowerGame(numericRoomId)
             message.success('游戏已开始')
-            void navigate(`/clocktower/rooms/${numericRoomId}/grimoire`)
+            void navigate(clocktowerRoomPlayPath(numericRoomId))
         } catch (caught) {
             reportGlobalError(caught)
         } finally {
@@ -401,6 +401,10 @@ export function canStartClocktowerRoom(room: ClocktowerRoomResponse) {
         && seat.roleCode.trim().length > 0
         && (!('ready' in seat) || seat.ready === true)
     ))
+}
+
+export function clocktowerRoomPlayPath(roomId: number) {
+    return `/clocktower/rooms/${roomId}/play`
 }
 
 export async function loadClocktowerRoomForLobby({

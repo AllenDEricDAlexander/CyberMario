@@ -314,11 +314,6 @@ export function createRoomListColumns(navigate: (path: string) => void): Columns
                         游戏
                     </Button>
                     <Button size="small" onClick={() => {
-                        navigate(`/clocktower/rooms/${record.roomId}/grimoire`)
-                    }}>
-                        魔典
-                    </Button>
-                    <Button size="small" onClick={() => {
                         navigate(`/clocktower/replays/${record.roomId}`)
                     }}>
                         回放
