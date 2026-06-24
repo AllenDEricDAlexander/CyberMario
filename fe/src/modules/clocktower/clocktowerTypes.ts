@@ -279,12 +279,26 @@ export type ClocktowerRoomCreateRequest = {
     boardCode?: string | null
     roleCodes: string[]
     storytellerMode: string
+    seatingPolicy?: string | null
     allowSpectators: boolean
     allowPrivateChat: boolean
     agentSeatCount: number
 }
 
 export type ClocktowerCreateRoomRequest = ClocktowerRoomCreateRequest
+
+export type ClocktowerRoomInvitationCreateRequest = {
+    inviteeUserId: number
+    invitationType: string
+    targetSeatNo?: number | null
+    expiresAt?: string | null
+}
+
+export type ClocktowerRoomMemberActionRequest = {
+    ban: boolean
+    banDurationSeconds?: number | null
+    reason?: string | null
+}
 
 export type ClocktowerRoomJoinRequest = {
     seatNo?: number | null
@@ -333,6 +347,9 @@ export type ClocktowerRoomResponse = {
     status: ClocktowerRoomStatus
     phase: ClocktowerPhase
     playerCount: number
+    visibility?: ClocktowerVisibility | null
+    allowSpectators?: boolean | null
+    allowPrivateChat?: boolean | null
     storytellerUserId?: number | null
     seats: ClocktowerRoomSeatResponse[]
     publicConversationId?: number | null

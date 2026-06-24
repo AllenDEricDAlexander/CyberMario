@@ -32,7 +32,10 @@ import type {
     ClocktowerRoleResponse,
     ClocktowerRoleTypeCode,
     ClocktowerRoomCreateRequest,
+    ClocktowerRoomInvitationCreateRequest,
+    ClocktowerRoomInvitationResponse,
     ClocktowerRoomJoinRequest,
+    ClocktowerRoomMemberActionRequest,
     ClocktowerRoomAuditResponse,
     ClocktowerRoomResponse,
     ClocktowerReadStateRequest,
@@ -165,6 +168,38 @@ export function claimClocktowerSeat(roomId: number, seatNo: number, request?: Cl
     })
 }
 
+export function createClocktowerInvitation(roomId: number, request: ClocktowerRoomInvitationCreateRequest) {
+    return requestJson<ClocktowerRoomInvitationResponse>(`/api/clocktower/rooms/${roomId}/invitations`, {
+        method: 'POST',
+        body: request,
+    })
+}
+
+export function acceptClocktowerInvitation(roomId: number, invitationId: number) {
+    return requestJson<ClocktowerRoomInvitationResponse>(
+        `/api/clocktower/rooms/${roomId}/invitations/${invitationId}/accept`,
+        {method: 'POST'},
+    )
+}
+
+export function declineClocktowerInvitation(roomId: number, invitationId: number) {
+    return requestJson<ClocktowerRoomInvitationResponse>(
+        `/api/clocktower/rooms/${roomId}/invitations/${invitationId}/decline`,
+        {method: 'POST'},
+    )
+}
+
+export function kickClocktowerRoomMember(
+    roomId: number,
+    userId: number,
+    request?: ClocktowerRoomMemberActionRequest,
+) {
+    return requestJson<void>(`/api/clocktower/rooms/${roomId}/members/${userId}/kick`, {
+        method: 'POST',
+        body: request,
+    })
+}
+
 export function leaveClocktowerRoom(roomId: number) {
     return requestJson<void>(`/api/clocktower/rooms/${roomId}/leave`, {method: 'POST'})
 }
@@ -176,7 +211,7 @@ export function updateClocktowerSeat(roomId: number, seatId: number, request: Cl
     })
 }
 
-export function startClocktowerGame(roomId: number, _request?: ClocktowerRoomStartRequest) {
+export function startClocktowerGame(roomId: number) {
     return requestJson<ClocktowerGameResponse>(`/api/clocktower/rooms/${roomId}/games/start`, {
         method: 'POST',
     })

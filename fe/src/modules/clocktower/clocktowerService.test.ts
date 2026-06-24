@@ -4,7 +4,10 @@ import {
     claimClocktowerSeat,
     closeClocktowerNomination,
     confirmClocktowerExecution,
+    createClocktowerInvitation,
+    createClocktowerRoom,
     createClocktowerRuling,
+    declineClocktowerInvitation,
     enterClocktowerRoom,
     generateClocktowerBoard,
     getClocktowerGameAudit,
@@ -25,6 +28,7 @@ import {
     listClocktowerGameHistory,
     listClocktowerRulings,
     heartbeatClocktowerRoom,
+    kickClocktowerRoomMember,
     markClocktowerChatRead,
     saveClocktowerBoard,
     sendClocktowerChatMessage,
@@ -32,6 +36,7 @@ import {
     startClocktowerGame,
     streamClocktowerEvents,
     submitClocktowerStorytellerAction,
+    acceptClocktowerInvitation,
     undoClocktowerRuling,
     validateClocktowerBoard,
     startClocktowerRoom,
@@ -191,11 +196,73 @@ describe('clocktowerService', () => {
         })
     })
 
+    it('creates room invitations through the lobby endpoint', async () => {
+        const {requestJson} = await import('../../services/request')
+        const request = {
+            inviteeUserId: 31,
+            invitationType: 'SEAT',
+            targetSeatNo: 3,
+            expiresAt: null,
+        }
+
+        await createClocktowerInvitation(7, request)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/invitations', {
+            method: 'POST',
+            body: request,
+        })
+    })
+
+    it('creates rooms with open seating policy payloads', async () => {
+        const {requestJson} = await import('../../services/request')
+        const request = {
+            name: '钟楼房间',
+            scriptCode: 'TROUBLE_BREWING' as const,
+            playerCount: 5,
+            boardConfigId: null,
+            boardCode: null,
+            roleCodes: [],
+            storytellerMode: 'HUMAN',
+            allowSpectators: true,
+            allowPrivateChat: true,
+            agentSeatCount: 0,
+            seatingPolicy: 'OPEN_SEATING',
+        }
+
+        await createClocktowerRoom(request)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms', {
+            method: 'POST',
+            body: request,
+        })
+    })
+
+    it('accepts and declines room invitations through the lobby endpoints', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await acceptClocktowerInvitation(7, 11)
+        await declineClocktowerInvitation(7, 12)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/invitations/11/accept', {method: 'POST'})
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/invitations/12/decline', {method: 'POST'})
+    })
+
+    it('kicks room members through the lobby endpoint', async () => {
+        const {requestJson} = await import('../../services/request')
+        const request = {ban: true, banDurationSeconds: 3600, reason: 'blocked'}
+
+        await kickClocktowerRoomMember(7, 31, request)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/members/31/kick', {
+            method: 'POST',
+            body: request,
+        })
+    })
+
     it('starts games through the game lifecycle endpoint', async () => {
         const {requestJson} = await import('../../services/request')
-        const request = {assignments: [], randomize: false}
 
-        await startClocktowerGame(7, request)
+        await startClocktowerGame(7)
 
         expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/games/start', {
             method: 'POST',

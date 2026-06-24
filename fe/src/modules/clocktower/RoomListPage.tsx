@@ -1,5 +1,5 @@
 import {PlusOutlined, ReloadOutlined} from '@ant-design/icons'
-import {App, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Table, Tag} from 'antd'
+import {App, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Switch, Table, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useState} from 'react'
 import {useNavigate} from 'react-router'
@@ -14,6 +14,7 @@ import type {
     ClocktowerRoomResponse,
     ClocktowerRoomStatus,
     ClocktowerScriptCode,
+    ClocktowerVisibility,
 } from './clocktowerTypes'
 
 const scriptOptions: Array<{ label: string; value: ClocktowerScriptCode }> = [
@@ -22,12 +23,37 @@ const scriptOptions: Array<{ label: string; value: ClocktowerScriptCode }> = [
     {label: '教派紫罗兰', value: 'SECTS_AND_VIOLETS'},
 ]
 
+const seatingPolicyOptions = [
+    {label: '自由入座 / OPEN_SEATING', value: 'OPEN_SEATING'},
+]
+
+export const roomCreateInitialValues: ClocktowerRoomCreateRequest = {
+    name: '钟楼房间',
+    scriptCode: 'TROUBLE_BREWING',
+    playerCount: 5,
+    boardConfigId: null,
+    boardCode: null,
+    roleCodes: [],
+    storytellerMode: 'HUMAN',
+    seatingPolicy: 'OPEN_SEATING',
+    allowSpectators: true,
+    allowPrivateChat: true,
+    agentSeatCount: 0,
+}
+
 const statusColors: Record<ClocktowerRoomStatus, string> = {
     LOBBY: 'default',
     SETUP: 'warning',
     RUNNING: 'processing',
     ENDED: 'success',
     ARCHIVED: 'default',
+}
+
+const visibilityLabels: Record<ClocktowerVisibility, string> = {
+    PUBLIC: '公开',
+    PRIVATE: '私有',
+    STORYTELLER: '说书人',
+    AUDIT: '审计',
 }
 
 function RoomListPage() {
@@ -59,18 +85,7 @@ function RoomListPage() {
     }, [loadRooms])
 
     function openCreator() {
-        form.setFieldsValue({
-            name: '钟楼房间',
-            scriptCode: 'TROUBLE_BREWING',
-            playerCount: 5,
-            boardConfigId: null,
-            boardCode: null,
-            roleCodes: [],
-            storytellerMode: 'HUMAN',
-            allowSpectators: true,
-            allowPrivateChat: true,
-            agentSeatCount: 0,
-        })
+        form.setFieldsValue({...roomCreateInitialValues, roleCodes: [...roomCreateInitialValues.roleCodes]})
         setBoards([])
         setCreatorOpen(true)
         void loadValidBoards()
@@ -120,6 +135,7 @@ function RoomListPage() {
             const room = await createClocktowerRoom({
                 ...values,
                 roleCodes: values.roleCodes ?? [],
+                seatingPolicy: values.seatingPolicy ?? roomCreateInitialValues.seatingPolicy,
             })
             message.success('房间已创建')
             setCreatorOpen(false)
@@ -132,70 +148,9 @@ function RoomListPage() {
         }
     }
 
-    const columns: ColumnsType<ClocktowerRoomResponse> = [
-        {
-            title: '房间',
-            dataIndex: 'name',
-            width: 220,
-            render: (_, record) => (
-                <Space orientation="vertical" size={0}>
-                    <span>{record.name}</span>
-                    <Tag>{record.roomCode}</Tag>
-                </Space>
-            ),
-        },
-        {title: '剧本', dataIndex: 'scriptCode', width: 180},
-        {
-            title: '状态',
-            dataIndex: 'status',
-            width: 120,
-            render: (value: ClocktowerRoomStatus) => <Tag color={statusColors[value]}>{value}</Tag>,
-        },
-        {title: '阶段', dataIndex: 'phase', width: 130, render: (value) => <Tag color="blue">{value}</Tag>},
-        {
-            title: '座位',
-            width: 120,
-            render: (_, record) => `${record.seats.filter((seat) => seat.userId).length}/${record.playerCount}`,
-        },
-        {
-            title: '说书人',
-            dataIndex: 'storytellerUserId',
-            width: 120,
-            render: (value: ClocktowerRoomResponse['storytellerUserId']) => value ?? '-',
-        },
-        {
-            title: '操作',
-            fixed: 'right',
-            width: 300,
-            render: (_, record) => (
-                <Space>
-                    <Button size="small" onClick={() => {
-                        void navigate(`/clocktower/rooms/${record.roomId}/lobby`)
-                    }}>
-                        大厅
-                    </Button>
-                    <Button size="small" onClick={() => {
-                        void navigate(`/clocktower/rooms/${record.roomId}/play`)
-                    }}>
-                        游戏
-                    </Button>
-                    <Button size="small" onClick={() => {
-                        void navigate(`/clocktower/rooms/${record.roomId}/grimoire`)
-                    }}>
-                        魔典
-                    </Button>
-                    <Button size="small" onClick={() => {
-                        void navigate(`/clocktower/replays/${record.roomId}`)
-                    }}>
-                        回放
-                    </Button>
-                    <Popconfirm title="归档接口将在后续计划实现">
-                        <Button disabled size="small">归档</Button>
-                    </Popconfirm>
-                </Space>
-            ),
-        },
-    ]
+    const columns = createRoomListColumns((path) => {
+        void navigate(path)
+    })
 
     return (
         <>
@@ -249,6 +204,9 @@ function RoomListPage() {
                     <Form.Item label="说书人模式" name="storytellerMode">
                         <Select options={[{label: '人工说书人', value: 'HUMAN'}]}/>
                     </Form.Item>
+                    <Form.Item label="入座策略" name="seatingPolicy" rules={[{required: true, message: '请选择入座策略'}]}>
+                        <Select options={seatingPolicyOptions}/>
+                    </Form.Item>
                     <Form.Item label="通过配板" name="boardConfigId">
                         <Select
                             allowClear
@@ -281,3 +239,100 @@ function RoomListPage() {
 }
 
 export const Component = RoomListPage
+
+export function createRoomListColumns(navigate: (path: string) => void): ColumnsType<ClocktowerRoomResponse> {
+    return [
+        {
+            title: '房间',
+            dataIndex: 'name',
+            key: 'room',
+            width: 220,
+            render: (_, record) => (
+                <Space orientation="vertical" size={0}>
+                    <span>{record.name}</span>
+                    <Tag>{record.roomCode}</Tag>
+                </Space>
+            ),
+        },
+        {title: '剧本', dataIndex: 'scriptCode', key: 'script', width: 180},
+        {
+            title: '可见性',
+            dataIndex: 'visibility',
+            key: 'visibility',
+            width: 120,
+            render: (value: ClocktowerRoomResponse['visibility']) => {
+                if (!value) {
+                    return <Tag>未提供</Tag>
+                }
+                return <Tag color={value === 'PRIVATE' ? 'warning' : 'success'}>{visibilityLabels[value]}</Tag>
+            },
+        },
+        {
+            title: '状态',
+            dataIndex: 'status',
+            key: 'status',
+            width: 120,
+            render: (value: ClocktowerRoomStatus) => <Tag color={statusColors[value]}>{value}</Tag>,
+        },
+        {
+            title: '玩家',
+            key: 'players',
+            width: 120,
+            render: (_, record) => {
+                const counts = roomListCounts(record)
+                return `${counts.occupied}/${counts.required}`
+            },
+        },
+        {
+            title: '预留',
+            key: 'reserved',
+            width: 100,
+            render: (_, record) => roomListCounts(record).reserved,
+        },
+        {
+            title: '说书人',
+            dataIndex: 'storytellerUserId',
+            key: 'storyteller',
+            width: 120,
+            render: (value: ClocktowerRoomResponse['storytellerUserId']) => value ?? '-',
+        },
+        {
+            title: '操作',
+            fixed: 'right',
+            key: 'actions',
+            width: 260,
+            render: (_, record) => (
+                <Space>
+                    <Button size="small" onClick={() => {
+                        navigate(`/clocktower/rooms/${record.roomId}/lobby`)
+                    }}>
+                        大厅
+                    </Button>
+                    <Button size="small" onClick={() => {
+                        navigate(`/clocktower/rooms/${record.roomId}/play`)
+                    }}>
+                        游戏
+                    </Button>
+                    <Button size="small" onClick={() => {
+                        navigate(`/clocktower/rooms/${record.roomId}/grimoire`)
+                    }}>
+                        魔典
+                    </Button>
+                    <Button size="small" onClick={() => {
+                        navigate(`/clocktower/replays/${record.roomId}`)
+                    }}>
+                        回放
+                    </Button>
+                </Space>
+            ),
+        },
+    ]
+}
+
+export function roomListCounts(room: ClocktowerRoomResponse) {
+    return {
+        occupied: room.seats.filter((seat) => Boolean(seat.userId)).length,
+        reserved: room.reservations?.length ?? 0,
+        required: room.playerCount,
+    }
+}
