@@ -32,6 +32,8 @@ class ClocktowerRbacResourceProviderTests {
                         "api:clocktower:rooms:player:leave",
                         "api:clocktower:rooms:player:view",
                         "api:clocktower:rooms:player:action",
+                        "api:clocktower:rooms:chat:*",
+                        "api:clocktower:chat:*",
                         "api:clocktower:rooms:storyteller:create",
                         "api:clocktower:rooms:storyteller:start",
                         "api:clocktower:rooms:storyteller:seat",
@@ -64,6 +66,9 @@ class ClocktowerRbacResourceProviderTests {
                             "api:clocktower:terms:read",
                             "api:clocktower:jinx-rules:read",
                             "api:clocktower:rooms:player:view");
+                    assertThat(role.permissionCodes()).contains(
+                            "api:clocktower:rooms:chat:*",
+                            "api:clocktower:chat:*");
                     assertThat(role.permissionCodes())
                             .noneMatch(code -> code.startsWith("api:clocktower:rooms:storyteller:"));
                     assertThat(role.permissionCodes())
@@ -79,6 +84,8 @@ class ClocktowerRbacResourceProviderTests {
                         "api:clocktower:terms:read",
                         "api:clocktower:jinx-rules:read",
                         "api:clocktower:rooms:storyteller:ruling",
+                        "api:clocktower:rooms:chat:*",
+                        "api:clocktower:chat:*",
                         "api:clocktower:rooms:storyteller:flow",
                         "api:clocktower:rooms:storyteller:night-task",
                         "api:clocktower:rooms:storyteller:nomination",

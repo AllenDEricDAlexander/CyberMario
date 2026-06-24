@@ -50,6 +50,10 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
                 "/api/clocktower/rooms/*/view", ApiRiskLevel.MEDIUM));
         resources.add(api("api:clocktower:rooms:player:action", "Clocktower player action", "POST",
                 "/api/clocktower/rooms/*/actions", ApiRiskLevel.MEDIUM));
+        resources.add(api("api:clocktower:rooms:chat:*", "Clocktower room chat conversations", "GET",
+                "/api/clocktower/rooms/*/chat/**", ApiRiskLevel.MEDIUM));
+        resources.add(api("api:clocktower:chat:*", "Clocktower chat", "ANY",
+                "/api/clocktower/chat/**", ApiRiskLevel.MEDIUM));
         resources.add(api("api:clocktower:rooms:storyteller:create", "Clocktower create room", "POST",
                 "/api/clocktower/rooms", ApiRiskLevel.MEDIUM));
         resources.add(api("api:clocktower:rooms:storyteller:start", "Clocktower start room", "POST",
@@ -101,6 +105,7 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
                                 "api:clocktower:rooms:read:detail", "api:clocktower:rooms:player:join",
                                 "api:clocktower:rooms:player:leave", "api:clocktower:rooms:player:view",
                                 "api:clocktower:rooms:player:action",
+                                "api:clocktower:rooms:chat:*", "api:clocktower:chat:*",
                                 "api:clocktower:events:stream", "api:clocktower:replays:*"
                         ), RbacResourceSource.PROVIDER),
                 new RbacRolePresetSeed(APP_CODE, "CLOCKTOWER_STORYTELLER", "Clocktower Storyteller",
@@ -112,6 +117,7 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
                                 "api:clocktower:rooms:read:list", "api:clocktower:rooms:read:detail",
                                 "api:clocktower:rooms:player:join", "api:clocktower:rooms:player:leave",
                                 "api:clocktower:rooms:player:view", "api:clocktower:rooms:player:action",
+                                "api:clocktower:rooms:chat:*", "api:clocktower:chat:*",
                                 "api:clocktower:rooms:storyteller:create",
                                 "api:clocktower:rooms:storyteller:start",
                                 "api:clocktower:rooms:storyteller:seat",

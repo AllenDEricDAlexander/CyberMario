@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import top.egon.mario.im.po.ImConversationPo;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface ImConversationRepository extends JpaRepository<ImConversationPo, Long> {
@@ -14,6 +15,9 @@ public interface ImConversationRepository extends JpaRepository<ImConversationPo
 
     Optional<ImConversationPo> findByGroupIdAndScopeTypeAndScopeIdAndConversationTypeAndParticipantKeyAndDeletedFalse(
             Long groupId, String scopeType, Long scopeId, String conversationType, String participantKey);
+
+    List<ImConversationPo> findByContextTypeAndScopeTypeAndScopeIdAndDeletedFalseOrderByGroupIdAscIdAsc(
+            String contextType, String scopeType, Long scopeId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select conversation from ImConversationPo conversation where conversation.id = :id and conversation.deleted = false")
