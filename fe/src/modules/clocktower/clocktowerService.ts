@@ -3,16 +3,25 @@ import {buildSearchParams} from '../../services/urlSearch'
 import type {
     BoardValidationResponse,
     ClocktowerActionResponse,
+    ClocktowerAuditQuery,
+    ClocktowerChatReadStateResponse,
     ClocktowerBoardConfigResponse,
     ClocktowerBoardGenerateRequest,
     ClocktowerBoardGenerateResponse,
     ClocktowerBoardQuery,
     ClocktowerBoardSaveRequest,
     ClocktowerBoardValidateRequest,
+    ClocktowerConversationResponse,
     ClocktowerEventResponse,
     ClocktowerFlowResponse,
+    ClocktowerGameAuditResponse,
+    ClocktowerGameHistoryResponse,
+    ClocktowerGameReplayResponse,
+    ClocktowerGameResponse,
+    ClocktowerGameViewResponse,
     ClocktowerGrimoireResponse,
     ClocktowerJinxRuleResponse,
+    ClocktowerMessageResponse,
     ClocktowerNightChecklistResponse,
     ClocktowerNightOrderGroupResponse,
     ClocktowerNightOrderResponse,
@@ -24,7 +33,10 @@ import type {
     ClocktowerRoleTypeCode,
     ClocktowerRoomCreateRequest,
     ClocktowerRoomJoinRequest,
+    ClocktowerRoomAuditResponse,
     ClocktowerRoomResponse,
+    ClocktowerReadStateRequest,
+    ClocktowerSeatClaimRequest,
     ClocktowerRoomStartRequest,
     ClocktowerRulingApplyResponse,
     ClocktowerRulingCreateRequest,
@@ -33,6 +45,7 @@ import type {
     ClocktowerScriptCode,
     ClocktowerScriptResponse,
     ClocktowerSeatResponse,
+    ClocktowerSendMessageRequest,
     ClocktowerStartGameResponse,
     ClocktowerStorytellerActionRequest,
     ClocktowerTermResponse,
@@ -137,6 +150,21 @@ export function joinClocktowerRoom(roomId: number, request: ClocktowerRoomJoinRe
     })
 }
 
+export function enterClocktowerRoom(roomId: number) {
+    return requestJson<ClocktowerRoomResponse>(`/api/clocktower/rooms/${roomId}/enter`, {method: 'POST'})
+}
+
+export function heartbeatClocktowerRoom(roomId: number) {
+    return requestJson<void>(`/api/clocktower/rooms/${roomId}/heartbeat`, {method: 'POST'})
+}
+
+export function claimClocktowerSeat(roomId: number, seatNo: number, request?: ClocktowerSeatClaimRequest) {
+    return requestJson<ClocktowerSeatResponse>(`/api/clocktower/rooms/${roomId}/seats/${seatNo}/claim`, {
+        method: 'POST',
+        body: request,
+    })
+}
+
 export function leaveClocktowerRoom(roomId: number) {
     return requestJson<void>(`/api/clocktower/rooms/${roomId}/leave`, {method: 'POST'})
 }
@@ -148,7 +176,13 @@ export function updateClocktowerSeat(roomId: number, seatId: number, request: Cl
     })
 }
 
-export function startClocktowerGame(roomId: number, request: ClocktowerRoomStartRequest) {
+export function startClocktowerGame(roomId: number, _request?: ClocktowerRoomStartRequest) {
+    return requestJson<ClocktowerGameResponse>(`/api/clocktower/rooms/${roomId}/games/start`, {
+        method: 'POST',
+    })
+}
+
+export function startClocktowerRoom(roomId: number, request: ClocktowerRoomStartRequest) {
     return requestJson<ClocktowerStartGameResponse>(`/api/clocktower/rooms/${roomId}/start`, {
         method: 'POST',
         body: request,
@@ -215,6 +249,10 @@ export function getClocktowerPlayerView(roomId: number, params: { seatId?: numbe
     return requestJson<ClocktowerPlayerViewResponse>(`/api/clocktower/rooms/${roomId}/view${suffix(search)}`)
 }
 
+export function getClocktowerGameView(gameId: number) {
+    return requestJson<ClocktowerGameViewResponse>(`/api/clocktower/games/${gameId}/view`)
+}
+
 export function submitClocktowerPlayerAction(roomId: number, request: ClocktowerPlayerActionRequest) {
     return requestJson<ClocktowerActionResponse>(`/api/clocktower/rooms/${roomId}/actions`, {
         method: 'POST',
@@ -234,8 +272,62 @@ export function getClocktowerReplay(roomId: number, params: { mode?: string; fro
     return requestJson<ClocktowerReplayResponse>(`/api/clocktower/replays/${roomId}${suffix(search)}`)
 }
 
+export function getClocktowerGameReplay(gameId: number) {
+    return requestJson<ClocktowerGameReplayResponse>(`/api/clocktower/games/${gameId}/replay`)
+}
+
+export function listClocktowerGameHistory() {
+    return requestJson<ClocktowerGameHistoryResponse[]>('/api/clocktower/games/history')
+}
+
 export function getClocktowerReplayVotes(roomId: number) {
     return requestJson<ClocktowerVoteReplayResponse[]>(`/api/clocktower/replays/${roomId}/votes`)
+}
+
+export function listClocktowerChatConversations(roomId: number) {
+    return requestJson<ClocktowerConversationResponse[]>(`/api/clocktower/rooms/${roomId}/chat/conversations`)
+}
+
+export function listClocktowerChatMessages(conversationId: number, params: { page?: number; size?: number } = {}) {
+    const search = buildSearchParams({
+        page: params.page ?? 1,
+        size: params.size ?? 20,
+    })
+    return requestJson<ClocktowerPage<ClocktowerMessageResponse>>(
+        `/api/clocktower/chat/conversations/${conversationId}/messages${suffix(search)}`,
+    )
+}
+
+export function sendClocktowerChatMessage(conversationId: number, request: ClocktowerSendMessageRequest) {
+    return requestJson<ClocktowerMessageResponse>(`/api/clocktower/chat/conversations/${conversationId}/messages`, {
+        method: 'POST',
+        body: request,
+    })
+}
+
+export function markClocktowerChatRead(conversationId: number, request: ClocktowerReadStateRequest) {
+    return requestJson<ClocktowerChatReadStateResponse>(`/api/clocktower/chat/conversations/${conversationId}/read`, {
+        method: 'POST',
+        body: request,
+    })
+}
+
+export function getClocktowerRoomAudit(roomId: number) {
+    return requestJson<ClocktowerRoomAuditResponse>(`/api/admin/clocktower/rooms/${roomId}/audit`)
+}
+
+export function getClocktowerGameAudit(gameId: number) {
+    return requestJson<ClocktowerGameAuditResponse>(`/api/admin/clocktower/games/${gameId}/audit`)
+}
+
+export function listClocktowerAdminChatMessages(conversationId: number, params: ClocktowerAuditQuery = {}) {
+    const search = buildSearchParams({
+        page: params.page ?? 1,
+        size: params.size ?? 20,
+    })
+    return requestJson<ClocktowerPage<ClocktowerMessageResponse>>(
+        `/api/admin/clocktower/chat/conversations/${conversationId}/messages${suffix(search)}`,
+    )
 }
 
 export function streamClocktowerEvents(

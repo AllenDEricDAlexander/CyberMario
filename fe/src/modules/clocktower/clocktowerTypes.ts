@@ -11,7 +11,7 @@ export type ClocktowerNightType = ClocktowerNightTypeCode | CodedEnum
 export type ClocktowerRoomStatus = 'LOBBY' | 'SETUP' | 'RUNNING' | 'ENDED' | 'ARCHIVED'
 export type ClocktowerPhase = 'LOBBY' | 'SETUP' | 'FIRST_NIGHT' | 'DAY' | 'NOMINATION' | 'EXECUTION' | 'NIGHT' | 'ENDED'
 export type ClocktowerVisibility = 'PUBLIC' | 'PRIVATE' | 'STORYTELLER' | 'AUDIT'
-export type ClocktowerViewerMode = 'PLAYER' | 'STORYTELLER' | 'ADMIN'
+export type ClocktowerViewerMode = 'PLAYER' | 'STORYTELLER' | 'SPECTATOR' | 'INVITED' | 'ADMIN' | 'ADMIN_AUDIT'
 export type ClocktowerEventType =
     | 'ROOM_CREATED'
     | 'PLAYER_JOINED'
@@ -305,9 +305,24 @@ export type ClocktowerRoomStartRequest = {
     randomize: boolean
 }
 
+export type ClocktowerSeatClaimRequest = {
+    displayName?: string | null
+}
+
 export type RoleAssignmentRequest = {
     seatId: number
     roleCode: string
+}
+
+export type ClocktowerRoomProfileResponse = {
+    roomId: number
+    scriptCode: ClocktowerScriptCode
+    storytellerUserId?: number | null
+    playerCount: number
+    status: string
+    currentGameId?: number | null
+    lastActiveAt?: string | null
+    metadataJson?: string | null
 }
 
 export type ClocktowerRoomResponse = {
@@ -319,26 +334,75 @@ export type ClocktowerRoomResponse = {
     phase: ClocktowerPhase
     playerCount: number
     storytellerUserId?: number | null
-    seats: ClocktowerSeatResponse[]
+    seats: ClocktowerRoomSeatResponse[]
+    publicConversationId?: number | null
+    members?: ClocktowerRoomMemberResponse[]
+    reservations?: ClocktowerRoomReservationResponse[]
 }
 
-export type ClocktowerSeatResponse = {
+export type ClocktowerRoomSeatResponse = {
     seatId: number
     seatNo: number
     userId?: number | null
     displayName: string
     roleCode?: string | null
     roleType?: ClocktowerRoleType | null
-    lifeStatus: string
-    publicLifeStatus: string
+    lifeStatus: string | null
+    publicLifeStatus: string | null
     connected: boolean
     hasDeadVote: boolean
+    status?: string | null
+    ready?: boolean
 }
+
+export type ClocktowerSeatResponse = ClocktowerRoomSeatResponse
+
+export type ClocktowerRoomMemberResponse = {
+    memberId: number
+    userId: number
+    memberType: string
+    status: string
+    seatNo?: number | null
+    displayName?: string | null
+}
+
+export type ClocktowerRoomReservationResponse = {
+    invitationId: number
+    inviteeUserId: number
+    targetSeatNo?: number | null
+    expiresAt?: string | null
+}
+
+export type ClocktowerRoomInvitationResponse = {
+    invitationId: number
+    roomId: number
+    inviteeUserId: number
+    status: string
+    targetSeatNo?: number | null
+    expiresAt?: string | null
+}
+
+export type ClocktowerInvitationResponse = ClocktowerRoomInvitationResponse
 
 export type ClocktowerStartGameResponse = {
     roomId: number
     status: ClocktowerRoomStatus
     phase: ClocktowerPhase
+}
+
+export type ClocktowerGameConversationResponse = {
+    groupKey: string
+    conversationType: string
+    conversationId: number
+}
+
+export type ClocktowerGameResponse = {
+    gameId: number
+    roomId: number
+    gameNo: number
+    status: string
+    phase: string
+    conversations: ClocktowerGameConversationResponse[]
 }
 
 export type GamePhaseResponse = {
@@ -493,6 +557,40 @@ export type ClocktowerEventResponse = {
     createdAt: string
 }
 
+export type ClocktowerGameEventResponse = {
+    eventId: number
+    gameId: number
+    eventSeq: number
+    eventType: string
+    phase: string
+    dayNo: number
+    nightNo: number
+    actorGameSeatId?: number | null
+    targetGameSeatId?: number | null
+    visibility: string
+    visibleGameSeatIds: number[]
+    payload: Record<string, unknown>
+    occurredAt: string
+}
+
+export type ClocktowerGameSeatResponse = {
+    gameSeatId: number
+    roomSeatId: number
+    seatNo: number
+    userId?: number | null
+    displayName: string
+    roleCode?: string | null
+    roleType?: string | null
+    alignment?: string | null
+    lifeStatus: string
+    publicLifeStatus: string
+    hasDeadVote: boolean
+    traveler: boolean
+    status: string
+}
+
+export type ClocktowerGameSeatViewResponse = ClocktowerGameSeatResponse
+
 export type ClocktowerPlayerViewResponse = {
     room: ClocktowerRoomResponse
     viewerMode: ClocktowerViewerMode
@@ -502,6 +600,21 @@ export type ClocktowerPlayerViewResponse = {
     availableActions: AvailableActionResponse[]
     recentEvents: ClocktowerEventResponse[]
     privateThreads: PrivateThreadSummaryResponse[]
+}
+
+export type ClocktowerGameViewResponse = {
+    gameId: number
+    roomId: number
+    gameNo: number
+    status: string
+    phase: string
+    viewerMode: ClocktowerViewerMode
+    mySeat?: ClocktowerGameSeatResponse | null
+    publicSeats: ClocktowerGameSeatResponse[]
+    grimoire: ClocktowerGameSeatResponse[]
+    availableActions: AvailableActionResponse[]
+    events: ClocktowerGameEventResponse[]
+    conversations: ClocktowerConversationResponse[]
 }
 
 export type PlayerSeatViewResponse = {
@@ -537,6 +650,45 @@ export type PrivateThreadSummaryResponse = {
     seatId: number
     displayName: string
     unreadCount: number
+}
+
+export type ClocktowerConversationResponse = {
+    conversationId: number
+    roomId: number
+    gameId?: number | null
+    channelKey: string
+    groupKey: string
+    conversationType: string
+    participantKey?: string | null
+    messageSeq: number
+    lastMessageAt?: string | null
+}
+
+export type ClocktowerMessageResponse = {
+    messageId: number
+    conversationId: number
+    senderUserId?: number | null
+    messageSeq: number
+    messageType: string
+    content: string
+    sentAt: string
+}
+
+export type ClocktowerSendMessageRequest = {
+    content: string
+    metadataJson?: string | null
+}
+
+export type ClocktowerReadStateRequest = {
+    messageSeq: number
+}
+
+export type ClocktowerChatReadStateResponse = {
+    readStateId: number
+    conversationId: number
+    userId: number
+    lastReadMessageSeq: number
+    lastReadAt?: string | null
 }
 
 export type ClocktowerPlayerActionRequest = {
@@ -577,6 +729,24 @@ export type ClocktowerReplayResponse = {
     events: ClocktowerEventResponse[]
 }
 
+export type ClocktowerGameHistoryResponse = {
+    gameId: number
+    roomId: number
+    gameNo: number
+    scriptCode: string
+    status: string
+    phase: string
+    startedAt?: string | null
+    endedAt?: string | null
+}
+
+export type ClocktowerGameReplayResponse = {
+    gameId: number
+    roomId: number
+    viewerMode: ClocktowerViewerMode
+    events: ClocktowerGameEventResponse[]
+}
+
 export type ClocktowerVoteReplayResponse = {
     voteId: number
     nominationId: number
@@ -585,3 +755,85 @@ export type ClocktowerVoteReplayResponse = {
     usedDeadVote: boolean
     eventId?: number | null
 }
+
+export type ClocktowerAuditQuery = {
+    page?: number
+    size?: number
+}
+
+export type ClocktowerRoomAuditSeatResponse = {
+    seatId: number
+    seatNo: number
+    roomMemberId?: number | null
+    userId?: number | null
+    displayName: string
+    roleCode?: string | null
+    status: string
+    traveler: boolean
+}
+
+export type ClocktowerRoomAuditMemberResponse = {
+    memberId: number
+    userId: number
+    memberType: string
+    status: string
+    activeStatus?: boolean | null
+    seatNo?: number | null
+    displayName?: string | null
+    joinedAt?: string | null
+    leftAt?: string | null
+}
+
+export type ClocktowerRoomAuditInvitationResponse = {
+    invitationId: number
+    inviterUserId?: number | null
+    inviteeUserId: number
+    status: string
+    activeStatus?: boolean | null
+    targetSeatNo?: number | null
+    expiresAt?: string | null
+    acceptedAt?: string | null
+}
+
+export type ClocktowerRoomAuditBanResponse = {
+    banId: number
+    userId: number
+    bannedByUserId?: number | null
+    reason?: string | null
+    status: string
+    expiresAt?: string | null
+}
+
+export type ClocktowerRoomAuditResponse = {
+    roomId: number
+    roomCode: string
+    name: string
+    roomStatus: string
+    profileStatus: string
+    visibility: string
+    storytellerUserId?: number | null
+    playerCount: number
+    currentGameId?: number | null
+    seats: ClocktowerRoomAuditSeatResponse[]
+    members: ClocktowerRoomAuditMemberResponse[]
+    invitations: ClocktowerRoomAuditInvitationResponse[]
+    bans: ClocktowerRoomAuditBanResponse[]
+    games: ClocktowerGameHistoryResponse[]
+    conversations: ClocktowerConversationResponse[]
+}
+
+export type ClocktowerGameAuditResponse = {
+    gameId: number
+    roomId: number
+    gameNo: number
+    scriptCode: string
+    status: string
+    phase: string
+    startedAt?: string | null
+    endedAt?: string | null
+    seats: ClocktowerGameSeatResponse[]
+    events: ClocktowerGameEventResponse[]
+    conversations: ClocktowerConversationResponse[]
+}
+
+export type ClocktowerAuditResponse = ClocktowerRoomAuditResponse | ClocktowerGameAuditResponse

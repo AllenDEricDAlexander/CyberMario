@@ -1,25 +1,40 @@
 import {describe, expect, it, vi} from 'vitest'
 import {
     advanceClocktowerFlow,
+    claimClocktowerSeat,
     closeClocktowerNomination,
     confirmClocktowerExecution,
     createClocktowerRuling,
+    enterClocktowerRoom,
     generateClocktowerBoard,
+    getClocktowerGameAudit,
+    getClocktowerGameReplay,
+    getClocktowerGameView,
     getClocktowerGroupedNightOrder,
     getClocktowerFlow,
     getClocktowerJinxRules,
     getClocktowerReplayVotes,
+    getClocktowerRoomAudit,
     getClocktowerScripts,
     getClocktowerTerms,
     joinClocktowerRoom,
+    listClocktowerAdminChatMessages,
     listClocktowerBoards,
+    listClocktowerChatConversations,
+    listClocktowerChatMessages,
+    listClocktowerGameHistory,
     listClocktowerRulings,
+    heartbeatClocktowerRoom,
+    markClocktowerChatRead,
     saveClocktowerBoard,
+    sendClocktowerChatMessage,
     skipClocktowerNightTask,
+    startClocktowerGame,
     streamClocktowerEvents,
     submitClocktowerStorytellerAction,
     undoClocktowerRuling,
     validateClocktowerBoard,
+    startClocktowerRoom,
 } from './clocktowerService'
 
 vi.mock('../../services/request', () => ({
@@ -146,6 +161,141 @@ describe('clocktowerService', () => {
             method: 'POST',
             body: request,
         })
+    })
+
+    it('enters rooms through the room lobby endpoint', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await enterClocktowerRoom(7)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/enter', {method: 'POST'})
+    })
+
+    it('sends room heartbeats through the room lobby endpoint', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await heartbeatClocktowerRoom(7)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/heartbeat', {method: 'POST'})
+    })
+
+    it('claims seats with the lobby seat claim request', async () => {
+        const {requestJson} = await import('../../services/request')
+        const request = {displayName: 'Alice'}
+
+        await claimClocktowerSeat(7, 3, request)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/seats/3/claim', {
+            method: 'POST',
+            body: request,
+        })
+    })
+
+    it('starts games through the game lifecycle endpoint', async () => {
+        const {requestJson} = await import('../../services/request')
+        const request = {assignments: [], randomize: false}
+
+        await startClocktowerGame(7, request)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/games/start', {
+            method: 'POST',
+        })
+    })
+
+    it('starts rooms through the assignment-based room endpoint', async () => {
+        const {requestJson} = await import('../../services/request')
+        const request = {assignments: [{seatId: 31, roleCode: 'CHEF'}], randomize: false}
+
+        await startClocktowerRoom(7, request)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/start', {
+            method: 'POST',
+            body: request,
+        })
+    })
+
+    it('loads game view by game id', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await getClocktowerGameView(11)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/view')
+    })
+
+    it('loads game replay and history endpoints', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await getClocktowerGameReplay(11)
+        await listClocktowerGameHistory()
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/replay')
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/history')
+    })
+
+    it('loads room chat conversations', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await listClocktowerChatConversations(7)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/chat/conversations')
+    })
+
+    it('loads chat messages with default and overridden pagination', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await listClocktowerChatMessages(13)
+        await listClocktowerChatMessages(13, {page: 3, size: 50})
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/chat/conversations/13/messages?page=1&size=20')
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/chat/conversations/13/messages?page=3&size=50')
+    })
+
+    it('sends chat messages to the conversation endpoint', async () => {
+        const {requestJson} = await import('../../services/request')
+        const request = {content: 'hello', metadataJson: '{"source":"test"}'}
+
+        await sendClocktowerChatMessage(13, request)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/chat/conversations/13/messages', {
+            method: 'POST',
+            body: request,
+        })
+    })
+
+    it('marks chat conversations read with the read state request', async () => {
+        const {requestJson} = await import('../../services/request')
+        const request = {messageSeq: 9}
+
+        await markClocktowerChatRead(13, request)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/chat/conversations/13/read', {
+            method: 'POST',
+            body: request,
+        })
+    })
+
+    it('loads audit endpoints through the admin API prefix', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await getClocktowerRoomAudit(7)
+        await getClocktowerGameAudit(11)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/admin/clocktower/rooms/7/audit')
+        expect(requestJson).toHaveBeenCalledWith('/api/admin/clocktower/games/11/audit')
+    })
+
+    it('loads admin chat messages with default and overridden pagination', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await listClocktowerAdminChatMessages(13)
+        await listClocktowerAdminChatMessages(13, {page: 4, size: 100})
+
+        expect(requestJson).toHaveBeenCalledWith(
+            '/api/admin/clocktower/chat/conversations/13/messages?page=1&size=20',
+        )
+        expect(requestJson).toHaveBeenCalledWith(
+            '/api/admin/clocktower/chat/conversations/13/messages?page=4&size=100',
+        )
     })
 
     it('submits storyteller actions to the storyteller endpoint', async () => {
