@@ -35,6 +35,10 @@ class ClocktowerRbacResourceProviderTests {
                         "api:clocktower:rooms:storyteller:create",
                         "api:clocktower:rooms:storyteller:start",
                         "api:clocktower:rooms:storyteller:seat",
+                        "api:clocktower:rooms:storyteller:game:start",
+                        "api:clocktower:games:storyteller:end",
+                        "api:clocktower:games:storyteller:abort",
+                        "api:clocktower:rooms:storyteller:game:timeout-abort",
                         "api:clocktower:rooms:storyteller:night",
                         "api:clocktower:rooms:storyteller:flow",
                         "api:clocktower:rooms:storyteller:night-task",
@@ -62,6 +66,9 @@ class ClocktowerRbacResourceProviderTests {
                             "api:clocktower:rooms:player:view");
                     assertThat(role.permissionCodes())
                             .noneMatch(code -> code.startsWith("api:clocktower:rooms:storyteller:"));
+                    assertThat(role.permissionCodes())
+                            .doesNotContain("api:clocktower:games:storyteller:end",
+                                    "api:clocktower:games:storyteller:abort");
                 });
         assertThat(provider.rolePresets())
                 .filteredOn(role -> role.roleCode().equals("CLOCKTOWER_STORYTELLER"))
@@ -76,6 +83,10 @@ class ClocktowerRbacResourceProviderTests {
                         "api:clocktower:rooms:storyteller:night-task",
                         "api:clocktower:rooms:storyteller:nomination",
                         "api:clocktower:rooms:storyteller:execution",
-                        "api:clocktower:rooms:storyteller:ruling:detail"));
+                        "api:clocktower:rooms:storyteller:ruling:detail",
+                        "api:clocktower:rooms:storyteller:game:start",
+                        "api:clocktower:games:storyteller:end",
+                        "api:clocktower:games:storyteller:abort",
+                        "api:clocktower:rooms:storyteller:game:timeout-abort"));
     }
 }

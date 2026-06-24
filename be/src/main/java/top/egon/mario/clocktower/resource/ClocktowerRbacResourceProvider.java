@@ -56,6 +56,15 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
                 "/api/clocktower/rooms/*/start", ApiRiskLevel.HIGH));
         resources.add(api("api:clocktower:rooms:storyteller:seat", "Clocktower update seat", "PATCH",
                 "/api/clocktower/rooms/*/seats/*", ApiRiskLevel.HIGH));
+        resources.add(api("api:clocktower:rooms:storyteller:game:start", "Clocktower start game", "POST",
+                "/api/clocktower/rooms/*/games/start", ApiRiskLevel.HIGH));
+        resources.add(api("api:clocktower:games:storyteller:end", "Clocktower end game", "POST",
+                "/api/clocktower/games/*/end", ApiRiskLevel.HIGH));
+        resources.add(api("api:clocktower:games:storyteller:abort", "Clocktower abort game", "POST",
+                "/api/clocktower/games/*/abort", ApiRiskLevel.HIGH));
+        resources.add(api("api:clocktower:rooms:storyteller:game:timeout-abort",
+                "Clocktower timeout abort game", "POST",
+                "/api/clocktower/rooms/*/games/timeout-abort", ApiRiskLevel.HIGH));
         resources.add(api("api:clocktower:rooms:storyteller:night", "Clocktower night checklist", "GET",
                 "/api/clocktower/rooms/*/night-checklist", ApiRiskLevel.HIGH));
         resources.add(api("api:clocktower:rooms:storyteller:flow", "Clocktower storyteller flow", "ANY",
@@ -106,6 +115,10 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
                                 "api:clocktower:rooms:storyteller:create",
                                 "api:clocktower:rooms:storyteller:start",
                                 "api:clocktower:rooms:storyteller:seat",
+                                "api:clocktower:rooms:storyteller:game:start",
+                                "api:clocktower:games:storyteller:end",
+                                "api:clocktower:games:storyteller:abort",
+                                "api:clocktower:rooms:storyteller:game:timeout-abort",
                                 "api:clocktower:rooms:storyteller:night",
                                 "api:clocktower:rooms:storyteller:flow",
                                 "api:clocktower:rooms:storyteller:night-task",
