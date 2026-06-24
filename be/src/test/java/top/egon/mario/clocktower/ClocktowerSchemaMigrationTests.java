@@ -12,8 +12,153 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ClocktowerSchemaMigrationTests {
+
+    private static final Path ROOM_IM_GAME_REFACTOR_MIGRATION = Path.of(
+            "src/main/resources/db/migration/V26__create_room_im_clocktower_refactor_schema.sql");
+
+    @Test
+    void roomImGameRefactorMigrationCreatesGenericRoomTables() throws IOException {
+        assertThat(Files.exists(ROOM_IM_GAME_REFACTOR_MIGRATION)).isTrue();
+
+        String sql = Files.readString(ROOM_IM_GAME_REFACTOR_MIGRATION);
+
+        assertThat(sql).contains("CREATE TABLE room_space");
+        assertThat(sql).contains("CREATE TABLE room_member");
+        assertThat(sql).contains("CREATE TABLE room_invitation");
+        assertThat(sql).contains("CREATE TABLE room_ban");
+        assertThat(sql).contains("active_status");
+        assertThat(sql).contains("target_seat_no");
+        assertThat(sql).contains("uk_room_member_room_user_active");
+        assertThat(sql).contains("uk_room_member_room_seat_active");
+        assertThat(sql).contains("uk_room_invitation_room_target_seat_active");
+        assertThat(sql).contains("idx_room_member_active_status");
+        assertThat(sql).contains("idx_room_invitation_room_status");
+        assertThat(sql).doesNotContain("idx_room_member_seat_reservation");
+        assertThat(sql).doesNotContain("idx_room_invitation_active_target_seat");
+        assertThat(sql).doesNotContain("CONSTRAINT uk_room_member_room_user UNIQUE (room_id, user_id)");
+        assertThat(sql).doesNotContain("CONSTRAINT uk_room_member_room_seat UNIQUE (room_id, seat_no)");
+    }
+
+    @Test
+    void roomImGameRefactorMigrationCreatesGenericImTables() throws IOException {
+        assertThat(Files.exists(ROOM_IM_GAME_REFACTOR_MIGRATION)).isTrue();
+
+        String sql = Files.readString(ROOM_IM_GAME_REFACTOR_MIGRATION);
+
+        assertThat(sql).contains("CREATE TABLE im_channel");
+        assertThat(sql).contains("CREATE TABLE im_group");
+        assertThat(sql).contains("CREATE TABLE im_conversation");
+        assertThat(sql).contains("CREATE TABLE im_conversation_member");
+        assertThat(sql).contains("CREATE TABLE im_message");
+        assertThat(sql).contains("CREATE TABLE im_read_state");
+        assertThat(sql).contains("message_seq");
+        assertThat(sql).contains("group_id BIGINT NOT NULL");
+        assertThat(sql).contains("uk_im_conversation_group_scope_type_participant");
+        assertThat(sql).contains("group_id, scope_type, scope_id, conversation_type, participant_key");
+        assertThat(sql).contains("uk_im_message_conversation_seq");
+        assertThat(sql).contains("uk_im_read_state_conversation_user");
+        assertThat(sql).contains("idx_im_conversation_scope_status");
+        assertThat(sql).doesNotContain("idx_im_message_conversation_seq");
+        assertThat(sql).doesNotContain("uk_im_conversation_context_scope_participant");
+        assertThat(sql).doesNotContain("uk_im_read_state_conversation_member UNIQUE");
+    }
+
+    @Test
+    void roomImGameRefactorMigrationEnforcesActiveReservationsButKeepsTerminalHistory() {
+        DriverManagerDataSource dataSource = new DriverManagerDataSource();
+        dataSource.setDriverClassName("org.h2.Driver");
+        dataSource.setUrl("jdbc:h2:mem:room_im_game_refactor_active_keys_%s;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1"
+                .formatted(UUID.randomUUID()));
+        dataSource.setUsername("sa");
+        dataSource.setPassword("");
+
+        Flyway.configure()
+                .dataSource(dataSource)
+                .locations("classpath:db/migration")
+                .load()
+                .migrate();
+
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+
+        jdbcTemplate.update("""
+                insert into room_member (room_id, user_id, member_type, status, active_status, seat_no, display_name)
+                values (1, 10, 'PLAYER', 'ACTIVE', true, 1, 'Alice')
+                """);
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                insert into room_member (room_id, user_id, member_type, status, active_status, seat_no, display_name)
+                values (1, 10, 'PLAYER', 'ACTIVE', true, 2, 'Alice Again')
+                """)).isInstanceOf(Exception.class);
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                insert into room_member (room_id, user_id, member_type, status, active_status, seat_no, display_name)
+                values (1, 11, 'PLAYER', 'ACTIVE', true, 1, 'Bob')
+                """)).isInstanceOf(Exception.class);
+        jdbcTemplate.update("""
+                insert into room_member (room_id, user_id, member_type, status, active_status, seat_no, display_name)
+                values (1, 10, 'PLAYER', 'LEFT', null, 1, 'Alice History 1')
+                """);
+        jdbcTemplate.update("""
+                insert into room_member (room_id, user_id, member_type, status, active_status, seat_no, display_name)
+                values (1, 10, 'PLAYER', 'LEFT', null, 1, 'Alice History 2')
+                """);
+
+        jdbcTemplate.update("""
+                insert into room_invitation (room_id, inviter_user_id, invitation_code, status, active_status, target_seat_no)
+                values (1, 100, 'INV-A', 'PENDING', true, 3)
+                """);
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                insert into room_invitation (room_id, inviter_user_id, invitation_code, status, active_status, target_seat_no)
+                values (1, 100, 'INV-B', 'PENDING', true, 3)
+                """)).isInstanceOf(Exception.class);
+        jdbcTemplate.update("""
+                insert into room_invitation (room_id, inviter_user_id, invitation_code, status, active_status, target_seat_no)
+                values (1, 100, 'INV-C', 'EXPIRED', null, 3)
+                """);
+        jdbcTemplate.update("""
+                insert into room_invitation (room_id, inviter_user_id, invitation_code, status, active_status, target_seat_no)
+                values (1, 100, 'INV-D', 'DECLINED', null, 3)
+                """);
+
+        Integer terminalMemberRows = jdbcTemplate.queryForObject("""
+                select count(*)
+                from room_member
+                where room_id = 1
+                  and user_id = 10
+                  and active_status is null
+                """, Integer.class);
+        Integer terminalInvitationRows = jdbcTemplate.queryForObject("""
+                select count(*)
+                from room_invitation
+                where room_id = 1
+                  and target_seat_no = 3
+                  and active_status is null
+                """, Integer.class);
+
+        assertThat(terminalMemberRows).isEqualTo(2);
+        assertThat(terminalInvitationRows).isEqualTo(2);
+    }
+
+    @Test
+    void roomImGameRefactorMigrationCreatesClocktowerGameTables() throws IOException {
+        assertThat(Files.exists(ROOM_IM_GAME_REFACTOR_MIGRATION)).isTrue();
+
+        String sql = Files.readString(ROOM_IM_GAME_REFACTOR_MIGRATION);
+
+        assertThat(sql).contains("CREATE TABLE clocktower_room_profile");
+        assertThat(sql).contains("CREATE TABLE clocktower_room_seat");
+        assertThat(sql).contains("CREATE TABLE clocktower_game");
+        assertThat(sql).contains("CREATE TABLE clocktower_game_seat");
+        assertThat(sql).contains("CREATE TABLE clocktower_game_event");
+        assertThat(sql).contains("game_no");
+        assertThat(sql).contains("current_game_id");
+        assertThat(sql).contains("board_snapshot_json");
+        assertThat(sql).contains("idx_clocktower_game_room_status");
+        assertThat(sql).contains("idx_clocktower_game_event_game_phase");
+        assertThat(sql).doesNotContain("idx_clocktower_game_room_no");
+        assertThat(sql).doesNotContain("idx_clocktower_game_event_game_seq");
+    }
 
     @Test
     void migrationCreatesCoreClocktowerTablesAndSeedsThreeScripts() throws IOException {
