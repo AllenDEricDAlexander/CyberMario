@@ -23,8 +23,7 @@ public final class ClocktowerAccess {
     }
 
     public static boolean isStoryteller(ClocktowerRoomPo room, RbacPrincipal principal) {
-        return isSuperAdmin(principal)
-                || principal != null
+        return principal != null
                 && principal.userId() != null
                 && principal.userId().equals(room.getStorytellerUserId());
     }

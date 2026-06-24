@@ -57,18 +57,22 @@ public class ClocktowerChatServiceImpl implements ClocktowerChatService {
     public List<ClocktowerChatConversationResponse> conversations(Long roomId, RbacPrincipal principal) {
         RbacPrincipal checkedPrincipal = requirePrincipal(principal);
         List<ClocktowerChatConversationResponse> visible = new ArrayList<>();
-        for (ImConversationPo conversation : roomConversations(roomId)) {
-            resolver.resolve(imContext(conversation, checkedPrincipal.userId()))
-                    .filter(context -> canRead(context, checkedPrincipal.userId(), null))
-                    .map(this::toConversationResponse)
-                    .ifPresent(visible::add);
-        }
+        appendReadableConversations(visible, roomConversations(roomId), checkedPrincipal.userId(), null);
         gameContextService.currentGameId(roomId)
-                .ifPresent(gameId -> gameConversations(gameId).forEach(conversation ->
-                        resolver.resolve(imContext(conversation, checkedPrincipal.userId()))
-                                .filter(context -> canRead(context, checkedPrincipal.userId(), null))
-                                .map(this::toConversationResponse)
-                                .ifPresent(visible::add)));
+                .ifPresent(gameId -> appendReadableConversations(visible, gameConversations(gameId),
+                        checkedPrincipal.userId(), null));
+        return visible;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClocktowerChatConversationResponse> conversationsForGame(Long roomId, Long gameId,
+                                                                         RbacPrincipal principal) {
+        RbacPrincipal checkedPrincipal = requirePrincipal(principal);
+        requireGameId(gameId);
+        List<ClocktowerChatConversationResponse> visible = new ArrayList<>();
+        appendReadableConversations(visible, roomConversations(roomId), checkedPrincipal.userId(), null);
+        appendReadableConversations(visible, gameConversations(gameId), checkedPrincipal.userId(), null);
         return visible;
     }
 
@@ -77,19 +81,11 @@ public class ClocktowerChatServiceImpl implements ClocktowerChatService {
     public List<ClocktowerChatConversationResponse> auditConversations(Long roomId, RbacPrincipal principal) {
         requireAdminAudit(principal);
         List<ClocktowerChatConversationResponse> visible = new ArrayList<>();
-        for (ImConversationPo conversation : roomConversations(roomId)) {
-            resolver.resolve(imContext(conversation, principal.userId()))
-                    .filter(context -> canRead(context, principal.userId(), ClocktowerChatViewerMode.ADMIN_AUDIT))
-                    .map(this::toConversationResponse)
-                    .ifPresent(visible::add);
-        }
+        appendReadableConversations(visible, roomConversations(roomId), principal.userId(),
+                ClocktowerChatViewerMode.ADMIN_AUDIT);
         gameContextService.currentGameId(roomId)
-                .ifPresent(gameId -> gameConversations(gameId).forEach(conversation ->
-                        resolver.resolve(imContext(conversation, principal.userId()))
-                                .filter(context -> canRead(context, principal.userId(),
-                                        ClocktowerChatViewerMode.ADMIN_AUDIT))
-                                .map(this::toConversationResponse)
-                                .ifPresent(visible::add)));
+                .ifPresent(gameId -> appendReadableConversations(visible, gameConversations(gameId),
+                        principal.userId(), ClocktowerChatViewerMode.ADMIN_AUDIT));
         return visible;
     }
 
@@ -175,6 +171,16 @@ public class ClocktowerChatServiceImpl implements ClocktowerChatService {
                 ClocktowerChatConstants.CONTEXT_TYPE, ClocktowerChatConstants.SCOPE_GAME, gameId);
     }
 
+    private void appendReadableConversations(List<ClocktowerChatConversationResponse> visible,
+                                             List<ImConversationPo> conversations, Long userId,
+                                             ClocktowerChatViewerMode overrideMode) {
+        conversations.forEach(conversation ->
+                resolver.resolve(imContext(conversation, userId))
+                        .filter(context -> canRead(context, userId, overrideMode))
+                        .map(this::toConversationResponse)
+                        .ifPresent(visible::add));
+    }
+
     private boolean canRead(ClocktowerChatConversationContext context, Long userId,
                             ClocktowerChatViewerMode overrideMode) {
         boolean activeMember = resolver.activeConversationMember(context.conversation().getId(), userId);
@@ -223,6 +229,12 @@ public class ClocktowerChatServiceImpl implements ClocktowerChatService {
             throw new ClocktowerException("CLOCKTOWER_AUTH_REQUIRED");
         }
         return principal;
+    }
+
+    private void requireGameId(Long gameId) {
+        if (gameId == null) {
+            throw new ClocktowerException("CLOCKTOWER_GAME_ID_REQUIRED");
+        }
     }
 
     private void requireAdminAudit(RbacPrincipal principal) {

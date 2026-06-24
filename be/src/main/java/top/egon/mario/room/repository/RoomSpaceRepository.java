@@ -27,5 +27,8 @@ public interface RoomSpaceRepository extends JpaRepository<RoomSpacePo, Long> {
     List<RoomSpacePo> findByContextTypeAndVisibilityInAndStatusAndDeletedFalseOrderByLastActiveAtDescIdDesc(
             String contextType, Collection<String> visibilities, String status);
 
+    List<RoomSpacePo> findByContextTypeAndOwnerUserIdAndDeletedFalseOrderByLastActiveAtDescIdDesc(
+            String contextType, Long ownerUserId);
+
     boolean existsByRoomCodeAndDeletedFalse(String roomCode);
 }

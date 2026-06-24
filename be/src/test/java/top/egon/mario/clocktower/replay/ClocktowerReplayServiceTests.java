@@ -8,6 +8,7 @@ import top.egon.mario.clocktower.common.enums.ClocktowerRoomStatus;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.common.enums.ClocktowerVisibility;
 import top.egon.mario.clocktower.event.dto.ClocktowerEventAppendRequest;
+import top.egon.mario.clocktower.grimoire.po.ClocktowerVotePo;
 import top.egon.mario.clocktower.replay.dto.ClocktowerReplayResponse;
 import top.egon.mario.clocktower.replay.service.ClocktowerReplayService;
 import top.egon.mario.clocktower.replay.service.impl.ClocktowerReplayServiceImpl;
@@ -39,10 +40,34 @@ class ClocktowerReplayServiceTests {
     }
 
     @Test
-    void fullReplayRequiresStorytellerOrAdmin() {
+    void fullReplayRequiresRoomStoryteller() {
         Long roomId = completedRoomWithMixedEvents();
 
+        ClocktowerReplayResponse storytellerReplay = replayService.replay(roomId, "FULL", null, null,
+                principal(1L, "storyteller"));
+
+        assertThat(storytellerReplay.events())
+                .extracting(event -> event.visibility())
+                .contains(ClocktowerVisibility.PRIVATE, ClocktowerVisibility.STORYTELLER);
         assertThatThrownBy(() -> replayService.replay(roomId, "FULL", null, null, principal(2L, "luigi")))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_REPLAY_FORBIDDEN");
+    }
+
+    @Test
+    void fullReplayAndVotesRejectNonMemberSuperAdminOnNormalRoute() {
+        Long roomId = completedRoomWithMixedEvents();
+        ClocktowerVotePo vote = new ClocktowerVotePo();
+        vote.setRoomId(roomId);
+        vote.setNominationId(100L);
+        vote.setVoterSeatId(10L);
+        vote.setVoteValue(true);
+        context.voteRepository().save(vote);
+
+        assertThatThrownBy(() -> replayService.replay(roomId, "FULL", null, null, superAdminPrincipal()))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_REPLAY_FORBIDDEN");
+        assertThatThrownBy(() -> replayService.votes(roomId, superAdminPrincipal()))
                 .isInstanceOf(ClocktowerException.class)
                 .hasMessageContaining("CLOCKTOWER_REPLAY_FORBIDDEN");
     }
@@ -55,6 +80,7 @@ class ClocktowerReplayServiceTests {
         room.setStatus(ClocktowerRoomStatus.ENDED);
         room.setPhase(ClocktowerPhase.ENDED);
         room.setPlayerCount(5);
+        room.setStorytellerUserId(1L);
         room.setStorytellerMode("HUMAN");
         context.roomRepository().save(room);
         Long roomId = room.getId();
@@ -72,5 +98,9 @@ class ClocktowerReplayServiceTests {
 
     private static RbacPrincipal principal(Long userId, String username) {
         return new RbacPrincipal(userId, username, Set.of("CLOCKTOWER_PLAYER"), Set.of(), "v1");
+    }
+
+    private static RbacPrincipal superAdminPrincipal() {
+        return new RbacPrincipal(900L, "admin", Set.of("SUPER_ADMIN"), Set.of(), "v1");
     }
 }

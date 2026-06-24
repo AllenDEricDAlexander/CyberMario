@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import top.egon.mario.clocktower.common.ClocktowerAccess;
 import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerVisibility;
 import top.egon.mario.clocktower.event.dto.ClocktowerEventResponse;
@@ -14,12 +15,12 @@ import top.egon.mario.clocktower.grimoire.repository.ClocktowerVoteRepository;
 import top.egon.mario.clocktower.replay.dto.ClocktowerReplayResponse;
 import top.egon.mario.clocktower.replay.dto.ClocktowerVoteReplayResponse;
 import top.egon.mario.clocktower.replay.service.ClocktowerReplayService;
+import top.egon.mario.clocktower.room.po.ClocktowerRoomPo;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomRepository;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -29,7 +30,6 @@ public class ClocktowerReplayServiceImpl implements ClocktowerReplayService {
     };
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
-    private static final Set<String> FULL_REPLAY_ROLES = Set.of("CLOCKTOWER_STORYTELLER", "SUPER_ADMIN");
 
     private final ClocktowerRoomRepository roomRepository;
     private final ClocktowerEventRepository eventRepository;
@@ -38,10 +38,10 @@ public class ClocktowerReplayServiceImpl implements ClocktowerReplayService {
 
     @Override
     public ClocktowerReplayResponse replay(Long roomId, String mode, Long fromSeq, Long toSeq, RbacPrincipal principal) {
-        roomRepository.findByIdAndDeletedFalse(roomId)
+        ClocktowerRoomPo room = roomRepository.findByIdAndDeletedFalse(roomId)
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
         String replayMode = mode == null ? "PUBLIC" : mode;
-        if ("FULL".equals(replayMode) && !canViewFull(principal)) {
+        if ("FULL".equals(replayMode) && !canViewFull(room, principal)) {
             throw new ClocktowerException("CLOCKTOWER_REPLAY_FORBIDDEN");
         }
         List<ClocktowerEventResponse> events = eventRepository.findByRoomIdAndDeletedFalseOrderByEventSeqAsc(roomId)
@@ -56,7 +56,9 @@ public class ClocktowerReplayServiceImpl implements ClocktowerReplayService {
 
     @Override
     public List<ClocktowerVoteReplayResponse> votes(Long roomId, RbacPrincipal principal) {
-        if (!canViewFull(principal)) {
+        ClocktowerRoomPo room = roomRepository.findByIdAndDeletedFalse(roomId)
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
+        if (!canViewFull(room, principal)) {
             throw new ClocktowerException("CLOCKTOWER_REPLAY_FORBIDDEN");
         }
         return voteRepository.findByRoomIdAndDeletedFalseOrderByIdAsc(roomId).stream()
@@ -64,9 +66,8 @@ public class ClocktowerReplayServiceImpl implements ClocktowerReplayService {
                 .toList();
     }
 
-    private boolean canViewFull(RbacPrincipal principal) {
-        return principal != null && principal.roleCodes() != null && principal.roleCodes().stream()
-                .anyMatch(FULL_REPLAY_ROLES::contains);
+    private boolean canViewFull(ClocktowerRoomPo room, RbacPrincipal principal) {
+        return ClocktowerAccess.isStoryteller(room, principal);
     }
 
     private ClocktowerEventResponse toResponse(ClocktowerEventPo event) {

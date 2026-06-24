@@ -21,4 +21,8 @@ public interface ClocktowerGameRepository extends JpaRepository<ClocktowerGamePo
     Optional<ClocktowerGamePo> findTopByRoomIdAndDeletedFalseOrderByGameNoDesc(Long roomId);
 
     List<ClocktowerGamePo> findByRoomIdAndDeletedFalseOrderByGameNoAsc(Long roomId);
+
+    List<ClocktowerGamePo> findByRoomIdInAndDeletedFalseOrderByStartedAtDescIdDesc(List<Long> roomIds);
+
+    List<ClocktowerGamePo> findByIdInAndDeletedFalse(List<Long> ids);
 }

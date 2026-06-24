@@ -132,6 +132,26 @@ class ClocktowerEventStreamServiceTests {
                 .verifyComplete();
     }
 
+    @Test
+    void streamControllerRejectsNonMemberSuperAdminInsteadOfAdminBackfill() {
+        ClocktowerRoomService roomService = context.roomService();
+        ClocktowerRoomResponse room = roomService.create(new ClocktowerRoomCreateRequest(
+                "周五暗流", top.egon.mario.clocktower.common.enums.ClocktowerScriptCode.TROUBLE_BREWING,
+                5, null, null, null, null, false, true, 0), principal(1L, "mario"));
+        eventService.append(new ClocktowerEventAppendRequest(room.roomId(), ClocktowerEventType.PRIVATE_MESSAGE_SENT,
+                ClocktowerPhase.DAY, 1, 0, 1L, null, null, ClocktowerVisibility.PRIVATE, List.of(10L),
+                Map.of("content", "private")));
+        eventService.append(new ClocktowerEventAppendRequest(room.roomId(), ClocktowerEventType.STORYTELLER_RULING,
+                ClocktowerPhase.DAY, 1, 0, 1L, null, null, ClocktowerVisibility.AUDIT, List.of(),
+                Map.of("content", "audit")));
+        ClocktowerEventStreamController controller = new ClocktowerEventStreamController(streamService,
+                context.roomRepository(), context.seatRepository());
+
+        assertThatThrownBy(() -> controller.stream(room.roomId(), null, 0L, superAdminPrincipal()))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_SEAT_NOT_FOUND");
+    }
+
     private Long createRoom() {
         return context.roomService().create(new ClocktowerRoomCreateRequest(
                 "周五暗流", top.egon.mario.clocktower.common.enums.ClocktowerScriptCode.TROUBLE_BREWING,
@@ -167,5 +187,9 @@ class ClocktowerEventStreamServiceTests {
 
     private static RbacPrincipal principal(Long userId, String username) {
         return new RbacPrincipal(userId, username, Set.of("CLOCKTOWER_PLAYER"), Set.of(), "v1");
+    }
+
+    private static RbacPrincipal superAdminPrincipal() {
+        return new RbacPrincipal(900L, "admin", Set.of("SUPER_ADMIN"), Set.of(), "v1");
     }
 }

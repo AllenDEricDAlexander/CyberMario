@@ -56,6 +56,8 @@ public interface RoomInvitationRepository extends JpaRepository<RoomInvitationPo
     List<RoomInvitationPo> findActiveTargetSeatReservations(@Param("roomId") Long roomId,
                                                             @Param("now") Instant now);
 
+    List<RoomInvitationPo> findByRoomIdAndDeletedFalseOrderByIdAsc(Long roomId);
+
     boolean existsByRoomIdAndTargetSeatNoAndActiveStatusTrueAndDeletedFalse(Long roomId, Integer targetSeatNo);
 
     boolean existsByInvitationCodeAndDeletedFalse(String invitationCode);

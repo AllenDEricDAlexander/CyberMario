@@ -12,6 +12,8 @@ public interface ClocktowerGameSeatRepository extends JpaRepository<ClocktowerGa
 
     List<ClocktowerGameSeatPo> findByGameIdOrderBySeatNoAsc(Long gameId);
 
+    List<ClocktowerGameSeatPo> findByUserIdAndDeletedFalseOrderByIdDesc(Long userId);
+
     Optional<ClocktowerGameSeatPo> findByGameIdAndRoomSeatId(Long gameId, Long roomSeatId);
 
     Optional<ClocktowerGameSeatPo> findByGameIdAndRoomSeatIdAndDeletedFalse(Long gameId, Long roomSeatId);

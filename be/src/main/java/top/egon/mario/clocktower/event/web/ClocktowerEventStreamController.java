@@ -48,9 +48,6 @@ public class ClocktowerEventStreamController {
     private ViewerContext resolveViewer(Long roomId, Long seatId, RbacPrincipal principal) {
         ClocktowerRoomPo room = roomRepository.findByIdAndDeletedFalse(roomId)
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
-        if (ClocktowerAccess.isSuperAdmin(principal)) {
-            return ViewerContext.admin(principal.userId());
-        }
         if (ClocktowerAccess.isStoryteller(room, principal)) {
             return ViewerContext.storyteller(principal.userId());
         }

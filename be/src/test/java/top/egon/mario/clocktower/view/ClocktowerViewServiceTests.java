@@ -87,6 +87,16 @@ class ClocktowerViewServiceTests {
                 .hasMessageContaining("CLOCKTOWER_SEAT_FORBIDDEN");
     }
 
+    @Test
+    void playerViewRejectsNonMemberSuperAdminSeatIdAccess() {
+        ClocktowerRoomResponse room = startedTroubleBrewingRoomWithJoinedUsers();
+        Long seatId = room.seats().getFirst().seatId();
+
+        assertThatThrownBy(() -> viewService.playerView(room.roomId(), seatId, superAdminPrincipal()))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_SEAT_FORBIDDEN");
+    }
+
     private ClocktowerRoomResponse startedTroubleBrewingRoomWithJoinedUsers() {
         ClocktowerRoomResponse room = roomService.create(new ClocktowerRoomCreateRequest(
                 "周五暗流", ClocktowerScriptCode.TROUBLE_BREWING, 5, null, null,
@@ -113,5 +123,9 @@ class ClocktowerViewServiceTests {
 
     private static RbacPrincipal principal(Long userId, String username) {
         return new RbacPrincipal(userId, username, Set.of("CLOCKTOWER_PLAYER"), Set.of(), "v1");
+    }
+
+    private static RbacPrincipal superAdminPrincipal() {
+        return new RbacPrincipal(900L, "admin", Set.of("SUPER_ADMIN"), Set.of(), "v1");
     }
 }

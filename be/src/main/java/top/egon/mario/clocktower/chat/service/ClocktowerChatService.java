@@ -16,6 +16,8 @@ public interface ClocktowerChatService {
 
     List<ClocktowerChatConversationResponse> conversations(Long roomId, RbacPrincipal principal);
 
+    List<ClocktowerChatConversationResponse> conversationsForGame(Long roomId, Long gameId, RbacPrincipal principal);
+
     List<ClocktowerChatConversationResponse> auditConversations(Long roomId, RbacPrincipal principal);
 
     Page<ClocktowerChatMessageResponse> messages(Long conversationId, Pageable pageable, RbacPrincipal principal);

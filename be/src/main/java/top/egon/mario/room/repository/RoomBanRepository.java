@@ -6,6 +6,7 @@ import org.springframework.data.repository.query.Param;
 import top.egon.mario.room.po.RoomBanPo;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 public interface RoomBanRepository extends JpaRepository<RoomBanPo, Long> {
@@ -24,4 +25,6 @@ public interface RoomBanRepository extends JpaRepository<RoomBanPo, Long> {
     Optional<RoomBanPo> findActiveByRoomIdAndUserId(@Param("roomId") Long roomId,
                                                     @Param("userId") Long userId,
                                                     @Param("now") Instant now);
+
+    List<RoomBanPo> findByRoomIdAndDeletedFalseOrderByIdAsc(Long roomId);
 }
