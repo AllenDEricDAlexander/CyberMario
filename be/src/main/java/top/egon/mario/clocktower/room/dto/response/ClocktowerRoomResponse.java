@@ -16,11 +16,15 @@ public record ClocktowerRoomResponse(
         ClocktowerPhase phase,
         int playerCount,
         Long storytellerUserId,
-        List<ClocktowerSeatResponse> seats
+        List<ClocktowerSeatResponse> seats,
+        Long publicConversationId,
+        List<ClocktowerRoomMemberResponse> members,
+        List<ClocktowerRoomReservationResponse> reservations
 ) {
 
     public static ClocktowerRoomResponse from(ClocktowerRoomPo room, List<ClocktowerSeatResponse> seats) {
         return new ClocktowerRoomResponse(room.getId(), room.getRoomCode(), room.getName(), room.getScriptCode(),
-                room.getStatus(), room.getPhase(), room.getPlayerCount(), room.getStorytellerUserId(), seats);
+                room.getStatus(), room.getPhase(), room.getPlayerCount(), room.getStorytellerUserId(), seats,
+                null, List.of(), List.of());
     }
 }

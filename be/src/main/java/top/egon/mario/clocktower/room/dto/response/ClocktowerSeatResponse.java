@@ -1,6 +1,7 @@
 package top.egon.mario.clocktower.room.dto.response;
 
 import top.egon.mario.clocktower.common.enums.ClocktowerRoleType;
+import top.egon.mario.clocktower.game.po.ClocktowerRoomSeatPo;
 import top.egon.mario.clocktower.room.po.ClocktowerSeatPo;
 
 public record ClocktowerSeatResponse(
@@ -13,18 +14,25 @@ public record ClocktowerSeatResponse(
         String lifeStatus,
         String publicLifeStatus,
         boolean connected,
-        boolean hasDeadVote
+        boolean hasDeadVote,
+        String status,
+        boolean ready
 ) {
 
     public static ClocktowerSeatResponse from(ClocktowerSeatPo seat) {
         return new ClocktowerSeatResponse(seat.getId(), seat.getSeatNo(), seat.getUserId(), seat.getDisplayName(),
                 seat.getRoleCode(), seat.getRoleType(), seat.getLifeStatus(), seat.getPublicLifeStatus(),
-                seat.isConnected(), seat.isHasDeadVote());
+                seat.isConnected(), seat.isHasDeadVote(), seat.getUserId() == null ? "OPEN" : "OCCUPIED", false);
     }
 
     public static ClocktowerSeatResponse publicView(ClocktowerSeatPo seat) {
         return new ClocktowerSeatResponse(seat.getId(), seat.getSeatNo(), seat.getUserId(), seat.getDisplayName(),
                 null, null, seat.getPublicLifeStatus(), seat.getPublicLifeStatus(), seat.isConnected(),
-                seat.isHasDeadVote());
+                seat.isHasDeadVote(), seat.getUserId() == null ? "OPEN" : "OCCUPIED", false);
+    }
+
+    public static ClocktowerSeatResponse from(ClocktowerRoomSeatPo seat, boolean ready) {
+        return new ClocktowerSeatResponse(seat.getId(), seat.getSeatNo(), seat.getUserId(), seat.getDisplayName(),
+                seat.getRoleCode(), null, null, null, seat.getUserId() != null, false, seat.getStatus(), ready);
     }
 }

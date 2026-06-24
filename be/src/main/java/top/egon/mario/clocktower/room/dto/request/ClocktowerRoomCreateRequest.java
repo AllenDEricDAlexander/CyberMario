@@ -14,6 +14,16 @@ public record ClocktowerRoomCreateRequest(
         String storytellerMode,
         boolean allowSpectators,
         boolean allowPrivateChat,
-        int agentSeatCount
+        int agentSeatCount,
+        String visibility,
+        String seatingPolicy
 ) {
+
+    public ClocktowerRoomCreateRequest(String name, ClocktowerScriptCode scriptCode, int playerCount,
+                                       Long boardConfigId, String boardCode, List<String> roleCodes,
+                                       String storytellerMode, boolean allowSpectators, boolean allowPrivateChat,
+                                       int agentSeatCount) {
+        this(name, scriptCode, playerCount, boardConfigId, boardCode, roleCodes, storytellerMode,
+                allowSpectators, allowPrivateChat, agentSeatCount, null, null);
+    }
 }
