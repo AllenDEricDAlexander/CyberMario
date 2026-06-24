@@ -40,7 +40,7 @@ public class ClocktowerSeatAssignmentPolicy {
         }
         return switch (normalizedPolicy(seatingPolicy)) {
             case OPEN_SEATING -> SeatClaimDecision.ASSIGN;
-            case APPROVAL_REQUIRED -> SeatClaimDecision.RESERVE;
+            case APPROVAL_REQUIRED -> throw new ClocktowerException("CLOCKTOWER_SEATING_POLICY_UNSUPPORTED");
             case INVITE_ONLY -> {
                 if (activeSeatInvitation(profile.getRoomId(), principal.userId(), seat.getSeatNo()) == null) {
                     throw new ClocktowerException("CLOCKTOWER_SEAT_INVITATION_REQUIRED");
@@ -62,7 +62,7 @@ public class ClocktowerSeatAssignmentPolicy {
 
     private String normalizedPolicy(String seatingPolicy) {
         if (seatingPolicy == null || seatingPolicy.isBlank()) {
-            return APPROVAL_REQUIRED;
+            return OPEN_SEATING;
         }
         return seatingPolicy;
     }

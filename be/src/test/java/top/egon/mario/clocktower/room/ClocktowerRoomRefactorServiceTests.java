@@ -157,21 +157,11 @@ class ClocktowerRoomRefactorServiceTests {
     }
 
     @Test
-    void claimSeatUsesConfiguredSeatingPolicy() {
-        ClocktowerRoomResponse room = roomService.createRoom(createRequest("APPROVAL_REQUIRED"),
-                principal(1L, "mario"));
-
-        ClocktowerSeatResponse seat = roomService.claimSeat(room.roomId(), 2,
-                new ClocktowerSeatClaimRequest("Luigi"), principal(2L, "luigi"));
-
-        assertThat(seat.userId()).isNull();
-        assertThat(seat.status()).isEqualTo("OPEN");
-        RoomMemberPo member = roomMemberRepository.findActiveByRoomIdAndUserId(room.roomId(), 2L).orElseThrow();
-        assertThat(member.getMemberType()).isEqualTo("SPECTATOR");
-        assertThat(member.getSeatNo()).isNull();
-        assertThat(roomInvitationRepository.findActiveTargetSeatReservations(room.roomId(), Instant.now()))
-                .extracting(RoomInvitationPo::getTargetSeatNo)
-                .containsExactly(2);
+    void createRoomRejectsApprovalRequiredUntilApprovalFlowExists() {
+        assertThatThrownBy(() -> roomService.createRoom(createRequest("APPROVAL_REQUIRED"),
+                principal(1L, "mario")))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_SEATING_POLICY_UNSUPPORTED");
     }
 
     @Test
@@ -222,9 +212,9 @@ class ClocktowerRoomRefactorServiceTests {
 
     @Test
     void createInvitationMapsSeatReservationConflictToClocktowerError() {
-        ClocktowerRoomResponse room = roomService.createRoom(createRequest("APPROVAL_REQUIRED"),
-                principal(1L, "mario"));
-        roomService.claimSeat(room.roomId(), 2, new ClocktowerSeatClaimRequest("Luigi"), principal(2L, "luigi"));
+        ClocktowerRoomResponse room = roomService.createRoom(createRequest("INVITE_ONLY"), principal(1L, "mario"));
+        roomService.createInvitation(room.roomId(), new ClocktowerRoomInvitationCreateRequest(2L, "SEAT", 2,
+                Instant.now().plus(Duration.ofHours(1))), principal(1L, "mario"));
 
         assertThatThrownBy(() -> roomService.createInvitation(room.roomId(),
                 new ClocktowerRoomInvitationCreateRequest(3L, "SEAT", 2,
@@ -253,25 +243,13 @@ class ClocktowerRoomRefactorServiceTests {
     }
 
     @Test
-    void acceptInvitationRejectsSeatRequestAndKeepsReservationPending() {
-        ClocktowerRoomResponse room = roomService.createRoom(createRequest("APPROVAL_REQUIRED"),
-                principal(1L, "mario"));
-        roomService.claimSeat(room.roomId(), 2, new ClocktowerSeatClaimRequest("Luigi"), principal(2L, "luigi"));
-        RoomInvitationPo reservation = roomInvitationRepository
-                .findActiveTargetSeatReservations(room.roomId(), Instant.now())
-                .get(0);
+    void claimSeatRejectsInviteOnlyWithoutSeatInvitation() {
+        ClocktowerRoomResponse room = roomService.createRoom(createRequest("INVITE_ONLY"), principal(1L, "mario"));
 
-        assertThatThrownBy(() -> roomService.acceptInvitation(room.roomId(), reservation.getId(),
-                principal(2L, "luigi")))
+        assertThatThrownBy(() -> roomService.claimSeat(room.roomId(), 2,
+                new ClocktowerSeatClaimRequest("Luigi"), principal(2L, "luigi")))
                 .isInstanceOf(ClocktowerException.class)
-                .hasMessageContaining("CLOCKTOWER_SEAT_REQUEST_PENDING_APPROVAL");
-
-        ClocktowerRoomSeatPo seat = seatRepository.findByRoomIdAndSeatNo(room.roomId(), 2).orElseThrow();
-        assertThat(seat.getUserId()).isNull();
-        assertThat(seat.getStatus()).isEqualTo("OPEN");
-        assertThat(roomInvitationRepository.findActiveTargetSeatReservations(room.roomId(), Instant.now()))
-                .extracting(RoomInvitationPo::getId)
-                .contains(reservation.getId());
+                .hasMessageContaining("CLOCKTOWER_SEAT_INVITATION_REQUIRED");
     }
 
     @Test
@@ -294,9 +272,9 @@ class ClocktowerRoomRefactorServiceTests {
 
     @Test
     void switchBoardRejectsSmallerPlayerCountWhenSeatsReserved() {
-        ClocktowerRoomResponse room = roomService.createRoom(createRequest("APPROVAL_REQUIRED"),
-                principal(1L, "mario"));
-        roomService.claimSeat(room.roomId(), 4, new ClocktowerSeatClaimRequest("Peach"), principal(2L, "peach"));
+        ClocktowerRoomResponse room = roomService.createRoom(createRequest("INVITE_ONLY"), principal(1L, "mario"));
+        roomService.createInvitation(room.roomId(), new ClocktowerRoomInvitationCreateRequest(2L, "SEAT", 4,
+                Instant.now().plus(Duration.ofHours(1))), principal(1L, "mario"));
 
         assertThatThrownBy(() -> roomService.switchBoard(room.roomId(), new ClocktowerRoomBoardSwitchRequest(
                 ClocktowerScriptCode.TROUBLE_BREWING, 3, null, null, List.of()), principal(1L, "mario")))

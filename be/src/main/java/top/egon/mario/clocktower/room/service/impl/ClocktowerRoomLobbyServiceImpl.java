@@ -112,6 +112,7 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
         int playerCount = requirePlayerCount(request.playerCount());
         List<String> roleCodes = resolveCreateRoomRoleCodes(request, principal);
         validateBoard(scriptCode, playerCount, roleCodes);
+        String resolvedSeatingPolicy = seatingPolicy(request.seatingPolicy());
 
         Long temporaryContextId = nextTemporaryContextId();
         RoomFacade.RoomView created = roomCall(() -> roomFacade.createRoom(
@@ -130,7 +131,7 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
         profile.setPlayerCount(playerCount);
         profile.setStatus(STATUS_LOBBY);
         profile.setLastActiveAt(Instant.now());
-        profile.setMetadataJson(writeJson(Map.of("seatingPolicy", seatingPolicy(request.seatingPolicy()))));
+        profile.setMetadataJson(writeJson(Map.of("seatingPolicy", resolvedSeatingPolicy)));
         profileRepository.save(profile);
 
         for (int seatNo = 1; seatNo <= playerCount; seatNo++) {
@@ -637,6 +638,9 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
     private String seatingPolicy(String seatingPolicy) {
         if (!StringUtils.hasText(seatingPolicy)) {
             return ClocktowerSeatAssignmentPolicy.OPEN_SEATING;
+        }
+        if (ClocktowerSeatAssignmentPolicy.APPROVAL_REQUIRED.equals(seatingPolicy)) {
+            throw new ClocktowerException("CLOCKTOWER_SEATING_POLICY_UNSUPPORTED");
         }
         return seatingPolicy;
     }
