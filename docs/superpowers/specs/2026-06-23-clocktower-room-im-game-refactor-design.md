@@ -732,6 +732,8 @@ All current chat HTTP APIs are Clocktower APIs:
 - Generic IM remains reusable internally through `ImFacade`.
 - Future modules that reuse IM will expose their own module-specific APIs and permissions.
 
+Accepted implementation deviation: this refactor adds `V27__retire_old_clocktower_rbac_resources.sql` as a one-time RBAC data migration to retire legacy Clocktower permissions. The current `RbacResourceSynchronizer` appends and updates managed provider resources, but it does not retire provider-managed resources that disappear from a provider or remove stale role grants. This migration is therefore accepted as a transitional cleanup; future stale-resource retirement should be moved into RBAC synchronization before similar migrations are added.
+
 ### 12.3 API Permission Codes
 
 Use capability-level permissions rather than one permission per endpoint:
@@ -819,7 +821,8 @@ The `/clocktower/rooms/{roomId}/play` route should no longer assume every viewer
 - Existing development Clocktower room data does not need compatibility.
 - Existing board, script, role, rule, flow, ruling, and replay code should be reused where it still fits after switching to game-centric ids.
 - Old Clocktower room APIs can be replaced by new APIs for frontend usage. Compatibility shims are optional and should not drive the design.
-- RBAC resource changes should be implemented through `ClocktowerRbacResourceProvider` and existing RBAC resource synchronization, not through a new RBAC-specific migration.
+- RBAC resource changes should be implemented through `ClocktowerRbacResourceProvider` and existing RBAC resource synchronization by default.
+- Accepted deviation: `V27__retire_old_clocktower_rbac_resources.sql` performs one-time retirement of old Clocktower RBAC rows because current synchronization does not retire stale provider resources or stale role grants. Do not use this as the default pattern for future RBAC resource evolution.
 
 ---
 

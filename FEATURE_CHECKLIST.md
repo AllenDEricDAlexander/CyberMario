@@ -314,6 +314,19 @@
 - [x] SSE room event stream and basic replay.
 - [x] RBAC resource provider and frontend route shells.
 
+## Clocktower room / IM / game refactor
+
+- [x] Room is modeled as a long-lived generic `room_space` with room members, invitations, bans, and Clocktower-specific room profile/seats.
+- [x] Game is modeled as a per-round `clocktower_game` snapshot with game seats and game-scoped events.
+- [x] Generic IM core is reusable internally through `ImFacade`, while current HTTP APIs remain Clocktower-scoped.
+- [x] Clocktower chat endpoints stay under `/api/clocktower/**`; management audit chat endpoints stay under `/api/admin/clocktower/**`.
+- [x] No platform-level `/api/im/**` routes or `api:im:*` permissions are exposed in this refactor.
+- [x] `CLOCKTOWER_PLAYER` covers both room spectators and seated players; no separate `CLOCKTOWER_SPECTATOR` RBAC role is added.
+- [x] Room lobby supports spectator entry, seat claim/request, invitation/member governance, and start-game gating.
+- [x] `/clocktower/rooms/{roomId}/play` resolves lobby/player/storyteller/spectator surfaces instead of assuming a seat.
+- [x] Game replay is queried by `gameId`; `/clocktower/games/{gameId}/replay` is authorized through the Clocktower replay menu.
+- [x] Management audit supports room, game, chat, invitation, member, and ban projections through Clocktower admin APIs.
+
 ## 13. 数据权限与边界
 
 - RBAC API 权限控制“能不能调用接口”。
@@ -325,6 +338,7 @@
 - RBAC 管理权限不会授予普通注册用户。
 - 预置角色与资源同步采用追加缺失授权，不主动删除人工授权。
 - 已有迁移清理普通用户不应拥有的 dashboard global 授权。
+- 本次钟楼重构接受一个 RBAC 迁移偏差：`V27__retire_old_clocktower_rbac_resources.sql` 一次性退休旧钟楼权限；后续类似能力应优先进入 RBAC 资源同步器的 stale-resource retirement 机制。
 
 ## 14. 数据库迁移现状
 
@@ -343,6 +357,17 @@
 - `V13__create_agent_debug_preset_and_conversation_audit.sql`：Agent 调试预设和对话审计。
 - `V14__create_agent_mcp_schema.sql`：Agent MCP schema。
 - `V15__add_agent_mcp_partial_unique_indexes.sql`：Agent MCP 部分唯一索引。
+- `V16__create_agent_run_audit.sql`：Agent run audit。
+- `V17__create_agent_memory_schema.sql`：Agent memory schema。
+- `V18__create_clocktower_core_schema.sql`：钟楼核心 schema。
+- `V19__disable_old_clocktower_room_wildcard_permission.sql`：停用旧钟楼房间 wildcard 权限。
+- `V20__complete_clocktower_rule_data.sql`：补全钟楼规则数据。
+- `V21__create_clocktower_ruling_system.sql`：钟楼裁定系统。
+- `V22__add_clocktower_board_valid.sql`：钟楼配板有效状态。
+- `V24__extend_agent_memory_message_final_snapshot.sql`：Agent memory 消息最终快照扩展。
+- `V25__add_agent_soulmd.sql`：Agent SoulMD。
+- `V26__create_room_im_clocktower_refactor_schema.sql`：Room / IM / Clocktower game refactor schema。
+- `V27__retire_old_clocktower_rbac_resources.sql`：一次性退休旧钟楼 RBAC 权限；这是本次重构接受的迁移偏差。
 
 ## 15. 已有测试覆盖线索
 
