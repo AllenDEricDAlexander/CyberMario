@@ -4,7 +4,7 @@
 
 **Goal:** Refactor Clocktower room, IM, and game lifecycle so a room is a long-lived space, a game is one playable round inside that room, and IM is a reusable channel/group/conversation/message capability that can be used by Clocktower and future modules.
 
-**Status:** User-approved approach A. Use a modular monolith with reusable Room/IM cores and Clocktower adapters. Implementation must be planned separately before code changes.
+**Status:** User-approved approach A. Use a modular monolith with reusable Room/IM cores, Clocktower adapters, and Clocktower-scoped RBAC API permissions. Implementation must be planned separately before code changes.
 
 ---
 
@@ -32,6 +32,7 @@ The refactor intentionally does not preserve existing development room data. Old
 - A game has its own board snapshot, seat snapshot, events, replay, and audit scope.
 - Chat is persistent. Game public chat and player private chat enter game replay/audit. Spectator channel messages are persistent but excluded from game replay/audit except in management audit.
 - Normal room pages do not grant admin omniscience. Admin and `SUPER_ADMIN` see all data only from management audit pages.
+- RBAC grants module-level and API-level access. Room, IM, and Clocktower policies enforce instance-level access for a concrete room, game, conversation, message, and replay.
 - Existing Flyway migrations must not be edited. Database changes must be introduced in one new migration for this change set.
 
 ---
@@ -681,26 +682,120 @@ Exact request/response DTOs will be finalized in the implementation plan, but th
 | `GET` | `/api/clocktower/games/{gameId}/replay` | Player/storyteller replay |
 | `GET` | `/api/clocktower/games/history` | Historical games available to current user |
 
-### 11.3 Generic IM APIs
+### 11.3 Clocktower Chat APIs
+
+The generic IM module is an internal reusable capability in this change set. It should not expose platform-level `/api/im/**` APIs or `api:im:*` permissions yet. Clocktower owns the current chat API surface and maps these endpoints to `ImFacade` internally.
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/im/channels/{channelId}` | Channel details |
-| `GET` | `/api/im/channels/{channelId}/groups` | Groups in channel |
-| `GET` | `/api/im/conversations/{conversationId}/messages` | Message history |
-| `POST` | `/api/im/conversations` | Create conversation, including private one-to-one |
-| `POST` | `/api/im/conversations/{conversationId}/messages` | Send message through policy |
-| `POST` | `/api/im/conversations/{conversationId}/read` | Mark read |
+| `GET` | `/api/clocktower/rooms/{roomId}/chat/conversations` | Room/game chat conversations visible to the current viewer |
+| `GET` | `/api/clocktower/chat/conversations/{conversationId}/messages` | Message history through Clocktower visibility policy |
+| `POST` | `/api/clocktower/chat/conversations` | Create or resolve a Clocktower-scoped private conversation |
+| `POST` | `/api/clocktower/chat/conversations/{conversationId}/messages` | Send message through Clocktower chat send policy |
+| `POST` | `/api/clocktower/chat/conversations/{conversationId}/read` | Mark read for a Clocktower chat conversation |
 
 ### 11.4 Management Audit APIs
 
-Management APIs can live under `/api/admin/clocktower/**` and `/api/admin/im/**`.
+Management APIs live under `/api/admin/clocktower/**`, including Clocktower chat/IM audit endpoints such as `/api/admin/clocktower/chat/**`.
 
 They must allow admin and `SUPER_ADMIN` to inspect all room, game, chat, spectator channel, invitation, member, kick, and ban records.
 
 ---
 
-## 12. Frontend
+## 12. RBAC Integration
+
+### 12.1 Authorization Boundary
+
+Clocktower uses the existing RBAC flow:
+
+```text
+ClocktowerRbacResourceProvider
+  -> RbacResourceSynchronizer
+      -> sys_permission / sys_api / role presets
+          -> DynamicAuthorizationManager
+              -> Controller
+                  -> Room/IM/Clocktower policy checks
+```
+
+RBAC answers "may this user call this category of API?" Business policies answer "may this user access this exact room, game, conversation, or replay?" Do not create RBAC permissions for individual rooms, games, conversations, or messages.
+
+This keeps RBAC stable and prevents business-instance data from polluting `sys_permission`. The concrete access rules stay in `RoomAccessPolicy`, `SeatAssignmentPolicy`, `ClocktowerChatSendPolicy`, `ClocktowerChatVisibilityPolicy`, and replay access policies.
+
+### 12.2 Resource Provider
+
+Update the existing `ClocktowerRbacResourceProvider` to declare the new room/game/chat/admin API resources. Do not use annotation scanning as the primary source for this module because Clocktower needs menus, buttons, API permissions, and role presets to stay aligned.
+
+All current chat HTTP APIs are Clocktower APIs:
+
+- No platform-level `/api/im/**` routes in this refactor.
+- No `api:im:*` permissions in this refactor.
+- Generic IM remains reusable internally through `ImFacade`.
+- Future modules that reuse IM will expose their own module-specific APIs and permissions.
+
+### 12.3 API Permission Codes
+
+Use capability-level permissions rather than one permission per endpoint:
+
+| Permission | Covers |
+|---|---|
+| `api:clocktower:script:read` | Script, role, term, and jinx-rule read APIs |
+| `api:clocktower:board:*` | Board generate, validate, save, list, and delete APIs |
+| `api:clocktower:room:read` | Visible room list and room lobby aggregate |
+| `api:clocktower:room:create` | Create a Clocktower room |
+| `api:clocktower:room:membership` | Enter, heartbeat, accept/decline invitation, leave |
+| `api:clocktower:room:seat` | Claim, request, release, approve, or move a seat |
+| `api:clocktower:room:governance` | Kick, ban, invite, switch board, and room governance operations |
+| `api:clocktower:game:read` | Current viewer game view and public game facts |
+| `api:clocktower:game:lifecycle` | Start, end, abort, and disband game operations |
+| `api:clocktower:game:action` | Player actions during a game |
+| `api:clocktower:game:storyteller` | Storyteller flow, grimoire, night tasks, nominations, execution, and rulings |
+| `api:clocktower:game:event-stream` | Game SSE stream |
+| `api:clocktower:game:replay` | Player/storyteller game replay and history |
+| `api:clocktower:chat:read` | Clocktower chat conversation list and message history |
+| `api:clocktower:chat:send` | Send room/game chat messages |
+| `api:clocktower:chat:conversation` | Create or resolve Clocktower private conversations |
+| `api:clocktower:chat:read-state` | Mark Clocktower chat read state |
+| `api:admin:clocktower:audit` | Management audit for rooms, games, chat, invitations, members, bans, and replay |
+| `api:admin:clocktower:rule-data` | Clocktower rule data administration if rule maintenance remains in scope |
+
+Specific URL patterns should use the existing `ANT` matcher style and avoid a broad `api:clocktower:*` grant except for `SUPER_ADMIN`.
+
+### 12.4 Preset Roles
+
+Preset roles are managed by RBAC resource synchronization and append missing grants only for managed preset roles.
+
+| Role | Meaning | Default grants |
+|---|---|---|
+| `CLOCKTOWER_PLAYER` | Ordinary Clocktower participant. The same role can enter as spectator, claim/request a seat, become a player, chat, act, and view eligible replay. | Room read/membership/seat, game read/action/event-stream/replay, Clocktower chat read/send/conversation/read-state, script read |
+| `CLOCKTOWER_STORYTELLER` | Room owner and storyteller. | Player grants plus board, room create/governance, game lifecycle, storyteller game operations, full eligible replay |
+| `CLOCKTOWER_ADMIN` | Clocktower management operator. | Admin audit and rule-data operations. Normal room pages still use resolved room identity; omniscience is only for management audit pages |
+| `SUPER_ADMIN` | Existing platform super admin. | Keeps existing platform-wide behavior and can receive all Clocktower managed permissions through existing super-admin bootstrap/sync behavior |
+
+Do not add a separate `CLOCKTOWER_SPECTATOR` role in this design. A `CLOCKTOWER_PLAYER` can be only a spectator in a specific room until they claim or are assigned a seat. Spectator/player/storyteller identity is business state, not a global RBAC role.
+
+### 12.5 Runtime Checks
+
+Controller access follows two layers:
+
+1. `DynamicAuthorizationManager` matches the request path and method to an enabled API permission rule.
+2. The application service resolves the concrete context and runs business policy checks.
+
+Examples:
+
+| API | RBAC check | Business policy check |
+|---|---|---|
+| `GET /api/clocktower/rooms` | `api:clocktower:room:read` | Room visibility filters public/private/invited/banned rooms |
+| `POST /api/clocktower/rooms/{roomId}/seats/{seatNo}/claim` | `api:clocktower:room:seat` | `SeatAssignmentPolicy` checks seating mode, ban, reservation, and room status |
+| `POST /api/clocktower/rooms/{roomId}/games/start` | `api:clocktower:game:lifecycle` | User must be this room's storyteller and start conditions must pass |
+| `GET /api/clocktower/chat/conversations/{conversationId}/messages` | `api:clocktower:chat:read` | `ClocktowerChatVisibilityPolicy` checks room/game/conversation visibility |
+| `POST /api/clocktower/chat/conversations/{conversationId}/messages` | `api:clocktower:chat:send` | `ClocktowerChatSendPolicy` checks phase, viewer role, spectator status, and private-chat window |
+| `GET /api/admin/clocktower/chat/**` | `api:admin:clocktower:audit` | Admin audit policy confirms admin or `SUPER_ADMIN`; normal room visibility does not apply |
+
+This split must be reflected in tests: RBAC provider tests verify resources and role grants; service tests verify instance-level denial and visibility.
+
+---
+
+## 13. Frontend
 
 | Page | Changes |
 |---|---|
@@ -717,17 +812,18 @@ The `/clocktower/rooms/{roomId}/play` route should no longer assume every viewer
 
 ---
 
-## 13. Migration Strategy
+## 14. Migration Strategy
 
 - Do not edit existing Flyway migrations.
 - Add one new Flyway migration for this refactor's schema.
 - Existing development Clocktower room data does not need compatibility.
 - Existing board, script, role, rule, flow, ruling, and replay code should be reused where it still fits after switching to game-centric ids.
 - Old Clocktower room APIs can be replaced by new APIs for frontend usage. Compatibility shims are optional and should not drive the design.
+- RBAC resource changes should be implemented through `ClocktowerRbacResourceProvider` and existing RBAC resource synchronization, not through a new RBAC-specific migration.
 
 ---
 
-## 14. Validation Plan
+## 15. Validation Plan
 
 Backend tests:
 
@@ -747,6 +843,10 @@ Backend tests:
 - Chat send policy by phase, day number, role, death state, and spectator status.
 - Chat visibility policy for player, storyteller, spectator, and management audit.
 - Replay access limited to game players and storyteller.
+- `ClocktowerRbacResourceProvider` declares new room, game, chat, and admin API permissions without `api:im:*`.
+- `CLOCKTOWER_PLAYER` role includes spectator-capable room/chat/game read grants but excludes storyteller/admin grants.
+- Dynamic authorization matches representative Clocktower API paths to the intended permission codes.
+- Service-level policy denies unauthorized access even when the caller has the coarse RBAC API permission.
 
 Frontend tests:
 
@@ -770,7 +870,7 @@ Manual validation:
 
 ---
 
-## 15. Open Implementation Notes
+## 16. Open Implementation Notes
 
 - The implementation plan should split this into backend schema/domain, backend Clocktower integration, IM UI, room UI, game/replay UI, and audit tasks.
 - Each implementation task should commit once.
