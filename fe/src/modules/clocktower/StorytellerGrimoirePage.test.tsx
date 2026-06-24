@@ -6,12 +6,14 @@ import {
     GrimoireSeatList,
     RulingForm,
     RulingHistory,
+    StorytellerGameSurface,
     TaskList,
     rulingTypeOptions,
 } from './StorytellerGrimoirePage'
 import {NightChecklist} from './components/NightChecklist'
 
 vi.mock('react-router', () => ({
+    Link: ({children, to}: { children: React.ReactNode; to: string }) => <a href={to}>{children}</a>,
     useParams: () => ({roomId: '7'}),
 }))
 
@@ -343,5 +345,68 @@ describe('StorytellerGrimoirePage', () => {
             '重开提名',
             '作废提名',
         ])
+    })
+
+    test('renders storyteller game surface with grimoire and player chat monitor excluding spectator channel', () => {
+        const markup = renderToStaticMarkup(
+            <StorytellerGameSurface
+                roomName="测试房间"
+                view={{
+                    gameId: 11,
+                    roomId: 7,
+                    gameNo: 1,
+                    status: 'RUNNING',
+                    phase: 'NIGHT',
+                    viewerMode: 'STORYTELLER',
+                    mySeat: null,
+                    publicSeats: [],
+                    grimoire: [
+                        {
+                            gameSeatId: 31,
+                            roomSeatId: 3,
+                            seatNo: 1,
+                            userId: 101,
+                            displayName: 'Alice',
+                            roleCode: 'EMPATH',
+                            roleType: 'TOWNSFOLK',
+                            alignment: 'GOOD',
+                            lifeStatus: 'ALIVE',
+                            publicLifeStatus: 'ALIVE',
+                            hasDeadVote: true,
+                            traveler: false,
+                            status: 'ACTIVE',
+                        },
+                    ],
+                    availableActions: [],
+                    events: [],
+                    conversations: [
+                        {
+                            conversationId: 201,
+                            roomId: 7,
+                            gameId: 11,
+                            channelKey: 'PUBLIC',
+                            groupKey: 'PUBLIC',
+                            conversationType: 'GROUP',
+                            messageSeq: 3,
+                        },
+                        {
+                            conversationId: 202,
+                            roomId: 7,
+                            gameId: 11,
+                            channelKey: 'SPECTATOR',
+                            groupKey: 'SPECTATOR',
+                            conversationType: 'GROUP',
+                            messageSeq: 2,
+                        },
+                    ],
+                }}
+            />,
+        )
+
+        expect(markup).toContain('说书人魔典')
+        expect(markup).toContain('聊天监控')
+        expect(markup).toContain('EMPATH')
+        expect(markup).toContain('玩家公聊')
+        expect(markup).not.toContain('旁观席')
     })
 })

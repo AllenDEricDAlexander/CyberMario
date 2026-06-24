@@ -1,6 +1,6 @@
 import {ReloadOutlined} from '@ant-design/icons'
-import {App, Button, Card, Col, Empty, List, Row, Space, Tabs, Tag, Typography} from 'antd'
-import {useEffect, useMemo, useState} from 'react'
+import {Alert, App, Button, Card, Col, Empty, List, Row, Space, Tabs, Tag, Typography} from 'antd'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useParams} from 'react-router'
 import {reportGlobalError} from '../../app/globalError'
 import {PageToolbar} from '../../components/PageToolbar'
@@ -10,7 +10,16 @@ import {
     streamClocktowerEvents,
     submitClocktowerPlayerAction,
 } from './clocktowerService'
-import type {ClocktowerEventResponse, ClocktowerPlayerViewResponse} from './clocktowerTypes'
+import type {
+    ClocktowerEventResponse,
+    ClocktowerGameEventResponse,
+    ClocktowerGameSeatResponse,
+    ClocktowerGameViewResponse,
+    ClocktowerPlayerViewResponse,
+    ClocktowerRoleType,
+    PublicSeatResponse,
+} from './clocktowerTypes'
+import {ClocktowerChatPanel} from './components/ClocktowerChatPanel'
 import {EventTimeline} from './components/EventTimeline'
 import {RoleTypeTag} from './components/RoleTypeTag'
 import {type VotePanelValues, VotePanel} from './components/VotePanel'
@@ -23,30 +32,9 @@ function GameRoomPage() {
     const [loading, setLoading] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const numericRoomId = Number(roomId)
+    const lastEventSeqRef = useRef<number | undefined>(undefined)
 
-    useEffect(() => {
-        void loadView()
-    }, [roomId])
-
-    useEffect(() => {
-        if (!Number.isFinite(numericRoomId)) {
-            return
-        }
-        const controller = new AbortController()
-        void streamClocktowerEvents(
-            numericRoomId,
-            {seatId: view?.mySeat?.seatId, lastEventSeq: events.at(-1)?.seqNo},
-            controller.signal,
-            (event) => setEvents((current) => [...current, event]),
-        ).catch((caught) => {
-            if (!controller.signal.aborted) {
-                reportGlobalError(caught)
-            }
-        })
-        return () => controller.abort()
-    }, [numericRoomId, view?.mySeat?.seatId])
-
-    async function loadView() {
+    const loadView = useCallback(async () => {
         if (!Number.isFinite(numericRoomId)) {
             return
         }
@@ -60,7 +48,33 @@ function GameRoomPage() {
         } finally {
             setLoading(false)
         }
-    }
+    }, [numericRoomId])
+
+    useEffect(() => {
+        void loadView()
+    }, [loadView])
+
+    useEffect(() => {
+        lastEventSeqRef.current = events.at(-1)?.seqNo
+    }, [events])
+
+    useEffect(() => {
+        if (!Number.isFinite(numericRoomId)) {
+            return
+        }
+        const controller = new AbortController()
+        void streamClocktowerEvents(
+            numericRoomId,
+            {seatId: view?.mySeat?.seatId, lastEventSeq: lastEventSeqRef.current},
+            controller.signal,
+            (event) => setEvents((current) => [...current, event]),
+        ).catch((caught) => {
+            if (!controller.signal.aborted) {
+                reportGlobalError(caught)
+            }
+        })
+        return () => controller.abort()
+    }, [numericRoomId, view?.mySeat?.seatId])
 
     async function submitAction(values: VotePanelValues) {
         if (!view?.mySeat || !Number.isFinite(numericRoomId)) {
@@ -176,6 +190,184 @@ export function SeatPublicList({seats}: { seats: ClocktowerPlayerViewResponse['p
             )}
         />
     )
+}
+
+export function GameRoomSurface({roomName, view}: { roomName?: string; view: ClocktowerGameViewResponse }) {
+    const {message} = App.useApp()
+    const [events, setEvents] = useState<ClocktowerEventResponse[]>(() => mapGameEvents(view))
+    const [submitting, setSubmitting] = useState(false)
+    const publicSeats = useMemo(() => mapGamePublicSeats(view.publicSeats), [view.publicSeats])
+    const viewerModeLabel = view.viewerMode === 'SPECTATOR' ? '旁观视角' : '玩家视角'
+
+    useEffect(() => {
+        setEvents(mapGameEvents(view))
+    }, [view])
+
+    async function submitAction(values: VotePanelValues) {
+        if (!view.mySeat) {
+            message.warning('当前视角没有绑定座位')
+            return
+        }
+        setSubmitting(true)
+        try {
+            const response = await submitClocktowerPlayerAction(view.roomId, {
+                seatId: view.mySeat.roomSeatId,
+                actionType: values.actionType,
+                targetSeatIds: values.targetSeatIds ?? [],
+                content: values.content,
+                payload: {},
+                clientActionId: crypto.randomUUID(),
+            })
+            if (response.event) {
+                setEvents((current) => [...current, response.event as ClocktowerEventResponse])
+            }
+            message.success(response.accepted ? '操作已提交' : `操作被拒绝：${response.rejectedCode ?? '-'}`)
+        } catch (caught) {
+            reportGlobalError(caught)
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    return (
+        <>
+            <PageToolbar
+                description={`${viewerModeLabel} · ${view.phase}`}
+                title={roomName ?? `游戏 #${view.gameNo}`}
+            />
+            <Row gutter={[16, 16]}>
+                <Col lg={16} xs={24}>
+                    <Card title="公共座位">
+                        <SeatPublicList seats={publicSeats}/>
+                    </Card>
+                    <Card style={{marginTop: 16}} title="公共事件">
+                        <EventTimeline events={events}/>
+                    </Card>
+                </Col>
+                <Col lg={8} xs={24}>
+                    {view.viewerMode === 'SPECTATOR' ? (
+                        <Alert
+                            title="旁观视角"
+                            showIcon
+                            style={{marginBottom: 16}}
+                            type="info"
+                        />
+                    ) : (
+                        <Card title="我的身份">
+                            <GameSeatIdentity seat={view.mySeat}/>
+                        </Card>
+                    )}
+                    <Card style={{marginTop: view.viewerMode === 'SPECTATOR' ? 0 : 16}}>
+                        <Tabs
+                            items={[
+                                ...(view.viewerMode === 'PLAYER' ? [{
+                                    key: 'actions',
+                                    label: '操作',
+                                    children: (
+                                        <Space orientation="vertical" style={{width: '100%'}}>
+                                            <ActionSummary actions={view.availableActions}/>
+                                            <VotePanel
+                                                actions={view.availableActions}
+                                                loading={submitting}
+                                                onSubmit={submitAction}
+                                                seats={publicSeats}
+                                            />
+                                        </Space>
+                                    ),
+                                }] : []),
+                                {
+                                    key: 'chat',
+                                    label: '聊天',
+                                    forceRender: true,
+                                    children: (
+                                        <ClocktowerChatPanel
+                                            conversations={view.conversations}
+                                            gameId={view.gameId}
+                                            phase={view.phase}
+                                            viewerMode={view.viewerMode}
+                                        />
+                                    ),
+                                },
+                                {
+                                    key: 'recent',
+                                    label: '最近事件',
+                                    children: <EventTimeline events={events.slice(-5)}/>,
+                                },
+                            ]}
+                        />
+                    </Card>
+                </Col>
+            </Row>
+        </>
+    )
+}
+
+function GameSeatIdentity({seat}: { seat?: ClocktowerGameSeatResponse | null }) {
+    if (!seat) {
+        return <Empty description="暂无座位身份"/>
+    }
+    return (
+        <Space orientation="vertical">
+            <Typography.Text strong>{seat.displayName}</Typography.Text>
+            <Space wrap>
+                <Tag>{seat.roleCode ?? '未知角色'}</Tag>
+                <RoleTypeTag value={seat.roleType as ClocktowerRoleType | null}/>
+                <Tag color={seat.lifeStatus === 'ALIVE' ? 'success' : 'error'}>{seat.lifeStatus}</Tag>
+                <Tag color={seat.hasDeadVote ? 'warning' : 'default'}>
+                    {seat.hasDeadVote ? '死票可用' : '死票已用'}
+                </Tag>
+            </Space>
+        </Space>
+    )
+}
+
+function ActionSummary({actions}: { actions: ClocktowerGameViewResponse['availableActions'] }) {
+    if (actions.length === 0) {
+        return <Empty description="暂无可用操作"/>
+    }
+    return (
+        <Space wrap>
+            {actions.map((action) => (
+                <Tag color={action.enabled ? 'processing' : 'default'} key={action.actionType}>
+                    {action.label}
+                </Tag>
+            ))}
+        </Space>
+    )
+}
+
+function mapGamePublicSeats(seats: ClocktowerGameSeatResponse[]): PublicSeatResponse[] {
+    return seats.map((seat) => ({
+        seatId: seat.roomSeatId,
+        seatNo: seat.seatNo,
+        displayName: seat.displayName,
+        roleCode: null,
+        lifeStatus: seat.publicLifeStatus || seat.lifeStatus,
+        connected: seat.status === 'ACTIVE',
+        hasDeadVote: seat.hasDeadVote,
+    }))
+}
+
+function mapGameEvents(view: ClocktowerGameViewResponse): ClocktowerEventResponse[] {
+    return view.events.map((event) => mapGameEvent(view.roomId, event))
+}
+
+function mapGameEvent(roomId: number, event: ClocktowerGameEventResponse): ClocktowerEventResponse {
+    return {
+        eventId: event.eventId,
+        roomId,
+        seqNo: event.eventSeq,
+        eventType: event.eventType as ClocktowerEventResponse['eventType'],
+        phase: event.phase as ClocktowerEventResponse['phase'],
+        dayNo: event.dayNo,
+        nightNo: event.nightNo,
+        actorSeatId: event.actorGameSeatId ?? null,
+        targetSeatId: event.targetGameSeatId ?? null,
+        visibility: event.visibility as ClocktowerEventResponse['visibility'],
+        visibleSeatIds: event.visibleGameSeatIds,
+        payload: event.payload,
+        createdAt: event.occurredAt,
+    }
 }
 
 function PrivateThreadList({threads}: { threads: ClocktowerPlayerViewResponse['privateThreads'] }) {

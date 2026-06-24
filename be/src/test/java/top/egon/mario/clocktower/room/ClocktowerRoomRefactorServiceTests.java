@@ -9,8 +9,10 @@ import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardConfigRespons
 import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
 import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
+import top.egon.mario.clocktower.game.dto.ClocktowerGameResponse;
 import top.egon.mario.clocktower.game.po.ClocktowerRoomProfilePo;
 import top.egon.mario.clocktower.game.po.ClocktowerRoomSeatPo;
+import top.egon.mario.clocktower.game.service.ClocktowerGameLifecycleService;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomBoardSwitchRequest;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomCreateRequest;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomInvitationCreateRequest;
@@ -56,6 +58,9 @@ class ClocktowerRoomRefactorServiceTests {
 
     @Autowired
     private ClocktowerBoardService boardService;
+
+    @Autowired
+    private ClocktowerGameLifecycleService gameService;
 
     @Autowired
     private RoomSpaceRepository roomSpaceRepository;
@@ -336,6 +341,32 @@ class ClocktowerRoomRefactorServiceTests {
         assertThat(member.getSeatNo()).isNull();
         ClocktowerRoomSeatPo seat = seatRepository.findByRoomIdAndSeatNo(room.roomId(), 2).orElseThrow();
         assertThat(seat.getMetadataJson()).contains("\"ready\":false");
+    }
+
+    @Test
+    void lobbyResponseExposesCurrentGameIdAfterGameStarts() {
+        RbacPrincipal owner = principal(1L, "mario");
+        ClocktowerRoomResponse room = readyRoom(owner);
+
+        ClocktowerGameResponse game = gameService.startGame(room.roomId(), owner);
+
+        assertThat(roomService.lobby(room.roomId(), owner).currentGameId()).isEqualTo(game.gameId());
+    }
+
+    private ClocktowerRoomResponse readyRoom(RbacPrincipal owner) {
+        ClocktowerRoomResponse room = roomService.createRoom(createRequest("OPEN_SEATING"), owner);
+        for (int seatNo = 1; seatNo <= roleCodes().size(); seatNo++) {
+            roomService.claimSeat(room.roomId(), seatNo, new ClocktowerSeatClaimRequest("Player " + seatNo),
+                    principal(10L + seatNo, "player" + seatNo));
+        }
+        List<ClocktowerRoomSeatPo> seats = seatRepository.findByRoomIdOrderBySeatNoAsc(room.roomId());
+        for (int index = 0; index < seats.size(); index++) {
+            ClocktowerRoomSeatPo seat = seats.get(index);
+            seat.setRoleCode(roleCodes().get(index));
+            seat.setMetadataJson("{\"ready\":true}");
+        }
+        seatRepository.saveAllAndFlush(seats);
+        return room;
     }
 
     private static ClocktowerRoomCreateRequest createRequest(String seatingPolicy) {

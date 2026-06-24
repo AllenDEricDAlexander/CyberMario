@@ -351,6 +351,7 @@ export type ClocktowerRoomResponse = {
     allowSpectators?: boolean | null
     allowPrivateChat?: boolean | null
     storytellerUserId?: number | null
+    currentGameId?: number | null
     seats: ClocktowerRoomSeatResponse[]
     publicConversationId?: number | null
     members?: ClocktowerRoomMemberResponse[]

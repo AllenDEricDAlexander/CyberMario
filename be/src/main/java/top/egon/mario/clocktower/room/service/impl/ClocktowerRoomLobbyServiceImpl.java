@@ -511,8 +511,8 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
                 .toList();
         return new ClocktowerRoomResponse(room.getId(), room.getRoomCode(), room.getName(),
                 ClocktowerScriptCode.valueOf(profile.getScriptCode()), roomStatus(profile.getStatus()),
-                ClocktowerPhase.LOBBY, profile.getPlayerCount(), profile.getStorytellerUserId(), seats,
-                publicConversationId, members, reservations);
+                ClocktowerPhase.LOBBY, profile.getPlayerCount(), profile.getStorytellerUserId(),
+                profile.getCurrentGameId(), seats, publicConversationId, members, reservations);
     }
 
     private ClocktowerSeatResponse toSeatResponse(ClocktowerRoomSeatPo seat) {
