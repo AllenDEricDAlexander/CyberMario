@@ -66,6 +66,8 @@ class ClocktowerChatPolicyTests {
         assertThat(canSend(context(ClocktowerChatViewerMode.PLAYER,
                 ClocktowerChatConstants.GROUP_PRIVATE, CONVERSATION_PRIVATE, "DAY", 2, true))).isTrue();
         assertThat(canSend(context(ClocktowerChatViewerMode.PLAYER,
+                ClocktowerChatConstants.GROUP_PRIVATE, CONVERSATION_PRIVATE, "NIGHT", 1, true))).isFalse();
+        assertThat(canSend(context(ClocktowerChatViewerMode.PLAYER,
                 ClocktowerChatConstants.GROUP_PRIVATE, CONVERSATION_PRIVATE, "DAY", 3, true))).isFalse();
     }
 

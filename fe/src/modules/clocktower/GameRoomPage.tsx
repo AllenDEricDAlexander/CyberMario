@@ -192,7 +192,15 @@ export function SeatPublicList({seats}: { seats: ClocktowerPlayerViewResponse['p
     )
 }
 
-export function GameRoomSurface({roomName, view}: { roomName?: string; view: ClocktowerGameViewResponse }) {
+export function GameRoomSurface({
+    actionControlsEnabled = true,
+    roomName,
+    view,
+}: {
+    actionControlsEnabled?: boolean
+    roomName?: string
+    view: ClocktowerGameViewResponse
+}) {
     const {message} = App.useApp()
     const [events, setEvents] = useState<ClocktowerEventResponse[]>(() => mapGameEvents(view))
     const [submitting, setSubmitting] = useState(false)
@@ -260,7 +268,7 @@ export function GameRoomSurface({roomName, view}: { roomName?: string; view: Clo
                     <Card style={{marginTop: view.viewerMode === 'SPECTATOR' ? 0 : 16}}>
                         <Tabs
                             items={[
-                                ...(view.viewerMode === 'PLAYER' ? [{
+                                ...(view.viewerMode === 'PLAYER' && actionControlsEnabled ? [{
                                     key: 'actions',
                                     label: '操作',
                                     children: (

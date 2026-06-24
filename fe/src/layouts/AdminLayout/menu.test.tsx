@@ -345,9 +345,9 @@ describe('admin menu authorization', () => {
             },
         ]
 
-        expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(clocktowerAuditMenuTree, false, ['CLOCKTOWER_STORYTELLER'])))
+        expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(clocktowerAuditMenuTree, false, ['CLOCKTOWER_ADMIN'])))
             .toContain('/clocktower/admin/audit')
-        expect(canAccessAdminPath('/clocktower/admin/audit', clocktowerAuditMenuTree, false, ['CLOCKTOWER_STORYTELLER']))
+        expect(canAccessAdminPath('/clocktower/admin/audit', clocktowerAuditMenuTree, false, ['CLOCKTOWER_ADMIN']))
             .toBe(true)
         expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, true, ['SUPER_ADMIN'])))
             .toContain('/clocktower/admin/audit')

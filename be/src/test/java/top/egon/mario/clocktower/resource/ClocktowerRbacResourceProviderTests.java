@@ -76,7 +76,8 @@ class ClocktowerRbacResourceProviderTests {
                 .contains("menu:clocktower:boards",
                         "menu:clocktower:rooms",
                         "menu:clocktower:rules",
-                        "menu:clocktower:replays");
+                        "menu:clocktower:replays",
+                        "menu:clocktower:admin-audit");
         assertThat(apiCodes(resources))
                 .containsExactlyInAnyOrder(
                         "api:clocktower:script:read",
@@ -188,6 +189,7 @@ class ClocktowerRbacResourceProviderTests {
                 .filteredOn(role -> role.roleCode().equals("CLOCKTOWER_ADMIN"))
                 .singleElement()
                 .satisfies(role -> assertThat(role.permissionCodes()).containsExactlyInAnyOrder(
+                        "menu:clocktower:admin-audit",
                         "api:admin:clocktower:audit",
                         "api:admin:clocktower:rule-data"));
     }

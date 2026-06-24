@@ -27,6 +27,7 @@ public class ClocktowerViewerResolver {
 
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_DISBANDED = "DISBANDED";
+    private static final String ROLE_CLOCKTOWER_ADMIN = "CLOCKTOWER_ADMIN";
     private static final String ROLE_SUPER_ADMIN = "SUPER_ADMIN";
 
     private final ClocktowerGameRepository gameRepository;
@@ -67,7 +68,8 @@ public class ClocktowerViewerResolver {
 
     public void requireAdminAudit(RbacPrincipal principal) {
         requirePrincipal(principal);
-        if (principal.roleCodes() == null || !principal.roleCodes().contains(ROLE_SUPER_ADMIN)) {
+        if (principal.roleCodes() == null || (!principal.roleCodes().contains(ROLE_CLOCKTOWER_ADMIN)
+                && !principal.roleCodes().contains(ROLE_SUPER_ADMIN))) {
             throw new ClocktowerException("CLOCKTOWER_AUDIT_FORBIDDEN");
         }
     }

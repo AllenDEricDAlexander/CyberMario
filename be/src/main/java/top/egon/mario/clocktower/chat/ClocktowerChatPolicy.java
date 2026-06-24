@@ -41,6 +41,7 @@ public class ClocktowerChatPolicy {
         if (isPrivateConversation(context)) {
             return context.viewerMode() == ClocktowerChatViewerMode.PLAYER
                     && context.activeConversationMember()
+                    && isDayLike(context.phase())
                     && context.dayNo() >= 1
                     && context.dayNo() <= DEFAULT_PRIVATE_CHAT_DAY_LIMIT;
         }

@@ -42,6 +42,7 @@ import java.util.List;
 public class ClocktowerChatServiceImpl implements ClocktowerChatService {
 
     private static final String STATUS_ACTIVE = "ACTIVE";
+    private static final String ROLE_CLOCKTOWER_ADMIN = "CLOCKTOWER_ADMIN";
     private static final String ROLE_SUPER_ADMIN = "SUPER_ADMIN";
 
     private final ClocktowerGameContextService gameContextService;
@@ -239,7 +240,8 @@ public class ClocktowerChatServiceImpl implements ClocktowerChatService {
 
     private void requireAdminAudit(RbacPrincipal principal) {
         RbacPrincipal checkedPrincipal = requirePrincipal(principal);
-        if (checkedPrincipal.roleCodes() == null || !checkedPrincipal.roleCodes().contains(ROLE_SUPER_ADMIN)) {
+        if (checkedPrincipal.roleCodes() == null || (!checkedPrincipal.roleCodes().contains(ROLE_CLOCKTOWER_ADMIN)
+                && !checkedPrincipal.roleCodes().contains(ROLE_SUPER_ADMIN))) {
             throw new ClocktowerException("CLOCKTOWER_CHAT_AUDIT_FORBIDDEN");
         }
     }

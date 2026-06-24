@@ -105,8 +105,14 @@ class ClocktowerRoomRefactorServiceTests {
         assertThat(profile.getStatus()).isEqualTo("LOBBY");
 
         assertThat(seatRepository.findByRoomIdOrderBySeatNoAsc(room.roomId()))
-                .extracting(ClocktowerRoomSeatPo::getStatus)
-                .containsExactly("OPEN", "OPEN", "OPEN", "OPEN", "OPEN");
+                .extracting(ClocktowerRoomSeatPo::getStatus, ClocktowerRoomSeatPo::getRoleCode)
+                .containsExactly(
+                        tuple("OPEN", "EMPATH"),
+                        tuple("OPEN", "CHEF"),
+                        tuple("OPEN", "MONK"),
+                        tuple("OPEN", "POISONER"),
+                        tuple("OPEN", "IMP")
+                );
         assertThat(room.seats())
                 .extracting(ClocktowerSeatResponse::hasDeadVote)
                 .containsOnly(false);
@@ -169,18 +175,18 @@ class ClocktowerRoomRefactorServiceTests {
     }
 
     @Test
-    void claimSeatDefaultsMissingSeatingPolicyToApprovalRequired() {
+    void claimSeatDefaultsMissingSeatingPolicyToOpenSeating() {
         ClocktowerRoomResponse room = roomService.createRoom(createRequest(null), principal(1L, "mario"));
 
         ClocktowerSeatResponse seat = roomService.claimSeat(room.roomId(), 2,
                 new ClocktowerSeatClaimRequest("Luigi"), principal(2L, "luigi"));
 
-        assertThat(seat.userId()).isNull();
-        assertThat(seat.status()).isEqualTo("OPEN");
-        assertThat(seatRepository.findByRoomIdAndUserId(room.roomId(), 2L)).isEmpty();
+        assertThat(seat.userId()).isEqualTo(2L);
+        assertThat(seat.status()).isEqualTo("OCCUPIED");
+        assertThat(seat.ready()).isTrue();
+        assertThat(seatRepository.findByRoomIdAndUserId(room.roomId(), 2L)).isPresent();
         assertThat(roomInvitationRepository.findActiveTargetSeatReservations(room.roomId(), Instant.now()))
-                .extracting(RoomInvitationPo::getInviteeUserId, RoomInvitationPo::getTargetSeatNo)
-                .containsExactly(tuple(2L, 2));
+                .isEmpty();
     }
 
     @Test
@@ -194,6 +200,8 @@ class ClocktowerRoomRefactorServiceTests {
         roomService.claimSeat(room.roomId(), 2, new ClocktowerSeatClaimRequest("Luigi"),
                 principal(2L, "luigi"));
 
+        ClocktowerRoomSeatPo seat = seatRepository.findByRoomIdAndUserId(room.roomId(), 2L).orElseThrow();
+        assertThat(seat.getMetadataJson()).contains("\"ready\":true");
         assertThat(imConversationMemberRepository
                 .existsByConversationIdAndUserIdAndStatusAndDeletedFalse(room.publicConversationId(), 2L, "ACTIVE"))
                 .isTrue();
@@ -359,13 +367,6 @@ class ClocktowerRoomRefactorServiceTests {
             roomService.claimSeat(room.roomId(), seatNo, new ClocktowerSeatClaimRequest("Player " + seatNo),
                     principal(10L + seatNo, "player" + seatNo));
         }
-        List<ClocktowerRoomSeatPo> seats = seatRepository.findByRoomIdOrderBySeatNoAsc(room.roomId());
-        for (int index = 0; index < seats.size(); index++) {
-            ClocktowerRoomSeatPo seat = seats.get(index);
-            seat.setRoleCode(roleCodes().get(index));
-            seat.setMetadataJson("{\"ready\":true}");
-        }
-        seatRepository.saveAllAndFlush(seats);
         return room;
     }
 

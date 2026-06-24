@@ -134,7 +134,8 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
         profileRepository.save(profile);
 
         for (int seatNo = 1; seatNo <= playerCount; seatNo++) {
-            seatRepository.save(openSeat(room.getId(), seatNo));
+            String roleCode = seatNo <= roleCodes.size() ? roleCodes.get(seatNo - 1) : null;
+            seatRepository.save(openSeat(room.getId(), seatNo, roleCode));
         }
 
         Long publicConversationId = ensurePublicConversation(room.getId(), principal.userId());
@@ -203,7 +204,8 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
                         (left, right) -> left));
         for (int seatNo = 1; seatNo <= nextPlayerCount; seatNo++) {
             if (!seatByNo.containsKey(seatNo)) {
-                seatRepository.save(openSeat(roomId, seatNo));
+                String roleCode = seatNo <= roleCodes.size() ? roleCodes.get(seatNo - 1) : null;
+                seatRepository.save(openSeat(roomId, seatNo, roleCode));
             }
         }
         profile.setScriptCode(scriptCode.name());
@@ -476,7 +478,7 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
         seat.setUserId(member.getUserId());
         seat.setDisplayName(displayName(principal, displayName));
         seat.setStatus(SEAT_STATUS_OCCUPIED);
-        setReady(seat, false);
+        setReady(seat, true);
     }
 
     private void releaseSeatAssignment(RoomSpacePo room, ClocktowerRoomSeatPo seat, boolean keepMember) {
@@ -542,10 +544,11 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
                 .orElse(null);
     }
 
-    private ClocktowerRoomSeatPo openSeat(Long roomId, int seatNo) {
+    private ClocktowerRoomSeatPo openSeat(Long roomId, int seatNo, String roleCode) {
         ClocktowerRoomSeatPo seat = new ClocktowerRoomSeatPo();
         seat.setRoomId(roomId);
         seat.setSeatNo(seatNo);
+        seat.setRoleCode(roleCode);
         seat.setDisplayName("Seat " + seatNo);
         seat.setStatus(SEAT_STATUS_OPEN);
         seat.setMetadataJson(writeJson(Map.of("ready", false)));
@@ -633,7 +636,7 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
 
     private String seatingPolicy(String seatingPolicy) {
         if (!StringUtils.hasText(seatingPolicy)) {
-            return ClocktowerSeatAssignmentPolicy.APPROVAL_REQUIRED;
+            return ClocktowerSeatAssignmentPolicy.OPEN_SEATING;
         }
         return seatingPolicy;
     }

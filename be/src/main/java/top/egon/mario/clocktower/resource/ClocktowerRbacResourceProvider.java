@@ -161,6 +161,10 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
         @Override
         public List<RbacResourceSeed> resources() {
             return List.of(
+                    RbacResourceSeed.menu(ADMIN_APP_CODE, ADMIN_APP_CODE, "menu:clocktower:admin-audit",
+                            "钟楼审计", null, PermissionStatus.ENABLED, 30, null,
+                            new RbacMenuSeed("clocktower:admin-audit", "/clocktower/admin/audit", null,
+                                    null, "CrownOutlined", false, true, null), RbacResourceSource.PROVIDER),
                     api(ADMIN_APP_CODE, APP_CODE, ADMIN_AUDIT, "Clocktower admin audit", "GET",
                             "^/api/admin/clocktower/(rooms/[^/]+/audit|games/[^/]+/audit|"
                                     + "chat/conversations/[^/]+/messages)$",
@@ -176,7 +180,8 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
         public List<RbacRolePresetSeed> rolePresets() {
             return List.of(new RbacRolePresetSeed(ADMIN_APP_CODE, "CLOCKTOWER_ADMIN", "Clocktower Admin",
                     "System role for Clocktower management operators.", 20,
-                    List.of(ADMIN_AUDIT, ADMIN_RULE_DATA), RbacResourceSource.PROVIDER));
+                    List.of("menu:clocktower:admin-audit", ADMIN_AUDIT, ADMIN_RULE_DATA),
+                    RbacResourceSource.PROVIDER));
         }
     }
 }

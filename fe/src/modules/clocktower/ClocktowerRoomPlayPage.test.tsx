@@ -113,4 +113,36 @@ describe('ClocktowerRoomPlayPage', () => {
         expect(markup).toContain('聊天监控')
         expect(markup).toContain('EMPATH')
     })
+
+    test('renders player play surface without legacy action submission controls', () => {
+        const markup = renderToStaticMarkup(
+            <ClocktowerRoomPlaySurface
+                gameView={{
+                    ...view,
+                    mySeat: {
+                        gameSeatId: 31,
+                        roomSeatId: 3,
+                        seatNo: 1,
+                        userId: 101,
+                        displayName: 'Alice',
+                        roleCode: 'EMPATH',
+                        roleType: 'TOWNSFOLK',
+                        alignment: 'GOOD',
+                        lifeStatus: 'ALIVE',
+                        publicLifeStatus: 'ALIVE',
+                        hasDeadVote: true,
+                        traveler: false,
+                        status: 'ACTIVE',
+                    },
+                    availableActions: [{actionType: 'PUBLIC_SPEECH', label: '公开发言', enabled: true}],
+                }}
+                room={room}
+            />,
+        )
+
+        expect(markup).toContain('玩家视角')
+        expect(markup).toContain('聊天')
+        expect(markup).not.toContain('公开发言')
+        expect(markup).not.toContain('操作')
+    })
 })

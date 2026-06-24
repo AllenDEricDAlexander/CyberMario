@@ -76,7 +76,7 @@ public final class ClocktowerProjectionTestSupport {
         RbacPrincipal spectator = principal(base + 90, "spectator");
         RbacPrincipal adminSpectator = new RbacPrincipal(base + 91, "admin-spectator",
                 Set.of("SUPER_ADMIN", "CLOCKTOWER_PLAYER"), Set.of(), "v1");
-        RbacPrincipal admin = new RbacPrincipal(base + 900, "admin", Set.of("SUPER_ADMIN"), Set.of(), "v1");
+        RbacPrincipal admin = new RbacPrincipal(base + 900, "admin", Set.of("CLOCKTOWER_ADMIN"), Set.of(), "v1");
 
         ClocktowerRoomResponse room = roomService.createRoom(createRequest(), owner);
         for (int seatNo = 1; seatNo <= ROLE_CODES.size(); seatNo++) {
