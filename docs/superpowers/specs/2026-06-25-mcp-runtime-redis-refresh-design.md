@@ -31,29 +31,11 @@
 
 ---
 
-## 2. 方案选择
+## 2. 已确认方案
 
-### 2.1 备选方案
+本次只采用 Redis Pub/Sub + 本地刷新兜底方案。该方案符合后续分布式方向，改动集中，可以复用 RBAC 已有 Redis listener 写法，并且不需要新增数据库迁移。
 
-**方案 A: Redis Pub/Sub + 本地刷新兜底**
-
-- 优点: 符合后续分布式方向；改动集中；复用 RBAC 已有 Redis listener 写法；本节点即时生效；不需要迁移。
-- 缺点: Redis Pub/Sub 是尽力而为，没有离线重放；Redis 发布失败时其他节点可能暂时旧状态。
-- 结论: 采用。
-
-**方案 B: DB 版本表或 outbox + Redis 通知**
-
-- 优点: 可追溯、可补偿，节点重连后可以拉齐状态。
-- 缺点: 需要新增迁移、后台同步和幂等消费逻辑，超出当前 bug 修复范围。
-- 结论: 暂不采用，后续如果要求强一致再扩展。
-
-**方案 C: controller 里直接刷新本地 client**
-
-- 优点: 单机最小修复。
-- 缺点: 不支持分布式；tool policy 路径仍容易遗漏；不符合 Redis listener 方向。
-- 结论: 不采用。
-
-### 2.2 推荐设计
+Redis Pub/Sub 是尽力而为机制，没有离线重放。当前需求接受这个边界: Redis 发布失败时，本节点仍然即时生效，其他节点可能暂时保持旧状态，直到下一次 MCP 变更事件或节点重启后重新加载。后续如果要求强一致或可补偿重放，再单独引入 DB 版本表或 outbox。
 
 新增一个 MCP runtime refresh coordinator 作为 Facade，统一处理 “本地刷新 + Redis 广播”。所有会影响 Agent MCP 工具可见性的写操作都调用 coordinator，而不是直接操作 `DynamicMcpClientManager` 或只打版本标记。
 
@@ -178,7 +160,7 @@ Redis subscriber 只处理非本节点消息，收到后调用本地 runtime ref
 - 收到未知 event type 或缺少必要 `serverId`: 记录 warn 并跳过。
 - 收到本节点 source message: debug 日志跳过，避免重复刷新。
 
-这意味着跨节点刷新是最终一致、尽力而为。若未来需要保证所有节点都能补偿拉齐，再引入方案 B 的版本表或 outbox。
+这意味着跨节点刷新是最终一致、尽力而为。若未来需要保证所有节点都能补偿拉齐，再单独设计版本表或 outbox 机制。
 
 ---
 
