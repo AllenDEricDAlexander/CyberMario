@@ -1,4 +1,4 @@
-import {Alert} from 'antd'
+import { Alert } from 'antd'
 import {type ReactNode, useEffect, useState} from 'react'
 import {resolveErrorMessage} from '../services/request'
 
@@ -50,12 +50,26 @@ export function GlobalErrorAlert({message, onClose}: GlobalErrorAlertProps) {
     }
 
     return (
-        <Alert
-            closable={{onClose}}
-            showIcon
-            style={{margin: '16px 24px 0'}}
-            title={message}
-            type="error"
-        />
+        <div
+            className="global-error-alert-popup"
+            style={{
+                position: 'fixed',
+                top: 24,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 1100,
+                width: 'max-content',
+                maxWidth: 'calc(100vw - 32px)',
+                pointerEvents: 'none',
+            }}
+        >
+            <Alert
+                closable={{closeIcon: true, onClose}}
+                showIcon
+                style={{pointerEvents: 'auto'}}
+                title={message}
+                type="error"
+            />
+        </div>
     )
 }

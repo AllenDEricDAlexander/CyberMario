@@ -15,6 +15,13 @@ describe('global error reporting', () => {
 
         expect(markup).toContain('Network Error')
         expect(markup).toContain('ant-alert-error')
+        expect(markup).toContain('ant-alert-close-icon')
+        expect(markup).toContain('global-error-alert-popup')
+        expect(markup).toContain('position:fixed')
+        expect(markup).toContain('left:50%')
+        expect(markup).toContain('transform:translateX(-50%)')
+        expect(markup).toContain('width:max-content')
+        expect(markup).toContain('max-width:calc(100vw - 32px)')
     })
 
     test('reports and clears resolved error messages', () => {
