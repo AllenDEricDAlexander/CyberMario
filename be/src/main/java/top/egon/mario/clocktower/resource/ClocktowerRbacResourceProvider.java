@@ -37,6 +37,7 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
     private static final String CHAT_SEND = "api:clocktower:chat:send";
     private static final String CHAT_CONVERSATION = "api:clocktower:chat:conversation";
     private static final String CHAT_READ_STATE = "api:clocktower:chat:read-state";
+    private static final String ADMIN_AUDIT_MENU = "menu:admin:clocktower:audit";
     private static final String ADMIN_AUDIT = "api:admin:clocktower:audit";
     private static final String ADMIN_RULE_DATA = "api:admin:clocktower:rule-data";
 
@@ -161,7 +162,7 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
         @Override
         public List<RbacResourceSeed> resources() {
             return List.of(
-                    RbacResourceSeed.menu(ADMIN_APP_CODE, ADMIN_APP_CODE, "menu:clocktower:admin-audit",
+                    RbacResourceSeed.menu(ADMIN_APP_CODE, ADMIN_APP_CODE, ADMIN_AUDIT_MENU,
                             "钟楼审计", null, PermissionStatus.ENABLED, 30, null,
                             new RbacMenuSeed("clocktower:admin-audit", "/clocktower/admin/audit", null,
                                     null, "CrownOutlined", false, true, null), RbacResourceSource.PROVIDER),
@@ -180,7 +181,7 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
         public List<RbacRolePresetSeed> rolePresets() {
             return List.of(new RbacRolePresetSeed(ADMIN_APP_CODE, "CLOCKTOWER_ADMIN", "Clocktower Admin",
                     "System role for Clocktower management operators.", 20,
-                    List.of("menu:clocktower:admin-audit", ADMIN_AUDIT, ADMIN_RULE_DATA),
+                    List.of(ADMIN_AUDIT_MENU, ADMIN_AUDIT, ADMIN_RULE_DATA),
                     RbacResourceSource.PROVIDER));
         }
     }

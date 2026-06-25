@@ -335,7 +335,7 @@ describe('admin menu authorization', () => {
             ...menuTree,
             {
                 permissionId: 24,
-                permCode: 'menu:clocktower:admin-audit',
+                permCode: 'menu:admin:clocktower:audit',
                 permName: '钟楼审计',
                 routePath: '/clocktower/admin/audit',
                 hidden: false,

@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ClocktowerRbacResourceProviderTests {
 
     private final ApiRuleMatcher matcher = new ApiRuleMatcher();
+    private static final String ADMIN_AUDIT_MENU = "menu:admin:clocktower:audit";
 
     private static final Path RETIRE_OLD_RBAC_MIGRATION = Path.of(
             "src/main/resources/db/migration/V27__retire_old_clocktower_rbac_resources.sql");
@@ -77,7 +78,7 @@ class ClocktowerRbacResourceProviderTests {
                         "menu:clocktower:rooms",
                         "menu:clocktower:rules",
                         "menu:clocktower:replays",
-                        "menu:clocktower:admin-audit");
+                        ADMIN_AUDIT_MENU);
         assertThat(apiCodes(resources))
                 .containsExactlyInAnyOrder(
                         "api:clocktower:script:read",
@@ -189,9 +190,24 @@ class ClocktowerRbacResourceProviderTests {
                 .filteredOn(role -> role.roleCode().equals("CLOCKTOWER_ADMIN"))
                 .singleElement()
                 .satisfies(role -> assertThat(role.permissionCodes()).containsExactlyInAnyOrder(
-                        "menu:clocktower:admin-audit",
+                        ADMIN_AUDIT_MENU,
                         "api:admin:clocktower:audit",
                         "api:admin:clocktower:rule-data"));
+    }
+
+    @Test
+    void adminProviderDeclaresResourcesInsideAdminNamespace() {
+        ClocktowerRbacResourceProvider.AdminProvider provider = new ClocktowerRbacResourceProvider.AdminProvider();
+        List<String> adminResourceCodes = provider.resources().stream()
+                .map(RbacResourceSeed::code)
+                .toList();
+
+        assertThat(adminResourceCodes)
+                .allMatch(code -> code.startsWith("menu:admin:") || code.startsWith("api:admin:"))
+                .contains(ADMIN_AUDIT_MENU, "api:admin:clocktower:audit", "api:admin:clocktower:rule-data");
+        assertThat(provider.rolePresets())
+                .singleElement()
+                .satisfies(role -> assertThat(role.permissionCodes()).contains(ADMIN_AUDIT_MENU));
     }
 
     @Test
