@@ -129,6 +129,19 @@ class ClocktowerGameLifecycleServiceTests {
     }
 
     @Test
+    void startGameRejectsStorytellerSeat() {
+        Long roomId = readyRoom();
+        ClocktowerRoomSeatPo storytellerSeat = roomSeatRepository.findByRoomIdAndSeatNo(roomId, 1).orElseThrow();
+        storytellerSeat.setUserId(1L);
+        storytellerSeat.setDisplayName("Mario");
+        roomSeatRepository.saveAndFlush(storytellerSeat);
+
+        assertStartRejected(roomId, "CLOCKTOWER_STORYTELLER_CANNOT_PLAY");
+
+        assertThat(gameRepository.findByRoomIdAndDeletedFalseOrderByGameNoAsc(roomId)).isEmpty();
+    }
+
+    @Test
     void startGameCreatesGameAndImmutableSeatSnapshot() {
         Long roomId = readyRoom();
 

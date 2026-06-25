@@ -39,6 +39,7 @@ import java.security.SecureRandom;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -131,6 +132,9 @@ public class ClocktowerRoomServiceImpl implements ClocktowerRoomService {
         if (request.assignments().size() != seats.size()) {
             throw new ClocktowerException("CLOCKTOWER_ASSIGNMENT_COUNT_MISMATCH");
         }
+        if (seats.stream().anyMatch(seat -> Objects.equals(seat.getUserId(), room.getStorytellerUserId()))) {
+            throw new ClocktowerException("CLOCKTOWER_STORYTELLER_CANNOT_PLAY");
+        }
         if (seats.stream().anyMatch(seat -> seat.getUserId() == null)) {
             throw new ClocktowerException("CLOCKTOWER_ROOM_HAS_EMPTY_SEAT");
         }
@@ -179,6 +183,9 @@ public class ClocktowerRoomServiceImpl implements ClocktowerRoomService {
     public ClocktowerSeatResponse join(Long roomId, ClocktowerRoomJoinRequest request, RbacPrincipal principal) {
         ClocktowerAccess.requireAuthenticated(principal);
         ClocktowerRoomPo room = room(roomId);
+        if (Objects.equals(room.getStorytellerUserId(), principal.userId())) {
+            throw new ClocktowerException("CLOCKTOWER_STORYTELLER_CANNOT_PLAY");
+        }
         ClocktowerSeatPo seat = request.seatNo() == null
                 ? firstOpenSeat(roomId)
                 : seatRepository.findByRoomIdAndSeatNoAndDeletedFalse(roomId, request.seatNo())

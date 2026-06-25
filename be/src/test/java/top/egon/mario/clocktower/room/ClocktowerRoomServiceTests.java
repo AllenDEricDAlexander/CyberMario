@@ -118,6 +118,16 @@ class ClocktowerRoomServiceTests {
     }
 
     @Test
+    void joinRoomRejectsStorytellerAsPlayer() {
+        ClocktowerRoomResponse room = roomService.create(createFivePlayerRequest(), principal(1L, "mario"));
+
+        assertThatThrownBy(() -> roomService.join(room.roomId(),
+                new ClocktowerRoomJoinRequest(2, "Mario", null), principal(1L, "mario")))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_STORYTELLER_CANNOT_PLAY");
+    }
+
+    @Test
     void publicRoomResponseDoesNotExposeAssignedRoles() {
         ClocktowerRoomResponse room = joinedFivePlayerRoom();
         roomService.start(room.roomId(), new ClocktowerRoomStartRequest(List.of(

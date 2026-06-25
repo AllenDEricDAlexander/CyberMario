@@ -248,6 +248,7 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
         RoomSpacePo room = lockedRoom(roomId);
         ClocktowerRoomProfilePo profile = lockedProfile(roomId);
         accessPolicy.requireEnterAllowed(room, profile, principal);
+        requirePlayerEligible(room, profile, principal);
         ClocktowerRoomSeatPo seat = lockedSeat(roomId, seatNo);
         requireSeatInBoard(profile, seatNo);
         RoomMemberPo member = enterOrTouchMember(room, principal, request == null ? null : request.displayName());
@@ -334,6 +335,7 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
             return ClocktowerRoomInvitationResponse.from(accepted);
         }
         requireSeatInBoard(profile, invitation.getTargetSeatNo());
+        requirePlayerEligible(room, profile, principal);
         ClocktowerRoomSeatPo targetSeat = lockedSeat(roomId, invitation.getTargetSeatNo());
         if (targetSeat.getUserId() != null && !targetSeat.getUserId().equals(principal.userId())) {
             throw new ClocktowerException("CLOCKTOWER_SEAT_OCCUPIED");
@@ -607,6 +609,14 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
     private void requireSeatInBoard(ClocktowerRoomProfilePo profile, int seatNo) {
         if (seatNo < 1 || seatNo > profile.getPlayerCount()) {
             throw new ClocktowerException("CLOCKTOWER_SEAT_NOT_FOUND");
+        }
+    }
+
+    private void requirePlayerEligible(RoomSpacePo room, ClocktowerRoomProfilePo profile, RbacPrincipal principal) {
+        accessPolicy.requireAuthenticated(principal);
+        if (Objects.equals(room.getOwnerUserId(), principal.userId())
+                || Objects.equals(profile.getStorytellerUserId(), principal.userId())) {
+            throw new ClocktowerException("CLOCKTOWER_STORYTELLER_CANNOT_PLAY");
         }
     }
 

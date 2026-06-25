@@ -213,31 +213,56 @@ class ClocktowerRoomRefactorServiceTests {
     @Test
     void claimSeatMovesExistingUserSeatWithoutUniqueConstraintCollision() {
         ClocktowerRoomResponse room = roomService.createRoom(createRequest("OPEN_SEATING"), principal(1L, "mario"));
-        roomService.claimSeat(room.roomId(), 1, new ClocktowerSeatClaimRequest("Mario"), principal(1L, "mario"));
+        roomService.claimSeat(room.roomId(), 1, new ClocktowerSeatClaimRequest("Luigi"), principal(2L, "luigi"));
 
         ClocktowerSeatResponse moved = roomService.claimSeat(room.roomId(), 2,
-                new ClocktowerSeatClaimRequest("Mario"), principal(1L, "mario"));
+                new ClocktowerSeatClaimRequest("Luigi"), principal(2L, "luigi"));
 
-        assertThat(moved.userId()).isEqualTo(1L);
+        assertThat(moved.userId()).isEqualTo(2L);
         assertThat(seatRepository.findByRoomIdAndSeatNo(room.roomId(), 1).orElseThrow().getUserId()).isNull();
-        assertThat(seatRepository.findByRoomIdAndSeatNo(room.roomId(), 2).orElseThrow().getUserId()).isEqualTo(1L);
+        assertThat(seatRepository.findByRoomIdAndSeatNo(room.roomId(), 2).orElseThrow().getUserId()).isEqualTo(2L);
         assertThatCode(() -> seatRepository.flush()).doesNotThrowAnyException();
     }
 
     @Test
     void claimSeatClearsSoftDeletedUserSeatBeforeAssigningNewSeat() {
         ClocktowerRoomResponse room = roomService.createRoom(createRequest("OPEN_SEATING"), principal(1L, "mario"));
-        roomService.claimSeat(room.roomId(), 1, new ClocktowerSeatClaimRequest("Mario"), principal(1L, "mario"));
+        roomService.claimSeat(room.roomId(), 1, new ClocktowerSeatClaimRequest("Luigi"), principal(2L, "luigi"));
         ClocktowerRoomSeatPo previousSeat = seatRepository.findByRoomIdAndSeatNo(room.roomId(), 1).orElseThrow();
         previousSeat.setDeleted(true);
         seatRepository.saveAndFlush(previousSeat);
 
         assertThatCode(() -> {
-            roomService.claimSeat(room.roomId(), 2, new ClocktowerSeatClaimRequest("Mario"),
-                    principal(1L, "mario"));
+            roomService.claimSeat(room.roomId(), 2, new ClocktowerSeatClaimRequest("Luigi"),
+                    principal(2L, "luigi"));
             seatRepository.flush();
         }).doesNotThrowAnyException();
-        assertThat(seatRepository.findByRoomIdAndSeatNo(room.roomId(), 2).orElseThrow().getUserId()).isEqualTo(1L);
+        assertThat(seatRepository.findByRoomIdAndSeatNo(room.roomId(), 2).orElseThrow().getUserId()).isEqualTo(2L);
+    }
+
+    @Test
+    void claimSeatRejectsStorytellerAsPlayer() {
+        ClocktowerRoomResponse room = roomService.createRoom(createRequest("OPEN_SEATING"), principal(1L, "mario"));
+
+        assertThatThrownBy(() -> roomService.claimSeat(room.roomId(), 2,
+                new ClocktowerSeatClaimRequest("Mario"), principal(1L, "mario")))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_STORYTELLER_CANNOT_PLAY");
+        assertThat(seatRepository.findByRoomIdAndUserId(room.roomId(), 1L)).isEmpty();
+    }
+
+    @Test
+    void acceptSeatInvitationRejectsStorytellerAsPlayer() {
+        ClocktowerRoomResponse room = roomService.createRoom(createRequest("INVITE_ONLY"), principal(1L, "mario"));
+        ClocktowerRoomInvitationResponse invitation = roomService.createInvitation(room.roomId(),
+                new ClocktowerRoomInvitationCreateRequest(1L, "SEAT", 3,
+                        Instant.now().plus(Duration.ofHours(1))), principal(1L, "mario"));
+
+        assertThatThrownBy(() -> roomService.acceptInvitation(room.roomId(), invitation.invitationId(),
+                principal(1L, "mario")))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_STORYTELLER_CANNOT_PLAY");
+        assertThat(seatRepository.findByRoomIdAndUserId(room.roomId(), 1L)).isEmpty();
     }
 
     @Test

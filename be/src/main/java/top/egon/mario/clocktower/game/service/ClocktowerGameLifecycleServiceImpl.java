@@ -45,6 +45,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -274,6 +275,9 @@ public class ClocktowerGameLifecycleServiceImpl implements ClocktowerGameLifecyc
             if (seat.getUserId() == null || !SEAT_STATUS_OCCUPIED.equals(seat.getStatus())
                     || !realUser(metadata)) {
                 throw new ClocktowerException("CLOCKTOWER_GAME_SEAT_INVALID");
+            }
+            if (Objects.equals(profile.getStorytellerUserId(), seat.getUserId())) {
+                throw new ClocktowerException("CLOCKTOWER_STORYTELLER_CANNOT_PLAY");
             }
             if (!ready(metadata)) {
                 throw new ClocktowerException("CLOCKTOWER_GAME_SEAT_NOT_READY");
