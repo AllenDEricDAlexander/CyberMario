@@ -469,7 +469,11 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
                             RbacPrincipal principal, String displayName) {
         seatRepository.findByRoomIdAndUserId(room.getId(), member.getUserId())
                 .filter(previous -> !previous.getId().equals(seat.getId()))
-                .ifPresent(previous -> releaseSeatAssignment(room, previous, false));
+                .ifPresent(previous -> {
+                    releaseSeatAssignment(room, previous, false);
+                    seatRepository.flush();
+                });
+        seatRepository.clearUserAssignmentsExcept(room.getId(), member.getUserId(), seat.getId());
         if (!MEMBER_TYPE_OWNER.equals(member.getMemberType())) {
             member.setMemberType(MEMBER_TYPE_MEMBER);
         }

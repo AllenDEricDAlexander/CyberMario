@@ -3,6 +3,7 @@ package top.egon.mario.clocktower.room.repository;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import top.egon.mario.clocktower.game.po.ClocktowerRoomSeatPo;
@@ -57,4 +58,17 @@ public interface ClocktowerRoomSeatRepository extends JpaRepository<ClocktowerRo
                                                          @Param("userId") Long userId);
 
     Optional<ClocktowerRoomSeatPo> findByRoomIdAndUserIdAndDeletedFalse(Long roomId, Long userId);
+
+    @Modifying
+    @Query("""
+            update ClocktowerRoomSeatPo seat
+            set seat.roomMemberId = null,
+                seat.userId = null
+            where seat.roomId = :roomId
+              and seat.userId = :userId
+              and seat.id <> :seatId
+            """)
+    int clearUserAssignmentsExcept(@Param("roomId") Long roomId,
+                                   @Param("userId") Long userId,
+                                   @Param("seatId") Long seatId);
 }

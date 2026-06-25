@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 
@@ -207,6 +208,36 @@ class ClocktowerRoomRefactorServiceTests {
         assertThat(imConversationMemberRepository
                 .existsByConversationIdAndUserIdAndStatusAndDeletedFalse(room.publicConversationId(), 2L, "ACTIVE"))
                 .isTrue();
+    }
+
+    @Test
+    void claimSeatMovesExistingUserSeatWithoutUniqueConstraintCollision() {
+        ClocktowerRoomResponse room = roomService.createRoom(createRequest("OPEN_SEATING"), principal(1L, "mario"));
+        roomService.claimSeat(room.roomId(), 1, new ClocktowerSeatClaimRequest("Mario"), principal(1L, "mario"));
+
+        ClocktowerSeatResponse moved = roomService.claimSeat(room.roomId(), 2,
+                new ClocktowerSeatClaimRequest("Mario"), principal(1L, "mario"));
+
+        assertThat(moved.userId()).isEqualTo(1L);
+        assertThat(seatRepository.findByRoomIdAndSeatNo(room.roomId(), 1).orElseThrow().getUserId()).isNull();
+        assertThat(seatRepository.findByRoomIdAndSeatNo(room.roomId(), 2).orElseThrow().getUserId()).isEqualTo(1L);
+        assertThatCode(() -> seatRepository.flush()).doesNotThrowAnyException();
+    }
+
+    @Test
+    void claimSeatClearsSoftDeletedUserSeatBeforeAssigningNewSeat() {
+        ClocktowerRoomResponse room = roomService.createRoom(createRequest("OPEN_SEATING"), principal(1L, "mario"));
+        roomService.claimSeat(room.roomId(), 1, new ClocktowerSeatClaimRequest("Mario"), principal(1L, "mario"));
+        ClocktowerRoomSeatPo previousSeat = seatRepository.findByRoomIdAndSeatNo(room.roomId(), 1).orElseThrow();
+        previousSeat.setDeleted(true);
+        seatRepository.saveAndFlush(previousSeat);
+
+        assertThatCode(() -> {
+            roomService.claimSeat(room.roomId(), 2, new ClocktowerSeatClaimRequest("Mario"),
+                    principal(1L, "mario"));
+            seatRepository.flush();
+        }).doesNotThrowAnyException();
+        assertThat(seatRepository.findByRoomIdAndSeatNo(room.roomId(), 2).orElseThrow().getUserId()).isEqualTo(1L);
     }
 
     @Test
