@@ -34,7 +34,13 @@ export function RegisterPage() {
     async function handleFinish(values: RegisterFormValues) {
         setError('')
         try {
-            const {confirmPassword: _confirmPassword, ...request} = values
+            const request: RegisterRequest = {
+                email: values.email,
+                mobile: values.mobile,
+                nickname: values.nickname,
+                password: values.password,
+                username: values.username,
+            }
             await auth.register(request)
             void navigate(redirectTo, {replace: true})
         } catch (requestError) {

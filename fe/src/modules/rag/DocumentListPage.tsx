@@ -112,23 +112,39 @@ function DocumentListPage() {
             title: '文档名',
             dataIndex: 'displayName',
             width: 260,
-            render: (value, record) => <Button type="link"
-                                               onClick={() => void navigate(`/rag/documents/${record.id}`)}>{value}</Button>
+            render: (value: RagDocumentResponse['displayName'], record) => (
+                <Button type="link" onClick={() => void navigate(`/rag/documents/${record.id}`)}>{value}</Button>
+            ),
         },
         {title: '知识库', dataIndex: 'knowledgeBaseId', width: 100},
-        {title: '类型', dataIndex: 'fileType', width: 90, render: (value) => <Tag>{value}</Tag>},
-        {title: '来源', dataIndex: 'sourceType', width: 90, render: (value) => <Tag>{value}</Tag>},
+        {title: '类型', dataIndex: 'fileType', width: 90, render: (value: RagDocumentResponse['fileType']) => <Tag>{value}</Tag>},
+        {
+            title: '来源',
+            dataIndex: 'sourceType',
+            width: 90,
+            render: (value: RagDocumentResponse['sourceType']) => <Tag>{value}</Tag>,
+        },
         {
             title: '状态',
             dataIndex: 'status',
             width: 110,
-            render: (value) => <Tag
+            render: (value: RagDocumentResponse['status']) => <Tag
                 color={value === 'INDEXED' ? 'success' : value === 'FAILED' ? 'error' : 'processing'}>{value}</Tag>,
         },
         {title: '切片', dataIndex: 'chunkCount', width: 90},
         {title: '已入库', dataIndex: 'indexedChunkCount', width: 90},
-        {title: '解析器', dataIndex: 'parserType', width: 100, render: (value) => value || '-'},
-        {title: 'Embedding', dataIndex: 'embeddingDimension', width: 110, render: (value) => value || '-'},
+        {
+            title: '解析器',
+            dataIndex: 'parserType',
+            width: 100,
+            render: (value: RagDocumentResponse['parserType']) => value || '-',
+        },
+        {
+            title: 'Embedding',
+            dataIndex: 'embeddingDimension',
+            width: 110,
+            render: (value: RagDocumentResponse['embeddingDimension']) => value ?? '-',
+        },
         {title: '错误', dataIndex: 'errorMessage', render: (_, record) => record.errorMessage || '-'},
         {
             title: '操作',

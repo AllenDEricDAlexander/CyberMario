@@ -24,11 +24,13 @@ export function getRefreshToken() {
     return null
 }
 
-export function shouldRefreshAccessToken(_skewMilliseconds: number) {
+export function shouldRefreshAccessToken(skewMilliseconds: number) {
+    void skewMilliseconds
     return false
 }
 
-export function saveTokens(_tokens: TokenSnapshot) {
+export function saveTokens(tokens: TokenSnapshot) {
+    void tokens
     clearTokens()
 }
 

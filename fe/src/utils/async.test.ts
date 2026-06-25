@@ -45,6 +45,7 @@ describe('voidify', () => {
         const forbiddenError = new Error('没有权限执行该操作')
         const errorHandler = vi.fn()
         let listener: ((event: PromiseRejectionEvent) => void) | undefined
+        const preventDefault = vi.fn()
         const target = {
             addEventListener: vi.fn((_: 'unhandledrejection', nextListener: (event: PromiseRejectionEvent) => void) => {
                 listener = nextListener
@@ -54,13 +55,13 @@ describe('voidify', () => {
         const dispose = registerUnhandledRejectionReporter(errorHandler, target)
         const event = {
             reason: forbiddenError,
-            preventDefault: vi.fn(),
+            preventDefault,
         } as unknown as PromiseRejectionEvent
 
         listener?.(event)
 
         expect(errorHandler).toHaveBeenCalledWith(forbiddenError)
-        expect(event.preventDefault).toHaveBeenCalled()
+        expect(preventDefault).toHaveBeenCalled()
         dispose()
         expect(target.removeEventListener).toHaveBeenCalledWith('unhandledrejection', listener)
     })

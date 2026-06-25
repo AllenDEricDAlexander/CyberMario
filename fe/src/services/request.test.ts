@@ -44,6 +44,18 @@ function axiosResponse(body: unknown, init: { status?: number; headers?: Record<
     }
 }
 
+type CapturedAxiosRequest = {
+    data?: unknown
+    headers?: Record<string, string>
+    method?: string
+    url?: string
+    withCredentials?: boolean
+}
+
+function axiosRequestAt(index: number): CapturedAxiosRequest {
+    return axiosRequestMock.mock.calls[index]?.[0] as CapturedAxiosRequest
+}
+
 function ndjsonResponse(chunks: string[]) {
     return new Response(new ReadableStream({
         start(controller) {
@@ -124,10 +136,7 @@ describe('requestJson', () => {
 
         await requestJson('/api/me/profile')
 
-        const request = axiosRequestMock.mock.calls[0][0] as {
-            headers: Record<string, string>
-            withCredentials?: boolean
-        }
+        const request = axiosRequestAt(0)
         expect(request.headers).toMatchObject({
             'X-Client-Type': 'browser',
         })
@@ -159,14 +168,14 @@ describe('requestJson', () => {
             url: '/api/auth/csrf',
             withCredentials: true,
         }))
-        expect(axiosRequestMock.mock.calls[0][0].headers).toMatchObject({
+        expect(axiosRequestAt(0).headers).toMatchObject({
             'X-Client-Type': 'browser',
         })
         expect(axiosRequestMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
             method: 'POST',
             url: '/api/auth/login',
         }))
-        expect(axiosRequestMock.mock.calls[1][0].headers).toMatchObject({
+        expect(axiosRequestAt(1).headers).toMatchObject({
             'X-XSRF-TOKEN': 'masked-csrf-init',
         })
     })
@@ -180,7 +189,7 @@ describe('requestJson', () => {
             method: 'POST',
         })
 
-        const request = axiosRequestMock.mock.calls[0][0] as { headers: Record<string, string> }
+        const request = axiosRequestAt(0)
         expect(request.headers).toMatchObject({
             'X-XSRF-TOKEN': 'masked-csrf-1',
         })
@@ -213,7 +222,7 @@ describe('requestJson', () => {
             method: 'POST',
             url: '/api/auth/logout',
         }))
-        expect(axiosRequestMock.mock.calls[0][0].headers).toMatchObject({
+        expect(axiosRequestAt(0).headers).toMatchObject({
             'X-XSRF-TOKEN': 'old-masked-csrf',
         })
         expect(axiosRequestMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
@@ -225,7 +234,7 @@ describe('requestJson', () => {
             method: 'POST',
             url: '/api/auth/logout',
         }))
-        expect(axiosRequestMock.mock.calls[2][0].headers).toMatchObject({
+        expect(axiosRequestAt(2).headers).toMatchObject({
             'X-XSRF-TOKEN': 'new-masked-csrf',
         })
     })
@@ -275,13 +284,11 @@ describe('requestJson', () => {
             url: '/api/auth/refresh',
             withCredentials: true,
         }))
-        expect(axiosRequestMock.mock.calls[1][0].headers).toMatchObject({
+        expect(axiosRequestAt(1).headers).toMatchObject({
             'X-Client-Type': 'browser',
             'X-XSRF-TOKEN': 'csrf-refresh',
         })
-        expect(axiosRequestMock.mock.calls[1][0].data).not.toMatchObject({
-            refreshToken: expect.anything(),
-        })
+        expect(axiosRequestAt(1).data).toBeUndefined()
         expect(axiosRequestMock).toHaveBeenNthCalledWith(3, expect.objectContaining({
             url: '/api/me/profile',
         }))
@@ -321,7 +328,7 @@ describe('requestJson', () => {
             url: '/api/auth/refresh',
             withCredentials: true,
         }))
-        expect(axiosRequestMock.mock.calls[1][0].headers).toMatchObject({
+        expect(axiosRequestAt(1).headers).toMatchObject({
             'X-XSRF-TOKEN': 'old-refresh-csrf',
         })
         expect(axiosRequestMock).toHaveBeenNthCalledWith(3, expect.objectContaining({
@@ -335,12 +342,10 @@ describe('requestJson', () => {
             url: '/api/auth/refresh',
             withCredentials: true,
         }))
-        expect(axiosRequestMock.mock.calls[3][0].headers).toMatchObject({
+        expect(axiosRequestAt(3).headers).toMatchObject({
             'X-XSRF-TOKEN': 'new-refresh-csrf',
         })
-        expect(axiosRequestMock.mock.calls[3][0].data).not.toMatchObject({
-            refreshToken: expect.anything(),
-        })
+        expect(axiosRequestAt(3).data).toBeUndefined()
         expect(axiosRequestMock).toHaveBeenNthCalledWith(5, expect.objectContaining({
             method: 'GET',
             url: '/api/me/profile',
@@ -376,7 +381,7 @@ describe('requestFormData', () => {
             method: 'POST',
             url: '/api/rag/documents/upload',
         }))
-        const axiosRequest = axiosRequestMock.mock.calls[0][0] as { headers: Record<string, string> }
+        const axiosRequest = axiosRequestAt(0)
         expect(axiosRequest.headers).toMatchObject({
             Accept: 'application/json',
         })
@@ -417,7 +422,7 @@ describe('streamJsonLines', () => {
 
     test('sends credentials and csrf header on streaming POST requests', async () => {
         saveCsrfToken('csrf-stream')
-        const fetchMock = vi.fn((..._args: Parameters<typeof fetch>): ReturnType<typeof fetch> => Promise.resolve(
+        const fetchMock = vi.fn<typeof fetch>(() => Promise.resolve(
             ndjsonResponse([
                 '{"type":"done"}\n',
             ]),
@@ -442,7 +447,7 @@ describe('streamJsonLines', () => {
     test('refreshes csrf and retries streaming POST once when csrf is invalid', async () => {
         saveCsrfToken('old-stream-csrf')
         let fetchCallCount = 0
-        const fetchMock = vi.fn((..._args: Parameters<typeof fetch>): ReturnType<typeof fetch> => Promise.resolve(
+        const fetchMock = vi.fn<typeof fetch>(() => Promise.resolve(
             ++fetchCallCount === 1
                 ? jsonResponse(
                     apiResponse(null, {code: 'AUTH_CSRF_INVALID', message: 'csrf token is invalid'}),
@@ -520,7 +525,7 @@ describe('authService.logout', () => {
             url: '/api/auth/logout',
             withCredentials: true,
         }))
-        expect(axiosRequestMock.mock.calls[0][0].headers).toMatchObject({
+        expect(axiosRequestAt(0).headers).toMatchObject({
             'X-Client-Type': 'browser',
             'X-XSRF-TOKEN': 'csrf-logout',
         })
@@ -538,7 +543,7 @@ describe('streamServerSentEvents', () => {
     })
 
     test('reads fragmented server-sent event data from streaming responses', async () => {
-        const fetchMock = vi.fn((..._args: Parameters<typeof fetch>): ReturnType<typeof fetch> => Promise.resolve(streamResponse([
+        const fetchMock = vi.fn<typeof fetch>(() => Promise.resolve(streamResponse([
             'id: 1\nevent: ROOM_CREATED\ndata: {"seqNo":1,',
             '"eventType":"ROOM_CREATED"}\n\n',
             'id: 2\nevent: PLAYER_JOINED\ndata: {"seqNo":2,"eventType":"PLAYER_JOINED"}\n\n',
@@ -557,12 +562,13 @@ describe('streamServerSentEvents', () => {
         ])
         expect(fetchMock).toHaveBeenCalledWith('/api/clocktower/rooms/7/events/stream?seatId=3', expect.objectContaining({
             method: 'GET',
-            signal: expect.any(AbortSignal),
         }))
         const request = fetchMock.mock.calls[0][1] as {
             credentials?: RequestCredentials
             headers: Record<string, string>
+            signal?: AbortSignal
         }
+        expect(request.signal).toBeInstanceOf(AbortSignal)
         expect(request.credentials).toBe('include')
         expect(request.headers).toMatchObject({Accept: 'text/event-stream'})
         expect(request.headers).not.toHaveProperty('Content-Type')
