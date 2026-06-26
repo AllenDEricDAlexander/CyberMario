@@ -3,6 +3,7 @@ package top.egon.mario.agent.mcp.web;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -19,7 +20,7 @@ import top.egon.mario.agent.mcp.dto.request.UpdateMcpServerRequest;
 import top.egon.mario.agent.mcp.dto.response.McpConnectionTestResponse;
 import top.egon.mario.agent.mcp.dto.response.McpServerResponse;
 import top.egon.mario.agent.mcp.dto.response.McpToolDiscoveryResponse;
-import top.egon.mario.agent.mcp.runtime.DynamicMcpClientManager;
+import top.egon.mario.agent.mcp.runtime.McpRuntimeRefreshCoordinator;
 import top.egon.mario.agent.mcp.service.McpServerConfigService;
 import top.egon.mario.agent.mcp.service.McpToolDiscoveryService;
 import top.egon.mario.common.api.ApiResponse;
@@ -38,7 +39,7 @@ public class AdminMcpServerController extends McpReactiveSupport {
 
     private final McpServerConfigService serverConfigService;
     private final McpToolDiscoveryService toolDiscoveryService;
-    private final DynamicMcpClientManager clientManager;
+    private final ObjectProvider<McpRuntimeRefreshCoordinator> refreshCoordinatorProvider;
 
     @GetMapping
     public Mono<ApiResponse<List<McpServerResponse>>> list() {
@@ -62,7 +63,7 @@ public class AdminMcpServerController extends McpReactiveSupport {
                                                        @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> {
             McpServerResponse response = serverConfigService.update(id, request, actorId(principal));
-            clientManager.refreshServer(id);
+            refreshServer(id, "server_update");
             return response;
         });
     }
@@ -72,7 +73,7 @@ public class AdminMcpServerController extends McpReactiveSupport {
                                           @AuthenticationPrincipal RbacPrincipal principal) {
         return blockingVoid(() -> {
             serverConfigService.enable(id, actorId(principal));
-            clientManager.refreshServer(id);
+            refreshServer(id, "server_enable");
         });
     }
 
@@ -81,7 +82,7 @@ public class AdminMcpServerController extends McpReactiveSupport {
                                            @AuthenticationPrincipal RbacPrincipal principal) {
         return blockingVoid(() -> {
             serverConfigService.disable(id, actorId(principal));
-            clientManager.disableServer(id);
+            disableServer(id, "server_disable");
         });
     }
 
@@ -93,7 +94,11 @@ public class AdminMcpServerController extends McpReactiveSupport {
     @PostMapping("/{id}/discover-tools")
     public Mono<ApiResponse<McpToolDiscoveryResponse>> discoverTools(@PathVariable @Min(1) Long id,
                                                                      @AuthenticationPrincipal RbacPrincipal principal) {
-        return blocking(() -> toolDiscoveryService.discover(id, actorId(principal)));
+        return blocking(() -> {
+            McpToolDiscoveryResponse response = toolDiscoveryService.discover(id, actorId(principal));
+            refreshServer(id, "tool_discover");
+            return response;
+        });
     }
 
     @DeleteMapping("/{id}")
@@ -101,8 +106,22 @@ public class AdminMcpServerController extends McpReactiveSupport {
                                           @AuthenticationPrincipal RbacPrincipal principal) {
         return blockingVoid(() -> {
             serverConfigService.delete(id, actorId(principal));
-            clientManager.disableServer(id);
+            disableServer(id, "server_delete");
         });
+    }
+
+    private void refreshServer(Long id, String reason) {
+        McpRuntimeRefreshCoordinator refreshCoordinator = refreshCoordinatorProvider.getIfAvailable();
+        if (refreshCoordinator != null) {
+            refreshCoordinator.refreshServer(id, reason);
+        }
+    }
+
+    private void disableServer(Long id, String reason) {
+        McpRuntimeRefreshCoordinator refreshCoordinator = refreshCoordinatorProvider.getIfAvailable();
+        if (refreshCoordinator != null) {
+            refreshCoordinator.disableServer(id, reason);
+        }
     }
 
     private Long actorId(RbacPrincipal principal) {
