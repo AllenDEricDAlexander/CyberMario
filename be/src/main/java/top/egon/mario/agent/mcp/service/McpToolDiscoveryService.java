@@ -14,7 +14,6 @@ import top.egon.mario.agent.mcp.po.McpServerConfigPo;
 import top.egon.mario.agent.mcp.po.McpToolConfigPo;
 import top.egon.mario.agent.mcp.po.enums.McpToolRiskLevel;
 import top.egon.mario.agent.mcp.repository.McpToolConfigRepository;
-import top.egon.mario.agent.mcp.runtime.McpAgentRefreshService;
 import top.egon.mario.agent.mcp.runtime.McpClientFactory;
 import top.egon.mario.agent.service.AgentException;
 
@@ -33,7 +32,6 @@ public class McpToolDiscoveryService {
     private final McpToolConfigRepository toolRepository;
     private final McpClientFactory clientFactory;
     private final ObjectMapper objectMapper;
-    private final McpAgentRefreshService refreshService;
 
     @Transactional
     public McpToolDiscoveryResponse discover(Long serverId, Long actorId) {
@@ -53,7 +51,6 @@ public class McpToolDiscoveryService {
                     updated++;
                 }
             }
-            refreshService.refresh();
             return new McpToolDiscoveryResponse(serverId, remoteTools.size(), created, updated);
         } finally {
             if (client != null) {

@@ -9,7 +9,6 @@ import top.egon.mario.agent.mcp.po.McpServerConfigPo;
 import top.egon.mario.agent.mcp.po.enums.McpServerStatus;
 import top.egon.mario.agent.mcp.po.enums.McpTransportType;
 import top.egon.mario.agent.mcp.repository.McpToolConfigRepository;
-import top.egon.mario.agent.mcp.runtime.McpAgentRefreshService;
 import top.egon.mario.agent.mcp.runtime.McpClientFactory;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,7 +34,6 @@ class McpToolDiscoveryServiceTests {
         assertThat(response.discoveredCount()).isZero();
         assertThat(response.createdCount()).isZero();
         assertThat(response.updatedCount()).isZero();
-        assertThat(support.refreshService.version()).isEqualTo(1L);
         verifyNoInteractions(support.toolRepository);
     }
 
@@ -51,7 +49,6 @@ class McpToolDiscoveryServiceTests {
         assertThat(response.discoveredCount()).isZero();
         assertThat(response.createdCount()).isZero();
         assertThat(response.updatedCount()).isZero();
-        assertThat(support.refreshService.version()).isEqualTo(1L);
         verifyNoInteractions(support.toolRepository);
     }
 
@@ -73,13 +70,11 @@ class McpToolDiscoveryServiceTests {
         private final McpServerConfigService serverConfigService = mock(McpServerConfigService.class);
         private final McpToolConfigRepository toolRepository = mock(McpToolConfigRepository.class);
         private final McpClientFactory clientFactory = mock(McpClientFactory.class);
-        private final McpAgentRefreshService refreshService = new McpAgentRefreshService();
         private final McpToolDiscoveryService service = new McpToolDiscoveryService(
                 serverConfigService,
                 toolRepository,
                 clientFactory,
-                new ObjectMapper(),
-                refreshService);
+                new ObjectMapper());
 
         TestSupport() {
             given(serverConfigService.requireServer(9L)).willReturn(server);
