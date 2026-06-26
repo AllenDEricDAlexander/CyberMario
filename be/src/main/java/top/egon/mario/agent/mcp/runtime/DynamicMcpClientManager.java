@@ -1,5 +1,6 @@
 package top.egon.mario.agent.mcp.runtime;
 
+import com.google.common.util.concurrent.Striped;
 import io.modelcontextprotocol.client.McpSyncClient;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
 
 /**
  * Maintains initialized runtime MCP clients for enabled servers.
@@ -26,6 +28,7 @@ public class DynamicMcpClientManager {
     private final McpServerConfigRepository serverRepository;
     private final McpClientFactory clientFactory;
     private final Map<Long, McpSyncClient> clients = new ConcurrentHashMap<>();
+    private final Striped<Lock> serverLifecycleLocks = Striped.lazyWeakLock(64);
 
     @Transactional
     public void reloadEnabledServers() {
@@ -36,6 +39,16 @@ public class DynamicMcpClientManager {
 
     @Transactional
     public void refreshServer(Long serverId) {
+        Lock lock = serverLifecycleLocks.get(serverId);
+        lock.lock();
+        try {
+            doRefreshServer(serverId);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private void doRefreshServer(Long serverId) {
         Optional<McpServerConfigPo> serverOptional = serverRepository.findByIdAndDeletedFalse(serverId);
         closeClientQuietly(clients.remove(serverId));
         if (serverOptional.isEmpty()) {
@@ -75,12 +88,18 @@ public class DynamicMcpClientManager {
 
     @Transactional
     public void disableServer(Long serverId) {
-        closeClientQuietly(clients.remove(serverId));
-        serverRepository.findByIdAndDeletedFalse(serverId).ifPresent(server -> {
-            server.setEnabled(false);
-            server.setStatus(McpServerStatus.DISABLED);
-            serverRepository.save(server);
-        });
+        Lock lock = serverLifecycleLocks.get(serverId);
+        lock.lock();
+        try {
+            closeClientQuietly(clients.remove(serverId));
+            serverRepository.findByIdAndDeletedFalse(serverId).ifPresent(server -> {
+                server.setEnabled(false);
+                server.setStatus(McpServerStatus.DISABLED);
+                serverRepository.save(server);
+            });
+        } finally {
+            lock.unlock();
+        }
     }
 
     public Optional<McpSyncClient> client(Long serverId) {
