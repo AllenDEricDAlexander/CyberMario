@@ -1,9 +1,7 @@
-import {EditOutlined, ReloadOutlined} from '@ant-design/icons'
-import {App, Button, Card, Form, Select, Space, Switch, Table, Tag, Typography} from 'antd'
-import type {ColumnsType} from 'antd/es/table'
+import {ReloadOutlined} from '@ant-design/icons'
+import {App, Button, Card, Form, Select, Space, Table} from 'antd'
 import {useEffect, useState} from 'react'
 import {reportGlobalError} from '../../../app/globalError'
-import {DateTimeText} from '../../../components/DateTimeText'
 import {PageToolbar} from '../../../components/PageToolbar'
 import {canUseRbacButton, useAuth} from '../../auth/authStore'
 import {mcpButtonCodes} from './mcpPermissionCodes'
@@ -11,11 +9,14 @@ import {disableMcpTool, enableMcpTool, getMcpServers, getMcpTools, updateMcpTool
 import type {
     McpServerResponse,
     McpToolResponse,
-    McpToolRiskLevel,
-    McpToolRuntimeStatus,
     UpdateMcpToolPolicyRequest,
 } from './mcpTypes'
 import {McpToolPolicyDrawer} from './McpToolPolicyDrawer'
+import {
+    createMcpToolColumns,
+    isMcpToolRowExpandable,
+    renderMcpToolExpandedRow,
+} from './mcpToolView'
 
 type McpToolFilterForm = {
     serverId?: number
@@ -102,64 +103,13 @@ function McpToolListPage() {
         }
     }
 
-    const columns: ColumnsType<McpToolResponse> = [
-        {
-            title: 'Tool Key',
-            dataIndex: 'toolKey',
-            fixed: 'left',
-            width: 260,
-            render: (value: string) => <Typography.Text copyable ellipsis={{tooltip: value}}>{value}</Typography.Text>,
-        },
-        {title: '服务', dataIndex: 'serverCode', width: 150},
-        {title: '工具名', dataIndex: 'toolName', width: 180},
-        {
-            title: '风险',
-            dataIndex: 'riskLevel',
-            width: 110,
-            render: (value: McpToolRiskLevel) => <Tag color={riskLevelColor(value)}>{value}</Tag>,
-        },
-        {
-            title: '只读',
-            dataIndex: 'readonly',
-            width: 90,
-            render: (value: boolean) => <Tag color={value ? 'success' : 'warning'}>{value ? '是' : '否'}</Tag>,
-        },
-        {
-            title: '确认',
-            dataIndex: 'requireConfirm',
-            width: 90,
-            render: (value: boolean) => <Tag color={value ? 'warning' : 'default'}>{value ? '是' : '否'}</Tag>,
-        },
-        {
-            title: '运行状态',
-            dataIndex: 'runtimeStatus',
-            width: 160,
-            render: (value: McpToolRuntimeStatus) => <Tag color={runtimeStatusColor(value)}>{value}</Tag>,
-        },
-        {
-            title: '启用',
-            dataIndex: 'enabled',
-            width: 90,
-            render: (_, record) => (
-                <Switch
-                    checked={record.enabled}
-                    disabled={!canToggle}
-                    loading={switchingId === record.id}
-                    onChange={(checked) => void toggleTool(record, checked)}
-                    size="small"
-                />
-            ),
-        },
-        {title: '最近发现', dataIndex: 'lastDiscoveredAt', width: 190, render: renderDateTime},
-        {
-            title: '操作',
-            fixed: 'right',
-            width: 110,
-            render: (_, record) => canEditPolicy
-                ? <Button icon={<EditOutlined/>} onClick={() => openPolicy(record)} size="small">策略</Button>
-                : '-',
-        },
-    ]
+    const columns = createMcpToolColumns({
+        canEditPolicy,
+        canToggle,
+        switchingId,
+        onOpenPolicy: openPolicy,
+        onToggleTool: (tool, checked) => void toggleTool(tool, checked),
+    })
 
     return (
         <>
@@ -191,17 +141,8 @@ function McpToolListPage() {
                 columns={columns}
                 dataSource={tools}
                 expandable={{
-                    expandedRowRender: (record) => (
-                        <Space direction="vertical" size={12} style={{width: '100%'}}>
-                            <Typography.Paragraph style={{marginBottom: 0}}>
-                                {record.description || '暂无描述'}
-                            </Typography.Paragraph>
-                            <Typography.Paragraph copyable style={{marginBottom: 0, whiteSpace: 'pre-wrap'}}>
-                                {formatJson(record.inputSchemaJson)}
-                            </Typography.Paragraph>
-                        </Space>
-                    ),
-                    rowExpandable: (record) => Boolean(record.description || record.inputSchemaJson),
+                    expandedRowRender: renderMcpToolExpandedRow,
+                    rowExpandable: isMcpToolRowExpandable,
                 }}
                 loading={loading}
                 pagination={false}
@@ -218,44 +159,6 @@ function McpToolListPage() {
             />
         </>
     )
-}
-
-function renderDateTime(value?: string | number | null) {
-    return <DateTimeText value={value}/>
-}
-
-function formatJson(value?: string) {
-    if (!value) {
-        return '-'
-    }
-    try {
-        return JSON.stringify(JSON.parse(value), null, 2)
-    } catch {
-        return value
-    }
-}
-
-function riskLevelColor(value: McpToolRiskLevel) {
-    if (value === 'HIGH') {
-        return 'error'
-    }
-    if (value === 'MEDIUM') {
-        return 'warning'
-    }
-    return 'success'
-}
-
-function runtimeStatusColor(value: McpToolRuntimeStatus) {
-    if (value === 'AVAILABLE') {
-        return 'success'
-    }
-    if (value === 'DISABLED' || value === 'SERVER_DISABLED') {
-        return 'default'
-    }
-    if (value === 'POLICY_BLOCKED') {
-        return 'warning'
-    }
-    return 'error'
 }
 
 export const Component = McpToolListPage
