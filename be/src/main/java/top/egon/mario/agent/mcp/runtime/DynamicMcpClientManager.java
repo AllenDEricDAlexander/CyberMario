@@ -3,9 +3,11 @@ package top.egon.mario.agent.mcp.runtime;
 import com.google.common.util.concurrent.Striped;
 import io.modelcontextprotocol.client.McpSyncClient;
 import jakarta.annotation.PreDestroy;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
 import top.egon.mario.agent.mcp.po.McpServerConfigPo;
 import top.egon.mario.agent.mcp.po.enums.McpServerStatus;
 import top.egon.mario.agent.mcp.repository.McpServerConfigRepository;
@@ -20,29 +22,46 @@ import java.util.concurrent.locks.Lock;
  * Maintains initialized runtime MCP clients for enabled servers.
  */
 @Component
-@RequiredArgsConstructor
 public class DynamicMcpClientManager {
 
     private static final int ERROR_LIMIT = 1024;
 
     private final McpServerConfigRepository serverRepository;
     private final McpClientFactory clientFactory;
+    private final TransactionOperations transactionOperations;
     private final Map<Long, McpSyncClient> clients = new ConcurrentHashMap<>();
     private final Striped<Lock> serverLifecycleLocks = Striped.lazyWeakLock(64);
 
-    @Transactional
+    @Autowired
+    public DynamicMcpClientManager(McpServerConfigRepository serverRepository, McpClientFactory clientFactory,
+                                   PlatformTransactionManager transactionManager) {
+        this(serverRepository, clientFactory, new TransactionTemplate(transactionManager));
+    }
+
+    public DynamicMcpClientManager(McpServerConfigRepository serverRepository, McpClientFactory clientFactory) {
+        this(serverRepository, clientFactory, TransactionOperations.withoutTransaction());
+    }
+
+    public DynamicMcpClientManager(McpServerConfigRepository serverRepository, McpClientFactory clientFactory,
+                                   TransactionOperations transactionOperations) {
+        this.serverRepository = serverRepository;
+        this.clientFactory = clientFactory;
+        this.transactionOperations = transactionOperations == null
+                ? TransactionOperations.withoutTransaction()
+                : transactionOperations;
+    }
+
     public void reloadEnabledServers() {
         for (McpServerConfigPo server : serverRepository.findByEnabledTrueAndDeletedFalseOrderByIdAsc()) {
             refreshServer(server.getId());
         }
     }
 
-    @Transactional
     public void refreshServer(Long serverId) {
         Lock lock = serverLifecycleLocks.get(serverId);
         lock.lock();
         try {
-            doRefreshServer(serverId);
+            transactionOperations.executeWithoutResult(status -> doRefreshServer(serverId));
         } finally {
             lock.unlock();
         }
@@ -86,16 +105,17 @@ public class DynamicMcpClientManager {
         }
     }
 
-    @Transactional
     public void disableServer(Long serverId) {
         Lock lock = serverLifecycleLocks.get(serverId);
         lock.lock();
         try {
-            closeClientQuietly(clients.remove(serverId));
-            serverRepository.findByIdAndDeletedFalse(serverId).ifPresent(server -> {
-                server.setEnabled(false);
-                server.setStatus(McpServerStatus.DISABLED);
-                serverRepository.save(server);
+            transactionOperations.executeWithoutResult(status -> {
+                closeClientQuietly(clients.remove(serverId));
+                serverRepository.findByIdAndDeletedFalse(serverId).ifPresent(server -> {
+                    server.setEnabled(false);
+                    server.setStatus(McpServerStatus.DISABLED);
+                    serverRepository.save(server);
+                });
             });
         } finally {
             lock.unlock();
