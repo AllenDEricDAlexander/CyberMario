@@ -5,6 +5,8 @@ import org.mockito.InOrder;
 
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
@@ -67,7 +69,7 @@ class McpRuntimeRefreshCoordinatorTests {
     }
 
     @Test
-    void applyRemoteServerDisableOnlyAppliesLocalManagerCall() {
+    void applyRemoteServerDisableReconcilesFromCurrentServerState() {
         DynamicMcpClientManager clientManager = mock(DynamicMcpClientManager.class);
         McpRuntimeRefreshBroadcaster broadcaster = mock(McpRuntimeRefreshBroadcaster.class);
         McpRuntimeRefreshCoordinator coordinator = new McpRuntimeRefreshCoordinator(clientManager, broadcaster);
@@ -76,8 +78,8 @@ class McpRuntimeRefreshCoordinatorTests {
 
         coordinator.applyRemote(message);
 
-        InOrder inOrder = inOrder(clientManager);
-        inOrder.verify(clientManager).disableServer(9L);
+        verify(clientManager).refreshServer(9L);
+        verify(clientManager, never()).disableServer(9L);
         verifyNoInteractions(broadcaster);
     }
 

@@ -33,7 +33,7 @@ public class McpRuntimeRefreshCoordinator {
     public void applyRemote(McpRuntimeRefreshMessage message) {
         switch (message.eventType()) {
             case SERVER_REFRESH -> clientManager.refreshServer(message.serverId());
-            case SERVER_DISABLE -> clientManager.disableServer(message.serverId());
+            case SERVER_DISABLE -> clientManager.refreshServer(message.serverId());
             case ALL_REFRESH -> clientManager.reloadEnabledServers();
         }
     }
