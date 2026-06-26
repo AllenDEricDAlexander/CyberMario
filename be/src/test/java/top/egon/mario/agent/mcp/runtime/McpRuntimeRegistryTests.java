@@ -88,6 +88,25 @@ class McpRuntimeRegistryTests {
     }
 
     @Test
+    void registryReflectsCurrentClientManagerSnapshotAcrossCalls() {
+        TestSupport support = new TestSupport();
+        McpServerConfigPo server = server(9L, true, McpServerStatus.CONNECTED);
+        McpToolConfigPo tool = tool(9L, "search", "docs_search", true, false);
+        McpSyncClient firstClient = support.clientWithTools(runtimeTool("other"));
+        McpSyncClient refreshedClient = support.clientWithTools(runtimeTool("search"));
+        given(support.toolRepository.findByEnabledTrueAndDeletedFalseOrderByIdAsc()).willReturn(List.of(tool));
+        given(support.serverRepository.findByIdAndDeletedFalse(9L)).willReturn(Optional.of(server));
+        given(support.clientManager.client(9L)).willReturn(Optional.of(firstClient), Optional.of(refreshedClient));
+
+        ToolCallback[] beforeRefresh = support.registry.currentToolCallbacks();
+        ToolCallback[] afterRefresh = support.registry.currentToolCallbacks();
+
+        assertThat(beforeRefresh).isEmpty();
+        assertThat(afterRefresh).hasSize(1);
+        assertThat(afterRefresh[0].getToolDefinition().name()).isEqualTo("docs_search");
+    }
+
+    @Test
     void listToolsFailureSkipsOnlyThatServer() {
         TestSupport support = new TestSupport();
         McpToolConfigPo failedTool = tool(1L, "search", "failed_search", true, false);
