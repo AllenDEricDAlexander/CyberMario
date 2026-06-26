@@ -10,14 +10,12 @@ import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 import top.egon.mario.agent.context.service.AgentContextAssemblyService;
 import top.egon.mario.agent.context.service.model.AgentContext;
 import top.egon.mario.agent.dto.request.AgentDebugChatRequest;
-import top.egon.mario.agent.model.dto.enums.ModelProviderType;
-import top.egon.mario.agent.model.dto.request.ModelOptions;
-import top.egon.mario.agent.model.service.model.ModelCallContext;
 import top.egon.mario.agent.memory.hook.AgentMemoryMessagesHook;
 import top.egon.mario.agent.memory.po.AgentMemorySessionPo;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryEntryType;
@@ -31,7 +29,9 @@ import top.egon.mario.agent.memory.service.AgentMemoryMessageService;
 import top.egon.mario.agent.memory.service.AgentMemorySessionService;
 import top.egon.mario.agent.memory.service.model.AgentMemoryContext;
 import top.egon.mario.agent.memory.service.model.AgentMemoryExtractionRequest;
-import top.egon.mario.agent.memory.service.model.AgentMemoryMessageRecord;
+import top.egon.mario.agent.model.dto.enums.ModelProviderType;
+import top.egon.mario.agent.model.dto.request.ModelOptions;
+import top.egon.mario.agent.model.service.model.ModelCallContext;
 import top.egon.mario.agent.observability.po.enums.AgentRunToolType;
 import top.egon.mario.agent.observability.service.AgentRunAuditService;
 import top.egon.mario.agent.observability.service.model.AgentRunAuditContext;
@@ -221,6 +221,25 @@ class ReactAgentChatServiceTests {
                         && start.effectiveConfigJson().contains("systemPrompt")));
         verify(support.contextAssemblyService).assemble(principal, memoryContext, true);
         verify(support.runAuditService).complete(eq(context), eq("答案"), eq(null), any(Instant.class));
+    }
+
+    @Test
+    void chatBuildsRuntimeOnBlockingScheduler() throws Exception {
+        ReactAgent agent = mock(ReactAgent.class);
+        Scheduler scheduler = Schedulers.newSingle("agent-blocking-test");
+        try {
+            TestSupport support = new TestSupport(agent, scheduler);
+            given(agent.stream(eq("你好"), any(RunnableConfig.class))).willReturn(Flux.empty());
+            given(support.runtimeFactory.runtime(any(), any(ModelCallContext.class))).willAnswer(invocation -> {
+                assertThat(Thread.currentThread().getName()).startsWith("agent-blocking-test");
+                return new AgentRuntimeFactory.AgentRuntime(agent, Map.of());
+            });
+
+            StepVerifier.create(support.chatService.chat("你好", "thread-1", null))
+                    .verifyComplete();
+        } finally {
+            scheduler.dispose();
+        }
     }
 
     @Test
@@ -602,6 +621,10 @@ class ReactAgentChatServiceTests {
         private final ReactAgentChatService chatService;
 
         private TestSupport(ReactAgent agent) {
+            this(agent, Schedulers.immediate());
+        }
+
+        private TestSupport(ReactAgent agent, Scheduler blockingScheduler) {
             AgentRuntimeSpec defaultSpec = runtimeSpec("default-fingerprint");
             given(presetService.defaultRuntimeSpec()).willReturn(defaultSpec);
             given(presetService.serializeRuntimeSpec(any())).willReturn("{\"systemPrompt\":\"system prompt\"}");
@@ -625,7 +648,7 @@ class ReactAgentChatServiceTests {
             given(memoryMessageService.nextTurnNo(any())).willReturn(1);
             doAnswer(invocation -> null).when(auditService).complete(any(), any(), any());
             this.chatService = new ReactAgentChatService(presetService, runtimeFactory, auditService, runAuditService,
-                    Schedulers.immediate(), userContext, memorySessionService, memoryMessageService,
+                    blockingScheduler, userContext, memorySessionService, memoryMessageService,
                     memoryContextService, contextAssemblyService, memoryExtractionService, soulService);
         }
     }

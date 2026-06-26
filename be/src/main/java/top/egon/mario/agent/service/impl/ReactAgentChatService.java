@@ -181,7 +181,6 @@ public class ReactAgentChatService implements ChatAgentService {
                             () -> LogUtil.info(log).log("agent chat completed, threadId={}", conversationThreadId)))
                     .doOnError(error -> TraceContext.withMdc(traceId,
                             () -> LogUtil.error(log).log("agent chat failed, threadId={}", conversationThreadId, error)))
-                    .subscribeOn(blockingScheduler)
                     .flatMap(output -> toChatChunk(output, conversationThreadId))
                     .filter(chunk -> shouldEmitChunk(chunk, lastStateSnapshotKey, messageContent, thinkContent))
                     .doOnNext(chunk -> collectAuditChunk(chunk, messageContent, thinkContent))
@@ -201,7 +200,7 @@ public class ReactAgentChatService implements ChatAgentService {
                         failAssistantMemory(memorySession, turnNo, userFacingError, error, requestId, traceId);
                         return Flux.just(new ChatResponse(conversationThreadId, userFacingError, "error"));
                     });
-        });
+        }).subscribeOn(blockingScheduler);
     }
 
     private Long startAudit(String requestId, String traceId, RbacPrincipal principal, String threadId,
