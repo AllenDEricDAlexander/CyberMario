@@ -128,13 +128,19 @@ class McpToolConfigServiceTests {
         given(serverRepository.findByIdAndDeletedFalse(server.getId())).willReturn(Optional.of(server));
         McpToolConfigService service = new McpToolConfigService(toolRepository, serverRepository);
 
-        service.enable(10L, 7L);
+        McpToolResponse enabled = service.enable(10L, 7L);
 
+        assertThat(enabled.serverId()).isEqualTo(9L);
+        assertThat(enabled.enabled()).isTrue();
+        assertThat(enabled.runtimeStatus()).isEqualTo(McpToolRuntimeStatus.AVAILABLE);
         assertThat(tool.isEnabled()).isTrue();
         assertThat(tool.getUpdatedBy()).isEqualTo(7L);
 
-        service.disable(10L, 8L);
+        McpToolResponse disabled = service.disable(10L, 8L);
 
+        assertThat(disabled.serverId()).isEqualTo(9L);
+        assertThat(disabled.enabled()).isFalse();
+        assertThat(disabled.runtimeStatus()).isEqualTo(McpToolRuntimeStatus.DISABLED);
         assertThat(tool.isEnabled()).isFalse();
         assertThat(tool.getUpdatedBy()).isEqualTo(8L);
     }

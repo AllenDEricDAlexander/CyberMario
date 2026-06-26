@@ -61,7 +61,7 @@ public class McpToolConfigService {
     }
 
     @Transactional
-    public void enable(Long id, Long actorId) {
+    public McpToolResponse enable(Long id, Long actorId) {
         McpToolConfigPo tool = requireTool(id);
         if (tool.isRequireConfirm()) {
             throw new AgentException("AGENT_MCP_TOOL_POLICY_BLOCKED",
@@ -69,15 +69,17 @@ public class McpToolConfigService {
         }
         tool.setEnabled(true);
         tool.setUpdatedBy(actorId);
-        toolRepository.save(tool);
+        tool = toolRepository.save(tool);
+        return toResponse(tool, requireServer(tool.getServerId()));
     }
 
     @Transactional
-    public void disable(Long id, Long actorId) {
+    public McpToolResponse disable(Long id, Long actorId) {
         McpToolConfigPo tool = requireTool(id);
         tool.setEnabled(false);
         tool.setUpdatedBy(actorId);
-        toolRepository.save(tool);
+        tool = toolRepository.save(tool);
+        return toResponse(tool, requireServer(tool.getServerId()));
     }
 
     private McpToolConfigPo requireTool(Long id) {
