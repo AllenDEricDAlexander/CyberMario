@@ -45,7 +45,6 @@ export const router = createBrowserRouter([
                     {path: 'agent/memory', lazy: () => import('../modules/agent/AgentMemoryPage')},
                     {path: 'agent/memory/archive', lazy: () => import('../modules/agent/AgentMemoryArchivePage')},
                     {path: 'agent/mcp/servers', lazy: () => import('../modules/agent/mcp/McpServerListPage')},
-                    {path: 'agent/mcp/tools', lazy: () => import('../modules/agent/mcp/McpToolListPage')},
                     {path: 'agent/mcp/logs', lazy: () => import('../modules/agent/mcp/McpToolCallLogListPage')},
                     {path: 'rag/chat', lazy: () => import('../modules/rag/RagChatPage')},
                     {path: 'rag/knowledge-bases', lazy: () => import('../modules/rag/KnowledgeBaseListPage')},

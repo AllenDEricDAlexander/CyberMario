@@ -165,7 +165,6 @@ describe('admin menu authorization', () => {
             '/agent/memory',
             '/agent/memory/archive',
             '/agent/mcp/servers',
-            '/agent/mcp/tools',
             '/agent/mcp/logs',
             '/rbac/users',
         ])
@@ -236,10 +235,8 @@ describe('admin menu authorization', () => {
         const mcpAdminKeys = flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, false, ['AGENT_MCP_ADMIN']))
 
         expect(mcpAdminKeys).toContain('/agent/mcp/servers')
-        expect(mcpAdminKeys).toContain('/agent/mcp/tools')
         expect(mcpAdminKeys).toContain('/agent/mcp/logs')
         expect(canAccessAdminPath('/agent/mcp/servers', menuTree, false, ['AGENT_MCP_ADMIN'])).toBe(true)
-        expect(canAccessAdminPath('/agent/mcp/tools', menuTree, false, ['AGENT_MCP_ADMIN'])).toBe(true)
         expect(canAccessAdminPath('/agent/mcp/logs', menuTree, false, ['AGENT_MCP_ADMIN'])).toBe(true)
     })
 
@@ -251,10 +248,8 @@ describe('admin menu authorization', () => {
         ))
 
         expect(mcpUserKeys).toContain('/agent/mcp/servers')
-        expect(mcpUserKeys).toContain('/agent/mcp/tools')
         expect(mcpUserKeys).not.toContain('/agent/mcp/logs')
         expect(canAccessAdminPath('/agent/mcp/servers', menuTreeWithoutMcpLogs, false, ['AGENT_MCP_USER'])).toBe(true)
-        expect(canAccessAdminPath('/agent/mcp/tools', menuTreeWithoutMcpLogs, false, ['AGENT_MCP_USER'])).toBe(true)
         expect(canAccessAdminPath('/agent/mcp/logs', menuTreeWithoutMcpLogs, false, ['AGENT_MCP_USER'])).toBe(false)
 
         const superAdminKeys = flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, true, ['SUPER_ADMIN']))

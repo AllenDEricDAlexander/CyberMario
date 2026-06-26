@@ -23,7 +23,6 @@ import {
     SettingOutlined,
     SyncOutlined,
     TeamOutlined,
-    ToolOutlined,
 } from '@ant-design/icons'
 import type {MenuProps} from 'antd'
 import type {MenuTreeResponse} from '../../modules/rbac/rbacTypes'
@@ -39,7 +38,6 @@ const menuPathByKey: Record<string, string> = {
     '/agent/memory': '/agent/memory',
     '/agent/memory/archive': '/agent/memory/archive',
     '/agent/mcp/servers': '/agent/mcp/servers',
-    '/agent/mcp/tools': '/agent/mcp/tools',
     '/agent/mcp/logs': '/agent/mcp/logs',
     '/rag/chat': '/rag/chat',
     '/rag/knowledge-bases': '/rag/knowledge-bases',
@@ -111,11 +109,6 @@ export const adminMenuItems: AdminMenuItem[] = [
                 key: '/agent/mcp/servers',
                 icon: <CloudServerOutlined/>,
                 label: 'MCP 服务配置',
-            },
-            {
-                key: '/agent/mcp/tools',
-                icon: <ToolOutlined/>,
-                label: 'MCP 工具策略',
             },
             {
                 key: '/agent/mcp/logs',

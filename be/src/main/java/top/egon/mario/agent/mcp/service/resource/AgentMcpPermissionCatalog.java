@@ -11,7 +11,6 @@ public final class AgentMcpPermissionCatalog {
 
     public static final String MENU_AGENT = "menu:agent";
     public static final String MENU_SERVERS = "menu:agent:mcp-servers";
-    public static final String MENU_TOOLS = "menu:agent:mcp-tools";
     public static final String MENU_LOGS = "menu:agent:mcp-logs";
 
     public static final String BTN_SERVER_ADD = "btn:agent:mcp-server:add";
@@ -39,7 +38,6 @@ public final class AgentMcpPermissionCatalog {
     public static final List<String> USER_PERMISSION_CODES = List.of(
             MENU_AGENT,
             MENU_SERVERS,
-            MENU_TOOLS,
             BTN_SERVER_ADD,
             BTN_SERVER_EDIT,
             BTN_SERVER_DELETE,
@@ -59,7 +57,6 @@ public final class AgentMcpPermissionCatalog {
     public static final List<String> ADMIN_PERMISSION_CODES = List.of(
             MENU_AGENT,
             MENU_SERVERS,
-            MENU_TOOLS,
             MENU_LOGS,
             BTN_SERVER_ADD,
             BTN_SERVER_EDIT,

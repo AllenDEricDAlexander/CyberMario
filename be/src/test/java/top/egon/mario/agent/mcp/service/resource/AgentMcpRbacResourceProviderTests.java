@@ -103,13 +103,31 @@ class AgentMcpRbacResourceProviderTests {
     void mcpUserCanManageServersAndToolsButCannotViewLogs() {
         AgentMcpRbacResourceProvider provider = new AgentMcpRbacResourceProvider();
 
+        assertThat(provider.resources())
+                .filteredOn(seed -> seed.type() == PermissionType.MENU)
+                .extracting("code")
+                .contains("menu:agent:mcp-servers")
+                .doesNotContain("menu:agent:mcp-tools");
+        assertThat(provider.resources())
+                .filteredOn(seed -> "btn:agent:mcp-tool:edit-policy".equals(seed.code()))
+                .singleElement()
+                .satisfies(seed -> {
+                    assertThat(seed.parentCode()).isEqualTo("menu:agent:mcp-servers");
+                    assertThat(seed.button().buttonKey()).isEqualTo("editToolPolicy");
+                });
+        assertThat(provider.resources())
+                .filteredOn(seed -> "btn:agent:mcp-tool:toggle".equals(seed.code()))
+                .singleElement()
+                .satisfies(seed -> {
+                    assertThat(seed.parentCode()).isEqualTo("menu:agent:mcp-servers");
+                    assertThat(seed.button().buttonKey()).isEqualTo("toggleTool");
+                });
         assertThat(provider.rolePresets())
                 .filteredOn(seed -> "AGENT_MCP_USER".equals(seed.roleCode()))
                 .singleElement()
                 .satisfies(seed -> assertThat(seed.permissionCodes())
                         .contains("menu:agent",
                                 "menu:agent:mcp-servers",
-                                "menu:agent:mcp-tools",
                                 "btn:agent:mcp-server:add",
                                 "btn:agent:mcp-server:edit",
                                 "btn:agent:mcp-server:delete",
@@ -124,7 +142,8 @@ class AgentMcpRbacResourceProviderTests {
                                 "api:agent:mcp-tool:*",
                                 "api:rbac:auth:self",
                                 "api:rbac:me:self")
-                        .doesNotContain("menu:agent:mcp-logs",
+                        .doesNotContain("menu:agent:mcp-tools",
+                                "menu:agent:mcp-logs",
                                 "btn:agent:mcp-log:view",
                                 "api:agent:mcp-log:collection",
                                 "api:agent:mcp-log:*"));

@@ -104,7 +104,6 @@ class RbacAuthApplicationTests {
         grant(dashboardRole, menuPermission("menu:agent", "dashboard", "/dashboard"));
         grant(dashboardRole, permission("api:agent:model-audit:dashboard:self", PermissionType.API));
         grant(mcpRole, menuPermission("menu:agent:mcp-servers", "agent-mcp-servers", "/agent/mcp/servers"));
-        grant(mcpRole, menuPermission("menu:agent:mcp-tools", "agent-mcp-tools", "/agent/mcp/tools"));
         grant(mcpRole, permission("btn:agent:mcp-server:add", PermissionType.BUTTON));
         grant(mcpRole, permission("btn:agent:mcp-server:edit", PermissionType.BUTTON));
         grant(mcpRole, permission("btn:agent:mcp-server:delete", PermissionType.BUTTON));
@@ -144,8 +143,8 @@ class RbacAuthApplicationTests {
         assertThat(response.roleCodes()).containsExactlyInAnyOrder("CHAT_BASIC", "RAG_USER", "AGENT_DASHBOARD_USER",
                 "AGENT_MCP_USER");
         assertThat(response.menus()).extracting("permCode")
-                .contains("menu:chat", "menu:rag", "menu:agent", "menu:agent:mcp-servers", "menu:agent:mcp-tools")
-                .doesNotContain("menu:agent:mcp-logs");
+                .contains("menu:chat", "menu:rag", "menu:agent", "menu:agent:mcp-servers")
+                .doesNotContain("menu:agent:mcp-tools", "menu:agent:mcp-logs");
         assertThat(response.buttonCodes())
                 .contains("btn:agent:mcp-server:add",
                         "btn:agent:mcp-server:edit",

@@ -18,7 +18,6 @@ const routeButtonPermissions: RouteButtonPermission[] = [
         path: '/agent/mcp/servers',
         buttonCodes: [...Object.values(mcpButtonCodes.server), ...Object.values(mcpButtonCodes.tool)],
     },
-    {path: '/agent/mcp/tools', buttonCodes: Object.values(mcpButtonCodes.tool)},
     {path: '/agent/mcp/logs', buttonCodes: Object.values(mcpButtonCodes.log)},
     {path: '/rbac/users', buttonCodes: Object.values(rbacButtonCodes.user)},
     {path: '/rbac/roles', buttonCodes: Object.values(rbacButtonCodes.role)},
