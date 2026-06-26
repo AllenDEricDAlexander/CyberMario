@@ -14,7 +14,10 @@ const routeButtonPermissions: RouteButtonPermission[] = [
         buttonCodes: [...Object.values(ragButtonCodes.doc), ...Object.values(ragButtonCodes.chunk)]
     },
     {path: '/rag/ingestion-jobs', buttonCodes: Object.values(ragButtonCodes.job)},
-    {path: '/agent/mcp/servers', buttonCodes: Object.values(mcpButtonCodes.server)},
+    {
+        path: '/agent/mcp/servers',
+        buttonCodes: [...Object.values(mcpButtonCodes.server), ...Object.values(mcpButtonCodes.tool)],
+    },
     {path: '/agent/mcp/tools', buttonCodes: Object.values(mcpButtonCodes.tool)},
     {path: '/agent/mcp/logs', buttonCodes: Object.values(mcpButtonCodes.log)},
     {path: '/rbac/users', buttonCodes: Object.values(rbacButtonCodes.user)},

@@ -1,4 +1,4 @@
-import {DeleteOutlined, EditOutlined, ExperimentOutlined, PlusOutlined, SearchOutlined,} from '@ant-design/icons'
+import {DeleteOutlined, EditOutlined, ExperimentOutlined, PlusOutlined, SearchOutlined, ToolOutlined} from '@ant-design/icons'
 import {App, Button, Popconfirm, Space, Switch, Table, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import type {ReactNode} from 'react'
@@ -26,6 +26,8 @@ import type {
     UpdateMcpServerRequest,
 } from './mcpTypes'
 import {McpServerEditorDrawer} from './McpServerEditorDrawer'
+import {McpServerToolPolicyDrawer} from './McpServerToolPolicyDrawer'
+import {canOpenServerToolPolicy} from './mcpToolView'
 
 function McpServerListPage() {
     const {message} = App.useApp()
@@ -35,6 +37,8 @@ function McpServerListPage() {
     const [saving, setSaving] = useState(false)
     const [editingServer, setEditingServer] = useState<McpServerResponse | null>(null)
     const [editorOpen, setEditorOpen] = useState(false)
+    const [policyServer, setPolicyServer] = useState<McpServerResponse | null>(null)
+    const [policyOpen, setPolicyOpen] = useState(false)
     const [switchingId, setSwitchingId] = useState<number | null>(null)
 
     const canCreate = canUseRbacButton(auth, mcpButtonCodes.server.create)
@@ -42,7 +46,10 @@ function McpServerListPage() {
     const canDelete = canUseRbacButton(auth, mcpButtonCodes.server.delete)
     const canTest = canUseRbacButton(auth, mcpButtonCodes.server.test)
     const canDiscover = canUseRbacButton(auth, mcpButtonCodes.server.discover)
-    const canToggle = canUseRbacButton(auth, mcpButtonCodes.server.toggle)
+    const canToggleServer = canUseRbacButton(auth, mcpButtonCodes.server.toggle)
+    const canEditPolicy = canUseRbacButton(auth, mcpButtonCodes.tool.editPolicy)
+    const canToggleTool = canUseRbacButton(auth, mcpButtonCodes.tool.toggle)
+    const canManageToolPolicy = canOpenServerToolPolicy(canEditPolicy, canToggleTool)
 
     useEffect(() => {
         void loadServers()
@@ -62,6 +69,15 @@ function McpServerListPage() {
     function openEditor(server?: McpServerResponse) {
         setEditingServer(server ?? null)
         setEditorOpen(true)
+    }
+
+    function openToolPolicy(server: McpServerResponse) {
+        setPolicyServer(server)
+        setPolicyOpen(true)
+    }
+
+    function closeToolPolicy() {
+        setPolicyOpen(false)
     }
 
     async function saveServer(request: CreateMcpServerRequest | UpdateMcpServerRequest) {
@@ -163,7 +179,7 @@ function McpServerListPage() {
             render: (_, record) => (
                 <Switch
                     checked={record.enabled}
-                    disabled={!canToggle}
+                    disabled={!canToggleServer}
                     loading={switchingId === record.id}
                     onChange={(checked) => void toggleServer(record, checked)}
                     size="small"
@@ -174,7 +190,7 @@ function McpServerListPage() {
         {
             title: '操作',
             fixed: 'right',
-            width: 310,
+            width: 430,
             render: (_, record) => renderActions(record),
         },
     ]
@@ -200,6 +216,13 @@ function McpServerListPage() {
                 </Button>,
             )
         }
+        if (canManageToolPolicy) {
+            actions.push(
+                <Button icon={<ToolOutlined/>} key="tool-policy" onClick={() => openToolPolicy(record)} size="small">
+                    工具策略
+                </Button>,
+            )
+        }
         if (canDelete) {
             actions.push(
                 <Popconfirm key="delete" title="确认删除该 MCP 服务？" onConfirm={() => void removeServer(record)}>
@@ -207,7 +230,7 @@ function McpServerListPage() {
                 </Popconfirm>,
             )
         }
-        return actions.length ? <Space>{actions}</Space> : '-'
+        return actions.length ? <Space wrap>{actions}</Space> : '-'
     }
 
     return (
@@ -224,7 +247,7 @@ function McpServerListPage() {
                 loading={loading}
                 pagination={false}
                 rowKey="id"
-                scroll={{x: 1650}}
+                scroll={{x: 1770}}
             />
             <McpServerEditorDrawer
                 loading={saving}
@@ -232,6 +255,13 @@ function McpServerListPage() {
                 onSubmit={saveServer}
                 open={editorOpen}
                 server={editingServer}
+            />
+            <McpServerToolPolicyDrawer
+                canEditPolicy={canEditPolicy}
+                canToggle={canToggleTool}
+                onClose={closeToolPolicy}
+                open={policyOpen}
+                server={policyServer}
             />
         </>
     )
