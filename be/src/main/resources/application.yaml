@@ -135,6 +135,14 @@ info:
     name: ${spring.application.name:Mario}
     description: Cyber Mario is a chat bot
 
+agent:
+  mcp:
+    runtime:
+      enabled: ${AGENT_MCP_RUNTIME_ENABLED:true}
+      refresh:
+        broadcast-enabled: ${AGENT_MCP_RUNTIME_REFRESH_BROADCAST_ENABLED:true}
+        broadcast-topic: ${AGENT_MCP_RUNTIME_REFRESH_BROADCAST_TOPIC:agent:mcp:runtime:refresh}
+
 mario:
   security:
     jwt:
