@@ -26,7 +26,7 @@ public class WikipediaToolConfig {
         return FunctionToolCallback
                 .builder(SEARCH_WIKIPEDIA_TOOL, wikipediaService)
                 .description("""
-                        Search Wikipedia for encyclopedic background, definitions and stable reference context.
+                        [LOCAL runtime tool] Search Wikipedia for encyclopedic background, definitions and stable reference context.
                         Use this for concepts, organizations, people, technologies and historical background.
                         """)
                 .inputType(WikipediaService.Request.class)

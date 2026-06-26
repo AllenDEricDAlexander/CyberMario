@@ -19,7 +19,7 @@ public class ArxivToolConfig {
         return FunctionToolCallback
                 .builder(SEARCH_ARXIV_TOOL, arxivTools)
                 .description("""
-                        Search arXiv papers by query and return structured summaries, links and optional bounded full-text preview.
+                        [LOCAL runtime tool] Search arXiv papers by query and return structured summaries, links and optional bounded full-text preview.
                         Use this when users ask for papers, arXiv, academic references or specialist research context.
                         Every returned paper is queued for background collection into the protected super-admin arXiv knowledge base.
                         """)

@@ -31,7 +31,8 @@ class WikipediaToolConfigTests {
         ToolCallback callback = config.searchWikipediaToolCallback(service);
 
         assertThat(callback.getToolDefinition().name()).isEqualTo(WikipediaToolConfig.SEARCH_WIKIPEDIA_TOOL);
-        assertThat(callback.getToolDefinition().description()).contains("Wikipedia", "encyclopedic", "background");
+        assertThat(callback.getToolDefinition().description()).contains("[LOCAL runtime tool]", "Wikipedia",
+                "encyclopedic", "background");
         assertThat(callback.call("{\"query\":\"Spring AI\",\"limit\":1,\"includeContent\":false}"))
                 .contains("pages")
                 .contains("language");

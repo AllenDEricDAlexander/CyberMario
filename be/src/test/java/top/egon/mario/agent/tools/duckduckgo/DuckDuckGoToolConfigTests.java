@@ -26,7 +26,7 @@ class DuckDuckGoToolConfigTests {
         ToolCallback callback = config.searchDuckDuckGoNewsToolCallback(service);
 
         assertThat(callback.getToolDefinition().name()).isEqualTo(DuckDuckGoToolConfig.SEARCH_DUCKDUCKGO_NEWS_TOOL);
-        assertThat(callback.getToolDefinition().description()).contains("DuckDuckGo", "news", "recent");
+        assertThat(callback.getToolDefinition().description()).contains("[LOCAL runtime tool]", "DuckDuckGo", "news", "recent");
         assertThat(callback.getToolDefinition().inputSchema()).contains("\"q\"");
     }
 

@@ -28,7 +28,15 @@ public class LoggingMcpToolCallback implements ToolCallback {
 
     @Override
     public ToolDefinition getToolDefinition() {
-        return delegate.getToolDefinition();
+        ToolDefinition definition = delegate.getToolDefinition();
+        if (definition == null) {
+            return null;
+        }
+        return ToolDefinition.builder()
+                .name(definition.name())
+                .description(mcpDescription(definition.description()))
+                .inputSchema(definition.inputSchema())
+                .build();
     }
 
     @Override
@@ -42,6 +50,14 @@ public class LoggingMcpToolCallback implements ToolCallback {
 
     public String toolKey() {
         return tool == null ? null : tool.getToolKey();
+    }
+
+    private String mcpDescription(String description) {
+        String source = "[MCP tool from server: " + serverCode() + "]";
+        if (description == null || description.isBlank()) {
+            return source;
+        }
+        return source + " " + description;
     }
 
     @Override

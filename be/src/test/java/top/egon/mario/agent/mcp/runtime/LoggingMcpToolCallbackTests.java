@@ -2,6 +2,7 @@ package top.egon.mario.agent.mcp.runtime;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.ai.tool.definition.ToolDefinition;
 import top.egon.mario.agent.mcp.po.McpServerConfigPo;
 import top.egon.mario.agent.mcp.po.McpToolConfigPo;
 import top.egon.mario.agent.mcp.service.McpToolCallLogService;
@@ -57,6 +58,26 @@ class LoggingMcpToolCallbackTests {
 
         assertThat(callback.serverCode()).isEqualTo("docs");
         assertThat(callback.toolKey()).isEqualTo("docs_search");
+    }
+
+    @Test
+    void toolDefinitionDescriptionMarksMcpSourceForModel() {
+        ToolCallback delegate = mock(ToolCallback.class);
+        given(delegate.getToolDefinition()).willReturn(ToolDefinition.builder()
+                .name("docs_search")
+                .description("Search repository docs")
+                .inputSchema("{}")
+                .build());
+        LoggingMcpToolCallback callback = new LoggingMcpToolCallback(delegate, server(), tool(),
+                mock(McpToolCallLogService.class));
+
+        ToolDefinition definition = callback.getToolDefinition();
+
+        assertThat(definition.name()).isEqualTo("docs_search");
+        assertThat(definition.inputSchema()).isEqualTo("{}");
+        assertThat(definition.description())
+                .contains("[MCP tool from server: docs]")
+                .contains("Search repository docs");
     }
 
     private McpServerConfigPo server() {

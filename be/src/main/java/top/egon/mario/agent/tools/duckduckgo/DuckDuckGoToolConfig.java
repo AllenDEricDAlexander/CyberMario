@@ -26,7 +26,7 @@ public class DuckDuckGoToolConfig {
         return FunctionToolCallback
                 .builder(SEARCH_DUCKDUCKGO_NEWS_TOOL, duckDuckGoQueryNewsService)
                 .description("""
-                        Search DuckDuckGo news for recent public information and timely web updates.
+                        [LOCAL runtime tool] Search DuckDuckGo news for recent public information and timely web updates.
                         Use this when users ask for latest news, recent events or time-sensitive context.
                         """)
                 .inputType(DuckDuckGoQueryNewsService.DuckDuckGoQueryNewsRequest.class)

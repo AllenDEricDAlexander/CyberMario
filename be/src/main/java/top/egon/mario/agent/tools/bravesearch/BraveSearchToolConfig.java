@@ -26,7 +26,7 @@ public class BraveSearchToolConfig {
         return FunctionToolCallback
                 .builder(SEARCH_BRAVE_WEB_TOOL, braveSearchService)
                 .description("""
-                        Search Brave web results for current public web information and source discovery.
+                        [LOCAL runtime tool] Search Brave web results for current public web information and source discovery.
                         Use this when users ask for current facts, recent web pages or broad web research.
                         """)
                 .inputType(BraveSearchService.Request.class)

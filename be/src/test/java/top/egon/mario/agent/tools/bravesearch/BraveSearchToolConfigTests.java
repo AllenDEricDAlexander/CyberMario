@@ -26,7 +26,7 @@ class BraveSearchToolConfigTests {
         ToolCallback callback = config.searchBraveWebToolCallback(service);
 
         assertThat(callback.getToolDefinition().name()).isEqualTo(BraveSearchToolConfig.SEARCH_BRAVE_WEB_TOOL);
-        assertThat(callback.getToolDefinition().description()).contains("Brave", "web", "current");
+        assertThat(callback.getToolDefinition().description()).contains("[LOCAL runtime tool]", "Brave", "web", "current");
         assertThat(callback.getToolDefinition().inputSchema()).contains("\"query\"");
     }
 
