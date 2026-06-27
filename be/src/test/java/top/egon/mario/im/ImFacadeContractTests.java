@@ -3,8 +3,16 @@ package top.egon.mario.im;
 import org.junit.jupiter.api.Test;
 import org.springframework.stereotype.Component;
 import top.egon.mario.im.facade.RoomFacade;
+import top.egon.mario.im.facade.dto.view.ConversationView;
+import top.egon.mario.im.facade.mapper.ImFacadeMapper;
+import top.egon.mario.im.po.ImConversationPo;
+import top.egon.mario.im.po.enums.ImConversationStatus;
+import top.egon.mario.im.po.enums.ImConversationType;
+import top.egon.mario.im.po.enums.ImSurfaceType;
+import top.egon.mario.im.service.ConversationService;
 import top.egon.mario.im.service.DmService;
 import top.egon.mario.im.service.ImException;
+import top.egon.mario.im.service.MessageService;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
@@ -118,6 +126,34 @@ class ImFacadeContractTests {
     }
 
     @Test
+    void conversationViewExposesNullableLastMessageSummary() throws Exception {
+        RecordComponent lastMessage = List.of(Class.forName(VIEW_PACKAGE + ".ConversationView").getRecordComponents())
+                .stream()
+                .filter(component -> "lastMessage".equals(component.getName()))
+                .findFirst()
+                .orElse(null);
+
+        assertThat(lastMessage).isNotNull();
+        assertThat(lastMessage.getType().getName()).isEqualTo(VIEW_PACKAGE + ".MessageView");
+    }
+
+    @Test
+    void conversationMapperDefaultsUnreadCountForNonListViews() {
+        ImConversationPo conversation = new ImConversationPo();
+        conversation.setConversationType(ImConversationType.DM);
+        conversation.setOwnerSurfaceType(ImSurfaceType.DM_PAIR);
+        conversation.setOwnerSurfaceId(1L);
+        conversation.setContextType("IM_FACADE_CONTRACT_TEST");
+        conversation.setMessageSeq(0L);
+        conversation.setStatus(ImConversationStatus.ACTIVE);
+
+        ConversationView view = new ImFacadeMapper().toConversationView(conversation);
+
+        assertThat(view.unreadCount()).isZero();
+        assertThat(view.lastMessage()).isNull();
+    }
+
+    @Test
     void facadeShellsExposeExpectedDtoMethods() throws Exception {
         assertMethod(FACADE_PACKAGE + ".ImFacade", "send",
                 VIEW_PACKAGE + ".MessageView", COMMAND_PACKAGE + ".SendMessageCommand");
@@ -184,8 +220,21 @@ class ImFacadeContractTests {
     }
 
     @Test
+    void imFacadeUsesConstructorInjectedServicesOnly() throws Exception {
+        Constructor<?>[] constructors = Class.forName(FACADE_PACKAGE + ".ImFacade").getDeclaredConstructors();
+
+        assertThat(constructors).singleElement()
+                .satisfies(constructor -> assertThat(constructor.getParameterTypes())
+                        .containsExactly(MessageService.class, ConversationService.class));
+    }
+
+    @Test
     void unimplementedFacadeShellsFailFastWithImException() throws Exception {
-        assertNotImplemented(FACADE_PACKAGE + ".ImFacade", "send", COMMAND_PACKAGE + ".SendMessageCommand");
+        Object imFacade = Class.forName(FACADE_PACKAGE + ".ImFacade")
+                .getDeclaredConstructor(MessageService.class, ConversationService.class)
+                .newInstance(new Object[]{null, null});
+
+        assertNotImplemented(imFacade, "mintWsTicket", COMMAND_PACKAGE + ".MintWsTicketCommand");
         assertNotImplemented(FACADE_PACKAGE + ".GovFacade", "mute", COMMAND_PACKAGE + ".MuteUserCommand");
     }
 

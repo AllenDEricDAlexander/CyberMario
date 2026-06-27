@@ -37,6 +37,14 @@ public final class ImFacadeMapper {
     }
 
     public ConversationView toConversationView(Object source) {
+        return toConversationView(source, 0L, null);
+    }
+
+    public ConversationView toConversationView(Object source, Long unreadCount) {
+        return toConversationView(source, unreadCount, null);
+    }
+
+    public ConversationView toConversationView(Object source, Long unreadCount, ImMessagePo lastMessage) {
         ImConversationPo conversation = requireType(source, ImConversationPo.class);
         return new ConversationView(
                 conversation.getId(),
@@ -48,8 +56,10 @@ public final class ImFacadeMapper {
                 conversation.getMessageSeq(),
                 conversation.getLastMessageId(),
                 conversation.getLastMessageAt(),
+                lastMessage == null ? null : toMessageView(lastMessage),
                 conversation.getLastActiveAt(),
-                name(conversation.getStatus())
+                name(conversation.getStatus()),
+                unreadCount == null ? 0L : unreadCount
         );
     }
 

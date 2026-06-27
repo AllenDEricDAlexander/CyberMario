@@ -12,6 +12,8 @@ public record ConversationView(
         Long messageSeq,
         Long lastMessageId,
         Instant lastMessageAt,
+        MessageView lastMessage,
         Instant lastActiveAt,
-        String status) {
+        String status,
+        Long unreadCount) {
 }

@@ -6,13 +6,17 @@ import org.springframework.util.StringUtils;
 import top.egon.mario.im.facade.dto.command.CreateChannelCommand;
 import top.egon.mario.im.facade.dto.command.CreateGroupCommand;
 import top.egon.mario.im.facade.dto.query.ListChannelsQuery;
+import top.egon.mario.im.facade.dto.query.ListConversationsQuery;
 import top.egon.mario.im.facade.dto.query.ListGroupsQuery;
 import top.egon.mario.im.facade.dto.view.ChannelView;
+import top.egon.mario.im.facade.dto.view.ConversationView;
 import top.egon.mario.im.facade.dto.view.GroupView;
 import top.egon.mario.im.facade.mapper.ImFacadeMapper;
 import top.egon.mario.im.po.ImChannelPo;
+import top.egon.mario.im.po.ImConversationMemberPo;
 import top.egon.mario.im.po.ImConversationPo;
 import top.egon.mario.im.po.ImGroupPo;
+import top.egon.mario.im.po.ImMessagePo;
 import top.egon.mario.im.po.ImMembershipPo;
 import top.egon.mario.im.po.enums.ImChannelVisibility;
 import top.egon.mario.im.po.enums.ImConversationStatus;
@@ -22,10 +26,13 @@ import top.egon.mario.im.po.enums.ImSurfaceStatus;
 import top.egon.mario.im.po.enums.ImSurfaceType;
 import top.egon.mario.im.policy.ImPrincipal;
 import top.egon.mario.im.repository.ImChannelRepository;
+import top.egon.mario.im.repository.ImConversationMemberRepository;
 import top.egon.mario.im.repository.ImConversationRepository;
 import top.egon.mario.im.repository.ImGroupRepository;
+import top.egon.mario.im.repository.ImMessageRepository;
 
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -37,16 +44,22 @@ public class ConversationService {
     private final ImChannelRepository channelRepository;
     private final ImGroupRepository groupRepository;
     private final ImConversationRepository conversationRepository;
+    private final ImConversationMemberRepository conversationMemberRepository;
+    private final ImMessageRepository messageRepository;
     private final MembershipService membershipService;
     private final ImFacadeMapper mapper = new ImFacadeMapper();
 
     public ConversationService(ImChannelRepository channelRepository,
                                ImGroupRepository groupRepository,
                                ImConversationRepository conversationRepository,
+                               ImConversationMemberRepository conversationMemberRepository,
+                               ImMessageRepository messageRepository,
                                MembershipService membershipService) {
         this.channelRepository = channelRepository;
         this.groupRepository = groupRepository;
         this.conversationRepository = conversationRepository;
+        this.conversationMemberRepository = conversationMemberRepository;
+        this.messageRepository = messageRepository;
         this.membershipService = membershipService;
     }
 
@@ -170,6 +183,29 @@ public class ConversationService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<ConversationView> listConversations(ListConversationsQuery query) {
+        if (query == null) {
+            throw new ImException("IM_CONVERSATION_QUERY_REQUIRED");
+        }
+        ImPrincipal principal = requirePrincipal(query.principal());
+        String contextType = optionalText(query.contextType());
+        if ((query.contextType() != null || query.contextId() != null) && contextType == null) {
+            throw new ImException("IM_CONTEXT_TYPE_REQUIRED");
+        }
+
+        return conversationMemberRepository.findActiveByUserId(principal.userId()).stream()
+                .map(member -> conversationListItem(member, contextType, query.contextId()))
+                .flatMap(Optional::stream)
+                .sorted(Comparator
+                        .comparing((ConversationListItem item) -> item.conversation().getLastActiveAt(),
+                                Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(item -> item.conversation().getId(),
+                                Comparator.nullsLast(Comparator.reverseOrder())))
+                .map(item -> mapper.toConversationView(item.conversation(), item.unreadCount(), item.lastMessage()))
+                .toList();
+    }
+
     private ImConversationPo ensureChannelMainConversation(ImChannelPo channel, Instant now) {
         ImConversationPo conversation = conversationRepository
                 .findByOwnerSurfaceTypeAndOwnerSurfaceIdAndConversationTypeAndDeletedFalse(
@@ -258,7 +294,7 @@ public class ConversationService {
     }
 
     private ImPrincipal requirePrincipal(ImPrincipal principal) {
-        if (principal == null) {
+        if (principal == null || principal.userId() == null) {
             throw new ImException("IM_PRINCIPAL_REQUIRED");
         }
         return principal;
@@ -269,6 +305,10 @@ public class ConversationService {
             throw new ImException(code);
         }
         return value.trim();
+    }
+
+    private String optionalText(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     private ImJoinPolicy joinPolicy(String value) {
@@ -284,6 +324,41 @@ public class ConversationService {
         return StringUtils.hasText(metadataJson) ? metadataJson : "{}";
     }
 
+    private Optional<ConversationListItem> conversationListItem(ImConversationMemberPo member,
+                                                                String contextType,
+                                                                Long contextId) {
+        return conversationRepository.findByIdAndDeletedFalse(member.getConversationId())
+                .filter(conversation -> ImConversationStatus.ACTIVE.equals(conversation.getStatus()))
+                .filter(conversation -> matchesContext(conversation, contextType, contextId))
+                .map(conversation -> new ConversationListItem(
+                        conversation, lastMessage(conversation), unreadCount(conversation, member)));
+    }
+
+    private boolean matchesContext(ImConversationPo conversation, String contextType, Long contextId) {
+        if (contextType != null && !contextType.equals(conversation.getContextType())) {
+            return false;
+        }
+        return contextId == null || contextId.equals(conversation.getContextId());
+    }
+
+    private long unreadCount(ImConversationPo conversation, ImConversationMemberPo member) {
+        long conversationSeq = conversation.getMessageSeq() == null ? 0L : conversation.getMessageSeq();
+        long lastReadSeq = member.getLastReadSeq() == null ? 0L : member.getLastReadSeq();
+        return Math.max(0L, conversationSeq - lastReadSeq);
+    }
+
+    private ImMessagePo lastMessage(ImConversationPo conversation) {
+        if (conversation.getLastMessageId() == null) {
+            return null;
+        }
+        return messageRepository.findByIdAndDeletedFalse(conversation.getLastMessageId())
+                .filter(message -> conversation.getId().equals(message.getConversationId()))
+                .orElse(null);
+    }
+
     private record GroupContext(Long channelId, String contextType, Long contextId) {
+    }
+
+    private record ConversationListItem(ImConversationPo conversation, ImMessagePo lastMessage, Long unreadCount) {
     }
 }

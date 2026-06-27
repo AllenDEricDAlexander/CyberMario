@@ -11,27 +11,37 @@ import top.egon.mario.im.facade.dto.view.ConversationView;
 import top.egon.mario.im.facade.dto.view.MessageView;
 import top.egon.mario.im.facade.dto.view.UnreadView;
 import top.egon.mario.im.facade.dto.view.WsTicketView;
+import top.egon.mario.im.service.ConversationService;
 import top.egon.mario.im.service.ImException;
+import top.egon.mario.im.service.MessageService;
 
 import java.util.List;
 
 @Component
 public class ImFacade {
 
+    private final MessageService messageService;
+    private final ConversationService conversationService;
+
+    public ImFacade(MessageService messageService, ConversationService conversationService) {
+        this.messageService = messageService;
+        this.conversationService = conversationService;
+    }
+
     public MessageView send(SendMessageCommand command) {
-        throw notImplemented();
+        return messageService.send(command);
     }
 
     public Page<MessageView> history(HistoryQuery query) {
-        throw notImplemented();
+        return messageService.history(query);
     }
 
     public UnreadView markRead(MarkReadCommand command) {
-        throw notImplemented();
+        return messageService.markRead(command);
     }
 
     public List<ConversationView> listConversations(ListConversationsQuery query) {
-        throw notImplemented();
+        return conversationService.listConversations(query);
     }
 
     public WsTicketView mintWsTicket(MintWsTicketCommand command) {
