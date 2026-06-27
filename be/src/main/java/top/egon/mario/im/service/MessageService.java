@@ -20,18 +20,14 @@ import top.egon.mario.im.po.ImConversationMemberPo;
 import top.egon.mario.im.po.ImConversationPo;
 import top.egon.mario.im.po.ImDmPairPo;
 import top.egon.mario.im.po.ImGroupPo;
-import top.egon.mario.im.po.ImInboxPo;
 import top.egon.mario.im.po.ImMembershipPo;
 import top.egon.mario.im.po.ImMessagePo;
-import top.egon.mario.im.po.ImOutboxPo;
 import top.egon.mario.im.po.enums.ImConversationStatus;
-import top.egon.mario.im.po.enums.ImDeliveryMode;
 import top.egon.mario.im.po.enums.ImGlobalMuteScopeType;
 import top.egon.mario.im.po.enums.ImMembershipStatus;
 import top.egon.mario.im.po.enums.ImMessageStatus;
 import top.egon.mario.im.po.enums.ImMessageType;
 import top.egon.mario.im.po.enums.ImOutboxEventType;
-import top.egon.mario.im.po.enums.ImOutboxStatus;
 import top.egon.mario.im.po.enums.ImSurfaceStatus;
 import top.egon.mario.im.po.enums.ImSurfaceType;
 import top.egon.mario.im.policy.ImAccessContext;
@@ -44,10 +40,8 @@ import top.egon.mario.im.repository.ImConversationRepository;
 import top.egon.mario.im.repository.ImDmPairRepository;
 import top.egon.mario.im.repository.ImGlobalMuteRepository;
 import top.egon.mario.im.repository.ImGroupRepository;
-import top.egon.mario.im.repository.ImInboxRepository;
 import top.egon.mario.im.repository.ImMembershipRepository;
 import top.egon.mario.im.repository.ImMessageRepository;
-import top.egon.mario.im.repository.ImOutboxRepository;
 
 import java.time.Instant;
 import java.util.Locale;
@@ -63,8 +57,8 @@ public class MessageService {
     private final ImConversationRepository conversationRepository;
     private final ImConversationMemberRepository conversationMemberRepository;
     private final ImMessageRepository messageRepository;
-    private final ImOutboxRepository outboxRepository;
-    private final ImInboxRepository inboxRepository;
+    private final OutboxService outboxService;
+    private final InboxService inboxService;
     private final ImMembershipRepository membershipRepository;
     private final ImChannelRepository channelRepository;
     private final ImGroupRepository groupRepository;
@@ -78,8 +72,8 @@ public class MessageService {
     public MessageService(ImConversationRepository conversationRepository,
                           ImConversationMemberRepository conversationMemberRepository,
                           ImMessageRepository messageRepository,
-                          ImOutboxRepository outboxRepository,
-                          ImInboxRepository inboxRepository,
+                          OutboxService outboxService,
+                          InboxService inboxService,
                           ImMembershipRepository membershipRepository,
                           ImChannelRepository channelRepository,
                           ImGroupRepository groupRepository,
@@ -91,8 +85,8 @@ public class MessageService {
         this.conversationRepository = conversationRepository;
         this.conversationMemberRepository = conversationMemberRepository;
         this.messageRepository = messageRepository;
-        this.outboxRepository = outboxRepository;
-        this.inboxRepository = inboxRepository;
+        this.outboxService = outboxService;
+        this.inboxService = inboxService;
         this.membershipRepository = membershipRepository;
         this.channelRepository = channelRepository;
         this.groupRepository = groupRepository;
@@ -152,9 +146,9 @@ public class MessageService {
         conversation.setLastActiveAt(now);
         conversationRepository.saveAndFlush(conversation);
 
-        outboxRepository.saveAndFlush(outbox(
-                conversation.getId(), message.getId(), nextSeq, ImOutboxEventType.MESSAGE_CREATED, now));
-        fanOutInbox(conversation.getId(), message.getId(), nextSeq);
+        outboxService.createPending(
+                conversation.getId(), message.getId(), nextSeq, ImOutboxEventType.MESSAGE_CREATED, now);
+        inboxService.fanOutMessage(conversation.getId(), message.getId(), nextSeq);
         return mapper.toMessageView(message);
     }
 
@@ -212,11 +206,11 @@ public class MessageService {
 
         member.setLastReadSeq(nextSeq);
         conversationMemberRepository.saveAndFlush(member);
-        inboxRepository.markReadUpTo(principal.userId(), conversation.getId(), nextSeq);
+        inboxService.markReadUpTo(principal.userId(), conversation.getId(), nextSeq);
         if (nextSeq > 0L) {
-            outboxRepository.saveAndFlush(outbox(
+            outboxService.createPending(
                     conversation.getId(), messageIdAtSequence(conversation.getId(), nextSeq), nextSeq,
-                    ImOutboxEventType.READ_UPDATED, Instant.now()));
+                    ImOutboxEventType.READ_UPDATED, Instant.now());
         }
         return new UnreadView(conversation.getId(), principal.userId(), nextSeq,
                 Math.max(0L, conversationSeq - nextSeq));
@@ -315,40 +309,6 @@ public class MessageService {
         Long contextId = conversation.getContextId();
         return contextId != null && globalMuteRepository.findActiveMute(
                 principal.userId(), ImGlobalMuteScopeType.CONTEXT, contextId, now).isPresent();
-    }
-
-    private void fanOutInbox(Long conversationId, Long messageId, Long messageSeq) {
-        conversationMemberRepository.findByConversationIdAndDeletedFalse(conversationId).stream()
-                .filter(member -> ImMembershipStatus.ACTIVE.equals(member.getStatus()))
-                .filter(member -> ImDeliveryMode.INBOX.equals(member.getDeliveryMode()))
-                .map(member -> inbox(member.getUserId(), conversationId, messageId, messageSeq))
-                .forEach(inboxRepository::save);
-        inboxRepository.flush();
-    }
-
-    private ImInboxPo inbox(Long userId, Long conversationId, Long messageId, Long messageSeq) {
-        ImInboxPo inbox = new ImInboxPo();
-        inbox.setUserId(userId);
-        inbox.setConversationId(conversationId);
-        inbox.setMessageId(messageId);
-        inbox.setMessageSeq(messageSeq);
-        inbox.setRead(false);
-        inbox.setMetadataJson("{}");
-        return inbox;
-    }
-
-    private ImOutboxPo outbox(Long conversationId, Long messageId, Long messageSeq,
-                              ImOutboxEventType eventType, Instant now) {
-        ImOutboxPo outbox = new ImOutboxPo();
-        outbox.setConversationId(conversationId);
-        outbox.setMessageId(messageId);
-        outbox.setMessageSeq(messageSeq);
-        outbox.setEventType(eventType);
-        outbox.setStatus(ImOutboxStatus.PENDING);
-        outbox.setAvailableAt(now);
-        outbox.setAttempts(0);
-        outbox.setMetadataJson("{}");
-        return outbox;
     }
 
     private ImPrincipal requirePrincipal(ImPrincipal principal) {
