@@ -261,7 +261,34 @@ textarea {
 .auth-card .ant-input-affix-wrapper {
     color: var(--text-inverse);
     border-color: rgba(255, 255, 255, 0.14) !important;
-    background: rgba(3, 15, 16, 0.36);
+    background: rgba(3, 15, 16, 0.36) !important;
+    background-color: rgba(3, 15, 16, 0.36) !important;
+}
+
+.auth-card .ant-input:hover,
+.auth-card .ant-input:focus,
+.auth-card .ant-input-focused,
+.auth-card .ant-input-status-error,
+.auth-card .ant-input-status-error:hover,
+.auth-card .ant-input-status-error:focus,
+.auth-card .ant-input-affix-wrapper:hover,
+.auth-card .ant-input-affix-wrapper:focus,
+.auth-card .ant-input-affix-wrapper-focused,
+.auth-card .ant-input-affix-wrapper-status-error,
+.auth-card .ant-input-affix-wrapper-status-error:hover,
+.auth-card .ant-input-affix-wrapper-status-error:focus,
+.auth-card .ant-input-affix-wrapper-status-error:focus-within {
+    background: rgba(3, 15, 16, 0.36) !important;
+    background-color: rgba(3, 15, 16, 0.36) !important;
+}
+
+.auth-card .ant-input:-webkit-autofill,
+.auth-card .ant-input:-webkit-autofill:hover,
+.auth-card .ant-input:-webkit-autofill:focus {
+    caret-color: var(--text-inverse);
+    -webkit-text-fill-color: var(--text-inverse);
+    -webkit-box-shadow: 0 0 0 1000px rgba(3, 15, 16, 0.36) inset;
+    transition: background-color 9999s ease-out;
 }
 
 .auth-card .ant-input::placeholder,

@@ -29,4 +29,14 @@ describe('admin layout styles', () => {
         expect(css).toContain('.auth-alert .ant-alert-icon')
         expect(css).toContain('color: #ff6b94 !important')
     })
+
+    test('keeps auth inputs dark when Ant Design applies active and error states', () => {
+        expect(css).toContain('.auth-card .ant-input-status-error,')
+        expect(css).toContain('.auth-card .ant-input-affix-wrapper-status-error,')
+        expect(css).toContain('.auth-card .ant-input:focus,')
+        expect(css).toContain('.auth-card .ant-input-affix-wrapper-focused')
+        expect(css).toContain('background: rgba(3, 15, 16, 0.36) !important')
+        expect(css).toContain('.auth-card .ant-input:-webkit-autofill')
+        expect(css).toContain('-webkit-box-shadow: 0 0 0 1000px rgba(3, 15, 16, 0.36) inset')
+    })
 })
