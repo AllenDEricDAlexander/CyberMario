@@ -1,24 +1,26 @@
 # CyberMario
 
 CyberMario is a full-stack AI workspace built around chat agents, persistent Agent Memory, RAG knowledge bases, dynamic
-MCP tool management, model-call auditing, and RBAC-backed administration.
+MCP tool management, model-call auditing, RBAC-backed administration, and Clocktower game tooling.
 
 The repository contains a Spring Boot WebFlux backend and a React + TypeScript + Vite admin frontend. For a broader
 feature inventory and implementation notes, see [FEATURE_CHECKLIST.md](FEATURE_CHECKLIST.md).
 
 ## Features
 
-- AI chat and agent debugging with streaming NDJSON responses.
-- Agent preset management, conversation audit, run audit, and model-call dashboard.
+- AI chat and agent debugging with streaming NDJSON responses and shared chat-workspace UI patterns.
+- Agent preset management, conversation audit, run audit, model-call dashboard, and SoulMD profile support.
 - Agent Memory for Agent Chat, Agent Debug, and RAG Chat, including user-owned sessions, recent-turn context assembly,
   user-level Markdown long-term memory, extraction audit, archive/restore, and logical deletion.
 - Dynamic MCP server and tool policy management for Streamable HTTP and SSE transports.
 - RAG knowledge-base, document, ingestion-job, retrieval-lab, chat, feedback, and settings pages.
 - Hybrid RAG retrieval with pgvector, keyword search, optional rerank, retrieval traces, and source citations.
 - arXiv search tooling with protected background import into the RAG document pipeline.
-- Clocktower Phase 1 game support with script data, board validation, rooms, grimoire, player actions, event stream, and basic replay.
+- Clocktower Phase 1 game support with script data, board validation, room lifecycle, grimoire, player actions, event
+  stream, and basic replay.
 - RBAC user, role, permission, menu, button, API-rule, role-inheritance, and permission-version management.
-- JWT access/refresh token flow, public registration, account settings, and frontend auth retry handling.
+- JWT access/refresh token flow, public registration, account settings, encrypted password transport, and frontend auth
+  retry handling.
 - PostgreSQL + Flyway schema management and Redis-backed RBAC/API/token cache support.
 
 ## Tech Stack
