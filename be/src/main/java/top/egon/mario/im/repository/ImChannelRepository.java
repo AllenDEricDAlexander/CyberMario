@@ -1,6 +1,8 @@
 package top.egon.mario.im.repository;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import top.egon.mario.im.po.ImChannelPo;
@@ -13,6 +15,10 @@ import java.util.Optional;
 public interface ImChannelRepository extends JpaRepository<ImChannelPo, Long> {
 
     Optional<ImChannelPo> findByIdAndDeletedFalse(Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select channel from ImChannelPo channel where channel.id = :id and channel.deleted = false")
+    Optional<ImChannelPo> findLockedByIdAndDeletedFalse(Long id);
 
     Optional<ImChannelPo> findByContextTypeAndContextIdAndChannelKeyAndDeletedFalse(
             String contextType, Long contextId, String channelKey);

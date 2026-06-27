@@ -19,6 +19,9 @@ public interface ImMembershipRepository extends JpaRepository<ImMembershipPo, Lo
     Optional<ImMembershipPo> findBySurfaceTypeAndSurfaceIdAndUserIdAndDeletedFalse(
             ImSurfaceType surfaceType, Long surfaceId, Long userId);
 
+    List<ImMembershipPo> findBySurfaceTypeAndSurfaceIdAndStatusAndDeletedFalse(
+            ImSurfaceType surfaceType, Long surfaceId, ImMembershipStatus status);
+
     List<ImMembershipPo> findBySurfaceTypeAndSurfaceIdInAndUserIdAndDeletedFalse(
             ImSurfaceType surfaceType, Collection<Long> surfaceIds, Long userId);
 

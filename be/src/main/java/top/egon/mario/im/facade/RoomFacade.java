@@ -14,11 +14,18 @@ import top.egon.mario.im.facade.dto.view.ChannelView;
 import top.egon.mario.im.facade.dto.view.GroupView;
 import top.egon.mario.im.facade.dto.view.JoinResultView;
 import top.egon.mario.im.service.ImException;
+import top.egon.mario.im.service.MembershipService;
 
 import java.util.List;
 
 @Component("imRoomFacade")
 public class RoomFacade {
+
+    private final MembershipService membershipService;
+
+    public RoomFacade(MembershipService membershipService) {
+        this.membershipService = membershipService;
+    }
 
     public ChannelView createChannel(CreateChannelCommand command) {
         throw notImplemented();
@@ -29,23 +36,23 @@ public class RoomFacade {
     }
 
     public JoinResultView applyJoin(JoinCommand command) {
-        throw notImplemented();
+        return membershipService.applyJoin(command);
     }
 
     public JoinResultView approveJoin(ApproveCommand command) {
-        throw notImplemented();
+        return membershipService.approveJoin(command);
     }
 
     public JoinResultView rejectJoin(RejectJoinCommand command) {
-        throw notImplemented();
+        return membershipService.rejectJoin(command);
     }
 
     public JoinResultView cancelJoin(CancelJoinCommand command) {
-        throw notImplemented();
+        return membershipService.cancelJoin(command);
     }
 
     public void leave(LeaveCommand command) {
-        throw notImplemented();
+        membershipService.leave(command);
     }
 
     public List<ChannelView> listChannels(ListChannelsQuery query) {

@@ -2,6 +2,7 @@ package top.egon.mario.im;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.stereotype.Component;
+import top.egon.mario.im.facade.RoomFacade;
 import top.egon.mario.im.service.ImException;
 
 import java.lang.annotation.Annotation;
@@ -174,9 +175,18 @@ class ImFacadeContractTests {
     @Test
     void unimplementedFacadeShellsFailFastWithImException() throws Exception {
         assertNotImplemented(FACADE_PACKAGE + ".ImFacade", "send", COMMAND_PACKAGE + ".SendMessageCommand");
-        assertNotImplemented(FACADE_PACKAGE + ".RoomFacade", "createChannel", COMMAND_PACKAGE + ".CreateChannelCommand");
         assertNotImplemented(FACADE_PACKAGE + ".DmFacade", "openDm", COMMAND_PACKAGE + ".OpenDmCommand");
         assertNotImplemented(FACADE_PACKAGE + ".GovFacade", "mute", COMMAND_PACKAGE + ".MuteUserCommand");
+    }
+
+    @Test
+    void unimplementedRoomFacadeShellMethodsFailFastAfterConstructorInjection() throws Exception {
+        RoomFacade roomFacade = new RoomFacade(null);
+
+        assertNotImplemented(roomFacade, "createChannel", COMMAND_PACKAGE + ".CreateChannelCommand");
+        assertNotImplemented(roomFacade, "createGroup", COMMAND_PACKAGE + ".CreateGroupCommand");
+        assertNotImplemented(roomFacade, "listChannels", QUERY_PACKAGE + ".ListChannelsQuery");
+        assertNotImplemented(roomFacade, "listGroups", QUERY_PACKAGE + ".ListGroupsQuery");
     }
 
     private static List<String> allContractRecords() {
@@ -214,6 +224,12 @@ class ImFacadeContractTests {
                                              String parameterTypeName) throws Exception {
         Class<?> ownerType = Class.forName(ownerTypeName);
         Object facade = ownerType.getDeclaredConstructor().newInstance();
+        assertNotImplemented(facade, methodName, parameterTypeName);
+    }
+
+    private static void assertNotImplemented(Object facade, String methodName,
+                                             String parameterTypeName) throws Exception {
+        Class<?> ownerType = facade.getClass();
         Method method = ownerType.getMethod(methodName, Class.forName(parameterTypeName));
 
         assertThatExceptionOfType(InvocationTargetException.class)

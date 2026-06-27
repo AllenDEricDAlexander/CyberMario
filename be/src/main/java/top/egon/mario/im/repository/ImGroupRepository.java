@@ -1,6 +1,8 @@
 package top.egon.mario.im.repository;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import top.egon.mario.im.po.ImGroupPo;
@@ -12,6 +14,10 @@ import java.util.Optional;
 public interface ImGroupRepository extends JpaRepository<ImGroupPo, Long> {
 
     Optional<ImGroupPo> findByIdAndDeletedFalse(Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select imGroup from ImGroupPo imGroup where imGroup.id = :id and imGroup.deleted = false")
+    Optional<ImGroupPo> findLockedByIdAndDeletedFalse(Long id);
 
     Optional<ImGroupPo> findByChannelIdAndGroupKeyAndDeletedFalse(Long channelId, String groupKey);
 
