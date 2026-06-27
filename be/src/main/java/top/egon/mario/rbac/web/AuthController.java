@@ -22,10 +22,12 @@ import top.egon.mario.rbac.dto.request.RefreshTokenRequest;
 import top.egon.mario.rbac.dto.request.RegisterRequest;
 import top.egon.mario.rbac.dto.response.CsrfTokenResponse;
 import top.egon.mario.rbac.dto.response.LoginResponse;
+import top.egon.mario.rbac.dto.response.PasswordEncryptionKeyResponse;
 import top.egon.mario.rbac.po.enums.ApiMatcherType;
 import top.egon.mario.rbac.po.enums.ApiRiskLevel;
 import top.egon.mario.rbac.service.resource.annotation.RbacApi;
 import top.egon.mario.rbac.service.security.BrowserAuthCookieService;
+import top.egon.mario.rbac.service.security.PasswordTransportEncryptionService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 /**
@@ -40,6 +42,7 @@ public class AuthController extends ReactiveRbacSupport {
 
     private final RbacAuthApplication authApplication;
     private final BrowserAuthCookieService browserAuthCookieService;
+    private final PasswordTransportEncryptionService passwordTransportEncryptionService;
 
     @RbacApi(appCode = "rbac", code = "api:rbac:auth:login", name = "RBAC 用户登录", publicFlag = true)
     @PostMapping("/login")
@@ -53,6 +56,12 @@ public class AuthController extends ReactiveRbacSupport {
     public Mono<ApiResponse<LoginResponse>> register(@Valid @RequestBody RegisterRequest request, ServerWebExchange exchange) {
         return blocking(() -> authApplication.register(request, clientIp(exchange), userAgent(exchange)))
                 .map(response -> browserTokenResponse(response, exchange));
+    }
+
+    @RbacApi(appCode = "rbac", code = "api:rbac:auth:password-key", name = "RBAC 密码传输公钥", publicFlag = true)
+    @GetMapping("/password-key")
+    public Mono<ApiResponse<PasswordEncryptionKeyResponse>> passwordKey() {
+        return blocking(passwordTransportEncryptionService::currentKey);
     }
 
     @RbacApi(appCode = "rbac", code = "api:rbac:auth:refresh", name = "RBAC 刷新令牌", publicFlag = true)

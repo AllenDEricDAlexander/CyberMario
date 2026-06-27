@@ -32,9 +32,19 @@ import top.egon.mario.rbac.repository.RolePermissionRepository;
 import top.egon.mario.rbac.repository.RoleRepository;
 import top.egon.mario.rbac.repository.UserRepository;
 import top.egon.mario.rbac.repository.UserRoleRepository;
+import top.egon.mario.rbac.service.security.PasswordTransportEncryptionService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
+import javax.crypto.Cipher;
+import javax.crypto.spec.OAEPParameterSpec;
+import javax.crypto.spec.PSource;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.PublicKey;
+import java.security.spec.MGF1ParameterSpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.time.Instant;
+import java.util.Base64;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -72,6 +82,8 @@ class RbacAuthApplicationTests {
     private ApiRepository apiRepository;
     @Autowired
     private RagKnowledgeBaseUserRepository knowledgeBaseUserRepository;
+    @Autowired
+    private PasswordTransportEncryptionService passwordTransportEncryptionService;
 
     @BeforeEach
     void setUp() {
@@ -125,15 +137,8 @@ class RbacAuthApplicationTests {
         permission("api:agent:model-audit:dashboard:user-options", PermissionType.API);
         grant(roleRepository.save(role("RBAC_ADMIN")), permission("api:rbac:admin:*", PermissionType.API));
 
-        RegisterRequest request = new RegisterRequest(
-                "peach-001",
-                "Peach",
-                "password123",
-                "Princess Peach",
-                "peach@example.com",
-                "13800000000",
-                "https://example.com/avatar.png"
-        );
+        RegisterRequest request = registerRequest("peach-001", "Peach", "password123", "Princess Peach",
+                "peach@example.com", "13800000000", "https://example.com/avatar.png");
 
         LoginResponse response = authApplication.register(request, "127.0.0.1", "test");
 
@@ -191,12 +196,12 @@ class RbacAuthApplicationTests {
         user.setStatus(RbacStatus.ENABLED);
         user = userRepository.save(user);
 
-        LoginResponse accountLogin = authApplication.login(new LoginRequest("mario-account", "secret"), "127.0.0.1", "test");
-        LoginResponse emailLogin = authApplication.login(new LoginRequest("mario@example.com", "secret"), "127.0.0.1", "test");
+        LoginResponse accountLogin = authApplication.login(loginRequest("mario-account", "secret"), "127.0.0.1", "test");
+        LoginResponse emailLogin = authApplication.login(loginRequest("mario@example.com", "secret"), "127.0.0.1", "test");
 
         assertThat(accountLogin.user().getId()).isEqualTo(user.getId());
         assertThat(emailLogin.user().getId()).isEqualTo(user.getId());
-        assertThatThrownBy(() -> authApplication.login(new LoginRequest("mario-name", "secret"), "127.0.0.1", "test"))
+        assertThatThrownBy(() -> authApplication.login(loginRequest("mario-name", "secret"), "127.0.0.1", "test"))
                 .hasMessageContaining("account or password is invalid");
     }
 
@@ -235,7 +240,7 @@ class RbacAuthApplicationTests {
         rolePermission.setGrantedAt(Instant.now());
         rolePermissionRepository.save(rolePermission);
 
-        LoginResponse login = authApplication.login(new LoginRequest("mario", "secret"), "127.0.0.1", "test");
+        LoginResponse login = authApplication.login(loginRequest("mario", "secret"), "127.0.0.1", "test");
 
         assertThat(login.accessToken()).isNotBlank();
         assertThat(login.refreshToken()).isNotBlank();
@@ -276,7 +281,7 @@ class RbacAuthApplicationTests {
         role.setStatus(RbacStatus.ENABLED);
         role = roleRepository.save(role);
 
-        LoginResponse beforeGrant = authApplication.login(new LoginRequest("luigi", "secret"), "127.0.0.1", "test");
+        LoginResponse beforeGrant = authApplication.login(loginRequest("luigi", "secret"), "127.0.0.1", "test");
 
         UserRolePo userRole = new UserRolePo();
         userRole.setUserId(user.getId());
@@ -323,6 +328,41 @@ class RbacAuthApplicationTests {
         rolePermission.setPermissionId(permission.getId());
         rolePermission.setGrantedAt(Instant.now());
         rolePermissionRepository.save(rolePermission);
+    }
+
+    private LoginRequest loginRequest(String account, String password) {
+        EncryptedPassword encrypted = encryptPassword(password);
+        return new LoginRequest(account, encrypted.encryptedPassword(), encrypted.passwordKeyId());
+    }
+
+    private RegisterRequest registerRequest(String accountNo, String username, String password, String nickname,
+                                            String email, String mobile, String avatarUrl) {
+        EncryptedPassword encrypted = encryptPassword(password);
+        return new RegisterRequest(accountNo, username, encrypted.encryptedPassword(), encrypted.passwordKeyId(),
+                nickname, email, mobile, avatarUrl);
+    }
+
+    private EncryptedPassword encryptPassword(String password) {
+        try {
+            var key = passwordTransportEncryptionService.currentKey();
+            byte[] publicKeyBytes = Base64.getDecoder().decode(key.publicKey());
+            PublicKey publicKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(publicKeyBytes));
+            Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
+            cipher.init(Cipher.ENCRYPT_MODE, publicKey, new OAEPParameterSpec(
+                    "SHA-256",
+                    "MGF1",
+                    MGF1ParameterSpec.SHA256,
+                    PSource.PSpecified.DEFAULT
+            ));
+            String encryptedPassword = Base64.getEncoder()
+                    .encodeToString(cipher.doFinal(password.getBytes(StandardCharsets.UTF_8)));
+            return new EncryptedPassword(encryptedPassword, key.keyId());
+        } catch (Exception e) {
+            throw new IllegalStateException("failed to encrypt test password", e);
+        }
+    }
+
+    private record EncryptedPassword(String encryptedPassword, String passwordKeyId) {
     }
 
 }

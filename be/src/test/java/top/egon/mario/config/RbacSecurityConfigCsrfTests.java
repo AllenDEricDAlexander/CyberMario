@@ -143,7 +143,8 @@ class RbacSecurityConfigCsrfTests {
         return """
                 {
                   "account": "",
-                  "password": ""
+                  "encryptedPassword": "",
+                  "passwordKeyId": ""
                 }
                 """;
     }

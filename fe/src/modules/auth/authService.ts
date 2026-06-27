@@ -1,19 +1,37 @@
 import {requestJson} from '../../services/request'
+import {ApiRequestError} from '../../types/api'
 import type {LoginRequest, LoginResponse, RegisterRequest} from './authTypes'
+import {clearPasswordKeyCache, encryptPasswordForTransport} from './passwordEncryption'
 
-export function login(request: LoginRequest) {
-    return requestJson<LoginResponse>('/api/auth/login', {
-        method: 'POST',
-        body: request,
-        auth: false,
+const PASSWORD_KEY_INVALID_CODE = 'AUTH_PASSWORD_KEY_INVALID'
+
+export async function login(request: LoginRequest) {
+    return requestWithPasswordKeyRetry(async () => {
+        const {password, ...account} = request
+        const encryptedPassword = await encryptPasswordForTransport(password)
+        return requestJson<LoginResponse>('/api/auth/login', {
+            method: 'POST',
+            body: {
+                ...account,
+                ...encryptedPassword,
+            },
+            auth: false,
+        })
     })
 }
 
-export function register(request: RegisterRequest) {
-    return requestJson<LoginResponse>('/api/auth/register', {
-        method: 'POST',
-        body: request,
-        auth: false,
+export async function register(request: RegisterRequest) {
+    return requestWithPasswordKeyRetry(async () => {
+        const {password, ...profile} = request
+        const encryptedPassword = await encryptPasswordForTransport(password)
+        return requestJson<LoginResponse>('/api/auth/register', {
+            method: 'POST',
+            body: {
+                ...profile,
+                ...encryptedPassword,
+            },
+            auth: false,
+        })
     })
 }
 
@@ -25,4 +43,16 @@ export function logout() {
     return requestJson<void>('/api/auth/logout', {
         method: 'POST',
     })
+}
+
+async function requestWithPasswordKeyRetry(action: () => Promise<LoginResponse>) {
+    try {
+        return await action()
+    } catch (error) {
+        if (!(error instanceof ApiRequestError) || error.code !== PASSWORD_KEY_INVALID_CODE) {
+            throw error
+        }
+        clearPasswordKeyCache()
+        return action()
+    }
 }

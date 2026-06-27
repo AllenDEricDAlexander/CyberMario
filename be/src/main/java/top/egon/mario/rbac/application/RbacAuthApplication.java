@@ -37,6 +37,7 @@ import top.egon.mario.rbac.service.cache.RbacTokenCache;
 import top.egon.mario.rbac.service.security.JwtClaims;
 import top.egon.mario.rbac.service.security.JwtTokenPair;
 import top.egon.mario.rbac.service.security.JwtTokenService;
+import top.egon.mario.rbac.service.security.PasswordTransportEncryptionService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.time.Instant;
@@ -71,11 +72,15 @@ public class RbacAuthApplication {
     private final RbacAuditService auditService;
     private final RbacTokenCache tokenCache;
     private final RbacPermissionVersionService permissionVersionService;
+    private final PasswordTransportEncryptionService passwordTransportEncryptionService;
 
     @Transactional
     public LoginResponse register(@Valid @NotNull RegisterRequest request, String ip, String userAgent) {
         String accountNo = normalizeAccountNo(request.accountNo());
         String username = request.username().trim().toLowerCase(Locale.ROOT);
+        String password = passwordTransportEncryptionService.decryptPassword(
+                request.passwordKeyId(), request.encryptedPassword());
+        validateRegisterPassword(password);
         if (userRepository.existsByAccountNoAndDeletedFalse(accountNo)) {
             throw new RbacException("RBAC_USER_ACCOUNT_NO_DUPLICATED", "account number already exists");
         }
@@ -99,7 +104,7 @@ public class RbacAuthApplication {
         user.setEmail(trimToNull(request.email()));
         user.setMobile(trimToNull(request.mobile()));
         user.setAvatarUrl(request.avatarUrl());
-        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setPasswordHash(passwordEncoder.encode(password));
         user.setStatus(RbacStatus.ENABLED);
         user.setLocked(false);
         user.setPasswordExpired(false);
@@ -130,7 +135,9 @@ public class RbacAuthApplication {
         UserPo user = findLoginUser(request.account())
                 .orElseThrow(() -> new RbacException("AUTH_INVALID_CREDENTIALS", "account or password is invalid"));
         ensureUserCanLogin(user);
-        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+        String password = passwordTransportEncryptionService.decryptPassword(
+                request.passwordKeyId(), request.encryptedPassword());
+        if (!passwordEncoder.matches(password, user.getPasswordHash())) {
             auditService.log(user.getId(), "AUTH_LOGIN_FAILED", "USER", user.getId(), null, null, ip, userAgent);
             LogUtil.warn(log).log("login rejected, reason=bad_credentials, userId={}", user.getId());
             throw new RbacException("AUTH_INVALID_CREDENTIALS", "account or password is invalid");
@@ -275,6 +282,12 @@ public class RbacAuthApplication {
 
     private String normalizeAccountNo(String accountNo) {
         return accountNo.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private void validateRegisterPassword(String password) {
+        if (password.length() < 8 || password.length() > 128) {
+            throw new RbacException("RBAC_USER_PASSWORD_INVALID", "password length must be between 8 and 128");
+        }
     }
 
     private boolean hasText(String value) {

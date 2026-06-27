@@ -14,10 +14,12 @@ import top.egon.mario.rbac.dto.request.RefreshTokenRequest;
 import top.egon.mario.rbac.dto.request.RegisterRequest;
 import top.egon.mario.rbac.dto.response.LoginResponse;
 import top.egon.mario.rbac.dto.response.MenuTreeResponse;
+import top.egon.mario.rbac.dto.response.PasswordEncryptionKeyResponse;
 import top.egon.mario.rbac.dto.response.UserResponse;
 import top.egon.mario.rbac.service.RbacException;
 import top.egon.mario.rbac.service.security.BrowserAuthCookieProperties;
 import top.egon.mario.rbac.service.security.BrowserAuthCookieService;
+import top.egon.mario.rbac.service.security.PasswordTransportEncryptionService;
 
 import java.time.Duration;
 import java.util.List;
@@ -39,6 +41,7 @@ class AuthControllerBrowserCookieTests {
 
     private RbacAuthApplication authApplication;
     private BrowserAuthCookieService browserAuthCookieService;
+    private PasswordTransportEncryptionService passwordTransportEncryptionService;
     private AuthController controller;
 
     @BeforeEach
@@ -47,13 +50,14 @@ class AuthControllerBrowserCookieTests {
         BrowserAuthCookieProperties properties = new BrowserAuthCookieProperties();
         properties.setSecure(false);
         browserAuthCookieService = new BrowserAuthCookieService(properties);
-        controller = new AuthController(authApplication, browserAuthCookieService);
+        passwordTransportEncryptionService = mock(PasswordTransportEncryptionService.class);
+        controller = new AuthController(authApplication, browserAuthCookieService, passwordTransportEncryptionService);
         controller.setBlockingScheduler(Schedulers.immediate());
     }
 
     @Test
     void browserLoginWritesCookiesAndHidesBodyTokens() {
-        LoginRequest request = new LoginRequest("mario", "secret");
+        LoginRequest request = new LoginRequest("mario", "encrypted-secret", "key-1");
         when(authApplication.login(eq(request), nullable(String.class), nullable(String.class)))
                 .thenReturn(loginResponse("access-token", "refresh-token"));
         MockServerWebExchange exchange = exchange("/api/auth/login", true);
@@ -69,7 +73,7 @@ class AuthControllerBrowserCookieTests {
 
     @Test
     void browserRegisterWritesCookiesAndHidesBodyTokens() {
-        RegisterRequest request = new RegisterRequest("mario", "mario", "password123", "Mario",
+        RegisterRequest request = new RegisterRequest("mario", "mario", "encrypted-password", "key-1", "Mario",
                 "mario@example.com", "13800000000", null);
         when(authApplication.register(eq(request), nullable(String.class), nullable(String.class)))
                 .thenReturn(loginResponse("register-access-token", "register-refresh-token"));
@@ -85,8 +89,22 @@ class AuthControllerBrowserCookieTests {
     }
 
     @Test
+    void passwordKeyReturnsCurrentPublicKey() {
+        when(passwordTransportEncryptionService.currentKey())
+                .thenReturn(new PasswordEncryptionKeyResponse("key-1", "RSA-OAEP-256", "public-key"));
+
+        StepVerifier.create(controller.passwordKey())
+                .assertNext(response -> {
+                    assertThat(response.data().keyId()).isEqualTo("key-1");
+                    assertThat(response.data().algorithm()).isEqualTo("RSA-OAEP-256");
+                    assertThat(response.data().publicKey()).isEqualTo("public-key");
+                })
+                .verifyComplete();
+    }
+
+    @Test
     void nonBrowserLoginReturnsBodyTokensAndDoesNotWriteAuthCookies() {
-        LoginRequest request = new LoginRequest("mario", "secret");
+        LoginRequest request = new LoginRequest("mario", "encrypted-secret", "key-1");
         when(authApplication.login(eq(request), nullable(String.class), nullable(String.class)))
                 .thenReturn(loginResponse("access-token", "refresh-token"));
         MockServerWebExchange exchange = exchange("/api/auth/login", false);
