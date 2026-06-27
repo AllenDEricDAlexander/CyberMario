@@ -18,13 +18,10 @@ import top.egon.mario.im.policy.ImPolicyRegistry;
 import top.egon.mario.im.repository.ImChannelRepository;
 import top.egon.mario.im.repository.ImConversationMemberRepository;
 import top.egon.mario.im.repository.ImConversationRepository;
-import top.egon.mario.im.repository.ImGroupRepository;
 import top.egon.mario.im.repository.ImMessageRepository;
-import top.egon.mario.im.repository.ImReadStateRepository;
 
 import java.time.Instant;
 import java.util.Collection;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -32,30 +29,25 @@ import java.util.Optional;
 public class ImCoreService {
 
     private static final String STATUS_ACTIVE = "ACTIVE";
+    private static final String LEGACY_FACADE_REPLACED = "IM_LEGACY_FACADE_REPLACED";
 
     private final ImChannelRepository channelRepository;
-    private final ImGroupRepository groupRepository;
     private final ImConversationRepository conversationRepository;
     private final ImConversationMemberRepository memberRepository;
     private final ImMessageRepository messageRepository;
-    private final ImReadStateRepository readStateRepository;
     private final ImPolicyRegistry policyRegistry;
     private final ImEntityFactory entityFactory;
 
     public ImCoreService(ImChannelRepository channelRepository,
-                         ImGroupRepository groupRepository,
                          ImConversationRepository conversationRepository,
                          ImConversationMemberRepository memberRepository,
                          ImMessageRepository messageRepository,
-                         ImReadStateRepository readStateRepository,
                          ImPolicyRegistry policyRegistry,
                          ImEntityFactory entityFactory) {
         this.channelRepository = channelRepository;
-        this.groupRepository = groupRepository;
         this.conversationRepository = conversationRepository;
         this.memberRepository = memberRepository;
         this.messageRepository = messageRepository;
-        this.readStateRepository = readStateRepository;
         this.policyRegistry = policyRegistry;
         this.entityFactory = entityFactory;
     }
@@ -75,10 +67,7 @@ public class ImCoreService {
     public ImGroupPo ensureGroup(Long channelId, String groupType) {
         requireId(channelId, "IM_CHANNEL_ID_REQUIRED");
         requireText(groupType, "IM_GROUP_TYPE_REQUIRED");
-        channelRepository.findByIdAndDeletedFalse(channelId)
-                .orElseThrow(() -> new ImException("IM_CHANNEL_NOT_FOUND"));
-        return groupRepository.findByChannelIdAndGroupKeyAndDeletedFalse(channelId, groupType)
-                .orElseGet(() -> groupRepository.saveAndFlush(entityFactory.group(channelId, groupType)));
+        throw legacyFacadeReplaced();
     }
 
     @Transactional
@@ -88,22 +77,11 @@ public class ImCoreService {
         requireText(scopeType, "IM_SCOPE_TYPE_REQUIRED");
         requireId(scopeId, "IM_SCOPE_ID_REQUIRED");
         requireText(type, "IM_CONVERSATION_TYPE_REQUIRED");
-        ImGroupPo group = groupRepository.findByIdAndDeletedFalse(groupId)
-                .orElseThrow(() -> new ImException("IM_GROUP_NOT_FOUND"));
-        ImChannelPo channel = channelRepository.findByIdAndDeletedFalse(group.getChannelId())
-                .orElseThrow(() -> new ImException("IM_CHANNEL_NOT_FOUND"));
-        List<Long> sortedUserIds = entityFactory.participantUserIds(participantUserIds);
-        if (entityFactory.usesParticipantIdentity(type) && sortedUserIds.isEmpty()) {
-            throw new ImException("IM_PARTICIPANTS_REQUIRED");
-        }
-        String participantKey = entityFactory.participantKey(scopeType, scopeId, type, sortedUserIds);
-        ImConversationPo conversation = conversationRepository
-                .findByGroupIdAndScopeTypeAndScopeIdAndConversationTypeAndParticipantKeyAndDeletedFalse(
-                        groupId, scopeType, scopeId, type, participantKey)
-                .orElseGet(() -> conversationRepository.saveAndFlush(entityFactory.conversation(
-                        channel, group, scopeType, scopeId, type, participantKey, Instant.now())));
-        ensureMembers(conversation, sortedUserIds, participantKey);
-        return conversation;
+        throw legacyFacadeReplaced();
+    }
+
+    private ImException legacyFacadeReplaced() {
+        return new ImException(LEGACY_FACADE_REPLACED, "Legacy IM facade path was replaced by V30 IM services");
     }
 
     @Transactional
@@ -154,30 +132,19 @@ public class ImCoreService {
         Long targetSeq = Math.max(0L, Math.min(messageSeq == null ? 0L : messageSeq,
                 conversation.getMessageSeq() == null ? 0L : conversation.getMessageSeq()));
         Instant now = Instant.now();
-        ImReadStatePo readState = readStateRepository.findByConversationIdAndUserIdAndDeletedFalse(
-                        conversation.getId(), checkedViewer.userId())
-                .orElseGet(() -> readStateRepository.save(entityFactory.readState(
-                        conversation.getId(), member.getId(), checkedViewer.userId(), 0L, now)));
-        Long currentSeq = readState.getLastReadMessageSeq() == null ? 0L : readState.getLastReadMessageSeq();
+        Long currentSeq = member.getLastReadMessageSeq() == null ? 0L : member.getLastReadMessageSeq();
         Long nextSeq = Math.max(currentSeq, targetSeq);
         if (!nextSeq.equals(currentSeq)) {
-            readState.setLastReadMessageSeq(nextSeq);
-            readState.setLastReadAt(now);
-        }
-        if ((member.getLastReadMessageSeq() == null ? 0L : member.getLastReadMessageSeq()) < nextSeq) {
             member.setLastReadMessageSeq(nextSeq);
             member.setLastActiveAt(now);
         }
+        ImReadStatePo readState = new ImReadStatePo();
+        readState.setConversationId(conversation.getId());
+        readState.setConversationMemberId(member.getId());
+        readState.setUserId(checkedViewer.userId());
+        readState.setLastReadMessageSeq(nextSeq);
+        readState.setLastReadAt(now);
         return readState;
-    }
-
-    private void ensureMembers(ImConversationPo conversation, List<Long> userIds, String participantKey) {
-        Instant now = Instant.now();
-        for (Long userId : userIds) {
-            memberRepository.findByConversationIdAndUserIdAndDeletedFalse(conversation.getId(), userId)
-                    .orElseGet(() -> memberRepository.saveAndFlush(entityFactory.member(
-                            conversation.getId(), userId, participantKey, now)));
-        }
     }
 
     private ImConversationPo lockedConversation(Long conversationId) {

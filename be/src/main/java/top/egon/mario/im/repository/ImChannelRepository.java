@@ -1,7 +1,10 @@
 package top.egon.mario.im.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import top.egon.mario.im.po.ImChannelPo;
+import top.egon.mario.im.po.enums.ImSurfaceStatus;
 
 import java.util.Optional;
 
@@ -11,4 +14,23 @@ public interface ImChannelRepository extends JpaRepository<ImChannelPo, Long> {
 
     Optional<ImChannelPo> findByContextTypeAndContextIdAndChannelKeyAndDeletedFalse(
             String contextType, Long contextId, String channelKey);
+
+    default Optional<ImChannelPo> findActiveByContextAndChannelKey(
+            String contextType, Long contextId, String channelKey) {
+        return findByContextAndChannelKeyAndStatus(contextType, contextId, channelKey, ImSurfaceStatus.ACTIVE);
+    }
+
+    @Query("""
+            select channel
+            from ImChannelPo channel
+            where channel.contextType = :contextType
+              and ((:contextId is null and channel.contextId is null) or channel.contextId = :contextId)
+              and channel.channelKey = :channelKey
+              and channel.status = :status
+              and channel.deleted = false
+            """)
+    Optional<ImChannelPo> findByContextAndChannelKeyAndStatus(@Param("contextType") String contextType,
+                                                              @Param("contextId") Long contextId,
+                                                              @Param("channelKey") String channelKey,
+                                                              @Param("status") ImSurfaceStatus status);
 }

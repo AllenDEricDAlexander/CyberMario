@@ -1,7 +1,10 @@
 package top.egon.mario.im.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import top.egon.mario.im.po.ImGroupPo;
+import top.egon.mario.im.po.enums.ImSurfaceStatus;
 
 import java.util.Optional;
 
@@ -10,4 +13,31 @@ public interface ImGroupRepository extends JpaRepository<ImGroupPo, Long> {
     Optional<ImGroupPo> findByIdAndDeletedFalse(Long id);
 
     Optional<ImGroupPo> findByChannelIdAndGroupKeyAndDeletedFalse(Long channelId, String groupKey);
+
+    default Optional<ImGroupPo> findActiveByChannelIdAndGroupKey(Long channelId, String groupKey) {
+        return findByChannelIdAndGroupKeyAndStatusAndDeletedFalse(channelId, groupKey, ImSurfaceStatus.ACTIVE);
+    }
+
+    Optional<ImGroupPo> findByChannelIdAndGroupKeyAndStatusAndDeletedFalse(
+            Long channelId, String groupKey, ImSurfaceStatus status);
+
+    default Optional<ImGroupPo> findActiveStandaloneByContextAndGroupKey(
+            String contextType, Long contextId, String groupKey) {
+        return findStandaloneByContextAndGroupKeyAndStatus(contextType, contextId, groupKey, ImSurfaceStatus.ACTIVE);
+    }
+
+    @Query("""
+            select imGroup
+            from ImGroupPo imGroup
+            where imGroup.channelId is null
+              and imGroup.contextType = :contextType
+              and ((:contextId is null and imGroup.contextId is null) or imGroup.contextId = :contextId)
+              and imGroup.groupKey = :groupKey
+              and imGroup.status = :status
+              and imGroup.deleted = false
+            """)
+    Optional<ImGroupPo> findStandaloneByContextAndGroupKeyAndStatus(@Param("contextType") String contextType,
+                                                                    @Param("contextId") Long contextId,
+                                                                    @Param("groupKey") String groupKey,
+                                                                    @Param("status") ImSurfaceStatus status);
 }
