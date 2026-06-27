@@ -15,5 +15,26 @@ public record ChannelView(
         String announcement,
         Long mainConversationId,
         Integer memberCount,
-        Instant lastActiveAt) {
+        Instant lastActiveAt,
+        String membershipStatus,
+        String memberRole,
+        Boolean canRead,
+        Boolean canPost) {
+
+    public ChannelView(Long id,
+                       String contextType,
+                       Long contextId,
+                       String channelKey,
+                       String name,
+                       Long ownerUserId,
+                       String visibility,
+                       String joinPolicy,
+                       String status,
+                       String announcement,
+                       Long mainConversationId,
+                       Integer memberCount,
+                       Instant lastActiveAt) {
+        this(id, contextType, contextId, channelKey, name, ownerUserId, visibility, joinPolicy, status,
+                announcement, mainConversationId, memberCount, lastActiveAt, null, null, true, false);
+    }
 }

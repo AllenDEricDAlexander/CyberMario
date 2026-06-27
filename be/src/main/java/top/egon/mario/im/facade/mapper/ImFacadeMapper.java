@@ -8,6 +8,10 @@ import top.egon.mario.im.po.ImChannelPo;
 import top.egon.mario.im.po.ImConversationPo;
 import top.egon.mario.im.po.ImGroupPo;
 import top.egon.mario.im.po.ImMessagePo;
+import top.egon.mario.im.po.ImMembershipPo;
+import top.egon.mario.im.po.enums.ImChannelVisibility;
+import top.egon.mario.im.po.enums.ImMembershipStatus;
+import top.egon.mario.im.po.enums.ImSurfaceStatus;
 
 import java.util.Objects;
 
@@ -50,7 +54,14 @@ public final class ImFacadeMapper {
     }
 
     public ChannelView toChannelView(Object source) {
+        return toChannelView(source, null);
+    }
+
+    public ChannelView toChannelView(Object source, ImMembershipPo callerMembership) {
         ImChannelPo channel = requireType(source, ImChannelPo.class);
+        boolean canRead = ImSurfaceStatus.ACTIVE.equals(channel.getStatus())
+                && ImChannelVisibility.PUBLIC.equals(channel.getVisibility());
+        boolean canPost = canRead && active(callerMembership);
         return new ChannelView(
                 channel.getId(),
                 channel.getContextType(),
@@ -64,12 +75,22 @@ public final class ImFacadeMapper {
                 channel.getAnnouncement(),
                 channel.getMainConversationId(),
                 channel.getMemberCount(),
-                channel.getLastActiveAt()
+                channel.getLastActiveAt(),
+                callerMembership == null ? null : name(callerMembership.getStatus()),
+                callerMembership == null ? null : name(callerMembership.getMemberRole()),
+                canRead,
+                canPost
         );
     }
 
     public GroupView toGroupView(Object source) {
+        return toGroupView(source, null);
+    }
+
+    public GroupView toGroupView(Object source, ImMembershipPo callerMembership) {
         ImGroupPo group = requireType(source, ImGroupPo.class);
+        boolean canRead = ImSurfaceStatus.ACTIVE.equals(group.getStatus()) && active(callerMembership);
+        boolean canPost = canRead;
         return new GroupView(
                 group.getId(),
                 group.getChannelId(),
@@ -83,7 +104,11 @@ public final class ImFacadeMapper {
                 group.getAnnouncement(),
                 group.getConversationId(),
                 group.getMemberCount(),
-                group.getLastActiveAt()
+                group.getLastActiveAt(),
+                callerMembership == null ? null : name(callerMembership.getStatus()),
+                callerMembership == null ? null : name(callerMembership.getMemberRole()),
+                canRead,
+                canPost
         );
     }
 
@@ -97,5 +122,9 @@ public final class ImFacadeMapper {
 
     private static String name(Enum<?> value) {
         return value == null ? null : value.name();
+    }
+
+    private static boolean active(ImMembershipPo membership) {
+        return membership != null && ImMembershipStatus.ACTIVE.equals(membership.getStatus());
     }
 }
