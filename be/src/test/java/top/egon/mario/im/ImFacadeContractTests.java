@@ -3,9 +3,11 @@ package top.egon.mario.im;
 import org.junit.jupiter.api.Test;
 import org.springframework.stereotype.Component;
 import top.egon.mario.im.facade.RoomFacade;
+import top.egon.mario.im.service.DmService;
 import top.egon.mario.im.service.ImException;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -173,9 +175,17 @@ class ImFacadeContractTests {
     }
 
     @Test
+    void dmFacadeUsesConstructorInjectedServiceOnly() throws Exception {
+        Constructor<?>[] constructors = Class.forName(FACADE_PACKAGE + ".DmFacade").getDeclaredConstructors();
+
+        assertThat(constructors).singleElement()
+                .satisfies(constructor -> assertThat(constructor.getParameterTypes())
+                        .containsExactly(DmService.class));
+    }
+
+    @Test
     void unimplementedFacadeShellsFailFastWithImException() throws Exception {
         assertNotImplemented(FACADE_PACKAGE + ".ImFacade", "send", COMMAND_PACKAGE + ".SendMessageCommand");
-        assertNotImplemented(FACADE_PACKAGE + ".DmFacade", "openDm", COMMAND_PACKAGE + ".OpenDmCommand");
         assertNotImplemented(FACADE_PACKAGE + ".GovFacade", "mute", COMMAND_PACKAGE + ".MuteUserCommand");
     }
 
