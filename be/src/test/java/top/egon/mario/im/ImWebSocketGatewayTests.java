@@ -15,6 +15,7 @@ import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.web.reactive.socket.CloseStatus;
@@ -72,7 +73,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@SpringBootTest(properties = "spring.ai.dashscope.api-key=test-api-key")
+@SpringBootTest(properties = {
+        "spring.ai.dashscope.api-key=test-api-key",
+        "mario.rbac.resource-sync.enabled=true"
+})
 @AutoConfigureWebTestClient
 class ImWebSocketGatewayTests {
 
@@ -157,12 +161,12 @@ class ImWebSocketGatewayTests {
     }
 
     @Test
-    void ticketMintEndpointIsReachableForAuthenticatedCallerWithoutFineGrainedRbacResource() {
+    void ticketMintEndpointIsReachableForCallerWithCoarseWriteAuthority() {
         when(authApplication.authenticateAccessToken("ticket-access"))
                 .thenReturn(new UsernamePasswordAuthenticationToken(
-                        new RbacPrincipal(13001L, "mario", Set.of("im-user"), Set.of(), "permission-v1"),
+                        new RbacPrincipal(13001L, "mario", Set.of("im-user"), Set.of("api:im:write"), "permission-v1"),
                         "ticket-access",
-                        List.of()
+                        List.of(new SimpleGrantedAuthority("api:im:write"))
                 ));
 
         webTestClient.post()

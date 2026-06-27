@@ -4,8 +4,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.stereotype.Component;
 import top.egon.mario.im.facade.ImFacade;
 import top.egon.mario.im.facade.RoomFacade;
+import top.egon.mario.im.facade.dto.command.CreateChannelCommand;
+import top.egon.mario.im.facade.dto.command.CreateGroupCommand;
 import top.egon.mario.im.facade.dto.command.MintWsTicketCommand;
+import top.egon.mario.im.facade.dto.query.ListChannelsQuery;
+import top.egon.mario.im.facade.dto.query.ListGroupsQuery;
+import top.egon.mario.im.facade.dto.view.ChannelView;
 import top.egon.mario.im.facade.dto.view.ConversationView;
+import top.egon.mario.im.facade.dto.view.GroupView;
 import top.egon.mario.im.facade.dto.view.WsTicketView;
 import top.egon.mario.im.facade.mapper.ImFacadeMapper;
 import top.egon.mario.im.po.ImConversationPo;
@@ -16,13 +22,12 @@ import top.egon.mario.im.policy.ImPrincipal;
 import top.egon.mario.im.service.ConversationService;
 import top.egon.mario.im.service.DmService;
 import top.egon.mario.im.service.GovernanceService;
-import top.egon.mario.im.service.ImException;
 import top.egon.mario.im.service.ImTicketService;
+import top.egon.mario.im.service.MembershipService;
 import top.egon.mario.im.service.MessageService;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.RecordComponent;
@@ -33,7 +38,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -241,6 +245,15 @@ class ImFacadeContractTests {
     }
 
     @Test
+    void roomFacadeUsesConstructorInjectedServicesOnly() throws Exception {
+        Constructor<?>[] constructors = Class.forName(FACADE_PACKAGE + ".RoomFacade").getDeclaredConstructors();
+
+        assertThat(constructors).singleElement()
+                .satisfies(constructor -> assertThat(constructor.getParameterTypes())
+                        .containsExactly(MembershipService.class, ConversationService.class));
+    }
+
+    @Test
     void govFacadeUsesConstructorInjectedServiceOnly() throws Exception {
         Constructor<?>[] constructors = Class.forName(FACADE_PACKAGE + ".GovFacade").getDeclaredConstructors();
 
@@ -263,13 +276,37 @@ class ImFacadeContractTests {
     }
 
     @Test
-    void unimplementedRoomFacadeShellMethodsFailFastAfterConstructorInjection() throws Exception {
-        RoomFacade roomFacade = new RoomFacade(null);
+    void roomFacadeDelegatesChannelAndGroupWorkToConversationService() {
+        MembershipService membershipService = mock(MembershipService.class);
+        ConversationService conversationService = mock(ConversationService.class);
+        RoomFacade roomFacade = new RoomFacade(membershipService, conversationService);
+        CreateChannelCommand channelCommand = new CreateChannelCommand(
+                new ImPrincipal(1L, Set.of("im-user"), "IM_FACADE_CONTRACT_TEST", Map.of()),
+                "clocktower", 42L, "town-square", "Town Square", "OPEN", "{}");
+        CreateGroupCommand groupCommand = new CreateGroupCommand(
+                new ImPrincipal(1L, Set.of("im-user"), "IM_FACADE_CONTRACT_TEST", Map.of()),
+                11L, null, null, "storytellers", "Storytellers", "APPROVAL", "{}");
+        ListChannelsQuery channelsQuery = new ListChannelsQuery(channelCommand.principal(), "clocktower", 42L);
+        ListGroupsQuery groupsQuery = new ListGroupsQuery(groupCommand.principal(), 11L, null, null);
+        ChannelView channelView = new ChannelView(
+                11L, "clocktower", 42L, "town-square", "Town Square", 1L,
+                "PUBLIC", "OPEN", "ACTIVE", "", 21L, 1, Instant.EPOCH);
+        GroupView groupView = new GroupView(
+                12L, 11L, "clocktower", 42L, "storytellers", "Storytellers", 1L,
+                "APPROVAL", "ACTIVE", "", 22L, 1, Instant.EPOCH);
+        when(conversationService.createChannel(channelCommand)).thenReturn(channelView);
+        when(conversationService.createGroup(groupCommand)).thenReturn(groupView);
+        when(conversationService.listChannels(channelsQuery)).thenReturn(List.of(channelView));
+        when(conversationService.listGroups(groupsQuery)).thenReturn(List.of(groupView));
 
-        assertNotImplemented(roomFacade, "createChannel", COMMAND_PACKAGE + ".CreateChannelCommand");
-        assertNotImplemented(roomFacade, "createGroup", COMMAND_PACKAGE + ".CreateGroupCommand");
-        assertNotImplemented(roomFacade, "listChannels", QUERY_PACKAGE + ".ListChannelsQuery");
-        assertNotImplemented(roomFacade, "listGroups", QUERY_PACKAGE + ".ListGroupsQuery");
+        assertThat(roomFacade.createChannel(channelCommand)).isSameAs(channelView);
+        assertThat(roomFacade.createGroup(groupCommand)).isSameAs(groupView);
+        assertThat(roomFacade.listChannels(channelsQuery)).containsExactly(channelView);
+        assertThat(roomFacade.listGroups(groupsQuery)).containsExactly(groupView);
+        verify(conversationService).createChannel(channelCommand);
+        verify(conversationService).createGroup(groupCommand);
+        verify(conversationService).listChannels(channelsQuery);
+        verify(conversationService).listGroups(groupsQuery);
     }
 
     private static List<String> allContractRecords() {
@@ -301,25 +338,6 @@ class ImFacadeContractTests {
         if (method.getReturnType().equals(List.class)) {
             assertThat(method.getGenericReturnType().getTypeName()).startsWith("java.util.List<");
         }
-    }
-
-    private static void assertNotImplemented(String ownerTypeName, String methodName,
-                                             String parameterTypeName) throws Exception {
-        Class<?> ownerType = Class.forName(ownerTypeName);
-        Object facade = ownerType.getDeclaredConstructor().newInstance();
-        assertNotImplemented(facade, methodName, parameterTypeName);
-    }
-
-    private static void assertNotImplemented(Object facade, String methodName,
-                                             String parameterTypeName) throws Exception {
-        Class<?> ownerType = facade.getClass();
-        Method method = ownerType.getMethod(methodName, Class.forName(parameterTypeName));
-
-        assertThatExceptionOfType(InvocationTargetException.class)
-                .isThrownBy(() -> method.invoke(facade, new Object[]{null}))
-                .withCauseInstanceOf(ImException.class)
-                .satisfies(thrown -> assertThat(((ImException) thrown.getCause()).getCode())
-                        .isEqualTo("IM_FACADE_NOT_IMPLEMENTED"));
     }
 
     private static void assertNoForbiddenType(Type type, Class<?> ownerType, Method method) {

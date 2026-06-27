@@ -76,7 +76,6 @@ public class RbacSecurityConfig {
                         .pathMatchers(HttpMethod.POST, RbacPublicApiPolicy.PUBLIC_AUTH_ENDPOINTS).permitAll()
                         .pathMatchers(HttpMethod.GET, RbacPublicApiPolicy.PUBLIC_AUTH_CSRF_ENDPOINTS).permitAll()
                         .pathMatchers(HttpMethod.GET, RbacPublicApiPolicy.PUBLIC_ACTUATOR_ENDPOINTS).permitAll()
-                        .pathMatchers(HttpMethod.POST, "/api/im/ws-ticket").authenticated()
                         .pathMatchers(HttpMethod.GET, RbacPublicApiPolicy.PUBLIC_WEBSOCKET_ENDPOINTS).permitAll()
                         .anyExchange().access(dynamicAuthorizationManager)
                 )

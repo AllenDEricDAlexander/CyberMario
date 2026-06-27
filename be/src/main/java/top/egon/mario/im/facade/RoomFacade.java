@@ -13,7 +13,7 @@ import top.egon.mario.im.facade.dto.query.ListGroupsQuery;
 import top.egon.mario.im.facade.dto.view.ChannelView;
 import top.egon.mario.im.facade.dto.view.GroupView;
 import top.egon.mario.im.facade.dto.view.JoinResultView;
-import top.egon.mario.im.service.ImException;
+import top.egon.mario.im.service.ConversationService;
 import top.egon.mario.im.service.MembershipService;
 
 import java.util.List;
@@ -22,17 +22,19 @@ import java.util.List;
 public class RoomFacade {
 
     private final MembershipService membershipService;
+    private final ConversationService conversationService;
 
-    public RoomFacade(MembershipService membershipService) {
+    public RoomFacade(MembershipService membershipService, ConversationService conversationService) {
         this.membershipService = membershipService;
+        this.conversationService = conversationService;
     }
 
     public ChannelView createChannel(CreateChannelCommand command) {
-        throw notImplemented();
+        return conversationService.createChannel(command);
     }
 
     public GroupView createGroup(CreateGroupCommand command) {
-        throw notImplemented();
+        return conversationService.createGroup(command);
     }
 
     public JoinResultView applyJoin(JoinCommand command) {
@@ -56,15 +58,10 @@ public class RoomFacade {
     }
 
     public List<ChannelView> listChannels(ListChannelsQuery query) {
-        throw notImplemented();
+        return conversationService.listChannels(query);
     }
 
     public List<GroupView> listGroups(ListGroupsQuery query) {
-        throw notImplemented();
-    }
-
-    private static ImException notImplemented() {
-        return new ImException("IM_FACADE_NOT_IMPLEMENTED",
-                "IM facade contract is defined; business implementation is pending");
+        return conversationService.listGroups(query);
     }
 }
