@@ -1,80 +1,45 @@
 package top.egon.mario.im.facade;
 
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.support.TransactionOperations;
-import org.springframework.transaction.support.TransactionTemplate;
-import top.egon.mario.im.context.ImPrincipal;
-import top.egon.mario.im.po.ImChannelPo;
-import top.egon.mario.im.po.ImConversationPo;
-import top.egon.mario.im.po.ImGroupPo;
-import top.egon.mario.im.po.ImMessagePo;
-import top.egon.mario.im.po.ImReadStatePo;
-import top.egon.mario.im.service.ImCoreService;
+import top.egon.mario.im.facade.dto.command.MarkReadCommand;
+import top.egon.mario.im.facade.dto.command.MintWsTicketCommand;
+import top.egon.mario.im.facade.dto.command.SendMessageCommand;
+import top.egon.mario.im.facade.dto.query.HistoryQuery;
+import top.egon.mario.im.facade.dto.query.ListConversationsQuery;
+import top.egon.mario.im.facade.dto.view.ConversationView;
+import top.egon.mario.im.facade.dto.view.MessageView;
+import top.egon.mario.im.facade.dto.view.UnreadView;
+import top.egon.mario.im.facade.dto.view.WsTicketView;
+import top.egon.mario.im.service.ImException;
 
-import java.util.Collection;
-import java.util.function.Supplier;
+import java.util.List;
 
 @Component
 public class ImFacade {
 
-    private static final int RETRY_LIMIT = 3;
-
-    private final ImCoreService imCoreService;
-    private final TransactionOperations retryTransactionOperations;
-
-    public ImFacade(ImCoreService imCoreService, PlatformTransactionManager transactionManager) {
-        this.imCoreService = imCoreService;
-        // Retryable facade mutations run independently; outer caller transactions do not roll them back.
-        this.retryTransactionOperations = requiresNew(transactionManager);
+    public MessageView send(SendMessageCommand command) {
+        throw notImplemented();
     }
 
-    public ImChannelPo ensureChannel(String contextType, Long contextId, String channelType) {
-        return retryOnUniqueConflict(() -> imCoreService.ensureChannel(contextType, contextId, channelType));
+    public Page<MessageView> history(HistoryQuery query) {
+        throw notImplemented();
     }
 
-    public ImGroupPo ensureGroup(Long channelId, String groupType) {
-        return retryOnUniqueConflict(() -> imCoreService.ensureGroup(channelId, groupType));
+    public UnreadView markRead(MarkReadCommand command) {
+        throw notImplemented();
     }
 
-    public ImConversationPo ensureConversation(Long groupId, String scopeType, Long scopeId, String type,
-                                               Collection<Long> participantUserIds) {
-        return retryOnUniqueConflict(() -> imCoreService.ensureConversation(
-                groupId, scopeType, scopeId, type, participantUserIds));
+    public List<ConversationView> listConversations(ListConversationsQuery query) {
+        throw notImplemented();
     }
 
-    public ImMessagePo sendMessage(Long conversationId, ImPrincipal sender, String content, String metadata) {
-        return retryOnUniqueConflict(() -> imCoreService.sendMessage(conversationId, sender, content, metadata));
+    public WsTicketView mintWsTicket(MintWsTicketCommand command) {
+        throw notImplemented();
     }
 
-    public Page<ImMessagePo> history(Long conversationId, ImPrincipal viewer, Pageable pageRequest) {
-        return imCoreService.history(conversationId, viewer, pageRequest);
-    }
-
-    public ImReadStatePo markRead(Long conversationId, ImPrincipal viewer, Long messageSeq) {
-        return imCoreService.markRead(conversationId, viewer, messageSeq);
-    }
-
-    private <T> T retryOnUniqueConflict(Supplier<T> action) {
-        for (int attempt = 1; attempt <= RETRY_LIMIT; attempt++) {
-            try {
-                return retryTransactionOperations.execute(status -> action.get());
-            } catch (DataIntegrityViolationException ex) {
-                if (attempt == RETRY_LIMIT) {
-                    throw ex;
-                }
-            }
-        }
-        throw new IllegalStateException("IM_RETRY_EXHAUSTED");
-    }
-
-    private static TransactionOperations requiresNew(PlatformTransactionManager transactionManager) {
-        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
-        transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-        return transactionTemplate;
+    private static ImException notImplemented() {
+        return new ImException("IM_FACADE_NOT_IMPLEMENTED",
+                "IM facade contract is defined; business implementation is pending");
     }
 }

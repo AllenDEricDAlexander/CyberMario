@@ -7,7 +7,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
-import top.egon.mario.im.facade.ImFacade;
+import top.egon.mario.im.legacy.LegacyImFacade;
 import top.egon.mario.im.po.ImBanPo;
 import top.egon.mario.im.po.ImChannelPo;
 import top.egon.mario.im.po.ImConversationMemberPo;
@@ -114,7 +114,7 @@ class ImPersistenceMappingTests {
     private ImWsTicketRepository wsTicketRepository;
 
     @Autowired
-    private ImFacade imFacade;
+    private LegacyImFacade imFacade;
 
     @Test
     void v30PoMappingsRoundTripCoreFieldsThroughRepositories() {

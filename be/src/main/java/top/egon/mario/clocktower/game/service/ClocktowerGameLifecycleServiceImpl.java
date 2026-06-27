@@ -28,7 +28,7 @@ import top.egon.mario.clocktower.room.repository.ClocktowerRoomProfileRepository
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomSeatRepository;
 import top.egon.mario.clocktower.script.po.ClocktowerRolePo;
 import top.egon.mario.clocktower.script.repository.ClocktowerRoleRepository;
-import top.egon.mario.im.facade.ImFacade;
+import top.egon.mario.im.legacy.LegacyImFacade;
 import top.egon.mario.im.po.ImChannelPo;
 import top.egon.mario.im.po.ImConversationPo;
 import top.egon.mario.im.po.ImGroupPo;
@@ -90,7 +90,7 @@ public class ClocktowerGameLifecycleServiceImpl implements ClocktowerGameLifecyc
     private final ClocktowerRoleRepository roleRepository;
     private final ClocktowerBoardService boardService;
     private final ClocktowerRoomAccessPolicy accessPolicy;
-    private final ImFacade imFacade;
+    private final LegacyImFacade imFacade;
     private final ObjectMapper objectMapper;
 
     @Override

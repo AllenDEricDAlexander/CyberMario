@@ -36,7 +36,7 @@ import top.egon.mario.clocktower.room.policy.ClocktowerSeatAssignmentPolicy;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomProfileRepository;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomSeatRepository;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomLobbyService;
-import top.egon.mario.im.facade.ImFacade;
+import top.egon.mario.im.legacy.LegacyImFacade;
 import top.egon.mario.im.po.ImChannelPo;
 import top.egon.mario.im.po.ImConversationPo;
 import top.egon.mario.im.po.ImGroupPo;
@@ -89,7 +89,7 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
     private static final String INVITATION_TYPE_SEAT_REQUEST = "SEAT_REQUEST";
 
     private final RoomFacade roomFacade;
-    private final ImFacade imFacade;
+    private final LegacyImFacade imFacade;
     private final RoomSpaceRepository roomSpaceRepository;
     private final RoomMemberRepository roomMemberRepository;
     private final RoomInvitationRepository roomInvitationRepository;

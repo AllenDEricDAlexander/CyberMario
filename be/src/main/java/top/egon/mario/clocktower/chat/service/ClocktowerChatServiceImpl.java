@@ -25,7 +25,7 @@ import top.egon.mario.clocktower.game.repository.ClocktowerGameRepository;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameSeatRepository;
 import top.egon.mario.clocktower.game.service.ClocktowerGameContextService;
 import top.egon.mario.im.context.ImPrincipal;
-import top.egon.mario.im.facade.ImFacade;
+import top.egon.mario.im.legacy.LegacyImFacade;
 import top.egon.mario.im.po.ImChannelPo;
 import top.egon.mario.im.po.ImConversationPo;
 import top.egon.mario.im.po.ImGroupPo;
@@ -49,7 +49,7 @@ public class ClocktowerChatServiceImpl implements ClocktowerChatService {
     private final ClocktowerGameRepository gameRepository;
     private final ClocktowerGameSeatRepository gameSeatRepository;
     private final ImConversationRepository conversationRepository;
-    private final ImFacade imFacade;
+    private final LegacyImFacade imFacade;
     private final ClocktowerChatConversationResolver resolver;
     private final ClocktowerChatPolicy policy;
 

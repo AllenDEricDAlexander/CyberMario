@@ -17,7 +17,7 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 import top.egon.mario.im.context.ImContext;
 import top.egon.mario.im.context.ImPrincipal;
-import top.egon.mario.im.facade.ImFacade;
+import top.egon.mario.im.legacy.LegacyImFacade;
 import top.egon.mario.im.po.ImChannelPo;
 import top.egon.mario.im.po.ImConversationPo;
 import top.egon.mario.im.po.ImGroupPo;
@@ -48,7 +48,7 @@ class ImFacadeTests {
     private static final String DENIED_CONTEXT = "IM_DENIED";
 
     @Autowired
-    private ImFacade imFacade;
+    private LegacyImFacade imFacade;
 
     @MockitoSpyBean(reset = MockReset.AFTER)
     private ImChannelRepository channelRepository;
