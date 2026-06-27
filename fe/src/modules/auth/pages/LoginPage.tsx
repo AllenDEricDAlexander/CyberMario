@@ -45,7 +45,7 @@ export function LoginPage() {
                     <Typography.Text className="auth-brand">CyberMario</Typography.Text>
                     <Typography.Title level={1}>Agent Control Workspace</Typography.Title>
                     <Typography.Paragraph>
-                        用统一的权限、知识库和对话工作台管理 Java agent 的运行入口。
+                        统一管理 Agent、权限、知识库与会话工作流，让每一次自动化执行都安全、可控、可追踪。
                     </Typography.Paragraph>
                     <div className="auth-orbit" aria-hidden="true">
                         <span/>
@@ -56,9 +56,9 @@ export function LoginPage() {
 
                 <Card className="auth-card">
                     <Typography.Text className="auth-panel-label">Secure Access</Typography.Text>
-                    <Typography.Title level={2}>登录</Typography.Title>
+                    <Typography.Title level={2}>欢迎回来</Typography.Title>
                     <Typography.Paragraph type="secondary">
-                        使用 RBAC1 账号进入管理工作台。
+                        使用账号登录，继续管理你的 Agent、权限与知识库配置。
                     </Typography.Paragraph>
 
                     {error && <Alert showIcon className="auth-alert" message={error} type="error"/>}
@@ -69,7 +69,7 @@ export function LoginPage() {
                             name="username"
                             rules={[{required: true, message: '请输入用户名'}]}
                         >
-                            <Input autoComplete="username" prefix={<UserOutlined/>} placeholder="admin"/>
+                            <Input autoComplete="username" prefix={<UserOutlined/>} placeholder="请输入用户名"/>
                         </Form.Item>
                         <Form.Item
                             label="密码"
@@ -83,7 +83,7 @@ export function LoginPage() {
                             />
                         </Form.Item>
                         <Button block htmlType="submit" type="primary">
-                            登录
+                            进入工作台
                         </Button>
                         <Typography.Paragraph className="auth-switch" type="secondary">
                             还没有账号？<Link to="/register">立即注册</Link>
