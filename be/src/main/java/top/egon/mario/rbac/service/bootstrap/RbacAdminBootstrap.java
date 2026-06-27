@@ -101,8 +101,9 @@ public class RbacAdminBootstrap implements ApplicationRunner {
     }
 
     private UserPo ensureAdminUser() {
-        UserPo user = userRepository.findByUsernameAndDeletedFalse(properties.username())
+        UserPo user = userRepository.findByAccountNoAndDeletedFalse(properties.username())
                 .orElseGet(this::newAdminUser);
+        user.setAccountNo(StringUtils.hasText(user.getAccountNo()) ? user.getAccountNo() : properties.username());
         user.setNickname(StringUtils.hasText(user.getNickname()) ? user.getNickname() : "Administrator");
         user.setStatus(RbacStatus.ENABLED);
         user.setLocked(false);
@@ -112,6 +113,7 @@ public class RbacAdminBootstrap implements ApplicationRunner {
     private UserPo newAdminUser() {
         validateBootstrapPassword();
         UserPo user = new UserPo();
+        user.setAccountNo(properties.username());
         user.setUsername(properties.username());
         user.setNickname("Administrator");
         user.setPasswordHash(passwordEncoder.encode(properties.password()));

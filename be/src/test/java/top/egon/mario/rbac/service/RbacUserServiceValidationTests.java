@@ -28,6 +28,7 @@ class RbacUserServiceValidationTests {
 
         assertThatThrownBy(() -> userService.createUser(request, 1L))
                 .isInstanceOf(ConstraintViolationException.class)
+                .hasMessageContaining("accountNo")
                 .hasMessageContaining("username")
                 .hasMessageContaining("initialPassword");
     }

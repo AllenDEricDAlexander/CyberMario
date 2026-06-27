@@ -109,7 +109,8 @@ class RbacAdminBootstrapTests {
     void bootstrapCreatesBuiltInSuperAdministrator() {
         adminBootstrap.bootstrap();
 
-        UserPo admin = userRepository.findByUsernameAndDeletedFalse("admin").orElseThrow();
+        UserPo admin = userRepository.findByAccountNoAndDeletedFalse("admin").orElseThrow();
+        assertThat(admin.getAccountNo()).isEqualTo("admin");
         assertThat(admin.getStatus()).isEqualTo(RbacStatus.ENABLED);
         assertThat(admin.isPasswordExpired()).isTrue();
         assertThat(admin.getPasswordHash()).startsWith("{argon2id}");
@@ -157,11 +158,11 @@ class RbacAdminBootstrapTests {
     @Test
     void bootstrapIsIdempotentAndDoesNotOverwriteExistingAdminPassword() {
         adminBootstrap.bootstrap();
-        String passwordHash = userRepository.findByUsernameAndDeletedFalse("admin").orElseThrow().getPasswordHash();
+        String passwordHash = userRepository.findByAccountNoAndDeletedFalse("admin").orElseThrow().getPasswordHash();
 
         adminBootstrap.bootstrap();
 
-        UserPo admin = userRepository.findByUsernameAndDeletedFalse("admin").orElseThrow();
+        UserPo admin = userRepository.findByAccountNoAndDeletedFalse("admin").orElseThrow();
         RolePo role = roleRepository.findByRoleCodeAndDeletedFalse("SUPER_ADMIN").orElseThrow();
         PermissionPo permission = permissionRepository.findByPermCodeAndDeletedFalse("api:rbac:admin:*").orElseThrow();
         PermissionPo chatPermission = permissionRepository.findByPermCodeAndDeletedFalse("api:chat:stream").orElseThrow();
@@ -246,6 +247,7 @@ class RbacAdminBootstrapTests {
     @Test
     void bootstrapDoesNotRequirePasswordWhenAdministratorAlreadyExists() {
         UserPo admin = new UserPo();
+        admin.setAccountNo("admin");
         admin.setUsername("admin");
         admin.setNickname("Administrator");
         admin.setPasswordHash(passwordEncoder.encode("Existing#2026Password!"));
@@ -267,7 +269,7 @@ class RbacAdminBootstrapTests {
         noPasswordBootstrap.bootstrap();
 
         RolePo role = roleRepository.findByRoleCodeAndDeletedFalse("SUPER_ADMIN").orElseThrow();
-        assertThat(userRepository.findByUsernameAndDeletedFalse("admin").orElseThrow().getPasswordHash()).isEqualTo(passwordHash);
+        assertThat(userRepository.findByAccountNoAndDeletedFalse("admin").orElseThrow().getPasswordHash()).isEqualTo(passwordHash);
         assertThat(userRoleRepository.findByUserId(admin.getId()))
                 .extracting("roleId")
                 .contains(role.getId());

@@ -69,7 +69,7 @@ class AuthControllerBrowserCookieTests {
 
     @Test
     void browserRegisterWritesCookiesAndHidesBodyTokens() {
-        RegisterRequest request = new RegisterRequest("mario", "password123", "Mario",
+        RegisterRequest request = new RegisterRequest("mario", "mario", "password123", "Mario",
                 "mario@example.com", "13800000000", null);
         when(authApplication.register(eq(request), nullable(String.class), nullable(String.class)))
                 .thenReturn(loginResponse("register-access-token", "register-refresh-token"));

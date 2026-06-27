@@ -1,11 +1,12 @@
 import type {MenuTreeResponse, UserResponse} from '../rbac/rbacTypes'
 
 export type LoginRequest = {
-    username: string
+    account: string
     password: string
 }
 
 export type RegisterRequest = {
+    accountNo: string
     username: string
     password: string
     nickname?: string

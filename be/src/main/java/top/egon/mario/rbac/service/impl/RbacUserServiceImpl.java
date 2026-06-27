@@ -33,6 +33,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -56,13 +57,18 @@ public class RbacUserServiceImpl implements RbacUserService {
     @Override
     @Transactional
     public UserResponse createUser(CreateUserRequest request, Long actorUserId) {
+        String accountNo = normalizeAccountNo(request.getAccountNo());
         String username = normalizeUsername(request.getUsername());
+        if (userRepository.existsByAccountNoAndDeletedFalse(accountNo)) {
+            throw new RbacException("RBAC_USER_ACCOUNT_NO_DUPLICATED", "account number already exists");
+        }
         if (userRepository.existsByUsernameAndDeletedFalse(username)) {
             throw new RbacException("RBAC_USER_USERNAME_DUPLICATED", "username already exists");
         }
         checkUniqueContact(request.getEmail(), request.getMobile());
 
         UserPo user = rbacDtoConverter.toUserPo(request);
+        user.setAccountNo(accountNo);
         user.setUsername(username);
         user.setEmail(trimToNull(request.getEmail()));
         user.setMobile(trimToNull(request.getMobile()));
@@ -185,7 +191,7 @@ public class RbacUserServiceImpl implements RbacUserService {
         if (userId.equals(actorUserId)) {
             throw new RbacException("RBAC_USER_DELETE_SELF", "current user cannot be deleted");
         }
-        if ("admin".equalsIgnoreCase(user.getUsername())) {
+        if ("admin".equalsIgnoreCase(user.getAccountNo())) {
             throw new RbacException("RBAC_USER_BUILT_IN", "built-in administrator cannot be deleted");
         }
         user.setDeleted(true);
@@ -283,6 +289,13 @@ public class RbacUserServiceImpl implements RbacUserService {
             throw new RbacException("RBAC_USER_USERNAME_REQUIRED", "username is required");
         }
         return username.trim().toLowerCase();
+    }
+
+    private String normalizeAccountNo(String accountNo) {
+        if (!StringUtils.hasText(accountNo)) {
+            throw new RbacException("RBAC_USER_ACCOUNT_NO_REQUIRED", "account number is required");
+        }
+        return accountNo.trim().toLowerCase(Locale.ROOT);
     }
 
     private String trimToNull(String value) {

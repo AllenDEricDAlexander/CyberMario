@@ -35,6 +35,7 @@ export function RegisterPage() {
         setError('')
         try {
             const request: RegisterRequest = {
+                accountNo: values.accountNo,
                 email: values.email,
                 mobile: values.mobile,
                 nickname: values.nickname,
@@ -76,11 +77,18 @@ export function RegisterPage() {
 
                     <Form<RegisterFormValues> layout="vertical" onFinish={voidify(handleFinish)} requiredMark={false}>
                         <Form.Item
+                            label="账号"
+                            name="accountNo"
+                            rules={[{required: true, message: '请输入账号'}]}
+                        >
+                            <Input autoComplete="username" prefix={<UserOutlined/>} placeholder="mario"/>
+                        </Form.Item>
+                        <Form.Item
                             label="用户名"
                             name="username"
                             rules={[{required: true, message: '请输入用户名'}]}
                         >
-                            <Input autoComplete="username" prefix={<UserOutlined/>} placeholder="mario"/>
+                            <Input prefix={<UserOutlined/>} placeholder="用于系统内展示"/>
                         </Form.Item>
                         <Form.Item label="昵称" name="nickname">
                             <Input prefix={<UserOutlined/>} placeholder="用于界面展示"/>

@@ -14,6 +14,8 @@ import java.util.Set;
 @Setter
 public class CreateUserRequest {
     @NotBlank
+    private String accountNo;
+    @NotBlank
     private String username;
     private String nickname;
     private String email;

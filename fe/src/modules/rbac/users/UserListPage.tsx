@@ -68,7 +68,8 @@ function UserListPage() {
     const canDelete = canUseRbacButton(auth, rbacButtonCodes.user.delete)
 
     const columns: ColumnsType<UserResponse> = [
-        {title: '用户名', dataIndex: 'username', fixed: 'left', width: 150},
+        {title: '账号', dataIndex: 'accountNo', fixed: 'left', width: 150},
+        {title: '用户名', dataIndex: 'username', width: 150},
         {title: '昵称', dataIndex: 'nickname', width: 140, render: (_, record) => record.nickname || '-'},
         {title: '邮箱', dataIndex: 'email', width: 190, render: (_, record) => record.email || '-'},
         {title: '手机', dataIndex: 'mobile', width: 140, render: (_, record) => record.mobile || '-'},
@@ -177,7 +178,7 @@ function UserListPage() {
     function openPasswordModal(user: UserResponse) {
         let password = ''
         Modal.confirm({
-            title: `重置密码：${user.username}`,
+            title: `重置密码：${user.accountNo}`,
             content: (
                 <Input.Password
                     autoFocus

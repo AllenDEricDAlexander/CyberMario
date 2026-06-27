@@ -24,6 +24,7 @@ export function UserEditorDrawer({open, loading, value, onClose, onSubmit}: User
     useEffect(() => {
         if (!open) return
         form.setFieldsValue({
+            accountNo: value?.accountNo ?? '',
             username: value?.username ?? '',
             nickname: value?.nickname,
             email: value?.email,
@@ -51,7 +52,10 @@ export function UserEditorDrawer({open, loading, value, onClose, onSubmit}: User
             width={520}
         >
             <Form form={form} id="user-editor-form" layout="vertical" onFinish={voidify(handleFinish)}
-                  requiredMark={false}>
+                requiredMark={false}>
+                <Form.Item label="账号" name="accountNo" rules={[{required: true, message: '请输入账号'}]}>
+                    <Input disabled={editing}/>
+                </Form.Item>
                 <Form.Item label="用户名" name="username" rules={[{required: true, message: '请输入用户名'}]}>
                     <Input disabled={editing}/>
                 </Form.Item>

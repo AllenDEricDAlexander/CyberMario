@@ -65,11 +65,11 @@ export function LoginPage() {
 
                     <Form<LoginRequest> layout="vertical" onFinish={voidify(handleFinish)} requiredMark={false}>
                         <Form.Item
-                            label="用户名"
-                            name="username"
-                            rules={[{required: true, message: '请输入用户名'}]}
+                            label="账号或邮箱"
+                            name="account"
+                            rules={[{required: true, message: '请输入账号或邮箱'}]}
                         >
-                            <Input autoComplete="username" prefix={<UserOutlined/>} placeholder="请输入用户名"/>
+                            <Input autoComplete="username" prefix={<UserOutlined/>} placeholder="请输入账号或邮箱"/>
                         </Form.Item>
                         <Form.Item
                             label="密码"

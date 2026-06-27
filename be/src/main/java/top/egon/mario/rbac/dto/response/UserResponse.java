@@ -14,6 +14,7 @@ import java.time.Instant;
 public class UserResponse {
 
     private Long id;
+    private String accountNo;
     private String username;
     private String nickname;
     private String email;

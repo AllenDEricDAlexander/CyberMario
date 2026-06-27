@@ -42,6 +42,7 @@ import top.egon.mario.rbac.service.security.RbacPrincipal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -73,7 +74,11 @@ public class RbacAuthApplication {
 
     @Transactional
     public LoginResponse register(@Valid @NotNull RegisterRequest request, String ip, String userAgent) {
+        String accountNo = normalizeAccountNo(request.accountNo());
         String username = request.username().trim().toLowerCase(Locale.ROOT);
+        if (userRepository.existsByAccountNoAndDeletedFalse(accountNo)) {
+            throw new RbacException("RBAC_USER_ACCOUNT_NO_DUPLICATED", "account number already exists");
+        }
         if (userRepository.existsByUsernameAndDeletedFalse(username)) {
             throw new RbacException("RBAC_USER_USERNAME_DUPLICATED", "username already exists");
         }
@@ -88,6 +93,7 @@ public class RbacAuthApplication {
                 .toList();
 
         UserPo user = new UserPo();
+        user.setAccountNo(accountNo);
         user.setUsername(username);
         user.setNickname(trimToNull(request.nickname()));
         user.setEmail(trimToNull(request.email()));
@@ -121,13 +127,13 @@ public class RbacAuthApplication {
 
     @Transactional
     public LoginResponse login(@Valid @NotNull LoginRequest request, String ip, String userAgent) {
-        UserPo user = userRepository.findByUsernameAndDeletedFalse(request.username().trim().toLowerCase())
-                .orElseThrow(() -> new RbacException("AUTH_INVALID_CREDENTIALS", "username or password is invalid"));
+        UserPo user = findLoginUser(request.account())
+                .orElseThrow(() -> new RbacException("AUTH_INVALID_CREDENTIALS", "account or password is invalid"));
         ensureUserCanLogin(user);
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             auditService.log(user.getId(), "AUTH_LOGIN_FAILED", "USER", user.getId(), null, null, ip, userAgent);
             LogUtil.warn(log).log("login rejected, reason=bad_credentials, userId={}", user.getId());
-            throw new RbacException("AUTH_INVALID_CREDENTIALS", "username or password is invalid");
+            throw new RbacException("AUTH_INVALID_CREDENTIALS", "account or password is invalid");
         }
         JwtTokenPair tokenPair = jwtTokenService.createTokenPair(user.getId(), user.getUsername());
         String refreshTokenHash = jwtTokenService.hashToken(tokenPair.refreshToken());
@@ -257,6 +263,18 @@ public class RbacAuthApplication {
             throw new RbacException("RBAC_DEFAULT_ROLE_DISABLED", "default register role is disabled");
         }
         return role;
+    }
+
+    private Optional<UserPo> findLoginUser(String account) {
+        String normalized = normalizeAccountNo(account);
+        if (normalized.contains("@")) {
+            return userRepository.findByEmailIgnoreCaseAndDeletedFalse(normalized);
+        }
+        return userRepository.findByAccountNoAndDeletedFalse(normalized);
+    }
+
+    private String normalizeAccountNo(String accountNo) {
+        return accountNo.trim().toLowerCase(Locale.ROOT);
     }
 
     private boolean hasText(String value) {

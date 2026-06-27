@@ -142,7 +142,7 @@ class RbacSecurityConfigCsrfTests {
     private String invalidLoginBody() {
         return """
                 {
-                  "username": "",
+                  "account": "",
                   "password": ""
                 }
                 """;

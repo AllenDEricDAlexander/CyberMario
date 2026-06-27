@@ -37,6 +37,7 @@ import top.egon.mario.rbac.service.security.RbacPrincipal;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(properties = "spring.ai.dashscope.api-key=test-api-key")
 class RbacAuthApplicationTests {
@@ -125,6 +126,7 @@ class RbacAuthApplicationTests {
         grant(roleRepository.save(role("RBAC_ADMIN")), permission("api:rbac:admin:*", PermissionType.API));
 
         RegisterRequest request = new RegisterRequest(
+                "peach-001",
                 "Peach",
                 "password123",
                 "Princess Peach",
@@ -135,10 +137,11 @@ class RbacAuthApplicationTests {
 
         LoginResponse response = authApplication.register(request, "127.0.0.1", "test");
 
-        UserPo user = userRepository.findByUsernameAndDeletedFalse("peach").orElseThrow();
+        UserPo user = userRepository.findByAccountNoAndDeletedFalse("peach-001").orElseThrow();
         assertThat(response.accessToken()).isNotBlank();
         assertThat(response.refreshToken()).isNotBlank();
         assertThat(response.user().getId()).isEqualTo(user.getId());
+        assertThat(response.user().getAccountNo()).isEqualTo("peach-001");
         assertThat(response.user().getNickname()).isEqualTo("Princess Peach");
         assertThat(response.roleCodes()).containsExactlyInAnyOrder("CHAT_BASIC", "RAG_USER", "AGENT_DASHBOARD_USER",
                 "AGENT_MCP_USER");
@@ -178,8 +181,29 @@ class RbacAuthApplicationTests {
     }
 
     @Test
+    void loginUsesAccountNoOrEmailAndRejectsUsername() {
+        UserPo user = new UserPo();
+        user.setAccountNo("mario-account");
+        user.setUsername("mario-name");
+        user.setEmail("mario@example.com");
+        user.setNickname("Mario");
+        user.setPasswordHash(passwordEncoder.encode("secret"));
+        user.setStatus(RbacStatus.ENABLED);
+        user = userRepository.save(user);
+
+        LoginResponse accountLogin = authApplication.login(new LoginRequest("mario-account", "secret"), "127.0.0.1", "test");
+        LoginResponse emailLogin = authApplication.login(new LoginRequest("mario@example.com", "secret"), "127.0.0.1", "test");
+
+        assertThat(accountLogin.user().getId()).isEqualTo(user.getId());
+        assertThat(emailLogin.user().getId()).isEqualTo(user.getId());
+        assertThatThrownBy(() -> authApplication.login(new LoginRequest("mario-name", "secret"), "127.0.0.1", "test"))
+                .hasMessageContaining("account or password is invalid");
+    }
+
+    @Test
     void loginRefreshAndAccessAuthenticationExposeApiAuthorities() {
         UserPo user = new UserPo();
+        user.setAccountNo("mario");
         user.setUsername("mario");
         user.setNickname("Mario");
         user.setPasswordHash(passwordEncoder.encode("secret"));
@@ -239,6 +263,7 @@ class RbacAuthApplicationTests {
     @Test
     void permissionVersionChangesWhenUserRoleSnapshotChanges() {
         UserPo user = new UserPo();
+        user.setAccountNo("luigi");
         user.setUsername("luigi");
         user.setNickname("Luigi");
         user.setPasswordHash(passwordEncoder.encode("secret"));

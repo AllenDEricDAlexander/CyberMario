@@ -26,7 +26,7 @@ class RbacAuthApplicationValidationTests {
     void loginRejectsInvalidRequestBeforeBusinessLogic() {
         assertThatThrownBy(() -> authApplication.login(new LoginRequest("", ""), "127.0.0.1", "test"))
                 .isInstanceOf(ConstraintViolationException.class)
-                .hasMessageContaining("username")
+                .hasMessageContaining("account")
                 .hasMessageContaining("password");
     }
 

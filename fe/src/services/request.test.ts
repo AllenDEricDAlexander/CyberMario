@@ -159,7 +159,7 @@ describe('requestJson', () => {
 
         await requestJson('/api/auth/login', {
             method: 'POST',
-            body: {username: 'mario', password: 'secret'},
+            body: {account: 'mario', password: 'secret'},
             auth: false,
         })
 

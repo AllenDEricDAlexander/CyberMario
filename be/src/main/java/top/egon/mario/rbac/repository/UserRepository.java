@@ -13,6 +13,10 @@ import java.util.Optional;
  */
 public interface UserRepository extends JpaRepository<UserPo, Long>, JpaSpecificationExecutor<UserPo> {
 
+    Optional<UserPo> findByAccountNoAndDeletedFalse(String accountNo);
+
+    Optional<UserPo> findByEmailIgnoreCaseAndDeletedFalse(String email);
+
     Optional<UserPo> findByUsernameAndDeletedFalse(String username);
 
     Optional<UserPo> findByIdAndDeletedFalse(Long id);
@@ -20,6 +24,8 @@ public interface UserRepository extends JpaRepository<UserPo, Long>, JpaSpecific
     List<UserPo> findByIdInAndDeletedFalse(Collection<Long> ids);
 
     boolean existsByUsernameAndDeletedFalse(String username);
+
+    boolean existsByAccountNoAndDeletedFalse(String accountNo);
 
     boolean existsByEmailAndDeletedFalse(String email);
 

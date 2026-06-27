@@ -8,6 +8,7 @@ export type ApiRiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | CodedEnum
 
 export type UserResponse = {
     id: number
+    accountNo: string
     username: string
     nickname?: string
     email?: string
@@ -113,6 +114,7 @@ export type PermissionRequest = {
 }
 
 export type CreateUserRequest = {
+    accountNo: string
     username: string
     nickname?: string
     email?: string

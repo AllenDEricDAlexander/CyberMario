@@ -3,6 +3,7 @@ package top.egon.mario.rbac.po;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
@@ -20,11 +21,15 @@ import java.time.Instant;
 @Setter
 @Entity
 @Table(name = "sys_user", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_user_account_no_deleted", columnNames = {"account_no", "deleted"}),
         @UniqueConstraint(name = "uk_user_username_deleted", columnNames = {"username", "deleted"}),
         @UniqueConstraint(name = "uk_user_email_deleted", columnNames = {"email", "deleted"}),
         @UniqueConstraint(name = "uk_user_mobile_deleted", columnNames = {"mobile", "deleted"})
 })
 public class UserPo extends BaseAuditablePo {
+
+    @Column(name = "account_no", nullable = false, length = 64)
+    private String accountNo;
 
     @Column(name = "username", nullable = false, length = 64)
     private String username;
@@ -74,5 +79,12 @@ public class UserPo extends BaseAuditablePo {
 
     @Column(name = "soul_md_updated_at")
     private Instant soulMdUpdatedAt;
+
+    @PrePersist
+    void fillLegacyAccountNo() {
+        if (accountNo == null) {
+            accountNo = username;
+        }
+    }
 
 }
