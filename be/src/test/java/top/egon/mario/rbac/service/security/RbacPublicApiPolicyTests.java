@@ -25,6 +25,11 @@ class RbacPublicApiPolicyTests {
     }
 
     @Test
+    void imWebSocketEndpointIsAllowedAsPublicGetEndpoint() {
+        assertThat(RbacPublicApiPolicy.isAllowedPublicRule("GET", "/ws/im")).isTrue();
+    }
+
+    @Test
     void currentUserSelfServiceEndpointsRemainAuthenticated() {
         assertThat(RbacPublicApiPolicy.isAllowedPublicRule("PUT", "/api/me/profile")).isFalse();
         assertThat(RbacPublicApiPolicy.isAllowedPublicRule("PUT", "/api/me/password")).isFalse();

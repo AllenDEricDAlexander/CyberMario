@@ -22,10 +22,13 @@ public final class RbacPublicApiPolicy {
             "/actuator/health/**",
             "/actuator/info"
     };
+    public static final String[] PUBLIC_WEBSOCKET_ENDPOINTS = {
+            "/ws/im"
+    };
 
     private static final Set<String> PUBLIC_POST_PATHS = Set.of(PUBLIC_AUTH_ENDPOINTS);
     private static final Set<String> PUBLIC_GET_PATHS = Set.of("/api/auth/csrf", "/api/auth/password-key",
-            "/actuator/health", "/actuator/info");
+            "/actuator/health", "/actuator/info", "/ws/im");
 
     private RbacPublicApiPolicy() {
     }

@@ -12,7 +12,7 @@ import top.egon.mario.im.facade.dto.view.MessageView;
 import top.egon.mario.im.facade.dto.view.UnreadView;
 import top.egon.mario.im.facade.dto.view.WsTicketView;
 import top.egon.mario.im.service.ConversationService;
-import top.egon.mario.im.service.ImException;
+import top.egon.mario.im.service.ImTicketService;
 import top.egon.mario.im.service.MessageService;
 
 import java.util.List;
@@ -22,10 +22,13 @@ public class ImFacade {
 
     private final MessageService messageService;
     private final ConversationService conversationService;
+    private final ImTicketService ticketService;
 
-    public ImFacade(MessageService messageService, ConversationService conversationService) {
+    public ImFacade(MessageService messageService, ConversationService conversationService,
+                    ImTicketService ticketService) {
         this.messageService = messageService;
         this.conversationService = conversationService;
+        this.ticketService = ticketService;
     }
 
     public MessageView send(SendMessageCommand command) {
@@ -45,11 +48,6 @@ public class ImFacade {
     }
 
     public WsTicketView mintWsTicket(MintWsTicketCommand command) {
-        throw notImplemented();
-    }
-
-    private static ImException notImplemented() {
-        return new ImException("IM_FACADE_NOT_IMPLEMENTED",
-                "IM facade contract is defined; business implementation is pending");
+        return ticketService.mint(command);
     }
 }

@@ -2,17 +2,22 @@ package top.egon.mario.im;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.stereotype.Component;
+import top.egon.mario.im.facade.ImFacade;
 import top.egon.mario.im.facade.RoomFacade;
+import top.egon.mario.im.facade.dto.command.MintWsTicketCommand;
 import top.egon.mario.im.facade.dto.view.ConversationView;
+import top.egon.mario.im.facade.dto.view.WsTicketView;
 import top.egon.mario.im.facade.mapper.ImFacadeMapper;
 import top.egon.mario.im.po.ImConversationPo;
 import top.egon.mario.im.po.enums.ImConversationStatus;
 import top.egon.mario.im.po.enums.ImConversationType;
 import top.egon.mario.im.po.enums.ImSurfaceType;
+import top.egon.mario.im.policy.ImPrincipal;
 import top.egon.mario.im.service.ConversationService;
 import top.egon.mario.im.service.DmService;
 import top.egon.mario.im.service.GovernanceService;
 import top.egon.mario.im.service.ImException;
+import top.egon.mario.im.service.ImTicketService;
 import top.egon.mario.im.service.MessageService;
 
 import java.lang.annotation.Annotation;
@@ -22,10 +27,16 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class ImFacadeContractTests {
 
@@ -226,7 +237,7 @@ class ImFacadeContractTests {
 
         assertThat(constructors).singleElement()
                 .satisfies(constructor -> assertThat(constructor.getParameterTypes())
-                        .containsExactly(MessageService.class, ConversationService.class));
+                        .containsExactly(MessageService.class, ConversationService.class, ImTicketService.class));
     }
 
     @Test
@@ -239,12 +250,16 @@ class ImFacadeContractTests {
     }
 
     @Test
-    void unimplementedFacadeShellsFailFastWithImException() throws Exception {
-        Object imFacade = Class.forName(FACADE_PACKAGE + ".ImFacade")
-                .getDeclaredConstructor(MessageService.class, ConversationService.class)
-                .newInstance(new Object[]{null, null});
+    void imFacadeDelegatesTicketMintingToTicketService() {
+        ImTicketService ticketService = mock(ImTicketService.class);
+        MintWsTicketCommand command = new MintWsTicketCommand(
+                new ImPrincipal(1L, Set.of("im-user"), "IM_FACADE_CONTRACT_TEST", Map.of()), null);
+        WsTicketView view = new WsTicketView("raw-ticket", Instant.EPOCH);
+        when(ticketService.mint(command)).thenReturn(view);
+        ImFacade imFacade = new ImFacade(null, null, ticketService);
 
-        assertNotImplemented(imFacade, "mintWsTicket", COMMAND_PACKAGE + ".MintWsTicketCommand");
+        assertThat(imFacade.mintWsTicket(command)).isSameAs(view);
+        verify(ticketService).mint(command);
     }
 
     @Test
