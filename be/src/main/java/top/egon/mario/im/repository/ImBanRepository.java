@@ -8,6 +8,7 @@ import top.egon.mario.im.po.enums.ImGovernanceStatus;
 import top.egon.mario.im.po.enums.ImSurfaceType;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 public interface ImBanRepository extends JpaRepository<ImBanPo, Long> {
@@ -15,7 +16,9 @@ public interface ImBanRepository extends JpaRepository<ImBanPo, Long> {
     Optional<ImBanPo> findByIdAndDeletedFalse(Long id);
 
     default Optional<ImBanPo> findActiveBan(ImSurfaceType surfaceType, Long surfaceId, Long userId, Instant now) {
-        return findActiveBan(surfaceType, surfaceId, userId, ImGovernanceStatus.ACTIVE, now);
+        return findActiveBans(surfaceType, surfaceId, userId, ImGovernanceStatus.ACTIVE, now)
+                .stream()
+                .findFirst();
     }
 
     @Query("""
@@ -27,10 +30,11 @@ public interface ImBanRepository extends JpaRepository<ImBanPo, Long> {
               and ban.status = :status
               and ban.deleted = false
               and (ban.expiresAt is null or ban.expiresAt > :now)
+            order by ban.id asc
             """)
-    Optional<ImBanPo> findActiveBan(@Param("surfaceType") ImSurfaceType surfaceType,
-                                    @Param("surfaceId") Long surfaceId,
-                                    @Param("userId") Long userId,
-                                    @Param("status") ImGovernanceStatus status,
-                                    @Param("now") Instant now);
+    List<ImBanPo> findActiveBans(@Param("surfaceType") ImSurfaceType surfaceType,
+                                 @Param("surfaceId") Long surfaceId,
+                                 @Param("userId") Long userId,
+                                 @Param("status") ImGovernanceStatus status,
+                                 @Param("now") Instant now);
 }

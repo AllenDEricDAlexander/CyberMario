@@ -5,29 +5,30 @@ import top.egon.mario.im.facade.dto.command.AnnounceCommand;
 import top.egon.mario.im.facade.dto.command.BanUserCommand;
 import top.egon.mario.im.facade.dto.command.GlobalMuteCommand;
 import top.egon.mario.im.facade.dto.command.MuteUserCommand;
-import top.egon.mario.im.service.ImException;
+import top.egon.mario.im.service.GovernanceService;
 
 @Component
 public class GovFacade {
 
+    private final GovernanceService governanceService;
+
+    public GovFacade(GovernanceService governanceService) {
+        this.governanceService = governanceService;
+    }
+
     public void mute(MuteUserCommand command) {
-        throw notImplemented();
+        governanceService.mute(command);
     }
 
     public void globalMute(GlobalMuteCommand command) {
-        throw notImplemented();
+        governanceService.globalMute(command);
     }
 
     public void announce(AnnounceCommand command) {
-        throw notImplemented();
+        governanceService.announce(command);
     }
 
     public void ban(BanUserCommand command) {
-        throw notImplemented();
-    }
-
-    private static ImException notImplemented() {
-        return new ImException("IM_FACADE_NOT_IMPLEMENTED",
-                "IM facade contract is defined; business implementation is pending");
+        governanceService.ban(command);
     }
 }

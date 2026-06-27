@@ -11,6 +11,7 @@ import top.egon.mario.im.po.enums.ImConversationType;
 import top.egon.mario.im.po.enums.ImSurfaceType;
 import top.egon.mario.im.service.ConversationService;
 import top.egon.mario.im.service.DmService;
+import top.egon.mario.im.service.GovernanceService;
 import top.egon.mario.im.service.ImException;
 import top.egon.mario.im.service.MessageService;
 
@@ -229,13 +230,21 @@ class ImFacadeContractTests {
     }
 
     @Test
+    void govFacadeUsesConstructorInjectedServiceOnly() throws Exception {
+        Constructor<?>[] constructors = Class.forName(FACADE_PACKAGE + ".GovFacade").getDeclaredConstructors();
+
+        assertThat(constructors).singleElement()
+                .satisfies(constructor -> assertThat(constructor.getParameterTypes())
+                        .containsExactly(GovernanceService.class));
+    }
+
+    @Test
     void unimplementedFacadeShellsFailFastWithImException() throws Exception {
         Object imFacade = Class.forName(FACADE_PACKAGE + ".ImFacade")
                 .getDeclaredConstructor(MessageService.class, ConversationService.class)
                 .newInstance(new Object[]{null, null});
 
         assertNotImplemented(imFacade, "mintWsTicket", COMMAND_PACKAGE + ".MintWsTicketCommand");
-        assertNotImplemented(FACADE_PACKAGE + ".GovFacade", "mute", COMMAND_PACKAGE + ".MuteUserCommand");
     }
 
     @Test

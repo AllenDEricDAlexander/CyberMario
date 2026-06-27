@@ -8,15 +8,21 @@ import top.egon.mario.im.po.enums.ImGlobalMuteScopeType;
 import top.egon.mario.im.po.enums.ImGovernanceStatus;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 public interface ImGlobalMuteRepository extends JpaRepository<ImGlobalMutePo, Long> {
 
     Optional<ImGlobalMutePo> findByIdAndDeletedFalse(Long id);
 
+    List<ImGlobalMutePo> findByUserIdAndScopeTypeAndScopeIdAndDeletedFalseOrderByIdAsc(
+            Long userId, ImGlobalMuteScopeType scopeType, Long scopeId);
+
     default Optional<ImGlobalMutePo> findActiveMute(
             Long userId, ImGlobalMuteScopeType scopeType, Long scopeId, Instant now) {
-        return findActiveMute(userId, scopeType, scopeId, ImGovernanceStatus.ACTIVE, now);
+        return findActiveMutes(userId, scopeType, scopeId, ImGovernanceStatus.ACTIVE, now)
+                .stream()
+                .findFirst();
     }
 
     @Query("""
@@ -28,10 +34,11 @@ public interface ImGlobalMuteRepository extends JpaRepository<ImGlobalMutePo, Lo
               and mute.status = :status
               and mute.deleted = false
               and (mute.expiresAt is null or mute.expiresAt > :now)
+            order by mute.id asc
             """)
-    Optional<ImGlobalMutePo> findActiveMute(@Param("userId") Long userId,
-                                            @Param("scopeType") ImGlobalMuteScopeType scopeType,
-                                            @Param("scopeId") Long scopeId,
-                                            @Param("status") ImGovernanceStatus status,
-                                            @Param("now") Instant now);
+    List<ImGlobalMutePo> findActiveMutes(@Param("userId") Long userId,
+                                         @Param("scopeType") ImGlobalMuteScopeType scopeType,
+                                         @Param("scopeId") Long scopeId,
+                                         @Param("status") ImGovernanceStatus status,
+                                         @Param("now") Instant now);
 }
