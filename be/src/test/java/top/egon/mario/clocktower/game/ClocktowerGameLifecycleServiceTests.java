@@ -21,7 +21,10 @@ import top.egon.mario.clocktower.room.repository.ClocktowerRoomProfileRepository
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomSeatRepository;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomLobbyService;
 import top.egon.mario.im.po.ImChannelPo;
+import top.egon.mario.im.po.ImConversationPo;
 import top.egon.mario.im.po.ImGroupPo;
+import top.egon.mario.im.po.enums.ImConversationType;
+import top.egon.mario.im.po.enums.ImSurfaceType;
 import top.egon.mario.im.repository.ImChannelRepository;
 import top.egon.mario.im.repository.ImConversationRepository;
 import top.egon.mario.im.repository.ImGroupRepository;
@@ -327,10 +330,12 @@ class ClocktowerGameLifecycleServiceTests {
     private void assertConversation(ImChannelPo channel, Long gameId, String groupKey, String conversationType) {
         ImGroupPo group = imGroupRepository.findByChannelIdAndGroupKeyAndDeletedFalse(channel.getId(), groupKey)
                 .orElseThrow();
-        assertThat(imConversationRepository
-                .findByGroupIdAndScopeTypeAndScopeIdAndConversationTypeAndParticipantKeyAndDeletedFalse(
-                        group.getId(), "GAME", gameId, conversationType, "GAME:" + gameId))
-                .isPresent();
+        ImConversationPo conversation = imConversationRepository
+                .findByOwnerSurfaceTypeAndOwnerSurfaceIdAndConversationTypeAndDeletedFalse(
+                        ImSurfaceType.GROUP, group.getId(), ImConversationType.GROUP)
+                .orElseThrow();
+        assertThat(conversation.getContextType()).isEqualTo("CLOCKTOWER");
+        assertThat(conversation.getContextId()).isEqualTo(gameId);
     }
 
     private Long readyRoom() {

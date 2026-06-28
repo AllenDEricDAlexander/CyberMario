@@ -13,6 +13,7 @@ import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardValidateReques
 import top.egon.mario.clocktower.board.dto.response.BoardValidationResponse;
 import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardConfigResponse;
 import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
+import top.egon.mario.clocktower.chat.ClocktowerImAdapter;
 import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoomStatus;
@@ -36,13 +37,6 @@ import top.egon.mario.clocktower.room.policy.ClocktowerSeatAssignmentPolicy;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomProfileRepository;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomSeatRepository;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomLobbyService;
-import top.egon.mario.im.legacy.LegacyImFacade;
-import top.egon.mario.im.po.ImChannelPo;
-import top.egon.mario.im.po.ImConversationPo;
-import top.egon.mario.im.po.ImGroupPo;
-import top.egon.mario.im.repository.ImChannelRepository;
-import top.egon.mario.im.repository.ImConversationRepository;
-import top.egon.mario.im.repository.ImGroupRepository;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 import top.egon.mario.room.context.RoomPrincipal;
 import top.egon.mario.room.facade.RoomFacade;
@@ -57,7 +51,6 @@ import top.egon.mario.room.service.RoomException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -83,13 +76,10 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
     private static final String MEMBER_TYPE_OWNER = "OWNER";
     private static final String MEMBER_TYPE_MEMBER = "MEMBER";
     private static final String MEMBER_TYPE_SPECTATOR = "SPECTATOR";
-    private static final String IM_CHANNEL_ROOM = "ROOM";
-    private static final String IM_GROUP_PUBLIC = "PUBLIC";
-    private static final String IM_CONVERSATION_ROOM = "ROOM";
     private static final String INVITATION_TYPE_SEAT_REQUEST = "SEAT_REQUEST";
 
     private final RoomFacade roomFacade;
-    private final LegacyImFacade imFacade;
+    private final ClocktowerImAdapter clocktowerImAdapter;
     private final RoomSpaceRepository roomSpaceRepository;
     private final RoomMemberRepository roomMemberRepository;
     private final RoomInvitationRepository roomInvitationRepository;
@@ -98,9 +88,6 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
     private final ClocktowerBoardService boardService;
     private final ClocktowerRoomAccessPolicy accessPolicy;
     private final ClocktowerSeatAssignmentPolicy seatAssignmentPolicy;
-    private final ImChannelRepository imChannelRepository;
-    private final ImGroupRepository imGroupRepository;
-    private final ImConversationRepository imConversationRepository;
     private final ObjectMapper objectMapper;
     private final EntityManager entityManager;
 
@@ -529,26 +516,11 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
     }
 
     private Long ensurePublicConversation(Long roomId, Long participantUserId) {
-        ImChannelPo channel = imFacade.ensureChannel(ClocktowerRoomMutationPolicy.CONTEXT_TYPE, roomId,
-                IM_CHANNEL_ROOM);
-        ImGroupPo group = imFacade.ensureGroup(channel.getId(), IM_GROUP_PUBLIC);
-        Collection<Long> participants = participantUserId == null ? List.of() : List.of(participantUserId);
-        return imFacade.ensureConversation(group.getId(), IM_CONVERSATION_ROOM, roomId, IM_CONVERSATION_ROOM,
-                participants).getId();
+        return clocktowerImAdapter.ensureRoomPublicConversation(roomId, participantUserId);
     }
 
     private Long publicConversationId(Long roomId) {
-        return imChannelRepository
-                .findByContextTypeAndContextIdAndChannelKeyAndDeletedFalse(
-                        ClocktowerRoomMutationPolicy.CONTEXT_TYPE, roomId, IM_CHANNEL_ROOM)
-                .flatMap(channel -> imGroupRepository.findByChannelIdAndGroupKeyAndDeletedFalse(
-                        channel.getId(), IM_GROUP_PUBLIC))
-                .flatMap(group -> imConversationRepository
-                        .findByGroupIdAndScopeTypeAndScopeIdAndConversationTypeAndParticipantKeyAndDeletedFalse(
-                                group.getId(), IM_CONVERSATION_ROOM, roomId, IM_CONVERSATION_ROOM,
-                                IM_CONVERSATION_ROOM + ":" + roomId))
-                .map(ImConversationPo::getId)
-                .orElse(null);
+        return clocktowerImAdapter.roomPublicConversationId(roomId);
     }
 
     private ClocktowerRoomSeatPo openSeat(Long roomId, int seatNo, String roleCode) {

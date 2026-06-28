@@ -8,9 +8,8 @@ import org.springframework.transaction.annotation.Transactional;
 import top.egon.mario.clocktower.admin.dto.ClocktowerGameAuditResponse;
 import top.egon.mario.clocktower.admin.dto.ClocktowerRoomAuditResponse;
 import top.egon.mario.clocktower.admin.service.ClocktowerManagementAuditService;
-import top.egon.mario.clocktower.chat.ClocktowerChatConstants;
-import top.egon.mario.clocktower.chat.ClocktowerChatConversationContext;
-import top.egon.mario.clocktower.chat.ClocktowerChatConversationResolver;
+import top.egon.mario.clocktower.chat.ClocktowerChatViewerMode;
+import top.egon.mario.clocktower.chat.ClocktowerImAdapter;
 import top.egon.mario.clocktower.chat.dto.ClocktowerChatConversationResponse;
 import top.egon.mario.clocktower.chat.dto.ClocktowerChatMessageResponse;
 import top.egon.mario.clocktower.common.ClocktowerException;
@@ -27,10 +26,6 @@ import top.egon.mario.clocktower.view.dto.ClocktowerGameSeatViewResponse;
 import top.egon.mario.clocktower.view.service.ClocktowerGameProjectionMapper;
 import top.egon.mario.clocktower.view.service.ClocktowerViewerContext;
 import top.egon.mario.clocktower.view.service.ClocktowerViewerResolver;
-import top.egon.mario.im.po.ImConversationPo;
-import top.egon.mario.im.po.ImMessagePo;
-import top.egon.mario.im.repository.ImConversationRepository;
-import top.egon.mario.im.repository.ImMessageRepository;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 import top.egon.mario.room.po.RoomSpacePo;
 import top.egon.mario.room.repository.RoomBanRepository;
@@ -40,7 +35,6 @@ import top.egon.mario.room.repository.RoomSpaceRepository;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -56,9 +50,7 @@ public class ClocktowerManagementAuditServiceImpl implements ClocktowerManagemen
     private final ClocktowerGameRepository gameRepository;
     private final ClocktowerGameSeatRepository gameSeatRepository;
     private final ClocktowerGameEventRepository gameEventRepository;
-    private final ImConversationRepository conversationRepository;
-    private final ImMessageRepository messageRepository;
-    private final ClocktowerChatConversationResolver conversationResolver;
+    private final ClocktowerImAdapter clocktowerImAdapter;
     private final ClocktowerGameProjectionMapper projectionMapper;
 
     @Override
@@ -71,8 +63,9 @@ public class ClocktowerManagementAuditServiceImpl implements ClocktowerManagemen
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_PROFILE_NOT_FOUND"));
         List<ClocktowerGamePo> games = gameRepository.findByRoomIdAndDeletedFalseOrderByGameNoAsc(roomId);
         List<ClocktowerChatConversationResponse> conversations = new ArrayList<>(
-                conversations(ClocktowerChatConstants.SCOPE_ROOM, roomId));
-        games.forEach(game -> conversations.addAll(conversations(ClocktowerChatConstants.SCOPE_GAME, game.getId())));
+                clocktowerImAdapter.roomConversations(roomId, principal, ClocktowerChatViewerMode.ADMIN_AUDIT));
+        games.forEach(game -> conversations.addAll(clocktowerImAdapter.gameConversations(game.getId(), principal,
+                ClocktowerChatViewerMode.ADMIN_AUDIT)));
         return ClocktowerRoomAuditResponse.from(room, profile,
                 roomSeatRepository.findByRoomIdOrderBySeatNoAsc(roomId).stream()
                         .map(ClocktowerRoomAuditResponse.Seat::from)
@@ -101,7 +94,7 @@ public class ClocktowerManagementAuditServiceImpl implements ClocktowerManagemen
                         .map(ClocktowerGameSeatViewResponse::fullView)
                         .toList(),
                 gameEvents(game),
-                conversations(ClocktowerChatConstants.SCOPE_GAME, gameId));
+                clocktowerImAdapter.gameConversations(gameId, principal, ClocktowerChatViewerMode.ADMIN_AUDIT));
     }
 
     @Override
@@ -109,10 +102,7 @@ public class ClocktowerManagementAuditServiceImpl implements ClocktowerManagemen
     public Page<ClocktowerChatMessageResponse> messages(Long conversationId, Pageable pageable,
                                                         RbacPrincipal principal) {
         viewerResolver.requireAdminAudit(principal);
-        Objects.requireNonNull(pageable, "pageable must not be null");
-        conversationResolver.require(conversationId);
-        return messageRepository.findByConversationIdAndDeletedFalseOrderByMessageSeqAsc(conversationId, pageable)
-                .map(this::toMessageResponse);
+        return clocktowerImAdapter.auditMessages(conversationId, pageable);
     }
 
     private List<ClocktowerGameEventResponse> gameEvents(ClocktowerGamePo game) {
@@ -125,24 +115,4 @@ public class ClocktowerManagementAuditServiceImpl implements ClocktowerManagemen
                 .toList();
     }
 
-    private List<ClocktowerChatConversationResponse> conversations(String scopeType, Long scopeId) {
-        return conversationRepository.findByContextTypeAndScopeTypeAndScopeIdAndDeletedFalseOrderByGroupIdAscIdAsc(
-                        ClocktowerChatConstants.CONTEXT_TYPE, scopeType, scopeId)
-                .stream()
-                .map(this::toConversationResponse)
-                .toList();
-    }
-
-    private ClocktowerChatConversationResponse toConversationResponse(ImConversationPo conversation) {
-        ClocktowerChatConversationContext context = conversationResolver.require(conversation.getId());
-        return new ClocktowerChatConversationResponse(conversation.getId(), context.roomId(), context.gameId(),
-                context.channelKey(), context.groupKey(), conversation.getConversationType(),
-                conversation.getParticipantKey(), conversation.getMessageSeq(), conversation.getLastMessageAt());
-    }
-
-    private ClocktowerChatMessageResponse toMessageResponse(ImMessagePo message) {
-        return new ClocktowerChatMessageResponse(message.getId(), message.getConversationId(),
-                message.getSenderUserId(), message.getMessageSeq(), message.getMessageType(), message.getContent(),
-                message.getSentAt());
-    }
 }

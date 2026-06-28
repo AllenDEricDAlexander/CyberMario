@@ -1,16 +1,56 @@
 package top.egon.mario.clocktower.chat;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import top.egon.mario.im.po.enums.ImConversationStatus;
+import top.egon.mario.im.po.enums.ImConversationType;
+import top.egon.mario.im.po.enums.ImMembershipStatus;
+import top.egon.mario.im.po.enums.ImSurfaceStatus;
+import top.egon.mario.im.po.enums.ImSurfaceType;
+import top.egon.mario.im.policy.ImAccessContext;
+import top.egon.mario.im.policy.PolicyRegistry;
+import top.egon.mario.im.policy.SendPolicy;
+import top.egon.mario.im.policy.VisibilityPolicy;
+
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static top.egon.mario.clocktower.chat.ClocktowerChatConstants.CONVERSATION_PRIVATE;
 import static top.egon.mario.clocktower.chat.ClocktowerChatConstants.GROUP_PUBLIC;
 import static top.egon.mario.clocktower.chat.ClocktowerChatConstants.GROUP_SPECTATOR;
 import static top.egon.mario.clocktower.chat.ClocktowerChatConstants.GROUP_SYSTEM;
 
+@SpringBootTest(properties = "spring.ai.dashscope.api-key=test-api-key")
 class ClocktowerChatPolicyTests {
 
     private final ClocktowerChatPolicy policy = new ClocktowerChatPolicy();
+
+    @Autowired
+    private PolicyRegistry policyRegistry;
+
+    @Test
+    void policyRegistryResolvesClocktowerStrategiesForClocktowerContext() {
+        assertThat(policyRegistry.resolve(ClocktowerChatConstants.CONTEXT_TYPE, SendPolicy.class))
+                .isInstanceOf(ClocktowerSendPolicy.class);
+        assertThat(policyRegistry.resolve(ClocktowerChatConstants.CONTEXT_TYPE, VisibilityPolicy.class))
+                .isInstanceOf(ClocktowerVisibilityPolicy.class);
+    }
+
+    @Test
+    void visibilityPolicyReturnsFalseForUnauthenticatedContextWithoutAdapterLookup() {
+        ClocktowerImAdapter adapter = mock(ClocktowerImAdapter.class);
+        doThrow(new AssertionError("adapter should not be called for unauthenticated visibility"))
+                .when(adapter).accessContext(any(ImAccessContext.class));
+        ClocktowerVisibilityPolicy visibilityPolicy = new ClocktowerVisibilityPolicy(adapter, policy);
+
+        assertThat(visibilityPolicy.canRead(unauthenticatedAccessContext())).isFalse();
+        verifyNoInteractions(adapter);
+    }
 
     @Test
     void playerPublicChatAllowedOnlyDuringDayLikePhases() {
@@ -83,5 +123,11 @@ class ClocktowerChatPolicyTests {
                                                 String conversationType, String phase, int dayNo,
                                                 boolean activeMember) {
         return new ClocktowerChatAccessContext(mode, groupKey, conversationType, phase, dayNo, activeMember);
+    }
+
+    private ImAccessContext unauthenticatedAccessContext() {
+        return new ImAccessContext(null, ClocktowerChatConstants.CONTEXT_TYPE, 1L, ImConversationType.GROUP,
+                ImConversationStatus.ACTIVE, ImSurfaceType.GROUP, 1L, ImSurfaceStatus.ACTIVE,
+                ImMembershipStatus.ACTIVE, null, false, false, false, false, false, Instant.EPOCH);
     }
 }

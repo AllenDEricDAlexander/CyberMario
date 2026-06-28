@@ -10,6 +10,7 @@ import org.springframework.util.StringUtils;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardValidateRequest;
 import top.egon.mario.clocktower.board.dto.response.BoardValidationResponse;
 import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
+import top.egon.mario.clocktower.chat.ClocktowerImAdapter;
 import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.game.dto.ClocktowerGameConversationResponse;
@@ -23,15 +24,10 @@ import top.egon.mario.clocktower.game.repository.ClocktowerGameEventRepository;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameRepository;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameSeatRepository;
 import top.egon.mario.clocktower.room.policy.ClocktowerRoomAccessPolicy;
-import top.egon.mario.clocktower.room.policy.ClocktowerRoomMutationPolicy;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomProfileRepository;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomSeatRepository;
 import top.egon.mario.clocktower.script.po.ClocktowerRolePo;
 import top.egon.mario.clocktower.script.repository.ClocktowerRoleRepository;
-import top.egon.mario.im.legacy.LegacyImFacade;
-import top.egon.mario.im.po.ImChannelPo;
-import top.egon.mario.im.po.ImConversationPo;
-import top.egon.mario.im.po.ImGroupPo;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 import top.egon.mario.room.po.RoomInvitationPo;
 import top.egon.mario.room.po.RoomSpacePo;
@@ -72,13 +68,6 @@ public class ClocktowerGameLifecycleServiceImpl implements ClocktowerGameLifecyc
     private static final String ACTION_END = "END";
     private static final String ACTION_ABORT = "ABORT";
     private static final String ACTION_ARCHIVE = "ARCHIVE";
-    private static final String IM_CHANNEL_GAME = "GAME";
-    private static final String IM_SCOPE_GAME = "GAME";
-    private static final String IM_GROUP_PUBLIC = "PUBLIC";
-    private static final String IM_GROUP_PRIVATE = "PRIVATE";
-    private static final String IM_GROUP_SPECTATOR = "SPECTATOR";
-    private static final String IM_GROUP_SYSTEM = "SYSTEM";
-    private static final String IM_CONVERSATION_PRIVATE_CONTAINER = "PRIVATE_CONTAINER";
 
     private final RoomSpaceRepository roomSpaceRepository;
     private final RoomInvitationRepository roomInvitationRepository;
@@ -90,7 +79,7 @@ public class ClocktowerGameLifecycleServiceImpl implements ClocktowerGameLifecyc
     private final ClocktowerRoleRepository roleRepository;
     private final ClocktowerBoardService boardService;
     private final ClocktowerRoomAccessPolicy accessPolicy;
-    private final LegacyImFacade imFacade;
+    private final ClocktowerImAdapter clocktowerImAdapter;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -132,7 +121,7 @@ public class ClocktowerGameLifecycleServiceImpl implements ClocktowerGameLifecyc
 
         appendGameEvent(savedGame, "GAME_STARTED", now, Map.of("roomId", roomId, "gameNo", savedGame.getGameNo()));
         List<ClocktowerGameConversationResponse> conversations = activateGameConversations(savedGame.getId(),
-                seats.stream().map(ClocktowerRoomSeatPo::getUserId).toList());
+                principal.userId(), seats.stream().map(ClocktowerRoomSeatPo::getUserId).toList());
         return ClocktowerGameResponse.from(savedGame, conversations);
     }
 
@@ -379,25 +368,9 @@ public class ClocktowerGameLifecycleServiceImpl implements ClocktowerGameLifecyc
                 .orElse(1L);
     }
 
-    private List<ClocktowerGameConversationResponse> activateGameConversations(Long gameId,
+    private List<ClocktowerGameConversationResponse> activateGameConversations(Long gameId, Long ownerUserId,
                                                                                Collection<Long> playerUserIds) {
-        ImChannelPo channel = imFacade.ensureChannel(ClocktowerRoomMutationPolicy.CONTEXT_TYPE, gameId,
-                IM_CHANNEL_GAME);
-        return List.of(
-                ensureConversation(channel, gameId, IM_GROUP_PUBLIC, IM_GROUP_PUBLIC, playerUserIds),
-                ensureConversation(channel, gameId, IM_GROUP_PRIVATE, IM_CONVERSATION_PRIVATE_CONTAINER, List.of()),
-                ensureConversation(channel, gameId, IM_GROUP_SPECTATOR, IM_GROUP_SPECTATOR, List.of()),
-                ensureConversation(channel, gameId, IM_GROUP_SYSTEM, IM_GROUP_SYSTEM, List.of())
-        );
-    }
-
-    private ClocktowerGameConversationResponse ensureConversation(ImChannelPo channel, Long gameId,
-                                                                  String groupKey, String conversationType,
-                                                                  Collection<Long> participantUserIds) {
-        ImGroupPo group = imFacade.ensureGroup(channel.getId(), groupKey);
-        ImConversationPo conversation = imFacade.ensureConversation(group.getId(), IM_SCOPE_GAME, gameId,
-                conversationType, participantUserIds);
-        return new ClocktowerGameConversationResponse(groupKey, conversationType, conversation.getId());
+        return clocktowerImAdapter.activateGameConversations(gameId, ownerUserId, playerUserIds);
     }
 
     private RoomSpacePo lockedRoom(Long roomId) {

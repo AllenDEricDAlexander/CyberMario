@@ -28,6 +28,8 @@ import top.egon.mario.clocktower.room.service.ClocktowerRoomLobbyService;
 import top.egon.mario.im.po.ImChannelPo;
 import top.egon.mario.im.po.ImConversationPo;
 import top.egon.mario.im.po.ImGroupPo;
+import top.egon.mario.im.po.enums.ImConversationType;
+import top.egon.mario.im.po.enums.ImSurfaceType;
 import top.egon.mario.im.repository.ImChannelRepository;
 import top.egon.mario.im.repository.ImConversationMemberRepository;
 import top.egon.mario.im.repository.ImConversationRepository;
@@ -124,9 +126,11 @@ class ClocktowerRoomRefactorServiceTests {
         ImGroupPo group = imGroupRepository.findByChannelIdAndGroupKeyAndDeletedFalse(channel.getId(), "PUBLIC")
                 .orElseThrow();
         ImConversationPo conversation = imConversationRepository
-                .findByGroupIdAndScopeTypeAndScopeIdAndConversationTypeAndParticipantKeyAndDeletedFalse(
-                        group.getId(), "ROOM", room.roomId(), "ROOM", "ROOM:" + room.roomId())
+                .findByOwnerSurfaceTypeAndOwnerSurfaceIdAndConversationTypeAndDeletedFalse(
+                        ImSurfaceType.GROUP, group.getId(), ImConversationType.GROUP)
                 .orElseThrow();
+        assertThat(conversation.getContextType()).isEqualTo("CLOCKTOWER");
+        assertThat(conversation.getContextId()).isEqualTo(room.roomId());
         assertThat(room.publicConversationId()).isEqualTo(conversation.getId());
     }
 
