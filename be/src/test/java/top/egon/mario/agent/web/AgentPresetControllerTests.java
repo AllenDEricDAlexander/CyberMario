@@ -16,6 +16,7 @@ import top.egon.mario.agent.dto.response.AgentPresetResponse;
 import top.egon.mario.agent.service.AgentPresetService;
 import top.egon.mario.agent.service.model.AgentPresetConfig;
 import top.egon.mario.rbac.application.RbacAuthApplication;
+import top.egon.mario.rbac.service.security.BrowserAuthCookieService;
 import top.egon.mario.rbac.service.security.RbacApiRuleCache;
 
 import java.time.Instant;
@@ -44,6 +45,9 @@ class AgentPresetControllerTests {
 
     @MockitoBean
     private RbacApiRuleCache rbacApiRuleCache;
+
+    @MockitoBean
+    private BrowserAuthCookieService browserAuthCookieService;
 
     @MockitoBean
     private Scheduler blockingScheduler;

@@ -10,7 +10,7 @@ import java.util.Objects;
 @Component
 public class ClocktowerRoomMutationPolicy implements RoomMutationPolicy {
 
-    public static final String CONTEXT_TYPE = "CLOCKTOWER";
+    public static final String CONTEXT_TYPE = "CLOCKTOWER_ROOM";
 
     @Override
     public String contextType() {

@@ -85,7 +85,7 @@ class ClocktowerRoomRefactorServiceTests {
         ClocktowerRoomResponse room = roomService.createRoom(createRequest("OPEN_SEATING"), owner);
 
         RoomSpacePo roomSpace = roomSpaceRepository.findByIdAndDeletedFalse(room.roomId()).orElseThrow();
-        assertThat(roomSpace.getContextType()).isEqualTo("CLOCKTOWER");
+        assertThat(roomSpace.getContextType()).isEqualTo("CLOCKTOWER_ROOM");
         assertThat(roomSpace.getContextId()).isEqualTo(room.roomId());
         assertThat(roomSpace.getOwnerUserId()).isEqualTo(1L);
         assertThat(roomSpace.getVisibility()).isEqualTo("PUBLIC");

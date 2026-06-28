@@ -14,6 +14,7 @@ import reactor.test.StepVerifier;
 import top.egon.mario.agent.service.ChatAgentService;
 import top.egon.mario.pojo.response.ChatResponse;
 import top.egon.mario.rbac.application.RbacAuthApplication;
+import top.egon.mario.rbac.service.security.BrowserAuthCookieService;
 import top.egon.mario.rbac.service.security.RbacApiRuleCache;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -37,6 +38,9 @@ class AgentDebugControllerTests {
 
     @MockitoBean
     private RbacApiRuleCache rbacApiRuleCache;
+
+    @MockitoBean
+    private BrowserAuthCookieService browserAuthCookieService;
 
     @MockitoBean
     private Scheduler blockingScheduler;

@@ -17,6 +17,7 @@ import top.egon.mario.agent.soul.po.enums.AgentSoulChangeType;
 import top.egon.mario.agent.soul.service.AgentSoulService;
 import top.egon.mario.agent.web.AgentSoulController;
 import top.egon.mario.rbac.application.RbacAuthApplication;
+import top.egon.mario.rbac.service.security.BrowserAuthCookieService;
 import top.egon.mario.rbac.service.security.RbacApiRuleCache;
 
 import java.time.Instant;
@@ -39,6 +40,8 @@ class AgentSoulControllerTests {
     private RbacAuthApplication rbacAuthApplication;
     @MockitoBean
     private RbacApiRuleCache rbacApiRuleCache;
+    @MockitoBean
+    private BrowserAuthCookieService browserAuthCookieService;
     @MockitoBean
     private Scheduler blockingScheduler;
 

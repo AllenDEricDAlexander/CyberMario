@@ -2,7 +2,7 @@ package top.egon.mario.clocktower.chat;
 
 public final class ClocktowerChatConstants {
 
-    public static final String CONTEXT_TYPE = "CLOCKTOWER";
+    public static final String CONTEXT_TYPE = "CLOCKTOWER_ROOM";
     public static final String CHANNEL_ROOM = "ROOM";
     public static final String CHANNEL_GAME = "GAME";
     public static final String SCOPE_ROOM = "ROOM";

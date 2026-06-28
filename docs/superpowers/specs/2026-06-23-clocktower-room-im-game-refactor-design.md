@@ -280,7 +280,7 @@ Exact column details can be finalized in the implementation plan, but the model 
 
 - Long-lived room.
 - Stores owner user id, visibility, status, context type, context id, created/updated metadata.
-- For Clocktower, `context_type = CLOCKTOWER`.
+- For Clocktower, `context_type = CLOCKTOWER_ROOM`.
 
 `room_member`
 

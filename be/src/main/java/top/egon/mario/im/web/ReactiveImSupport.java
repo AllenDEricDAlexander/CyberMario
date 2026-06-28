@@ -7,7 +7,7 @@ import reactor.core.scheduler.Scheduler;
 import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.common.api.PageResult;
 import top.egon.mario.common.api.TraceContext;
-import top.egon.mario.im.facade.ImException;
+import top.egon.mario.im.service.ImException;
 import top.egon.mario.im.policy.ImPrincipal;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 

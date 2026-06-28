@@ -18,6 +18,7 @@ import top.egon.mario.agent.po.enums.AgentConversationRole;
 import top.egon.mario.agent.po.enums.AgentConversationStatus;
 import top.egon.mario.agent.service.AgentConversationAuditService;
 import top.egon.mario.rbac.application.RbacAuthApplication;
+import top.egon.mario.rbac.service.security.BrowserAuthCookieService;
 import top.egon.mario.rbac.service.security.RbacApiRuleCache;
 
 import java.time.Instant;
@@ -45,6 +46,9 @@ class AdminAgentConversationAuditControllerTests {
 
     @MockitoBean
     private RbacApiRuleCache rbacApiRuleCache;
+
+    @MockitoBean
+    private BrowserAuthCookieService browserAuthCookieService;
 
     @MockitoBean
     private Scheduler blockingScheduler;

@@ -28,6 +28,7 @@ class ClocktowerChatPolicyTests {
 
     @Test
     void policyRegistryResolvesClocktowerStrategiesForClocktowerContext() {
+        assertThat(ClocktowerChatConstants.CONTEXT_TYPE).isEqualTo("CLOCKTOWER_ROOM");
         assertThat(policyRegistry.resolve(ClocktowerChatConstants.CONTEXT_TYPE, SendPolicy.class))
                 .isInstanceOf(ClocktowerSendPolicy.class);
         assertThat(policyRegistry.resolve(ClocktowerChatConstants.CONTEXT_TYPE, VisibilityPolicy.class))

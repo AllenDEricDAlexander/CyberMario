@@ -3,7 +3,7 @@ package top.egon.mario.im.service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import top.egon.mario.im.facade.ImException;
+import top.egon.mario.im.service.ImException;
 import top.egon.mario.im.po.ImConversationMemberPo;
 import top.egon.mario.im.po.ImConversationPo;
 import top.egon.mario.im.po.ImInboxPo;

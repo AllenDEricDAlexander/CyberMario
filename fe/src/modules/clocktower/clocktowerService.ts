@@ -67,7 +67,7 @@ import type {
     StorytellerActionResponse,
 } from './clocktowerTypes'
 
-export const CLOCKTOWER_IM_CONTEXT_TYPE = 'CLOCKTOWER'
+export const CLOCKTOWER_IM_CONTEXT_TYPE = 'CLOCKTOWER_ROOM'
 
 export function getClocktowerScripts() {
     return requestJson<ClocktowerScriptResponse[]>('/api/clocktower/scripts')

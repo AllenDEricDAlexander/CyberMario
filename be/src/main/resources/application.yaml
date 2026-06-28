@@ -24,7 +24,7 @@ spring:
     type: com.zaxxer.hikari.HikariDataSource
     url: ${DB_URL:jdbc:postgresql://localhost:5432/cyber_mario}
     username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:HomeLab666}
+    password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
     hikari:
       pool-name: ${DB_POOL_NAME:CyberMarioHikariPool}

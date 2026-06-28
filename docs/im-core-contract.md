@@ -162,14 +162,11 @@ Clocktower integrates through `top.egon.mario.clocktower.chat.ClocktowerImAdapte
 
 ### Context Type
 
-- Plan terminology uses `CLOCKTOWER_ROOM`.
-- Current implemented source of truth is `ClocktowerChatConstants.CONTEXT_TYPE =
-  "CLOCKTOWER"`, and frontend `CLOCKTOWER_IM_CONTEXT_TYPE = "CLOCKTOWER"`.
-- Existing Clocktower IM queries and policy registration therefore use
-  `contextType = "CLOCKTOWER"` with `contextId` set to room id or game id.
-
-This is a documented drift risk. Do not use `CLOCKTOWER_ROOM` in code unless
-the backend and frontend constants are changed together.
+- Source of truth is `ClocktowerChatConstants.CONTEXT_TYPE =
+  "CLOCKTOWER_ROOM"`, and frontend `CLOCKTOWER_IM_CONTEXT_TYPE =
+  "CLOCKTOWER_ROOM"`.
+- Existing Clocktower IM queries and policy registration use
+  `contextType = "CLOCKTOWER_ROOM"` with `contextId` set to room id or game id.
 
 ### Policy Plug-in Point
 
@@ -227,7 +224,7 @@ when possible.
   resync after `RESYNC`.
 - In Clocktower, start from room chat, game public chat, private chat,
   spectator chat, and system/audit views; confirm the adapter resolves
-  `contextType = "CLOCKTOWER"` and exposes private peer display as
+  `contextType = "CLOCKTOWER_ROOM"` and exposes private peer display as
   `displayPeerKey`.
 - Confirm Clocktower access decisions still follow storyteller/player/spectator
   mode, game phase, day number, group key, conversation type, and active
@@ -253,6 +250,5 @@ when possible.
   channel read does not automatically create unread tracking.
 - Missing realtime updates: verify `im.realtime.dispatcher.enabled=true`, then
   reload by history after the last known sequence.
-- Clocktower access mismatch: check whether the caller is using implemented
-  `CLOCKTOWER` or planned `CLOCKTOWER_ROOM`; current code only registers
-  policies for `CLOCKTOWER`.
+- Clocktower access mismatch: check whether the caller is using
+  `CLOCKTOWER_ROOM`; current code registers policies for that context type.

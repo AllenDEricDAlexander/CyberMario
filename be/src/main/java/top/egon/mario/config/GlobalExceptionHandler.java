@@ -15,7 +15,7 @@ import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.common.utils.LogUtil;
-import top.egon.mario.im.facade.ImException;
+import top.egon.mario.im.service.ImException;
 import top.egon.mario.rag.service.RagException;
 import top.egon.mario.rbac.service.RbacException;
 

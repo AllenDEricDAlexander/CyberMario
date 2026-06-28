@@ -54,7 +54,7 @@ vi.mock('../im/imService', () => ({
             conversationType: 'GROUP',
             ownerSurfaceType: 'GROUP',
             ownerSurfaceId: 4,
-            contextType: 'CLOCKTOWER',
+            contextType: 'CLOCKTOWER_ROOM',
             contextId: 7,
             messageSeq: 9,
             lastMessage: null,
@@ -358,7 +358,7 @@ describe('clocktowerService', () => {
 
         const result = await listClocktowerChatConversations(7)
 
-        expect(listImConversations).toHaveBeenCalledWith({contextType: 'CLOCKTOWER', contextId: 7})
+        expect(listImConversations).toHaveBeenCalledWith({contextType: 'CLOCKTOWER_ROOM', contextId: 7})
         expect(result[0]).toMatchObject({
             conversationId: 13,
             roomId: 7,

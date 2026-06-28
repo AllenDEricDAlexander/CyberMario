@@ -30,6 +30,7 @@ import top.egon.mario.agent.memory.service.AgentMemoryMessageService;
 import top.egon.mario.agent.memory.service.AgentMemorySessionService;
 import top.egon.mario.agent.web.AgentMemoryController;
 import top.egon.mario.rbac.application.RbacAuthApplication;
+import top.egon.mario.rbac.service.security.BrowserAuthCookieService;
 import top.egon.mario.rbac.service.security.RbacApiRuleCache;
 
 import java.time.Instant;
@@ -59,6 +60,8 @@ class AgentMemoryControllerTests {
     private RbacAuthApplication rbacAuthApplication;
     @MockitoBean
     private RbacApiRuleCache rbacApiRuleCache;
+    @MockitoBean
+    private BrowserAuthCookieService browserAuthCookieService;
     @MockitoBean
     private Scheduler blockingScheduler;
 

@@ -142,7 +142,7 @@ class ClocktowerJpaMappingTests {
     @Test
     void roomGameStatusFieldsPersistAndReload() {
         RoomSpacePo room = new RoomSpacePo();
-        room.setContextType("CLOCKTOWER");
+        room.setContextType("CLOCKTOWER_ROOM");
         room.setContextId(601L);
         room.setRoomCode("ROOM-601");
         room.setName("Room 601");

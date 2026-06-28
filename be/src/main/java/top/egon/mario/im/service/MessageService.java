@@ -9,7 +9,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import top.egon.mario.im.facade.ImException;
+import top.egon.mario.im.service.ImException;
 import top.egon.mario.im.facade.dto.command.MarkReadCommand;
 import top.egon.mario.im.facade.dto.command.SendMessageCommand;
 import top.egon.mario.im.facade.dto.query.AuditHistoryQuery;

@@ -158,7 +158,7 @@ const ackMessage: ClocktowerMessageResponse = {
 
 const channel: ChannelView = {
     id: 301,
-    contextType: 'CLOCKTOWER',
+    contextType: 'CLOCKTOWER_ROOM',
     contextId: 7,
     channelKey: 'PUBLIC',
     name: '玩家公聊',
@@ -178,7 +178,7 @@ const channel: ChannelView = {
 const discoverableGroup: GroupView = {
     id: 302,
     channelId: 301,
-    contextType: 'CLOCKTOWER',
+    contextType: 'CLOCKTOWER_ROOM',
     contextId: 7,
     groupKey: 'SPECTATOR',
     name: '旁观席',

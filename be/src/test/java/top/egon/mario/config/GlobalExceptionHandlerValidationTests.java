@@ -31,15 +31,16 @@ class GlobalExceptionHandlerValidationTests {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("""
                         {
-                          "username": "",
-                          "password": ""
+                          "account": "",
+                          "encryptedPassword": "",
+                          "passwordKeyId": ""
                         }
                         """)
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo("VALIDATION_ERROR")
-                .jsonPath("$.message").value(containsString("username"))
+                .jsonPath("$.message").value(containsString("account"))
                 .jsonPath("$.traceId").isNotEmpty();
     }
 

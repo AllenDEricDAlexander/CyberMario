@@ -27,7 +27,7 @@ import top.egon.mario.im.repository.ImConversationMemberRepository;
 import top.egon.mario.im.repository.ImConversationRepository;
 import top.egon.mario.im.repository.ImDmBlockRepository;
 import top.egon.mario.im.repository.ImDmPairRepository;
-import top.egon.mario.im.facade.ImException;
+import top.egon.mario.im.service.ImException;
 
 import java.util.Map;
 import java.util.Set;

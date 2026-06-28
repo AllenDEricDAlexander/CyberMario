@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest(properties = {
         "spring.ai.dashscope.api-key=test-api-key",
+        "spring.datasource.url=jdbc:h2:mem:mcp_repository_test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1",
+        "spring.datasource.hikari.pool-name=McpRepositoryTestHikariPool",
         "spring.flyway.enabled=false",
         "spring.jpa.hibernate.ddl-auto=create-drop"
 })

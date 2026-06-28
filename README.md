@@ -61,8 +61,9 @@ The backend defaults to:
 - Redis: `localhost:6379`, database `1`
 - Frontend dev port: `5173`
 
-Use environment variables to override local defaults. The helper scripts under `ops/` also read a root `.env` file when
-present.
+Use environment variables to override local defaults. Deployment environments must set their own database,
+Redis, and JWT secrets instead of relying on these local development values. The helper scripts under `ops/`
+also read a root `.env` file when present.
 
 Common variables:
 
@@ -70,7 +71,7 @@ Common variables:
 AI_DASHSCOPE_API_KEY=your-api-key
 DB_URL=jdbc:postgresql://localhost:5432/cyber_mario
 DB_USERNAME=postgres
-DB_PASSWORD=your-password
+DB_PASSWORD=postgres
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=your-password
@@ -147,7 +148,7 @@ database:
 cd be
 IM_POSTGRES_TEST_URL=jdbc:postgresql://localhost:5432/cyber_mario_im_test \
 IM_POSTGRES_TEST_USERNAME=postgres \
-IM_POSTGRES_TEST_PASSWORD=your-password \
+IM_POSTGRES_TEST_PASSWORD=postgres \
 ./mvnw -Dmaven.build.cache.enabled=false -Dtest=ImPostgresContractIT,ImPostgresBehaviorIT test
 ```
 

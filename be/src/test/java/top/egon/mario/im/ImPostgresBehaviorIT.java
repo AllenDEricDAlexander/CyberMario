@@ -13,7 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ContextConfiguration;
 import top.egon.mario.im.facade.DmFacade;
 import top.egon.mario.im.facade.GovFacade;
-import top.egon.mario.im.facade.ImException;
+import top.egon.mario.im.service.ImException;
 import top.egon.mario.im.facade.ImFacade;
 import top.egon.mario.im.facade.RoomFacade;
 import top.egon.mario.im.facade.dto.command.ApproveCommand;

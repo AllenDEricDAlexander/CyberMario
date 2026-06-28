@@ -23,6 +23,8 @@ class ImModuleBoundaryTests {
     private static final Pattern IM_IMPORT = Pattern.compile("^import\\s+(top\\.egon\\.mario\\.im\\.[\\w.]+);");
     private static final Pattern IM_TABLE_REFERENCE = Pattern.compile("\\bim_[a-z0-9_]+\\b");
     private static final Pattern VERSIONED_MIGRATION = Pattern.compile("V(\\d+)__.*\\.sql");
+    private static final Path GLOBAL_EXCEPTION_HANDLER = Path.of("config/GlobalExceptionHandler.java");
+    private static final String SERVICE_EXCEPTION = "top.egon.mario.im.service.ImException";
 
     private static final Set<String> ALLOWED_IM_POLICY_IMPORTS = Set.of(
             "top.egon.mario.im.policy.ImPrincipal",
@@ -40,7 +42,7 @@ class ImModuleBoundaryTests {
     void upstreamProductionSourcesUseOnlyDocumentedImBoundaryImports() throws IOException {
         List<String> violations = javaSourcesOutsideIm(MAIN_SOURCE_ROOT)
                 .flatMap(path -> imImports(path).stream()
-                        .filter(imImport -> !allowedUpstreamImport(imImport.importName()))
+                        .filter(imImport -> !allowedUpstreamImport(path, imImport.importName()))
                         .map(SourceImport::format))
                 .toList();
 
@@ -90,6 +92,14 @@ class ImModuleBoundaryTests {
         assertThat(violations)
                 .describedAs("IM module must not depend on Clocktower")
                 .isEmpty();
+    }
+
+    @Test
+    void imExceptionBelongsToServiceLayer() {
+        assertThat(MAIN_SOURCE_ROOT.resolve("im/service/ImException.java"))
+                .exists();
+        assertThat(MAIN_SOURCE_ROOT.resolve("im/facade/ImException.java"))
+                .doesNotExist();
     }
 
     @Test
@@ -171,10 +181,11 @@ class ImModuleBoundaryTests {
         }
     }
 
-    private static boolean allowedUpstreamImport(String importName) {
+    private static boolean allowedUpstreamImport(Path path, String importName) {
         return importName.startsWith("top.egon.mario.im.facade.")
                 || ALLOWED_IM_POLICY_IMPORTS.contains(importName)
-                || ALLOWED_IM_REALTIME_IMPORTS.contains(importName);
+                || ALLOWED_IM_REALTIME_IMPORTS.contains(importName)
+                || (SERVICE_EXCEPTION.equals(importName) && path.endsWith(GLOBAL_EXCEPTION_HANDLER));
     }
 
     private static boolean forbiddenUpstreamTestImport(String importName) {
