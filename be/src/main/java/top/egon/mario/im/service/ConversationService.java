@@ -3,13 +3,17 @@ package top.egon.mario.im.service;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import top.egon.mario.im.facade.ImException;
 import top.egon.mario.im.facade.dto.command.CreateChannelCommand;
 import top.egon.mario.im.facade.dto.command.CreateGroupCommand;
+import top.egon.mario.im.facade.dto.query.ConversationMemberQuery;
+import top.egon.mario.im.facade.dto.query.ConversationSurfaceQuery;
 import top.egon.mario.im.facade.dto.query.ListChannelsQuery;
 import top.egon.mario.im.facade.dto.query.ListConversationsQuery;
 import top.egon.mario.im.facade.dto.query.ListGroupsQuery;
 import top.egon.mario.im.facade.dto.view.ChannelView;
 import top.egon.mario.im.facade.dto.view.ConversationView;
+import top.egon.mario.im.facade.dto.view.ConversationSurfaceView;
 import top.egon.mario.im.facade.dto.view.GroupView;
 import top.egon.mario.im.facade.mapper.ImFacadeMapper;
 import top.egon.mario.im.po.ImChannelPo;
@@ -22,6 +26,7 @@ import top.egon.mario.im.po.enums.ImChannelVisibility;
 import top.egon.mario.im.po.enums.ImConversationStatus;
 import top.egon.mario.im.po.enums.ImConversationType;
 import top.egon.mario.im.po.enums.ImJoinPolicy;
+import top.egon.mario.im.po.enums.ImMembershipStatus;
 import top.egon.mario.im.po.enums.ImSurfaceStatus;
 import top.egon.mario.im.po.enums.ImSurfaceType;
 import top.egon.mario.im.policy.ImPrincipal;
@@ -206,6 +211,36 @@ public class ConversationService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public Optional<ConversationSurfaceView> findConversationSurface(ConversationSurfaceQuery query) {
+        if (query == null) {
+            throw new ImException("IM_CONVERSATION_SURFACE_QUERY_REQUIRED");
+        }
+        if (query.conversationId() != null) {
+            return conversationRepository.findByIdAndDeletedFalse(query.conversationId())
+                    .flatMap(this::activeConversationSurface);
+        }
+        ImSurfaceType surfaceType = surfaceType(query.surfaceType());
+        if (!ImSurfaceType.GROUP.equals(surfaceType) || query.surfaceId() == null) {
+            return Optional.empty();
+        }
+        return conversationRepository
+                .findByOwnerSurfaceTypeAndOwnerSurfaceIdAndConversationTypeAndDeletedFalse(
+                        ImSurfaceType.GROUP, query.surfaceId(), ImConversationType.GROUP)
+                .flatMap(this::activeConversationSurface);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasActiveConversationMember(ConversationMemberQuery query) {
+        if (query == null) {
+            throw new ImException("IM_CONVERSATION_MEMBER_QUERY_REQUIRED");
+        }
+        Long conversationId = requireId(query.conversationId(), "IM_CONVERSATION_ID_REQUIRED");
+        Long userId = requireId(query.userId(), "IM_USER_ID_REQUIRED");
+        return conversationMemberRepository.existsByConversationIdAndUserIdAndStatusAndDeletedFalse(
+                conversationId, userId, ImMembershipStatus.ACTIVE);
+    }
+
     private ImConversationPo ensureChannelMainConversation(ImChannelPo channel, Instant now) {
         ImConversationPo conversation = conversationRepository
                 .findByOwnerSurfaceTypeAndOwnerSurfaceIdAndConversationTypeAndDeletedFalse(
@@ -218,6 +253,31 @@ public class ConversationService {
             channelRepository.saveAndFlush(channel);
         }
         return conversation;
+    }
+
+    private Optional<ConversationSurfaceView> activeConversationSurface(ImConversationPo conversation) {
+        if (!ImConversationStatus.ACTIVE.equals(conversation.getStatus())
+                || !ImSurfaceType.GROUP.equals(conversation.getOwnerSurfaceType())
+                || conversation.getOwnerSurfaceId() == null) {
+            return Optional.empty();
+        }
+        return groupRepository.findByIdAndDeletedFalse(conversation.getOwnerSurfaceId())
+                .filter(group -> ImSurfaceStatus.ACTIVE.equals(group.getStatus()))
+                .flatMap(group -> {
+                    if (group.getChannelId() == null) {
+                        return Optional.of(mapper.toConversationSurfaceView(conversation, null, group));
+                    }
+                    return activeChannel(group)
+                            .map(channel -> mapper.toConversationSurfaceView(conversation, channel, group));
+                });
+    }
+
+    private Optional<ImChannelPo> activeChannel(ImGroupPo group) {
+        if (group.getChannelId() == null) {
+            return Optional.empty();
+        }
+        return channelRepository.findByIdAndDeletedFalse(group.getChannelId())
+                .filter(channel -> ImSurfaceStatus.ACTIVE.equals(channel.getStatus()));
     }
 
     private ImConversationPo ensureGroupConversation(ImGroupPo group, Instant now) {
@@ -300,6 +360,13 @@ public class ConversationService {
         return principal;
     }
 
+    private Long requireId(Long id, String code) {
+        if (id == null) {
+            throw new ImException(code);
+        }
+        return id;
+    }
+
     private String requireText(String value, String code) {
         if (!StringUtils.hasText(value)) {
             throw new ImException(code);
@@ -317,6 +384,15 @@ public class ConversationService {
             return ImJoinPolicy.valueOf(policy.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
             throw new ImException("IM_JOIN_POLICY_INVALID", policy);
+        }
+    }
+
+    private ImSurfaceType surfaceType(String value) {
+        String surfaceType = requireText(value, "IM_SURFACE_TYPE_REQUIRED");
+        try {
+            return ImSurfaceType.valueOf(surfaceType.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new ImException("IM_SURFACE_TYPE_INVALID", surfaceType);
         }
     }
 

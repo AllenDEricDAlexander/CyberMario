@@ -11,6 +11,7 @@ import top.egon.mario.im.facade.dto.command.CreateGroupCommand;
 import top.egon.mario.im.facade.dto.command.JoinCommand;
 import top.egon.mario.im.facade.dto.command.MarkReadCommand;
 import top.egon.mario.im.facade.dto.command.SendMessageCommand;
+import top.egon.mario.im.facade.dto.query.AuditHistoryQuery;
 import top.egon.mario.im.facade.dto.query.HistoryQuery;
 import top.egon.mario.im.facade.dto.view.ChannelView;
 import top.egon.mario.im.facade.dto.view.GroupView;
@@ -26,7 +27,7 @@ import top.egon.mario.im.repository.ImInboxRepository;
 import top.egon.mario.im.repository.ImMessageRepository;
 import top.egon.mario.im.repository.ImOutboxRepository;
 import top.egon.mario.im.service.ConversationService;
-import top.egon.mario.im.service.ImException;
+import top.egon.mario.im.facade.ImException;
 
 import java.util.List;
 import java.util.Map;
@@ -191,6 +192,32 @@ class ImMessageServiceTests {
     }
 
     @Test
+    void auditHistoryRejectsDirectCallerWithoutAuditRole() {
+        ChannelView channel = channel(5451L, "audit-no-role");
+        imFacade.send(send(5451L, channel.mainConversationId(), "audit-no-role-1", "hidden"));
+
+        assertThatThrownBy(() -> imFacade.auditHistory(new AuditHistoryQuery(
+                principal(5452L), channel.mainConversationId(), 0, 20, null, null)))
+                .isInstanceOf(ImException.class)
+                .extracting("code")
+                .isEqualTo("IM_AUDIT_FORBIDDEN");
+    }
+
+    @Test
+    void auditHistoryCapsOversizedPageRequestsAtAuditLimit() {
+        ChannelView channel = channel(5461L, "audit-page-cap");
+        for (int index = 1; index <= 201; index++) {
+            imFacade.send(send(5461L, channel.mainConversationId(), "audit-cap-" + index, "message-" + index));
+        }
+
+        Page<MessageView> page = imFacade.auditHistory(new AuditHistoryQuery(
+                auditPrincipal(5462L), channel.mainConversationId(), 0, 500, null, null));
+
+        assertThat(page.getSize()).isEqualTo(200);
+        assertThat(page.getContent()).hasSize(200);
+    }
+
+    @Test
     void markReadOnlyAdvancesCursorAndMarksInboxRowsReadUpToTarget() {
         ChannelView channel = channel(5501L, "mark-read");
         join(5502L, channel);
@@ -325,5 +352,9 @@ class ImMessageServiceTests {
 
     private ImPrincipal principal(Long userId) {
         return new ImPrincipal(userId, Set.of(), CONTEXT_TYPE, Map.of());
+    }
+
+    private ImPrincipal auditPrincipal(Long userId) {
+        return new ImPrincipal(userId, Set.of("SUPER_ADMIN"), CONTEXT_TYPE, Map.of());
     }
 }

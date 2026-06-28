@@ -2,6 +2,7 @@ package top.egon.mario.im.facade.mapper;
 
 import top.egon.mario.im.facade.dto.view.ChannelView;
 import top.egon.mario.im.facade.dto.view.ConversationView;
+import top.egon.mario.im.facade.dto.view.ConversationSurfaceView;
 import top.egon.mario.im.facade.dto.view.GroupView;
 import top.egon.mario.im.facade.dto.view.MessageView;
 import top.egon.mario.im.po.ImChannelPo;
@@ -119,6 +120,27 @@ public final class ImFacadeMapper {
                 callerMembership == null ? null : name(callerMembership.getMemberRole()),
                 canRead,
                 canPost
+        );
+    }
+
+    public ConversationSurfaceView toConversationSurfaceView(
+            ImConversationPo conversation, ImChannelPo channel, ImGroupPo group) {
+        Objects.requireNonNull(conversation, "conversation must not be null");
+        Objects.requireNonNull(group, "group must not be null");
+        return new ConversationSurfaceView(
+                conversation.getId(),
+                name(conversation.getConversationTypeEnum()),
+                name(conversation.getOwnerSurfaceType()),
+                conversation.getOwnerSurfaceId(),
+                conversation.getContextType(),
+                conversation.getContextId(),
+                conversation.getMessageSeq(),
+                conversation.getLastMessageAt(),
+                name(conversation.getStatus()),
+                channel == null ? null : channel.getId(),
+                channel == null ? null : channel.getChannelKey(),
+                group.getId(),
+                group.getGroupKey()
         );
     }
 

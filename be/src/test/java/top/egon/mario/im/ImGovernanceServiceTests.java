@@ -36,7 +36,7 @@ import top.egon.mario.im.repository.ImGlobalMuteRepository;
 import top.egon.mario.im.repository.ImGroupRepository;
 import top.egon.mario.im.repository.ImMembershipRepository;
 import top.egon.mario.im.service.ConversationService;
-import top.egon.mario.im.service.ImException;
+import top.egon.mario.im.facade.ImException;
 
 import java.time.Instant;
 import java.util.List;

@@ -102,7 +102,7 @@ public class ClocktowerManagementAuditServiceImpl implements ClocktowerManagemen
     public Page<ClocktowerChatMessageResponse> messages(Long conversationId, Pageable pageable,
                                                         RbacPrincipal principal) {
         viewerResolver.requireAdminAudit(principal);
-        return clocktowerImAdapter.auditMessages(conversationId, pageable);
+        return clocktowerImAdapter.auditMessages(conversationId, pageable, principal);
     }
 
     private List<ClocktowerGameEventResponse> gameEvents(ClocktowerGamePo game) {

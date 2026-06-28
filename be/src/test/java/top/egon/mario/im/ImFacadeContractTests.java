@@ -7,11 +7,16 @@ import top.egon.mario.im.facade.RoomFacade;
 import top.egon.mario.im.facade.dto.command.CreateChannelCommand;
 import top.egon.mario.im.facade.dto.command.CreateGroupCommand;
 import top.egon.mario.im.facade.dto.command.MintWsTicketCommand;
+import top.egon.mario.im.facade.dto.query.AuditHistoryQuery;
+import top.egon.mario.im.facade.dto.query.ConversationMemberQuery;
+import top.egon.mario.im.facade.dto.query.ConversationSurfaceQuery;
 import top.egon.mario.im.facade.dto.query.ListChannelsQuery;
 import top.egon.mario.im.facade.dto.query.ListGroupsQuery;
 import top.egon.mario.im.facade.dto.view.ChannelView;
 import top.egon.mario.im.facade.dto.view.ConversationView;
+import top.egon.mario.im.facade.dto.view.ConversationSurfaceView;
 import top.egon.mario.im.facade.dto.view.GroupView;
+import top.egon.mario.im.facade.dto.view.MessageView;
 import top.egon.mario.im.facade.dto.view.WsTicketView;
 import top.egon.mario.im.facade.mapper.ImFacadeMapper;
 import top.egon.mario.im.po.ImConversationPo;
@@ -77,14 +82,18 @@ class ImFacadeContractTests {
 
     private static final List<String> QUERY_TYPES = List.of(
             QUERY_PACKAGE + ".HistoryQuery",
+            QUERY_PACKAGE + ".AuditHistoryQuery",
             QUERY_PACKAGE + ".ListConversationsQuery",
             QUERY_PACKAGE + ".ListChannelsQuery",
-            QUERY_PACKAGE + ".ListGroupsQuery"
+            QUERY_PACKAGE + ".ListGroupsQuery",
+            QUERY_PACKAGE + ".ConversationSurfaceQuery",
+            QUERY_PACKAGE + ".ConversationMemberQuery"
     );
 
     private static final List<String> VIEW_TYPES = List.of(
             VIEW_PACKAGE + ".MessageView",
             VIEW_PACKAGE + ".ConversationView",
+            VIEW_PACKAGE + ".ConversationSurfaceView",
             VIEW_PACKAGE + ".ChannelView",
             VIEW_PACKAGE + ".GroupView",
             VIEW_PACKAGE + ".UnreadView",
@@ -170,15 +179,34 @@ class ImFacadeContractTests {
     }
 
     @Test
+    void auditHistoryQueryCarriesAuditPrincipalAtBoundary() throws Exception {
+        Class<?> queryType = Class.forName(QUERY_PACKAGE + ".AuditHistoryQuery");
+
+        assertThat(List.of(queryType.getRecordComponents()).stream()
+                .map(RecordComponent::getName))
+                .containsExactly("principal", "conversationId", "page", "size", "beforeSeq", "afterSeq");
+        assertThat(List.of(queryType.getRecordComponents()).stream()
+                .map(component -> component.getType().getName()))
+                .containsExactly("top.egon.mario.im.policy.ImPrincipal", Long.class.getName(),
+                        "int", "int", Long.class.getName(), Long.class.getName());
+    }
+
+    @Test
     void facadeShellsExposeExpectedDtoMethods() throws Exception {
         assertMethod(FACADE_PACKAGE + ".ImFacade", "send",
                 VIEW_PACKAGE + ".MessageView", COMMAND_PACKAGE + ".SendMessageCommand");
         assertMethod(FACADE_PACKAGE + ".ImFacade", "history",
                 "org.springframework.data.domain.Page", QUERY_PACKAGE + ".HistoryQuery");
+        assertMethod(FACADE_PACKAGE + ".ImFacade", "auditHistory",
+                "org.springframework.data.domain.Page", QUERY_PACKAGE + ".AuditHistoryQuery");
         assertMethod(FACADE_PACKAGE + ".ImFacade", "markRead",
                 VIEW_PACKAGE + ".UnreadView", COMMAND_PACKAGE + ".MarkReadCommand");
         assertMethod(FACADE_PACKAGE + ".ImFacade", "listConversations",
                 "java.util.List", QUERY_PACKAGE + ".ListConversationsQuery");
+        assertMethod(FACADE_PACKAGE + ".ImFacade", "findConversationSurface",
+                "java.util.Optional", QUERY_PACKAGE + ".ConversationSurfaceQuery");
+        assertMethod(FACADE_PACKAGE + ".ImFacade", "hasActiveConversationMember",
+                "boolean", QUERY_PACKAGE + ".ConversationMemberQuery");
         assertMethod(FACADE_PACKAGE + ".ImFacade", "mintWsTicket",
                 VIEW_PACKAGE + ".WsTicketView", COMMAND_PACKAGE + ".MintWsTicketCommand");
 
@@ -309,6 +337,26 @@ class ImFacadeContractTests {
         verify(conversationService).listGroups(groupsQuery);
     }
 
+    @Test
+    void imFacadeDelegatesBoundaryQueriesToServices() {
+        MessageService messageService = mock(MessageService.class);
+        ConversationService conversationService = mock(ConversationService.class);
+        ImFacade imFacade = new ImFacade(messageService, conversationService, null);
+        AuditHistoryQuery auditHistoryQuery = new AuditHistoryQuery(
+                new ImPrincipal(1L, Set.of("SUPER_ADMIN"), "IM_FACADE_CONTRACT_TEST", Map.of()),
+                1L, 0, 20, null, null);
+        ConversationSurfaceQuery surfaceQuery = new ConversationSurfaceQuery(1L, null, null);
+        ConversationMemberQuery memberQuery = new ConversationMemberQuery(1L, 2L);
+
+        imFacade.auditHistory(auditHistoryQuery);
+        imFacade.findConversationSurface(surfaceQuery);
+        imFacade.hasActiveConversationMember(memberQuery);
+
+        verify(messageService).auditHistory(auditHistoryQuery);
+        verify(conversationService).findConversationSurface(surfaceQuery);
+        verify(conversationService).hasActiveConversationMember(memberQuery);
+    }
+
     private static List<String> allContractRecords() {
         return List.of(
                 "top.egon.mario.im.policy.ImPrincipal",
@@ -317,8 +365,9 @@ class ImFacadeContractTests {
                 COMMAND_TYPES.get(8), COMMAND_TYPES.get(9), COMMAND_TYPES.get(10), COMMAND_TYPES.get(11),
                 COMMAND_TYPES.get(12), COMMAND_TYPES.get(13), COMMAND_TYPES.get(14), COMMAND_TYPES.get(15),
                 QUERY_TYPES.get(0), QUERY_TYPES.get(1), QUERY_TYPES.get(2), QUERY_TYPES.get(3),
+                QUERY_TYPES.get(4), QUERY_TYPES.get(5), QUERY_TYPES.get(6),
                 VIEW_TYPES.get(0), VIEW_TYPES.get(1), VIEW_TYPES.get(2), VIEW_TYPES.get(3),
-                VIEW_TYPES.get(4), VIEW_TYPES.get(5), VIEW_TYPES.get(6)
+                VIEW_TYPES.get(4), VIEW_TYPES.get(5), VIEW_TYPES.get(6), VIEW_TYPES.get(7)
         );
     }
 

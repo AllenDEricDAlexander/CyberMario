@@ -7,7 +7,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
-import top.egon.mario.im.legacy.LegacyImFacade;
 import top.egon.mario.im.po.ImBanPo;
 import top.egon.mario.im.po.ImChannelPo;
 import top.egon.mario.im.po.ImConversationMemberPo;
@@ -53,7 +52,6 @@ import top.egon.mario.im.repository.ImMembershipRepository;
 import top.egon.mario.im.repository.ImMessageRepository;
 import top.egon.mario.im.repository.ImOutboxRepository;
 import top.egon.mario.im.repository.ImWsTicketRepository;
-import top.egon.mario.im.service.ImException;
 
 import java.time.Instant;
 import java.util.List;
@@ -112,9 +110,6 @@ class ImPersistenceMappingTests {
 
     @Autowired
     private ImWsTicketRepository wsTicketRepository;
-
-    @Autowired
-    private LegacyImFacade imFacade;
 
     @Test
     void v30PoMappingsRoundTripCoreFieldsThroughRepositories() {
@@ -344,21 +339,6 @@ class ImPersistenceMappingTests {
                 .extracting(ImBanPo::getId)
                 .isEqualTo(activeBan.getId());
         assertThat(banRepository.findActiveBan(ImSurfaceType.GROUP, 9407L, 9410L, now)).isEmpty();
-    }
-
-    @Test
-    void legacyFacadeMutationPathsFailFastDuringPersistenceTransition() {
-        assertThatThrownBy(() -> imFacade.ensureGroup(1L, "GENERAL"))
-                .isInstanceOf(ImException.class)
-                .hasMessageContaining("IM_LEGACY_FACADE_REPLACED")
-                .extracting("code")
-                .isEqualTo("IM_LEGACY_FACADE_REPLACED");
-
-        assertThatThrownBy(() -> imFacade.ensureConversation(1L, "ROOM", 2L, "PRIVATE", List.of(10L, 20L)))
-                .isInstanceOf(ImException.class)
-                .hasMessageContaining("IM_LEGACY_FACADE_REPLACED")
-                .extracting("code")
-                .isEqualTo("IM_LEGACY_FACADE_REPLACED");
     }
 
     @Test

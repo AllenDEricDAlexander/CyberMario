@@ -9,8 +9,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import top.egon.mario.im.facade.ImException;
 import top.egon.mario.im.facade.dto.command.MarkReadCommand;
 import top.egon.mario.im.facade.dto.command.SendMessageCommand;
+import top.egon.mario.im.facade.dto.query.AuditHistoryQuery;
 import top.egon.mario.im.facade.dto.query.HistoryQuery;
 import top.egon.mario.im.facade.dto.view.MessageView;
 import top.egon.mario.im.facade.dto.view.UnreadView;
@@ -52,7 +54,10 @@ public class MessageService {
     private static final long PLATFORM_SCOPE_ID = 0L;
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 100;
+    private static final int MAX_AUDIT_PAGE_SIZE = 200;
     private static final int MAX_CLIENT_MSG_ID_LENGTH = 128;
+    private static final String ROLE_SUPER_ADMIN = "SUPER_ADMIN";
+    private static final String ROLE_CLOCKTOWER_ADMIN = "CLOCKTOWER_ADMIN";
 
     private final ImConversationRepository conversationRepository;
     private final ImConversationMemberRepository conversationMemberRepository;
@@ -166,6 +171,31 @@ public class MessageService {
         }
 
         Pageable pageable = page(query.page(), query.size());
+        Page<ImMessagePo> messages;
+        if (query.afterSeq() != null) {
+            messages = messageRepository.findByConversationIdAndMessageSeqGreaterThanEqualAndDeletedFalseOrderByMessageSeqAsc(
+                    conversationId, Math.max(0L, query.afterSeq()), pageable);
+        } else if (query.beforeSeq() != null) {
+            messages = messageRepository.findByConversationIdAndMessageSeqLessThanEqualAndDeletedFalseOrderByMessageSeqAsc(
+                    conversationId, Math.max(0L, query.beforeSeq()), pageable);
+        } else {
+            messages = messageRepository.findByConversationIdAndDeletedFalseOrderByMessageSeqAsc(
+                    conversationId, pageable);
+        }
+        return messages.map(mapper::toMessageView);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<MessageView> auditHistory(AuditHistoryQuery query) {
+        if (query == null) {
+            throw new ImException("IM_AUDIT_HISTORY_QUERY_REQUIRED");
+        }
+        requireAuditPrincipal(query.principal());
+        Long conversationId = requireId(query.conversationId(), "IM_CONVERSATION_ID_REQUIRED");
+        conversationRepository.findByIdAndDeletedFalse(conversationId)
+                .orElseThrow(() -> new ImException("IM_CONVERSATION_NOT_FOUND"));
+
+        Pageable pageable = auditPage(query.page(), query.size());
         Page<ImMessagePo> messages;
         if (query.afterSeq() != null) {
             messages = messageRepository.findByConversationIdAndMessageSeqGreaterThanEqualAndDeletedFalseOrderByMessageSeqAsc(
@@ -318,6 +348,17 @@ public class MessageService {
         return principal;
     }
 
+    private void requireAuditPrincipal(ImPrincipal principal) {
+        if (principal == null || !auditRole(principal)) {
+            throw new ImException("IM_AUDIT_FORBIDDEN");
+        }
+    }
+
+    private boolean auditRole(ImPrincipal principal) {
+        return principal.roleCodes().contains(ROLE_SUPER_ADMIN)
+                || principal.roleCodes().contains(ROLE_CLOCKTOWER_ADMIN);
+    }
+
     private Long requireId(Long id, String code) {
         if (id == null) {
             throw new ImException(code);
@@ -372,6 +413,12 @@ public class MessageService {
     private Pageable page(int page, int size) {
         int safePage = Math.max(0, page);
         int safeSize = size <= 0 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_PAGE_SIZE);
+        return PageRequest.of(safePage, safeSize);
+    }
+
+    private Pageable auditPage(int page, int size) {
+        int safePage = Math.max(0, page);
+        int safeSize = size <= 0 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_AUDIT_PAGE_SIZE);
         return PageRequest.of(safePage, safeSize);
     }
 

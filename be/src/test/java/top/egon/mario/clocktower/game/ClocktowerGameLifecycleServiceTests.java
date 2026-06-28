@@ -4,8 +4,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
+import top.egon.mario.clocktower.chat.ClocktowerChatConstants;
 import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
+import top.egon.mario.clocktower.game.dto.ClocktowerGameConversationResponse;
 import top.egon.mario.clocktower.game.dto.ClocktowerGameResponse;
 import top.egon.mario.clocktower.game.po.ClocktowerGamePo;
 import top.egon.mario.clocktower.game.po.ClocktowerGameSeatPo;
@@ -20,14 +22,6 @@ import top.egon.mario.clocktower.room.dto.response.ClocktowerRoomResponse;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomProfileRepository;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomSeatRepository;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomLobbyService;
-import top.egon.mario.im.po.ImChannelPo;
-import top.egon.mario.im.po.ImConversationPo;
-import top.egon.mario.im.po.ImGroupPo;
-import top.egon.mario.im.po.enums.ImConversationType;
-import top.egon.mario.im.po.enums.ImSurfaceType;
-import top.egon.mario.im.repository.ImChannelRepository;
-import top.egon.mario.im.repository.ImConversationRepository;
-import top.egon.mario.im.repository.ImGroupRepository;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 import top.egon.mario.room.po.RoomInvitationPo;
 import top.egon.mario.room.po.RoomSpacePo;
@@ -41,6 +35,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.groups.Tuple.tuple;
 
 @SpringBootTest(properties = "spring.ai.dashscope.api-key=test-api-key")
 @Transactional
@@ -71,15 +66,6 @@ class ClocktowerGameLifecycleServiceTests {
 
     @Autowired
     private ClocktowerGameSeatRepository gameSeatRepository;
-
-    @Autowired
-    private ImChannelRepository imChannelRepository;
-
-    @Autowired
-    private ImGroupRepository imGroupRepository;
-
-    @Autowired
-    private ImConversationRepository imConversationRepository;
 
     @Test
     void startGameRejectsWhenSeatsNotAcceptedReadyOrRealUsers() {
@@ -194,13 +180,19 @@ class ClocktowerGameLifecycleServiceTests {
         ClocktowerGameResponse response = gameService.startGame(roomId, owner());
 
         assertThat(response.conversations()).hasSize(4);
-        ImChannelPo channel = imChannelRepository
-                .findByContextTypeAndContextIdAndChannelKeyAndDeletedFalse("CLOCKTOWER", response.gameId(), "GAME")
-                .orElseThrow();
-        assertConversation(channel, response.gameId(), "PUBLIC", "PUBLIC");
-        assertConversation(channel, response.gameId(), "PRIVATE", "PRIVATE_CONTAINER");
-        assertConversation(channel, response.gameId(), "SPECTATOR", "SPECTATOR");
-        assertConversation(channel, response.gameId(), "SYSTEM", "SYSTEM");
+        assertThat(response.conversations())
+                .extracting(ClocktowerGameConversationResponse::groupKey,
+                        ClocktowerGameConversationResponse::conversationType)
+                .containsExactly(
+                        tuple(ClocktowerChatConstants.GROUP_PUBLIC, ClocktowerChatConstants.CONVERSATION_PUBLIC),
+                        tuple(ClocktowerChatConstants.GROUP_PRIVATE,
+                                ClocktowerChatConstants.CONVERSATION_PRIVATE_CONTAINER),
+                        tuple(ClocktowerChatConstants.GROUP_SPECTATOR,
+                                ClocktowerChatConstants.CONVERSATION_SPECTATOR),
+                        tuple(ClocktowerChatConstants.GROUP_SYSTEM, ClocktowerChatConstants.CONVERSATION_SYSTEM));
+        assertThat(response.conversations())
+                .extracting(ClocktowerGameConversationResponse::conversationId)
+                .doesNotContainNull();
     }
 
     @Test
@@ -325,17 +317,6 @@ class ClocktowerGameLifecycleServiceTests {
         assertThatThrownBy(() -> gameService.startGame(roomId, owner()))
                 .isInstanceOf(ClocktowerException.class)
                 .hasMessageContaining(code);
-    }
-
-    private void assertConversation(ImChannelPo channel, Long gameId, String groupKey, String conversationType) {
-        ImGroupPo group = imGroupRepository.findByChannelIdAndGroupKeyAndDeletedFalse(channel.getId(), groupKey)
-                .orElseThrow();
-        ImConversationPo conversation = imConversationRepository
-                .findByOwnerSurfaceTypeAndOwnerSurfaceIdAndConversationTypeAndDeletedFalse(
-                        ImSurfaceType.GROUP, group.getId(), ImConversationType.GROUP)
-                .orElseThrow();
-        assertThat(conversation.getContextType()).isEqualTo("CLOCKTOWER");
-        assertThat(conversation.getContextId()).isEqualTo(gameId);
     }
 
     private Long readyRoom() {

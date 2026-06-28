@@ -3,6 +3,7 @@ package top.egon.mario.im.service;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import top.egon.mario.im.facade.ImException;
 import top.egon.mario.im.facade.dto.command.AnnounceCommand;
 import top.egon.mario.im.facade.dto.command.BanUserCommand;
 import top.egon.mario.im.facade.dto.command.GlobalMuteCommand;

@@ -23,7 +23,7 @@ import top.egon.mario.im.facade.dto.view.ConversationView;
 import top.egon.mario.im.facade.dto.view.MessageView;
 import top.egon.mario.im.facade.dto.view.WsTicketView;
 import top.egon.mario.im.policy.ImPrincipal;
-import top.egon.mario.im.service.ImException;
+import top.egon.mario.im.facade.ImException;
 import top.egon.mario.im.web.ImController;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 

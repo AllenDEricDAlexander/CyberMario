@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import top.egon.mario.im.facade.ImException;
 import top.egon.mario.im.facade.dto.command.MintWsTicketCommand;
 import top.egon.mario.im.facade.dto.view.WsTicketView;
 import top.egon.mario.im.po.ImWsTicketPo;

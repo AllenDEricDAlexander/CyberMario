@@ -7,6 +7,7 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
+import top.egon.mario.im.facade.ImException;
 import top.egon.mario.im.facade.dto.command.BlockUserCommand;
 import top.egon.mario.im.facade.dto.command.OpenDmCommand;
 import top.egon.mario.im.facade.dto.view.ConversationView;

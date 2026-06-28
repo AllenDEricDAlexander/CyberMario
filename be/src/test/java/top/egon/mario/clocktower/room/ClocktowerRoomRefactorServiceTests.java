@@ -3,10 +3,15 @@ package top.egon.mario.clocktower.room;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardSaveRequest;
 import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardConfigResponse;
 import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
+import top.egon.mario.clocktower.chat.ClocktowerChatConstants;
+import top.egon.mario.clocktower.chat.dto.ClocktowerChatMessageResponse;
+import top.egon.mario.clocktower.chat.dto.ClocktowerChatSendMessageRequest;
+import top.egon.mario.clocktower.chat.service.ClocktowerChatService;
 import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.game.dto.ClocktowerGameResponse;
@@ -25,15 +30,6 @@ import top.egon.mario.clocktower.room.dto.response.ClocktowerSeatResponse;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomProfileRepository;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomSeatRepository;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomLobbyService;
-import top.egon.mario.im.po.ImChannelPo;
-import top.egon.mario.im.po.ImConversationPo;
-import top.egon.mario.im.po.ImGroupPo;
-import top.egon.mario.im.po.enums.ImConversationType;
-import top.egon.mario.im.po.enums.ImSurfaceType;
-import top.egon.mario.im.repository.ImChannelRepository;
-import top.egon.mario.im.repository.ImConversationMemberRepository;
-import top.egon.mario.im.repository.ImConversationRepository;
-import top.egon.mario.im.repository.ImGroupRepository;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 import top.egon.mario.room.po.RoomInvitationPo;
 import top.egon.mario.room.po.RoomMemberPo;
@@ -66,6 +62,9 @@ class ClocktowerRoomRefactorServiceTests {
     private ClocktowerGameLifecycleService gameService;
 
     @Autowired
+    private ClocktowerChatService chatService;
+
+    @Autowired
     private RoomSpaceRepository roomSpaceRepository;
 
     @Autowired
@@ -80,21 +79,10 @@ class ClocktowerRoomRefactorServiceTests {
     @Autowired
     private ClocktowerRoomSeatRepository seatRepository;
 
-    @Autowired
-    private ImChannelRepository imChannelRepository;
-
-    @Autowired
-    private ImGroupRepository imGroupRepository;
-
-    @Autowired
-    private ImConversationRepository imConversationRepository;
-
-    @Autowired
-    private ImConversationMemberRepository imConversationMemberRepository;
-
     @Test
     void createRoomCreatesGenericRoomProfileSeatDraftAndRoomPublicConversation() {
-        ClocktowerRoomResponse room = roomService.createRoom(createRequest("OPEN_SEATING"), principal(1L, "mario"));
+        RbacPrincipal owner = principal(1L, "mario");
+        ClocktowerRoomResponse room = roomService.createRoom(createRequest("OPEN_SEATING"), owner);
 
         RoomSpacePo roomSpace = roomSpaceRepository.findByIdAndDeletedFalse(room.roomId()).orElseThrow();
         assertThat(roomSpace.getContextType()).isEqualTo("CLOCKTOWER");
@@ -120,18 +108,16 @@ class ClocktowerRoomRefactorServiceTests {
                 .extracting(ClocktowerSeatResponse::hasDeadVote)
                 .containsOnly(false);
 
-        ImChannelPo channel = imChannelRepository
-                .findByContextTypeAndContextIdAndChannelKeyAndDeletedFalse("CLOCKTOWER", room.roomId(), "ROOM")
-                .orElseThrow();
-        ImGroupPo group = imGroupRepository.findByChannelIdAndGroupKeyAndDeletedFalse(channel.getId(), "PUBLIC")
-                .orElseThrow();
-        ImConversationPo conversation = imConversationRepository
-                .findByOwnerSurfaceTypeAndOwnerSurfaceIdAndConversationTypeAndDeletedFalse(
-                        ImSurfaceType.GROUP, group.getId(), ImConversationType.GROUP)
-                .orElseThrow();
-        assertThat(conversation.getContextType()).isEqualTo("CLOCKTOWER");
-        assertThat(conversation.getContextId()).isEqualTo(room.roomId());
-        assertThat(room.publicConversationId()).isEqualTo(conversation.getId());
+        assertThat(room.publicConversationId()).isNotNull();
+        assertThat(chatService.conversations(room.roomId(), owner))
+                .filteredOn(conversation -> room.publicConversationId().equals(conversation.conversationId()))
+                .singleElement()
+                .satisfies(conversation -> {
+                    assertThat(conversation.roomId()).isEqualTo(room.roomId());
+                    assertThat(conversation.channelKey()).isEqualTo(ClocktowerChatConstants.CHANNEL_ROOM);
+                    assertThat(conversation.groupKey()).isEqualTo(ClocktowerChatConstants.GROUP_PUBLIC);
+                    assertThat(conversation.conversationType()).isEqualTo(ClocktowerChatConstants.CONVERSATION_ROOM);
+                });
     }
 
     @Test
@@ -199,19 +185,18 @@ class ClocktowerRoomRefactorServiceTests {
     @Test
     void claimSeatAddsClaimantToPublicConversationWithoutPriorEnter() {
         ClocktowerRoomResponse room = roomService.createRoom(createRequest("OPEN_SEATING"), principal(1L, "mario"));
+        RbacPrincipal luigi = principal(2L, "luigi");
 
-        assertThat(imConversationMemberRepository
-                .existsByConversationIdAndUserIdAndStatusAndDeletedFalse(room.publicConversationId(), 2L, "ACTIVE"))
-                .isFalse();
-
-        roomService.claimSeat(room.roomId(), 2, new ClocktowerSeatClaimRequest("Luigi"),
-                principal(2L, "luigi"));
+        roomService.claimSeat(room.roomId(), 2, new ClocktowerSeatClaimRequest("Luigi"), luigi);
 
         ClocktowerRoomSeatPo seat = seatRepository.findByRoomIdAndUserId(room.roomId(), 2L).orElseThrow();
         assertThat(seat.getMetadataJson()).contains("\"ready\":true");
-        assertThat(imConversationMemberRepository
-                .existsByConversationIdAndUserIdAndStatusAndDeletedFalse(room.publicConversationId(), 2L, "ACTIVE"))
-                .isTrue();
+        ClocktowerChatMessageResponse message = chatService.sendMessage(room.publicConversationId(),
+                new ClocktowerChatSendMessageRequest("after claim", null), luigi);
+        assertThat(message.content()).isEqualTo("after claim");
+        assertThat(chatService.messages(room.publicConversationId(), PageRequest.of(0, 10), luigi).getContent())
+                .extracting(ClocktowerChatMessageResponse::messageId)
+                .contains(message.messageId());
     }
 
     @Test
@@ -330,16 +315,13 @@ class ClocktowerRoomRefactorServiceTests {
         ClocktowerRoomInvitationResponse invitation = roomService.createInvitation(room.roomId(),
                 new ClocktowerRoomInvitationCreateRequest(2L, "SEAT", 3,
                         Instant.now().plus(Duration.ofHours(1))), principal(1L, "mario"));
+        RbacPrincipal luigi = principal(2L, "luigi");
 
-        assertThat(imConversationMemberRepository
-                .existsByConversationIdAndUserIdAndStatusAndDeletedFalse(room.publicConversationId(), 2L, "ACTIVE"))
-                .isFalse();
+        roomService.acceptInvitation(room.roomId(), invitation.invitationId(), luigi);
 
-        roomService.acceptInvitation(room.roomId(), invitation.invitationId(), principal(2L, "luigi"));
-
-        assertThat(imConversationMemberRepository
-                .existsByConversationIdAndUserIdAndStatusAndDeletedFalse(room.publicConversationId(), 2L, "ACTIVE"))
-                .isTrue();
+        ClocktowerChatMessageResponse message = chatService.sendMessage(room.publicConversationId(),
+                new ClocktowerChatSendMessageRequest("accepted", null), luigi);
+        assertThat(message.content()).isEqualTo("accepted");
     }
 
     @Test

@@ -3,17 +3,10 @@ package top.egon.mario.clocktower.chat;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import top.egon.mario.im.po.enums.ImConversationStatus;
-import top.egon.mario.im.po.enums.ImConversationType;
-import top.egon.mario.im.po.enums.ImMembershipStatus;
-import top.egon.mario.im.po.enums.ImSurfaceStatus;
-import top.egon.mario.im.po.enums.ImSurfaceType;
 import top.egon.mario.im.policy.ImAccessContext;
 import top.egon.mario.im.policy.PolicyRegistry;
 import top.egon.mario.im.policy.SendPolicy;
 import top.egon.mario.im.policy.VisibilityPolicy;
-
-import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -126,8 +119,7 @@ class ClocktowerChatPolicyTests {
     }
 
     private ImAccessContext unauthenticatedAccessContext() {
-        return new ImAccessContext(null, ClocktowerChatConstants.CONTEXT_TYPE, 1L, ImConversationType.GROUP,
-                ImConversationStatus.ACTIVE, ImSurfaceType.GROUP, 1L, ImSurfaceStatus.ACTIVE,
-                ImMembershipStatus.ACTIVE, null, false, false, false, false, false, Instant.EPOCH);
+        return new ImAccessContext(null, ClocktowerChatConstants.CONTEXT_TYPE, 1L, null,
+                null, null, 1L, null, null, null, false, false, false, false, false, null);
     }
 }

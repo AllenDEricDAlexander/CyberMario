@@ -25,27 +25,19 @@ import top.egon.mario.im.facade.dto.command.CreateGroupCommand;
 import top.egon.mario.im.facade.dto.command.JoinCommand;
 import top.egon.mario.im.facade.dto.command.MarkReadCommand;
 import top.egon.mario.im.facade.dto.command.SendMessageCommand;
+import top.egon.mario.im.facade.dto.query.AuditHistoryQuery;
+import top.egon.mario.im.facade.dto.query.ConversationMemberQuery;
+import top.egon.mario.im.facade.dto.query.ConversationSurfaceQuery;
 import top.egon.mario.im.facade.dto.query.HistoryQuery;
+import top.egon.mario.im.facade.dto.query.ListChannelsQuery;
+import top.egon.mario.im.facade.dto.query.ListGroupsQuery;
 import top.egon.mario.im.facade.dto.view.ChannelView;
+import top.egon.mario.im.facade.dto.view.ConversationSurfaceView;
 import top.egon.mario.im.facade.dto.view.GroupView;
 import top.egon.mario.im.facade.dto.view.MessageView;
 import top.egon.mario.im.facade.dto.view.UnreadView;
-import top.egon.mario.im.po.ImChannelPo;
-import top.egon.mario.im.po.ImConversationPo;
-import top.egon.mario.im.po.ImGroupPo;
-import top.egon.mario.im.po.ImMessagePo;
-import top.egon.mario.im.po.enums.ImConversationStatus;
-import top.egon.mario.im.po.enums.ImConversationType;
-import top.egon.mario.im.po.enums.ImMembershipStatus;
-import top.egon.mario.im.po.enums.ImSurfaceStatus;
-import top.egon.mario.im.po.enums.ImSurfaceType;
 import top.egon.mario.im.policy.ImAccessContext;
 import top.egon.mario.im.policy.ImPrincipal;
-import top.egon.mario.im.repository.ImChannelRepository;
-import top.egon.mario.im.repository.ImConversationMemberRepository;
-import top.egon.mario.im.repository.ImConversationRepository;
-import top.egon.mario.im.repository.ImGroupRepository;
-import top.egon.mario.im.repository.ImMessageRepository;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 import top.egon.mario.room.po.RoomMemberPo;
 import top.egon.mario.room.po.RoomSpacePo;
@@ -71,15 +63,12 @@ public class ClocktowerImAdapter {
     private static final String JOIN_POLICY_OPEN = "OPEN";
     private static final String MESSAGE_TYPE_TEXT = "TEXT";
     private static final String SURFACE_TYPE_GROUP = "GROUP";
+    private static final String STATUS_ACTIVE_VALUE = "ACTIVE";
+    private static final String CONVERSATION_TYPE_GROUP = "GROUP";
     private static final String PRIVATE_GROUP_PREFIX = ClocktowerChatConstants.GROUP_PRIVATE + ":";
 
     private final ObjectProvider<RoomFacade> roomFacadeProvider;
     private final ObjectProvider<ImFacade> imFacadeProvider;
-    private final ImChannelRepository channelRepository;
-    private final ImGroupRepository groupRepository;
-    private final ImMessageRepository messageRepository;
-    private final ImConversationRepository conversationRepository;
-    private final ImConversationMemberRepository memberRepository;
     private final ClocktowerGameRepository gameRepository;
     private final ClocktowerGameSeatRepository gameSeatRepository;
     private final ClocktowerRoomProfileRepository profileRepository;
@@ -106,11 +95,11 @@ public class ClocktowerImAdapter {
         if (roomId == null) {
             return null;
         }
-        return channelRepository.findByContextTypeAndContextIdAndChannelKeyAndDeletedFalse(
-                        ClocktowerChatConstants.CONTEXT_TYPE, roomId, ClocktowerChatConstants.CHANNEL_ROOM)
-                .flatMap(channel -> groupRepository.findByChannelIdAndGroupKeyAndDeletedFalse(
-                        channel.getId(), ClocktowerChatConstants.GROUP_PUBLIC))
-                .map(ImGroupPo::getConversationId)
+        return clocktowerChannels(roomId, ClocktowerChatConstants.CHANNEL_ROOM).stream()
+                .flatMap(channel -> groups(channel.id()).stream())
+                .filter(group -> ClocktowerChatConstants.GROUP_PUBLIC.equals(group.groupKey()))
+                .map(GroupView::conversationId)
+                .findFirst()
                 .orElse(null);
     }
 
@@ -160,15 +149,13 @@ public class ClocktowerImAdapter {
                                                                       ClocktowerChatViewerMode overrideMode) {
         requireId(roomId, "CLOCKTOWER_ROOM_ID_REQUIRED");
         Long userId = requireUserId(principal);
-        return channelRepository.findByContextTypeAndContextIdAndChannelKeyAndDeletedFalse(
-                        ClocktowerChatConstants.CONTEXT_TYPE, roomId, ClocktowerChatConstants.CHANNEL_ROOM)
-                .stream()
-                .flatMap(channel -> groupRepository.findActiveByChannelId(channel.getId()).stream())
-                .map(ImGroupPo::getConversationId)
+        return clocktowerChannels(roomId, ClocktowerChatConstants.CHANNEL_ROOM).stream()
+                .flatMap(channel -> groups(channel.id()).stream())
+                .map(GroupView::conversationId)
                 .map(this::resolve)
                 .flatMap(Optional::stream)
                 .filter(surface -> canRead(surface, userId, overrideMode))
-                .sorted(Comparator.comparing(surface -> surface.group().getId()))
+                .sorted(Comparator.comparing(ConversationSurface::groupId))
                 .map(this::toConversationResponse)
                 .toList();
     }
@@ -178,15 +165,13 @@ public class ClocktowerImAdapter {
                                                                       ClocktowerChatViewerMode overrideMode) {
         requireId(gameId, "CLOCKTOWER_GAME_ID_REQUIRED");
         Long userId = requireUserId(principal);
-        return channelRepository.findByContextTypeAndContextIdAndChannelKeyAndDeletedFalse(
-                        ClocktowerChatConstants.CONTEXT_TYPE, gameId, ClocktowerChatConstants.CHANNEL_GAME)
-                .stream()
-                .flatMap(channel -> groupRepository.findActiveByChannelId(channel.getId()).stream())
-                .map(ImGroupPo::getConversationId)
+        return clocktowerChannels(gameId, ClocktowerChatConstants.CHANNEL_GAME).stream()
+                .flatMap(channel -> groups(channel.id()).stream())
+                .map(GroupView::conversationId)
                 .map(this::resolve)
                 .flatMap(Optional::stream)
                 .filter(surface -> canRead(surface, userId, overrideMode))
-                .sorted(Comparator.comparing(surface -> surface.group().getId()))
+                .sorted(Comparator.comparing(ConversationSurface::groupId))
                 .map(this::toConversationResponse)
                 .toList();
     }
@@ -196,7 +181,8 @@ public class ClocktowerImAdapter {
         if (context == null || !ClocktowerChatConstants.CONTEXT_TYPE.equals(context.contextType())) {
             return Optional.empty();
         }
-        return resolve(context.surfaceType(), context.surfaceId(), null)
+        String surfaceType = context.surfaceType() == null ? null : context.surfaceType().name();
+        return resolve(new ConversationSurfaceQuery(null, surfaceType, context.surfaceId()))
                 .map(surface -> accessContext(surface, context.principal().userId(), context.activeMembership(),
                         null));
     }
@@ -231,13 +217,16 @@ public class ClocktowerImAdapter {
     }
 
     @Transactional(readOnly = true)
-    public Page<ClocktowerChatMessageResponse> auditMessages(Long conversationId, Pageable pageable) {
+    public Page<ClocktowerChatMessageResponse> auditMessages(Long conversationId, Pageable pageable,
+                                                             RbacPrincipal principal) {
         if (pageable == null) {
             throw new ClocktowerException("CLOCKTOWER_CHAT_PAGE_REQUIRED");
         }
+        RbacPrincipal checkedPrincipal = requirePrincipal(principal);
         resolve(conversationId)
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_CHAT_CONVERSATION_NOT_FOUND"));
-        return messageRepository.findByConversationIdAndDeletedFalseOrderByMessageSeqAsc(conversationId, pageable)
+        return imFacade().auditHistory(new AuditHistoryQuery(imPrincipal(checkedPrincipal), conversationId,
+                        pageable.getPageNumber(), pageable.getPageSize(), null, null))
                 .map(this::toMessageResponse);
     }
 
@@ -257,8 +246,8 @@ public class ClocktowerImAdapter {
     }
 
     private boolean canRead(ConversationSurface surface, Long userId, ClocktowerChatViewerMode overrideMode) {
-        return policy.canRead(accessContext(surface, userId, activeConversationMember(surface.conversation().getId(),
-                userId), overrideMode));
+        return policy.canRead(accessContext(surface, userId, activeConversationMember(
+                surface.conversation().conversationId(), userId), overrideMode));
     }
 
     private void ensureSpectatorConversationMemberIfAllowed(Long conversationId, Long userId, boolean send) {
@@ -277,7 +266,7 @@ public class ClocktowerImAdapter {
             }
             boolean allowed = send ? policy.canSend(accessContext) : policy.canRead(accessContext);
             if (allowed) {
-                joinGroup(surface.group().getId(), userId);
+                joinGroup(surface.groupId(), userId);
             }
         });
     }
@@ -286,49 +275,34 @@ public class ClocktowerImAdapter {
         if (conversationId == null) {
             return Optional.empty();
         }
-        return conversationRepository.findByIdAndDeletedFalse(conversationId)
-                .flatMap(conversation -> resolve(conversation.getOwnerSurfaceType(),
-                        conversation.getOwnerSurfaceId(), conversation));
+        return resolve(new ConversationSurfaceQuery(conversationId, null, null));
     }
 
-    private Optional<ConversationSurface> resolve(ImSurfaceType surfaceType, Long surfaceId,
-                                                  ImConversationPo knownConversation) {
-        if (surfaceType != ImSurfaceType.GROUP || surfaceId == null) {
+    private Optional<ConversationSurface> resolve(ConversationSurfaceQuery query) {
+        return imFacade().findConversationSurface(query)
+                .filter(surface -> ClocktowerChatConstants.CONTEXT_TYPE.equals(surface.contextType()))
+                .filter(surface -> CONVERSATION_TYPE_GROUP.equals(surface.conversationType()))
+                .filter(surface -> STATUS_ACTIVE_VALUE.equals(surface.status()))
+                .filter(surface -> surface.channelId() != null && surface.groupId() != null)
+                .flatMap(this::toSurface);
+    }
+
+    private Optional<ConversationSurface> toSurface(ConversationSurfaceView view) {
+        if (view.channelKey() == null || view.groupKey() == null) {
             return Optional.empty();
         }
-        Optional<ImGroupPo> group = groupRepository.findByIdAndDeletedFalse(surfaceId)
-                .filter(candidate -> ImSurfaceStatus.ACTIVE.equals(candidate.getStatus()));
-        if (group.isEmpty() || group.get().getChannelId() == null) {
-            return Optional.empty();
-        }
-        Optional<ImChannelPo> channel = channelRepository.findByIdAndDeletedFalse(group.get().getChannelId())
-                .filter(candidate -> ImSurfaceStatus.ACTIVE.equals(candidate.getStatus()));
-        if (channel.isEmpty() || !ClocktowerChatConstants.CONTEXT_TYPE.equals(channel.get().getContextType())) {
-            return Optional.empty();
-        }
-        ImConversationPo conversation = knownConversation == null
-                ? conversationRepository.findByOwnerSurfaceTypeAndOwnerSurfaceIdAndConversationTypeAndDeletedFalse(
-                        ImSurfaceType.GROUP, group.get().getId(), ImConversationType.GROUP).orElse(null)
-                : knownConversation;
-        if (conversation == null || !ImConversationStatus.ACTIVE.equals(conversation.getStatus())) {
-            return Optional.empty();
-        }
-        if (!ClocktowerChatConstants.CONTEXT_TYPE.equals(conversation.getContextType())) {
-            return Optional.empty();
-        }
-        String semanticGroupKey = semanticGroupKey(group.get().getGroupKey());
-        String semanticConversationType = semanticConversationType(channel.get().getChannelKey(),
-                group.get().getGroupKey());
+        String semanticGroupKey = semanticGroupKey(view.groupKey());
+        String semanticConversationType = semanticConversationType(view.channelKey(), view.groupKey());
         if (semanticConversationType == null) {
             return Optional.empty();
         }
-        ClocktowerGamePo game = ClocktowerChatConstants.CHANNEL_GAME.equals(channel.get().getChannelKey())
-                ? gameRepository.findByIdAndDeletedFalse(channel.get().getContextId()).orElse(null)
+        ClocktowerGamePo game = ClocktowerChatConstants.CHANNEL_GAME.equals(view.channelKey())
+                ? gameRepository.findByIdAndDeletedFalse(view.contextId()).orElse(null)
                 : null;
-        Long roomId = game == null ? channel.get().getContextId() : game.getRoomId();
-        String participantKey = participantKey(channel.get(), group.get(), semanticConversationType);
-        return Optional.of(new ConversationSurface(conversation, channel.get(), group.get(), semanticGroupKey,
-                semanticConversationType, participantKey, roomId, game));
+        Long roomId = game == null ? view.contextId() : game.getRoomId();
+        String participantKey = participantKey(view, semanticConversationType);
+        return Optional.of(new ConversationSurface(view, semanticGroupKey, semanticConversationType, participantKey,
+                roomId, game));
     }
 
     private ClocktowerChatAccessContext accessContext(ConversationSurface surface, Long userId,
@@ -381,26 +355,20 @@ public class ClocktowerImAdapter {
 
     private boolean activeConversationMember(Long conversationId, Long userId) {
         return conversationId != null && userId != null
-                && memberRepository.existsByConversationIdAndUserIdAndStatusAndDeletedFalse(
-                conversationId, userId, ImMembershipStatus.ACTIVE);
+                && imFacade().hasActiveConversationMember(new ConversationMemberQuery(conversationId, userId));
     }
 
     private ClocktowerChatConversationResponse toConversationResponse(ConversationSurface surface) {
-        ImConversationPo conversation = surface.conversation();
-        return new ClocktowerChatConversationResponse(conversation.getId(), surface.roomId(), surface.gameId(),
-                surface.channel().getChannelKey(), surface.semanticGroupKey(), surface.semanticConversationType(),
-                surface.participantKey(), conversation.getMessageSeq(), conversation.getLastMessageAt());
+        ConversationSurfaceView conversation = surface.conversation();
+        return new ClocktowerChatConversationResponse(conversation.conversationId(), surface.roomId(),
+                surface.gameId(), conversation.channelKey(), surface.semanticGroupKey(),
+                surface.semanticConversationType(), surface.participantKey(), conversation.messageSeq(),
+                conversation.lastMessageAt());
     }
 
     private ClocktowerChatMessageResponse toMessageResponse(MessageView message) {
         return new ClocktowerChatMessageResponse(message.id(), message.conversationId(), message.senderUserId(),
                 message.messageSeq(), message.messageType(), message.content(), message.sentAt());
-    }
-
-    private ClocktowerChatMessageResponse toMessageResponse(ImMessagePo message) {
-        return new ClocktowerChatMessageResponse(message.getId(), message.getConversationId(),
-                message.getSenderUserId(), message.getMessageSeq(), message.getMessageType(), message.getContent(),
-                message.getSentAt());
     }
 
     private void joinGroup(Long groupId, Long userId) {
@@ -439,14 +407,14 @@ public class ClocktowerImAdapter {
         return null;
     }
 
-    private String participantKey(ImChannelPo channel, ImGroupPo group, String semanticConversationType) {
+    private String participantKey(ConversationSurfaceView surface, String semanticConversationType) {
         if (ClocktowerChatConstants.CONVERSATION_PRIVATE.equals(semanticConversationType)) {
-            return group.getGroupKey().substring(PRIVATE_GROUP_PREFIX.length());
+            return surface.groupKey().substring(PRIVATE_GROUP_PREFIX.length());
         }
-        String scopeType = ClocktowerChatConstants.CHANNEL_ROOM.equals(channel.getChannelKey())
+        String scopeType = ClocktowerChatConstants.CHANNEL_ROOM.equals(surface.channelKey())
                 ? ClocktowerChatConstants.SCOPE_ROOM
                 : ClocktowerChatConstants.SCOPE_GAME;
-        return scopeType + ":" + channel.getContextId();
+        return scopeType + ":" + surface.contextId();
     }
 
     private String privateGroupKey(Long firstUserId, Long secondUserId) {
@@ -500,9 +468,24 @@ public class ClocktowerImAdapter {
         return imFacadeProvider.getObject();
     }
 
-    private record ConversationSurface(ImConversationPo conversation, ImChannelPo channel, ImGroupPo group,
-                                       String semanticGroupKey, String semanticConversationType,
-                                       String participantKey, Long roomId, ClocktowerGamePo game) {
+    private List<ChannelView> clocktowerChannels(Long contextId, String channelKey) {
+        return roomFacade().listChannels(new ListChannelsQuery(imPrincipal(0L),
+                        ClocktowerChatConstants.CONTEXT_TYPE, contextId)).stream()
+                .filter(channel -> channelKey.equals(channel.channelKey()))
+                .toList();
+    }
+
+    private List<GroupView> groups(Long channelId) {
+        return roomFacade().listGroups(new ListGroupsQuery(imPrincipal(0L), channelId, null, null));
+    }
+
+    private record ConversationSurface(ConversationSurfaceView conversation, String semanticGroupKey,
+                                       String semanticConversationType, String participantKey, Long roomId,
+                                       ClocktowerGamePo game) {
+
+        Long groupId() {
+            return conversation.groupId();
+        }
 
         Long gameId() {
             return game == null ? null : game.getId();

@@ -1,4 +1,4 @@
-package top.egon.mario.im.service;
+package top.egon.mario.im.facade;
 
 public class ImException extends RuntimeException {
 

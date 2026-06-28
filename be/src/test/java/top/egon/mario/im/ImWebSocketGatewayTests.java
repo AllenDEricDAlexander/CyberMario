@@ -40,7 +40,7 @@ import top.egon.mario.im.policy.ImPrincipal;
 import top.egon.mario.im.realtime.ImConnectionRegistry;
 import top.egon.mario.im.realtime.ImFrame;
 import top.egon.mario.im.repository.ImWsTicketRepository;
-import top.egon.mario.im.service.ImException;
+import top.egon.mario.im.facade.ImException;
 import top.egon.mario.im.service.ImTicketService;
 import top.egon.mario.im.web.ImController;
 import top.egon.mario.im.web.ImWebSocketHandler;

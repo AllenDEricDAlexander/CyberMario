@@ -33,12 +33,6 @@ import top.egon.mario.clocktower.room.po.ClocktowerSeatPo;
 import top.egon.mario.clocktower.script.po.ClocktowerNightOrderPo;
 import top.egon.mario.clocktower.script.po.ClocktowerRolePo;
 import top.egon.mario.clocktower.script.po.ClocktowerScriptPo;
-import top.egon.mario.im.po.ImChannelPo;
-import top.egon.mario.im.po.ImConversationMemberPo;
-import top.egon.mario.im.po.ImConversationPo;
-import top.egon.mario.im.po.ImGroupPo;
-import top.egon.mario.im.po.ImMessagePo;
-import top.egon.mario.im.po.ImReadStatePo;
 import top.egon.mario.room.po.RoomBanPo;
 import top.egon.mario.room.po.RoomInvitationPo;
 import top.egon.mario.room.po.RoomMemberPo;
@@ -57,17 +51,11 @@ class ClocktowerJpaMappingTests {
     private EntityManager entityManager;
 
     @Test
-    void roomAndImPoClassesAreManagedByJpaContext() {
+    void roomPoClassesAreManagedByJpaContext() {
         assertManaged(RoomSpacePo.class);
         assertManaged(RoomMemberPo.class);
         assertManaged(RoomInvitationPo.class);
         assertManaged(RoomBanPo.class);
-        assertManaged(ImChannelPo.class);
-        assertManaged(ImGroupPo.class);
-        assertManaged(ImConversationPo.class);
-        assertManaged(ImConversationMemberPo.class);
-        assertManaged(ImMessagePo.class);
-        assertManaged(ImReadStatePo.class);
     }
 
     @Test
@@ -115,19 +103,7 @@ class ClocktowerJpaMappingTests {
     }
 
     @Test
-    void roomImGameJsonColumnsRoundTripMinimalStrings() {
-        ImMessagePo message = new ImMessagePo();
-        message.setConversationId(101L);
-        message.setSenderMemberId(201L);
-        message.setSenderUserId(301L);
-        message.setMessageSeq(1L);
-        message.setMessageType("TEXT");
-        message.setContent("hello");
-        message.setPayloadJson("{}");
-        message.setMetadataJson("{}");
-        message.setSentAt(Instant.parse("2026-01-01T00:00:00Z"));
-        entityManager.persist(message);
-
+    void roomGameJsonColumnsRoundTripMinimalStrings() {
         ClocktowerGamePo game = new ClocktowerGamePo();
         game.setRoomId(401L);
         game.setGameNo(1);
@@ -153,12 +129,9 @@ class ClocktowerJpaMappingTests {
         entityManager.flush();
         entityManager.clear();
 
-        ImMessagePo reloadedMessage = entityManager.find(ImMessagePo.class, message.getId());
         ClocktowerGamePo reloadedGame = entityManager.find(ClocktowerGamePo.class, game.getId());
         ClocktowerGameEventPo reloadedEvent = entityManager.find(ClocktowerGameEventPo.class, event.getId());
 
-        assertThat(reloadedMessage.getPayloadJson()).isEqualTo("{}");
-        assertThat(reloadedMessage.getMetadataJson()).isEqualTo("{}");
         assertThat(reloadedGame.getBoardSnapshotJson()).isEqualTo("{}");
         assertThat(reloadedGame.getMetadataJson()).isEqualTo("{}");
         assertThat(reloadedEvent.getVisibleGameSeatIdsJson()).isEqualTo("[]");
@@ -167,7 +140,7 @@ class ClocktowerJpaMappingTests {
     }
 
     @Test
-    void roomImGameStatusFieldsPersistAndReload() {
+    void roomGameStatusFieldsPersistAndReload() {
         RoomSpacePo room = new RoomSpacePo();
         room.setContextType("CLOCKTOWER");
         room.setContextId(601L);
@@ -177,19 +150,6 @@ class ClocktowerJpaMappingTests {
         room.setStatus("OPEN");
         room.setLastActiveAt(Instant.parse("2026-01-01T00:00:00Z"));
         entityManager.persist(room);
-
-        ImConversationPo conversation = new ImConversationPo();
-        conversation.setChannelId(701L);
-        conversation.setGroupId(702L);
-        conversation.setContextType("CLOCKTOWER");
-        conversation.setContextId(601L);
-        conversation.setScopeType("ROOM");
-        conversation.setScopeId(601L);
-        conversation.setParticipantKey("ROOM:601");
-        conversation.setConversationType("ROOM");
-        conversation.setStatus("ACTIVE");
-        conversation.setLastActiveAt(Instant.parse("2026-01-01T00:00:00Z"));
-        entityManager.persist(conversation);
 
         ClocktowerGamePo game = new ClocktowerGamePo();
         game.setRoomId(601L);
@@ -203,7 +163,6 @@ class ClocktowerJpaMappingTests {
         entityManager.clear();
 
         assertThat(entityManager.find(RoomSpacePo.class, room.getId()).getStatus()).isEqualTo("OPEN");
-        assertThat(entityManager.find(ImConversationPo.class, conversation.getId()).getStatus()).isEqualTo("ACTIVE");
         assertThat(entityManager.find(ClocktowerGamePo.class, game.getId()).getStatus()).isEqualTo("FINISHED");
     }
 

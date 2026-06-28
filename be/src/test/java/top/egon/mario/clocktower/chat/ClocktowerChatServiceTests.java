@@ -3,6 +3,7 @@ package top.egon.mario.clocktower.chat;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageRequest;
 import top.egon.mario.clocktower.chat.dto.ClocktowerChatConversationResponse;
 import top.egon.mario.clocktower.chat.dto.ClocktowerChatMarkReadRequest;
 import top.egon.mario.clocktower.chat.dto.ClocktowerChatMessageResponse;
@@ -23,12 +24,6 @@ import top.egon.mario.clocktower.room.dto.request.ClocktowerSeatClaimRequest;
 import top.egon.mario.clocktower.room.dto.response.ClocktowerRoomResponse;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomSeatRepository;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomLobbyService;
-import top.egon.mario.im.po.ImMessagePo;
-import top.egon.mario.im.legacy.LegacyImFacade;
-import top.egon.mario.im.repository.ImConversationMemberRepository;
-import top.egon.mario.im.repository.ImConversationRepository;
-import top.egon.mario.im.repository.ImMessageRepository;
-import top.egon.mario.im.service.ImCoreService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.lang.reflect.Field;
@@ -58,17 +53,13 @@ class ClocktowerChatServiceTests {
     @Autowired
     private ClocktowerGameRepository gameRepository;
 
-    @Autowired
-    private ImConversationMemberRepository memberRepository;
-
-    @Autowired
-    private ImMessageRepository messageRepository;
-
     @Test
     void chatServiceImplDependsOnClocktowerAdapterInsteadOfLegacyImBoundary() {
-        assertThat(fieldTypes(ClocktowerChatServiceImpl.class))
-                .contains(ClocktowerImAdapter.class)
-                .doesNotContain(LegacyImFacade.class, ImCoreService.class, ImConversationRepository.class);
+        assertThat(fieldTypes(ClocktowerChatServiceImpl.class).stream()
+                .map(Class::getName)
+                .toList())
+                .contains(ClocktowerImAdapter.class.getName())
+                .noneMatch(fieldType -> fieldType.startsWith("top.egon.mario.im."));
     }
 
     @Test
@@ -96,21 +87,16 @@ class ClocktowerChatServiceTests {
         StartedGame startedGame = startedGameWithSpectator();
         Long spectatorConversationId = spectatorConversationId(startedGame.game());
 
-        assertThat(memberRepository.existsByConversationIdAndUserIdAndStatusAndDeletedFalse(
-                spectatorConversationId, SPECTATOR_USER_ID, "ACTIVE")).isFalse();
-
         ClocktowerChatMessageResponse response = chatService.sendMessage(spectatorConversationId,
                 new ClocktowerChatSendMessageRequest("spectator hello", null), spectator());
 
-        ImMessagePo message = messageRepository
-                .findTopByConversationIdAndDeletedFalseOrderByMessageSeqDesc(spectatorConversationId)
-                .orElseThrow();
-        assertThat(response.messageId()).isEqualTo(message.getId());
-        assertThat(message.getSenderUserId()).isEqualTo(SPECTATOR_USER_ID);
+        assertThat(response.messageId()).isNotNull();
+        assertThat(response.senderUserId()).isEqualTo(SPECTATOR_USER_ID);
         assertThat(response.content()).isEqualTo("spectator hello");
         assertThat(response.messageType()).isEqualTo("TEXT");
-        assertThat(memberRepository.existsByConversationIdAndUserIdAndStatusAndDeletedFalse(
-                spectatorConversationId, SPECTATOR_USER_ID, "ACTIVE")).isTrue();
+        assertThat(chatService.messages(spectatorConversationId, PageRequest.of(0, 10), spectator()).getContent())
+                .extracting(ClocktowerChatMessageResponse::messageId)
+                .contains(response.messageId());
     }
 
     @Test
@@ -118,17 +104,12 @@ class ClocktowerChatServiceTests {
         StartedGame startedGame = startedGameWithSpectator();
         Long spectatorConversationId = spectatorConversationId(startedGame.game());
 
-        assertThat(memberRepository.existsByConversationIdAndUserIdAndStatusAndDeletedFalse(
-                spectatorConversationId, SPECTATOR_USER_ID, "ACTIVE")).isFalse();
-
         ClocktowerChatReadStateResponse response = chatService.markRead(spectatorConversationId,
                 new ClocktowerChatMarkReadRequest(1L), spectator());
 
         assertThat(response.conversationId()).isEqualTo(spectatorConversationId);
         assertThat(response.userId()).isEqualTo(SPECTATOR_USER_ID);
         assertThat(response.lastReadMessageSeq()).isZero();
-        assertThat(memberRepository.existsByConversationIdAndUserIdAndStatusAndDeletedFalse(
-                spectatorConversationId, SPECTATOR_USER_ID, "ACTIVE")).isTrue();
     }
 
     @Test
@@ -153,10 +134,12 @@ class ClocktowerChatServiceTests {
         assertThat(conversation.groupKey()).isEqualTo(ClocktowerChatConstants.GROUP_PRIVATE);
         assertThat(conversation.conversationType()).isEqualTo(ClocktowerChatConstants.CONVERSATION_PRIVATE);
         assertThat(conversation.participantKey()).isEqualTo("11:12");
-        assertThat(memberRepository.existsByConversationIdAndUserIdAndStatusAndDeletedFalse(
-                conversation.conversationId(), 11L, "ACTIVE")).isTrue();
-        assertThat(memberRepository.existsByConversationIdAndUserIdAndStatusAndDeletedFalse(
-                conversation.conversationId(), 12L, "ACTIVE")).isTrue();
+        ClocktowerChatMessageResponse privateMessage = chatService.sendMessage(conversation.conversationId(),
+                new ClocktowerChatSendMessageRequest("private day hello", null), principal(11L, "player1"));
+        assertThat(chatService.messages(conversation.conversationId(), PageRequest.of(0, 10),
+                principal(12L, "player2")).getContent())
+                .extracting(ClocktowerChatMessageResponse::messageId)
+                .contains(privateMessage.messageId());
         assertThat(chatService.conversationsForGame(game.getRoomId(), game.getId(), principal(11L, "player1")))
                 .extracting(ClocktowerChatConversationResponse::conversationType)
                 .contains(ClocktowerChatConstants.CONVERSATION_PRIVATE);

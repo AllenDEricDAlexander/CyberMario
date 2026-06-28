@@ -22,7 +22,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class ImPolicyRegistryTests {
+class PolicyRegistryTests {
 
     private static final Instant NOW = Instant.parse("2026-06-27T00:00:00Z");
     private static final ImPrincipal AUTHENTICATED = new ImPrincipal(1L, Set.of(), "IM_TEST", Map.of());
