@@ -742,20 +742,25 @@ export function resolveClocktowerConfirmedMessageSeq(
 export function mergeClocktowerConversationRecords(conversations: ClocktowerConversationResponse[]) {
     const merged = new Map<number, ClocktowerConversationResponse>()
     for (const conversation of conversations) {
-        const existing = merged.get(conversation.conversationId)
+        const normalizedConversation = normalizeClocktowerConversationRecord(conversation)
+        const existing = merged.get(normalizedConversation.conversationId)
         if (!existing) {
-            merged.set(conversation.conversationId, conversation)
+            merged.set(normalizedConversation.conversationId, {
+                ...normalizedConversation,
+                displayPeerKey: normalizedConversation.displayPeerKey ?? displayPeerKeyFromGroupKey(conversation.groupKey),
+            })
             continue
         }
-        merged.set(conversation.conversationId, {
+        merged.set(normalizedConversation.conversationId, {
             ...existing,
-            ...conversation,
-            participantKey: conversation.participantKey ?? existing.participantKey,
-            channelKey: conversation.channelKey || existing.channelKey,
-            groupKey: conversation.groupKey || existing.groupKey,
-            lastMessage: conversation.lastMessage ?? existing.lastMessage,
-            unreadCount: conversation.unreadCount ?? existing.unreadCount,
-            messageSeq: Math.max(existing.messageSeq, conversation.messageSeq),
+            ...normalizedConversation,
+            displayPeerKey: conversation.displayPeerKey ?? existing.displayPeerKey
+                ?? displayPeerKeyFromGroupKey(conversation.groupKey),
+            channelKey: normalizedConversation.channelKey || existing.channelKey,
+            groupKey: normalizedConversation.groupKey || existing.groupKey,
+            lastMessage: normalizedConversation.lastMessage ?? existing.lastMessage,
+            unreadCount: normalizedConversation.unreadCount ?? existing.unreadCount,
+            messageSeq: Math.max(existing.messageSeq, normalizedConversation.messageSeq),
         })
     }
     return Array.from(merged.values())
@@ -805,11 +810,13 @@ function enrichConversationFromSurface(
             gameId: gameId === undefined ? conversation.gameId : gameId,
         }
     }
+    const surfaceGroupKey = 'groupKey' in surface ? surface.groupKey : null
     return {
         ...conversation,
         gameId: gameId === undefined ? conversation.gameId : gameId,
         channelKey: 'channelKey' in surface ? surface.channelKey : conversation.channelKey,
-        groupKey: 'groupKey' in surface ? surface.groupKey : conversation.groupKey,
+        groupKey: surfaceGroupKey ? semanticClocktowerGroupKey(surfaceGroupKey) : conversation.groupKey,
+        displayPeerKey: displayPeerKeyFromGroupKey(surfaceGroupKey) ?? conversation.displayPeerKey,
     }
 }
 
@@ -859,8 +866,27 @@ async function listClocktowerSurfaceGroups(contextId: number, channels: ChannelV
 }
 
 function normalizeConversationGroup(conversation: ClocktowerConversationResponse) {
-    const groupKey = (conversation.groupKey || conversation.channelKey || conversation.conversationType).toUpperCase()
-    return groupKey.startsWith('PRIVATE') ? 'PRIVATE' : groupKey
+    return semanticClocktowerGroupKey(conversation.groupKey || conversation.channelKey || conversation.conversationType)
+        .toUpperCase()
+}
+
+function normalizeClocktowerConversationRecord(conversation: ClocktowerConversationResponse) {
+    return {
+        ...conversation,
+        groupKey: semanticClocktowerGroupKey(conversation.groupKey),
+        displayPeerKey: conversation.displayPeerKey ?? displayPeerKeyFromGroupKey(conversation.groupKey),
+    }
+}
+
+function semanticClocktowerGroupKey(groupKey: string) {
+    return groupKey.toUpperCase().startsWith('PRIVATE:') ? 'PRIVATE' : groupKey
+}
+
+function displayPeerKeyFromGroupKey(groupKey?: string | null) {
+    if (!groupKey || !groupKey.toUpperCase().startsWith('PRIVATE:')) {
+        return null
+    }
+    return groupKey.slice('PRIVATE:'.length)
 }
 
 function conversationSurfaceCanPost(conversation: ClocktowerConversationResponse) {

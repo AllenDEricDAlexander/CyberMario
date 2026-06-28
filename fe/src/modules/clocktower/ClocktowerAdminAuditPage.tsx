@@ -254,7 +254,7 @@ function ClocktowerAdminAuditPage() {
         {title: '频道', dataIndex: 'channelKey', width: 160, render: valueOrDash},
         {title: '分组', dataIndex: 'groupKey', width: 160, render: valueOrDash},
         {title: '类型', dataIndex: 'conversationType', width: 140, render: renderTag},
-        {title: '参与者', dataIndex: 'participantKey', width: 160, render: valueOrDash},
+        {title: '对端标识', dataIndex: 'displayPeerKey', width: 160, render: valueOrDash},
         {title: '消息序号', dataIndex: 'messageSeq', width: 110},
         {title: '最后消息', dataIndex: 'lastMessageAt', width: 180, render: renderDateTime},
         {

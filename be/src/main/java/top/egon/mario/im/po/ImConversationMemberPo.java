@@ -48,9 +48,6 @@ public class ImConversationMemberPo extends BaseAuditablePo {
     private String metadataJson = "{}";
 
     @Transient
-    private String participantKey;
-
-    @Transient
     private ImMembershipRole memberRole = ImMembershipRole.MEMBER;
 
     @Transient

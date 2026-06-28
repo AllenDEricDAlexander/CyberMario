@@ -365,7 +365,7 @@ export function mapImConversationToClocktower(
         channelKey: surfaceKey,
         groupKey: surfaceKey,
         conversationType: conversation.conversationType,
-        participantKey: null,
+        displayPeerKey: null,
         messageSeq: conversation.messageSeq,
         lastMessageAt: conversation.lastMessageAt,
         lastActiveAt: conversation.lastActiveAt,

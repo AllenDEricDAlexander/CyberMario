@@ -678,7 +678,7 @@ export type ClocktowerConversationResponse = {
     channelKey: string
     groupKey: string
     conversationType: string
-    participantKey?: string | null
+    displayPeerKey?: string | null
     messageSeq: number
     lastMessageAt?: string | null
     lastActiveAt?: string | null

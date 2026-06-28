@@ -140,6 +140,17 @@ cd be
 ./mvnw test
 ```
 
+IM PostgreSQL contract checks can be run against a disposable PostgreSQL
+database:
+
+```bash
+cd be
+IM_POSTGRES_TEST_URL=jdbc:postgresql://localhost:5432/cyber_mario_im_test \
+IM_POSTGRES_TEST_USERNAME=postgres \
+IM_POSTGRES_TEST_PASSWORD=your-password \
+./mvnw -Dmaven.build.cache.enabled=false -Dtest=ImPostgresContractIT,ImPostgresBehaviorIT test
+```
+
 Frontend:
 
 ```bash
@@ -174,6 +185,7 @@ git diff --check
 
 - [FEATURE_CHECKLIST.md](FEATURE_CHECKLIST.md): current feature inventory and implementation notes.
 - [fe/README.md](fe/README.md): frontend scripts, proxy behavior, response contracts, and validation commands.
+- [docs/im-core-contract.md](docs/im-core-contract.md): IM core facade, realtime, Clocktower adapter, and validation contract.
 - [docs/rbac-resource-sync-design.md](docs/rbac-resource-sync-design.md): RBAC resource synchronization design.
 - [docs/superpowers/specs/2026-06-16-agent-memory-design.md](docs/superpowers/specs/2026-06-16-agent-memory-design.md):
   Agent Memory design.

@@ -118,7 +118,7 @@ const gameView: ClocktowerGameViewResponse = {
             channelKey: 'PRIVATE:31',
             groupKey: 'PRIVATE',
             conversationType: 'PRIVATE',
-            participantKey: 'Alice',
+            displayPeerKey: 'Alice',
             messageSeq: 2,
         },
         {

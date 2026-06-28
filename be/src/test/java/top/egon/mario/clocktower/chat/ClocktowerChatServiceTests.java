@@ -133,7 +133,7 @@ class ClocktowerChatServiceTests {
         assertThat(conversation.channelKey()).isEqualTo(ClocktowerChatConstants.CHANNEL_GAME);
         assertThat(conversation.groupKey()).isEqualTo(ClocktowerChatConstants.GROUP_PRIVATE);
         assertThat(conversation.conversationType()).isEqualTo(ClocktowerChatConstants.CONVERSATION_PRIVATE);
-        assertThat(conversation.participantKey()).isEqualTo("11:12");
+        assertThat(conversation.displayPeerKey()).isEqualTo("11:12");
         ClocktowerChatMessageResponse privateMessage = chatService.sendMessage(conversation.conversationId(),
                 new ClocktowerChatSendMessageRequest("private day hello", null), principal(11L, "player1"));
         assertThat(chatService.messages(conversation.conversationId(), PageRequest.of(0, 10),

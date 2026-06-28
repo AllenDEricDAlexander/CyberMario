@@ -5,7 +5,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
-import jakarta.persistence.Transient;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -59,21 +58,6 @@ public class ImConversationPo extends BaseAuditablePo {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "metadata_json", nullable = false, columnDefinition = "jsonb")
     private String metadataJson = "{}";
-
-    @Transient
-    private Long channelId;
-
-    @Transient
-    private Long groupId;
-
-    @Transient
-    private String scopeType;
-
-    @Transient
-    private Long scopeId;
-
-    @Transient
-    private String participantKey;
 
     public String getConversationType() {
         return conversationType == null ? null : conversationType.name();

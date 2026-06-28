@@ -76,12 +76,13 @@ export function ClocktowerConversationList({
 }
 
 export function conversationLabel(conversation: ClocktowerConversationResponse) {
-    const groupKey = conversation.groupKey.toUpperCase()
+    const rawGroupKey = conversation.groupKey.toUpperCase()
+    const groupKey = rawGroupKey.startsWith('PRIVATE:') ? 'PRIVATE' : rawGroupKey
     if (groupKey === 'PUBLIC') {
         return '玩家公聊'
     }
     if (groupKey === 'PRIVATE') {
-        return conversation.participantKey ? `${conversation.participantKey} 私聊` : '私聊'
+        return conversation.displayPeerKey ? `${conversation.displayPeerKey} 私聊` : '私聊'
     }
     if (groupKey === 'SPECTATOR') {
         return '旁观席'

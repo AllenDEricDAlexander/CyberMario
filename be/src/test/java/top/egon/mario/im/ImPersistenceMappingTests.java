@@ -57,7 +57,6 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(properties = "spring.ai.dashscope.api-key=test-api-key")
 @Transactional
@@ -339,21 +338,6 @@ class ImPersistenceMappingTests {
                 .extracting(ImBanPo::getId)
                 .isEqualTo(activeBan.getId());
         assertThat(banRepository.findActiveBan(ImSurfaceType.GROUP, 9407L, 9410L, now)).isEmpty();
-    }
-
-    @Test
-    void legacyConversationRepositoryQueriesFailExplicitly() {
-        assertThatThrownBy(() -> conversationRepository
-                .findByGroupIdAndScopeTypeAndScopeIdAndConversationTypeAndParticipantKeyAndDeletedFalse(
-                        1L, "ROOM", 2L, "PRIVATE", "10:20"))
-                .isInstanceOf(UnsupportedOperationException.class)
-                .hasMessage("IM_LEGACY_CONVERSATION_QUERY_REPLACED");
-
-        assertThatThrownBy(() -> conversationRepository
-                .findByContextTypeAndScopeTypeAndScopeIdAndDeletedFalseOrderByGroupIdAscIdAsc(
-                        "CLOCKTOWER", "ROOM", 2L))
-                .isInstanceOf(UnsupportedOperationException.class)
-                .hasMessage("IM_LEGACY_CONVERSATION_QUERY_REPLACED");
     }
 
     private ImChannelPo channel(String contextType, Long contextId, String channelKey, Instant now) {

@@ -300,8 +300,8 @@ public class ClocktowerImAdapter {
                 ? gameRepository.findByIdAndDeletedFalse(view.contextId()).orElse(null)
                 : null;
         Long roomId = game == null ? view.contextId() : game.getRoomId();
-        String participantKey = participantKey(view, semanticConversationType);
-        return Optional.of(new ConversationSurface(view, semanticGroupKey, semanticConversationType, participantKey,
+        String displayPeerKey = displayPeerKey(view, semanticConversationType);
+        return Optional.of(new ConversationSurface(view, semanticGroupKey, semanticConversationType, displayPeerKey,
                 roomId, game));
     }
 
@@ -362,7 +362,7 @@ public class ClocktowerImAdapter {
         ConversationSurfaceView conversation = surface.conversation();
         return new ClocktowerChatConversationResponse(conversation.conversationId(), surface.roomId(),
                 surface.gameId(), conversation.channelKey(), surface.semanticGroupKey(),
-                surface.semanticConversationType(), surface.participantKey(), conversation.messageSeq(),
+                surface.semanticConversationType(), surface.displayPeerKey(), conversation.messageSeq(),
                 conversation.lastMessageAt());
     }
 
@@ -407,7 +407,7 @@ public class ClocktowerImAdapter {
         return null;
     }
 
-    private String participantKey(ConversationSurfaceView surface, String semanticConversationType) {
+    private String displayPeerKey(ConversationSurfaceView surface, String semanticConversationType) {
         if (ClocktowerChatConstants.CONVERSATION_PRIVATE.equals(semanticConversationType)) {
             return surface.groupKey().substring(PRIVATE_GROUP_PREFIX.length());
         }
@@ -480,7 +480,7 @@ public class ClocktowerImAdapter {
     }
 
     private record ConversationSurface(ConversationSurfaceView conversation, String semanticGroupKey,
-                                       String semanticConversationType, String participantKey, Long roomId,
+                                       String semanticConversationType, String displayPeerKey, Long roomId,
                                        ClocktowerGamePo game) {
 
         Long groupId() {

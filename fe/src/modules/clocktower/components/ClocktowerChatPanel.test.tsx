@@ -97,7 +97,7 @@ const conversations: ClocktowerConversationResponse[] = [
         channelKey: 'PRIVATE:31',
         groupKey: 'PRIVATE',
         conversationType: 'PRIVATE',
-        participantKey: 'Alice',
+        displayPeerKey: 'Alice',
         messageSeq: 2,
     },
     {
@@ -158,7 +158,7 @@ const ackMessage: ClocktowerMessageResponse = {
 
 const channel: ChannelView = {
     id: 301,
-    contextType: 'CLOCKTOWER_ROOM',
+    contextType: 'CLOCKTOWER',
     contextId: 7,
     channelKey: 'PUBLIC',
     name: '玩家公聊',
@@ -178,7 +178,7 @@ const channel: ChannelView = {
 const discoverableGroup: GroupView = {
     id: 302,
     channelId: 301,
-    contextType: 'CLOCKTOWER_ROOM',
+    contextType: 'CLOCKTOWER',
     contextId: 7,
     groupKey: 'SPECTATOR',
     name: '旁观席',
@@ -262,7 +262,8 @@ describe('ClocktowerChatPanel', () => {
             {
                 ...conversations[1],
                 gameId: 11,
-                participantKey: null,
+                groupKey: 'PRIVATE:11:12',
+                displayPeerKey: null,
                 messageSeq: 6,
             },
         ]
@@ -272,8 +273,22 @@ describe('ClocktowerChatPanel', () => {
         expect(mergeClocktowerConversationRecords(duplicatedConversations)).toMatchObject([
             {
                 conversationId: 202,
-                participantKey: 'Alice',
+                groupKey: 'PRIVATE',
+                displayPeerKey: 'Alice',
                 messageSeq: 6,
+            },
+        ])
+        expect(mergeClocktowerConversationRecords([
+            {
+                ...conversations[1],
+                groupKey: 'PRIVATE:11:12',
+                displayPeerKey: null,
+            },
+        ])).toMatchObject([
+            {
+                conversationId: 202,
+                groupKey: 'PRIVATE',
+                displayPeerKey: '11:12',
             },
         ])
     })

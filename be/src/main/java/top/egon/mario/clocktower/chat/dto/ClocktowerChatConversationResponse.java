@@ -9,7 +9,7 @@ public record ClocktowerChatConversationResponse(
         String channelKey,
         String groupKey,
         String conversationType,
-        String participantKey,
+        String displayPeerKey,
         Long messageSeq,
         Instant lastMessageAt
 ) {
