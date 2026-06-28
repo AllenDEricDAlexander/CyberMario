@@ -1,4 +1,5 @@
 import {Badge, Button, Empty, List, Space, Tag, Typography} from 'antd'
+import {DateTimeText} from '../../../components/DateTimeText'
 import type {ClocktowerConversationResponse} from '../clocktowerTypes'
 import type {ClocktowerChatPolicy} from './ClocktowerChatPanel'
 
@@ -37,9 +38,11 @@ export function ClocktowerConversationList({
                     >
                         <Space orientation="vertical" size={2}>
                             <Space wrap>
-                                <Typography.Text strong>
-                                    {conversationLabel(conversation)}
-                                </Typography.Text>
+                                <Badge count={conversation.unreadCount ?? 0} overflowCount={99} size="small">
+                                    <Typography.Text strong>
+                                        {conversationLabel(conversation)}
+                                    </Typography.Text>
+                                </Badge>
                                 <Tag color={policy.readOnly ? 'default' : 'success'}>
                                     {policy.readOnly ? '只读' : '可发言'}
                                 </Tag>
@@ -51,7 +54,17 @@ export function ClocktowerConversationList({
                             <Space wrap size={4}>
                                 <Tag>{conversation.groupKey}</Tag>
                                 <Tag>#{conversation.messageSeq}</Tag>
+                                {conversation.lastActiveAt ?? conversation.lastMessageAt ? (
+                                    <Typography.Text type="secondary">
+                                        <DateTimeText value={conversation.lastActiveAt ?? conversation.lastMessageAt}/>
+                                    </Typography.Text>
+                                ) : null}
                             </Space>
+                            {conversation.lastMessage?.content && (
+                                <Typography.Text ellipsis type="secondary">
+                                    {conversation.lastMessage.content}
+                                </Typography.Text>
+                            )}
                         </Space>
                     </List.Item>
                 )

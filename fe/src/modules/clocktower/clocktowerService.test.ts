@@ -47,6 +47,60 @@ vi.mock('../../services/request', () => ({
     streamServerSentEvents: vi.fn(),
 }))
 
+vi.mock('../im/imService', () => ({
+    listImConversations: vi.fn().mockResolvedValue([
+        {
+            id: 13,
+            conversationType: 'GROUP',
+            ownerSurfaceType: 'GROUP',
+            ownerSurfaceId: 4,
+            contextType: 'CLOCKTOWER',
+            contextId: 7,
+            messageSeq: 9,
+            lastMessage: null,
+            lastMessageAt: '2026-06-24T10:00:00Z',
+            lastActiveAt: '2026-06-24T10:00:00Z',
+            status: 'ACTIVE',
+            unreadCount: 2,
+        },
+    ]),
+    listImMessages: vi.fn().mockResolvedValue({
+        records: [
+            {
+                id: 21,
+                conversationId: 13,
+                senderUserId: 101,
+                messageSeq: 9,
+                messageType: 'TEXT',
+                content: 'hello',
+                status: 'SENT',
+                sentAt: '2026-06-24T10:00:00Z',
+            },
+        ],
+        page: 1,
+        size: 20,
+        total: 1,
+        totalPages: 1,
+    }),
+    markImRead: vi.fn().mockResolvedValue({
+        conversationId: 13,
+        userId: 101,
+        lastReadSeq: 9,
+        unreadCount: 0,
+    }),
+    sendImMessage: vi.fn().mockResolvedValue({
+        id: 22,
+        conversationId: 13,
+        senderUserId: 101,
+        messageSeq: 10,
+        clientMsgId: 'client-1',
+        messageType: 'TEXT',
+        content: 'hello',
+        status: 'SENT',
+        sentAt: '2026-06-24T10:01:00Z',
+    }),
+}))
+
 describe('clocktowerService', () => {
     it('loads script list from the clocktower script endpoint', async () => {
         const {requestJson} = await import('../../services/request')
@@ -300,44 +354,64 @@ describe('clocktowerService', () => {
     })
 
     it('loads room chat conversations', async () => {
-        const {requestJson} = await import('../../services/request')
+        const {listImConversations} = await import('../im/imService')
 
-        await listClocktowerChatConversations(7)
+        const result = await listClocktowerChatConversations(7)
 
-        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/rooms/7/chat/conversations')
-    })
-
-    it('loads chat messages with default and overridden pagination', async () => {
-        const {requestJson} = await import('../../services/request')
-
-        await listClocktowerChatMessages(13)
-        await listClocktowerChatMessages(13, {page: 3, size: 50})
-
-        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/chat/conversations/13/messages?page=1&size=20')
-        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/chat/conversations/13/messages?page=3&size=50')
-    })
-
-    it('sends chat messages to the conversation endpoint', async () => {
-        const {requestJson} = await import('../../services/request')
-        const request = {content: 'hello', metadataJson: '{"source":"test"}'}
-
-        await sendClocktowerChatMessage(13, request)
-
-        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/chat/conversations/13/messages', {
-            method: 'POST',
-            body: request,
+        expect(listImConversations).toHaveBeenCalledWith({contextType: 'CLOCKTOWER', contextId: 7})
+        expect(result[0]).toMatchObject({
+            conversationId: 13,
+            roomId: 7,
+            gameId: 7,
+            messageSeq: 9,
+            unreadCount: 2,
         })
     })
 
+    it('loads chat messages with default and overridden pagination', async () => {
+        const {listImMessages} = await import('../im/imService')
+
+        const result = await listClocktowerChatMessages(13)
+        await listClocktowerChatMessages(13, {page: 3, size: 50})
+
+        expect(listImMessages).toHaveBeenCalledWith(13, {})
+        expect(listImMessages).toHaveBeenCalledWith(13, {page: 3, size: 50})
+        expect(result.records[0]).toMatchObject({
+            messageId: 21,
+            conversationId: 13,
+            messageSeq: 9,
+            content: 'hello',
+        })
+    })
+
+    it('sends chat messages to the conversation endpoint', async () => {
+        const {sendImMessage} = await import('../im/imService')
+        const request = {content: 'hello', metadataJson: '{"source":"test"}'}
+
+        const result = await sendClocktowerChatMessage(13, request)
+        const sendRequest = vi.mocked(sendImMessage).mock.calls.at(-1)?.[0]
+
+        expect(sendRequest).toMatchObject({
+            conversationId: 13,
+            messageType: 'TEXT',
+            content: 'hello',
+            metadataJson: '{"source":"test"}',
+        })
+        expect(sendRequest?.clientMsgId).toMatch(/^clocktower-/)
+        expect(result).toMatchObject({messageId: 22, clientMsgId: 'client-1'})
+    })
+
     it('marks chat conversations read with the read state request', async () => {
-        const {requestJson} = await import('../../services/request')
+        const {markImRead} = await import('../im/imService')
         const request = {messageSeq: 9}
 
-        await markClocktowerChatRead(13, request)
+        const result = await markClocktowerChatRead(13, request)
 
-        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/chat/conversations/13/read', {
-            method: 'POST',
-            body: request,
+        expect(markImRead).toHaveBeenCalledWith(13, request)
+        expect(result).toMatchObject({
+            conversationId: 13,
+            userId: 101,
+            lastReadMessageSeq: 9,
         })
     })
 

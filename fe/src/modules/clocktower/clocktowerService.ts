@@ -1,5 +1,12 @@
 import {requestJson, streamServerSentEvents} from '../../services/request'
 import {buildSearchParams} from '../../services/urlSearch'
+import {
+    listImConversations,
+    listImMessages,
+    markImRead,
+    sendImMessage,
+} from '../im/imService'
+import type {ConversationView, MessagePage, MessageView, UnreadView} from '../im/imTypes'
 import type {
     BoardValidationResponse,
     ClocktowerActionResponse,
@@ -59,6 +66,8 @@ import type {
     ClocktowerVoteReplayResponse,
     StorytellerActionResponse,
 } from './clocktowerTypes'
+
+export const CLOCKTOWER_IM_CONTEXT_TYPE = 'CLOCKTOWER'
 
 export function getClocktowerScripts() {
     return requestJson<ClocktowerScriptResponse[]>('/api/clocktower/scripts')
@@ -320,31 +329,143 @@ export function getClocktowerReplayVotes(roomId: number) {
 }
 
 export function listClocktowerChatConversations(roomId: number) {
-    return requestJson<ClocktowerConversationResponse[]>(`/api/clocktower/rooms/${roomId}/chat/conversations`)
+    return listImConversations({
+        contextType: CLOCKTOWER_IM_CONTEXT_TYPE,
+        contextId: roomId,
+    }).then((conversations) => conversations.map((conversation) => mapImConversationToClocktower(conversation, roomId)))
 }
 
 export function listClocktowerChatMessages(conversationId: number, params: { page?: number; size?: number } = {}) {
-    const search = buildSearchParams({
-        page: params.page ?? 1,
-        size: params.size ?? 20,
-    })
-    return requestJson<ClocktowerPage<ClocktowerMessageResponse>>(
-        `/api/clocktower/chat/conversations/${conversationId}/messages${suffix(search)}`,
-    )
+    return listImMessages(conversationId, params).then(mapImMessagePageToClocktower)
 }
 
 export function sendClocktowerChatMessage(conversationId: number, request: ClocktowerSendMessageRequest) {
-    return requestJson<ClocktowerMessageResponse>(`/api/clocktower/chat/conversations/${conversationId}/messages`, {
-        method: 'POST',
-        body: request,
-    })
+    return sendImMessage({
+        conversationId,
+        clientMsgId: createClocktowerClientMsgId(),
+        messageType: 'TEXT',
+        content: request.content,
+        metadataJson: request.metadataJson,
+    }).then(mapImMessageToClocktower)
 }
 
 export function markClocktowerChatRead(conversationId: number, request: ClocktowerReadStateRequest) {
-    return requestJson<ClocktowerChatReadStateResponse>(`/api/clocktower/chat/conversations/${conversationId}/read`, {
-        method: 'POST',
-        body: request,
-    })
+    return markImRead(conversationId, request).then(mapImUnreadToClocktowerReadState)
+}
+
+export function mapImConversationToClocktower(
+    conversation: ConversationView,
+    roomId = conversation.contextId ?? 0,
+): ClocktowerConversationResponse {
+    const surfaceKey = conversation.ownerSurfaceType ?? conversation.conversationType
+    return {
+        conversationId: conversation.id,
+        roomId,
+        gameId: conversation.contextId,
+        channelKey: surfaceKey,
+        groupKey: surfaceKey,
+        conversationType: conversation.conversationType,
+        participantKey: null,
+        messageSeq: conversation.messageSeq,
+        lastMessageAt: conversation.lastMessageAt,
+        lastActiveAt: conversation.lastActiveAt,
+        lastMessage: conversation.lastMessage,
+        unreadCount: conversation.unreadCount,
+        ownerSurfaceType: conversation.ownerSurfaceType,
+        ownerSurfaceId: conversation.ownerSurfaceId,
+        imConversation: conversation,
+    }
+}
+
+export function mapImMessageToClocktower(message: MessageView): ClocktowerMessageResponse {
+    return {
+        messageId: message.id,
+        conversationId: message.conversationId,
+        senderUserId: message.senderUserId,
+        messageSeq: message.messageSeq,
+        messageType: message.messageType,
+        content: message.content ?? '',
+        sentAt: message.sentAt ?? '',
+        clientMsgId: message.clientMsgId,
+        status: message.status,
+        payloadJson: message.payloadJson,
+        metadataJson: message.metadataJson,
+        imMessage: message,
+    }
+}
+
+export function mapClocktowerMessageToIm(message: ClocktowerMessageResponse): MessageView {
+    return message.imMessage ?? {
+        id: message.messageId,
+        conversationId: message.conversationId,
+        senderUserId: message.senderUserId,
+        messageSeq: message.messageSeq,
+        clientMsgId: message.clientMsgId,
+        messageType: message.messageType,
+        content: message.content,
+        payloadJson: message.payloadJson,
+        status: message.status ?? 'SENT',
+        sentAt: message.sentAt,
+        metadataJson: message.metadataJson,
+    }
+}
+
+export function createClocktowerClientMsgId() {
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+        return `clocktower-${crypto.randomUUID()}`
+    }
+    return `clocktower-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+export function createPendingClocktowerMessage(
+    conversationId: number,
+    content: string,
+    clientMsgId: string,
+    messageSeq: number,
+): ClocktowerMessageResponse {
+    const sentAt = new Date().toISOString()
+    const messageId = -Date.now()
+    return {
+        messageId,
+        conversationId,
+        senderUserId: null,
+        messageSeq,
+        messageType: 'TEXT',
+        content,
+        sentAt,
+        clientMsgId,
+        status: 'PENDING',
+        imMessage: {
+            id: messageId,
+            conversationId,
+            senderUserId: null,
+            messageSeq,
+            clientMsgId,
+            messageType: 'TEXT',
+            content,
+            payloadJson: null,
+            status: 'PENDING',
+            sentAt,
+            metadataJson: null,
+        },
+    }
+}
+
+function mapImMessagePageToClocktower(page: MessagePage): ClocktowerPage<ClocktowerMessageResponse> {
+    return {
+        ...page,
+        records: page.records.map(mapImMessageToClocktower),
+    }
+}
+
+function mapImUnreadToClocktowerReadState(unread: UnreadView): ClocktowerChatReadStateResponse {
+    return {
+        readStateId: 0,
+        conversationId: unread.conversationId,
+        userId: unread.userId,
+        lastReadMessageSeq: unread.lastReadSeq,
+        lastReadAt: null,
+    }
 }
 
 export function getClocktowerRoomAudit(roomId: number) {

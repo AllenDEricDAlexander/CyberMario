@@ -740,6 +740,7 @@ export function StorytellerGameSurface({
                                             conversations={view.conversations}
                                             gameId={view.gameId}
                                             phase={view.phase}
+                                            roomId={view.roomId}
                                             title="聊天监控"
                                             viewerMode="STORYTELLER"
                                         />

@@ -181,6 +181,24 @@ describe('createImSocketController', () => {
         expect(Array.from(staleSocket.listeners.values()).flat()).toHaveLength(0)
     })
 
+    test('returns false without queueing message and read frames when disconnected', () => {
+        const controller = createImSocketController({
+            enabled: false,
+            WebSocketCtor: MockWebSocket,
+            ticketLoader: vi.fn().mockResolvedValue(ticket),
+            location: {protocol: 'http:', host: 'localhost:5173'},
+        })
+
+        expect(controller.sendMessage({
+            conversationId: 2,
+            clientMsgId: 'client-2',
+            messageType: 'TEXT',
+            content: 'Hello',
+        })).toBe(false)
+        expect(controller.markRead({conversationId: 2, messageSeq: 6})).toBe(false)
+        expect(MockWebSocket.instances).toEqual([])
+    })
+
     test('sends message and read frames with request ids when connected', async () => {
         const controller = createImSocketController({
             enabled: true,
@@ -192,13 +210,13 @@ describe('createImSocketController', () => {
         await controller.connect()
         const socket = MockWebSocket.instances[0]
         socket.emit('open')
-        controller.sendMessage({
+        expect(controller.sendMessage({
             conversationId: 2,
             clientMsgId: 'client-2',
             messageType: 'TEXT',
             content: 'Hello',
-        })
-        controller.markRead({conversationId: 2, messageSeq: 6})
+        })).toBe(true)
+        expect(controller.markRead({conversationId: 2, messageSeq: 6})).toBe(true)
 
         const sentFrames = socket.sent.map(parseSentFrame)
 
@@ -213,6 +231,33 @@ describe('createImSocketController', () => {
             },
         ])
         expect(sentFrames.every((frame) => typeof frame.requestId === 'string' && /^im-/.test(frame.requestId))).toBe(true)
+    })
+
+    test('returns false and reports an error when socket send throws synchronously', async () => {
+        const onError = vi.fn()
+        const controller = createImSocketController({
+            enabled: true,
+            WebSocketCtor: MockWebSocket,
+            ticketLoader: vi.fn().mockResolvedValue(ticket),
+            location: {protocol: 'http:', host: 'localhost:5173'},
+            onError,
+        })
+
+        await controller.connect()
+        const socket = MockWebSocket.instances[0]
+        const error = new Error('send failed')
+        vi.spyOn(socket, 'send').mockImplementation(() => {
+            throw error
+        })
+        socket.emit('open')
+
+        expect(controller.sendMessage({
+            conversationId: 2,
+            clientMsgId: 'client-2',
+            messageType: 'TEXT',
+            content: 'Hello',
+        })).toBe(false)
+        expect(onError).toHaveBeenCalledWith(error)
     })
 
     test('routes server frames, supports realtime read payloads, dedupes detailed message pushes, and closes on disconnect', async () => {

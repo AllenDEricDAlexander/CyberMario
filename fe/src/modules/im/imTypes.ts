@@ -235,6 +235,7 @@ export type ImReadUpdatedPayload = {
 export type ImMessagePushPayload = {
     eventType: string
     conversationId?: number | null
+    messageId?: number | null
     messageSeq?: number | null
     message?: MessageView
     unread?: UnreadView

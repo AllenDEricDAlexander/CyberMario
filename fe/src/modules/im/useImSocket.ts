@@ -51,8 +51,8 @@ export type ImSocketOptions = {
 
 export type ImSocketController = {
     connect: () => Promise<void>
-    sendMessage: (request: SendMessageRequest) => void
-    markRead: (request: {conversationId: number; messageSeq: number}) => void
+    sendMessage: (request: SendMessageRequest) => boolean
+    markRead: (request: {conversationId: number; messageSeq: number}) => boolean
     reconnect: () => Promise<void>
     disconnect: () => void
 }
@@ -207,7 +207,7 @@ export function createImSocketController(options: ImSocketOptions): ImSocketCont
     function sendFrame<Type extends ImClientFrameType>(type: Type, payload: ImClientFrameFor<Type>['payload']) {
         const openState = socketOptions.WebSocketCtor?.OPEN ?? globalThis.WebSocket?.OPEN ?? 1
         if (!socket || socket.readyState !== openState) {
-            return
+            return false
         }
         const cleanPayload = Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined))
         const frame: ImClientFrame = {
@@ -215,7 +215,13 @@ export function createImSocketController(options: ImSocketOptions): ImSocketCont
             requestId: `im-${Date.now()}-${++requestSeq}`,
             payload: cleanPayload,
         } as ImClientFrame
-        socket.send(JSON.stringify(frame))
+        try {
+            socket.send(JSON.stringify(frame))
+            return true
+        } catch (error) {
+            socketOptions.onError?.(error)
+            return false
+        }
     }
 
     function disconnect() {

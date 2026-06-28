@@ -1,5 +1,6 @@
 import type {PageResult} from '../../types/api'
 import type {CodedEnum} from '../../utils/enum'
+import type {ConversationView, MessageView} from '../im/imTypes'
 
 export type ClocktowerScriptCode = 'TROUBLE_BREWING' | 'BAD_MOON_RISING' | 'SECTS_AND_VIOLETS'
 export type ClocktowerRoleTypeCode = 'TOWNSFOLK' | 'OUTSIDER' | 'MINION' | 'DEMON' | 'TRAVELER' | 'FABLED'
@@ -680,6 +681,12 @@ export type ClocktowerConversationResponse = {
     participantKey?: string | null
     messageSeq: number
     lastMessageAt?: string | null
+    lastActiveAt?: string | null
+    lastMessage?: MessageView | null
+    unreadCount?: number | null
+    ownerSurfaceType?: string | null
+    ownerSurfaceId?: number | null
+    imConversation?: ConversationView
 }
 
 export type ClocktowerMessageResponse = {
@@ -690,6 +697,11 @@ export type ClocktowerMessageResponse = {
     messageType: string
     content: string
     sentAt: string
+    clientMsgId?: string | null
+    status?: string | null
+    payloadJson?: string | null
+    metadataJson?: string | null
+    imMessage?: MessageView
 }
 
 export type ClocktowerSendMessageRequest = {

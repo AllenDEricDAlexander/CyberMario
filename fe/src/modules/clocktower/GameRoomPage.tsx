@@ -292,6 +292,7 @@ export function GameRoomSurface({
                                             conversations={view.conversations}
                                             gameId={view.gameId}
                                             phase={view.phase}
+                                            roomId={view.roomId}
                                             viewerMode={view.viewerMode}
                                         />
                                     ),

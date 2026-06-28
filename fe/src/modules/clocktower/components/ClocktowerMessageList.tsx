@@ -21,6 +21,8 @@ export function ClocktowerMessageList({messages, loading}: ClocktowerMessageList
                             <Tag color={message.messageType === 'TEXT' ? 'processing' : 'default'}>
                                 {message.messageType}
                             </Tag>
+                            {message.status === 'PENDING' && <Tag color="warning">发送中</Tag>}
+                            {message.status === 'FAILED' && <Tag color="error">发送失败</Tag>}
                             <Typography.Text type="secondary">
                                 <DateTimeText value={message.sentAt}/>
                             </Typography.Text>
@@ -31,7 +33,7 @@ export function ClocktowerMessageList({messages, loading}: ClocktowerMessageList
                     </Space>
                 </List.Item>
             )}
-            rowKey="messageId"
+            rowKey={(message) => message.messageId > 0 ? message.messageId : message.clientMsgId ?? message.messageSeq}
             size="small"
         />
     )
