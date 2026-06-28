@@ -34,6 +34,14 @@ export default defineConfig(({mode}) => ({
                     `http://localhost:${process.env.VITE_BACKEND_PORT || process.env.BACKEND_PORT || '28080'}`,
                 changeOrigin: true,
             },
+            '/ws': {
+                target:
+                    process.env.VITE_BACKEND_TARGET ||
+                    process.env.VITE_API_BASE_URL ||
+                    `http://localhost:${process.env.VITE_BACKEND_PORT || process.env.BACKEND_PORT || '28080'}`,
+                changeOrigin: true,
+                ws: true,
+            },
         },
     },
 }))
