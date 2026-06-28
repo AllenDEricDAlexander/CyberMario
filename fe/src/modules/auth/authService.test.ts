@@ -8,7 +8,7 @@ vi.mock('../../services/request', () => ({
 
 vi.mock('./passwordEncryption', () => ({
     clearPasswordKeyCache: vi.fn(),
-    encryptPasswordForTransport: vi.fn(async (password: string) => ({
+    encryptPasswordForTransport: vi.fn((password: string) => Promise.resolve({
         encryptedPassword: `encrypted:${password}`,
         passwordKeyId: 'key-1',
     })),
@@ -33,9 +33,7 @@ describe('authService', () => {
                 passwordKeyId: 'key-1',
             },
         })
-        expect(requestJson).not.toHaveBeenCalledWith('/api/auth/login', expect.objectContaining({
-            body: expect.objectContaining({password: 'secret'}),
-        }))
+        expect(vi.mocked(requestJson).mock.calls[0]?.[1]?.body).not.toHaveProperty('password')
     })
 
     test('encrypts register password before sending the request body', async () => {
@@ -61,9 +59,7 @@ describe('authService', () => {
                 email: 'mario@example.com',
             },
         })
-        expect(requestJson).not.toHaveBeenCalledWith('/api/auth/register', expect.objectContaining({
-            body: expect.objectContaining({password: 'password123'}),
-        }))
+        expect(vi.mocked(requestJson).mock.calls[0]?.[1]?.body).not.toHaveProperty('password')
     })
 
     test('refreshes the password key once when login rejects a stale key', async () => {
@@ -76,7 +72,7 @@ describe('authService', () => {
             .mockRejectedValueOnce(new ApiRequestError('password encryption key is invalid', {
                 code: 'AUTH_PASSWORD_KEY_INVALID',
             }))
-            .mockResolvedValueOnce({} as never)
+            .mockResolvedValueOnce({})
 
         await login({account: 'mario', password: 'secret'})
 
