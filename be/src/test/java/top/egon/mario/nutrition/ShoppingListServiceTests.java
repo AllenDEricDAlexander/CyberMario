@@ -219,6 +219,27 @@ class ShoppingListServiceTests {
     }
 
     @Test
+    void shoppingListAllowsPlatformPublicRecipe() {
+        NutritionFamilyPo family = family("Mario Family", COOK_USER_ID);
+        roleBinding(COOK_USER_ID, NutritionRoleCode.COOK, NutritionScopeType.FAMILY, family.getId());
+        NutritionStandardFoodPo rice = standardFood("Rice", "GRAIN");
+        NutritionRecipePo publicRecipe = platformRecipe("Rice Bowl", 1);
+        recipeIngredient(null, publicRecipe.getId(), rice.getId(), "Rice", new BigDecimal("150.000"), "g");
+        NutritionMealPlanPo mealPlan = mealPlan(family.getId(), NutritionMealPlanStatus.CONFIRM_CLOSED);
+        mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.LUNCH, publicRecipe.getId(),
+                "Rice Bowl", new BigDecimal("1.000"), 0);
+
+        ShoppingListResponse response = shoppingListService.generateShoppingList(
+                family.getId(), mealPlan.getId(), COOK_USER_ID);
+
+        assertThat(response.items()).singleElement().satisfies(item -> {
+            assertThat(item.standardFoodId()).isEqualTo(rice.getId());
+            assertThat(item.plannedAmount()).isEqualByComparingTo("150.000");
+            assertThat(item.plannedUnit()).isEqualTo("g");
+        });
+    }
+
+    @Test
     void pendingReviewMealPlanCannotGenerateShoppingList() {
         NutritionFamilyPo family = family("Mario Family", COOK_USER_ID);
         roleBinding(COOK_USER_ID, NutritionRoleCode.COOK, NutritionScopeType.FAMILY, family.getId());
@@ -287,6 +308,18 @@ class ShoppingListServiceTests {
         recipe.setSourceType(NutritionRecipeSourceType.FAMILY_PRIVATE);
         recipe.setName(name);
         recipe.setCategory("DINNER");
+        recipe.setDescription("");
+        recipe.setServingCount(servingCount);
+        recipe.setStatus(NutritionStatus.ACTIVE);
+        return recipeRepository.saveAndFlush(recipe);
+    }
+
+    private NutritionRecipePo platformRecipe(String name, int servingCount) {
+        NutritionRecipePo recipe = new NutritionRecipePo();
+        recipe.setFamilyId(null);
+        recipe.setSourceType(NutritionRecipeSourceType.PLATFORM_PUBLIC);
+        recipe.setName(name);
+        recipe.setCategory("LUNCH");
         recipe.setDescription("");
         recipe.setServingCount(servingCount);
         recipe.setStatus(NutritionStatus.ACTIVE);

@@ -216,6 +216,38 @@ class NutritionRecordServiceTests {
     }
 
     @Test
+    void completedMealRecordGenerationAllowsPlatformPublicRecipe() {
+        NutritionFamilyPo family = family("Mario Family", COOK_USER_ID);
+        NutritionMemberProfilePo mario = memberProfile(family.getId(), MARIO_USER_ID, "Mario");
+        NutritionStandardFoodPo rice = standardFood("Rice", "GRAIN",
+                "120.000", "2.000", "0.500", "26.000");
+        NutritionRecipePo publicRecipe = platformRecipe("Rice Bowl", 1);
+        NutritionRecipeIngredientPo ingredient = new NutritionRecipeIngredientPo();
+        ingredient.setFamilyId(null);
+        ingredient.setRecipeId(publicRecipe.getId());
+        ingredient.setStandardFoodId(rice.getId());
+        ingredient.setRawFoodName("Rice");
+        ingredient.setAmount(new BigDecimal("100.000"));
+        ingredient.setUnit("g");
+        ingredient.setMappingStatus(RecipeService.MAPPING_STATUS_MAPPED);
+        recipeIngredientRepository.saveAndFlush(ingredient);
+        NutritionMealPlanPo mealPlan = mealPlan(family.getId(), LocalDate.of(2026, 7, 8),
+                NutritionMealPlanStatus.COMPLETED, "Rice lunch", new BigDecimal("8.00"), 1);
+        mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.LUNCH, publicRecipe.getId(),
+                "Rice Bowl", new BigDecimal("1.000"), 0);
+        confirmation(family.getId(), mealPlan.getId(), mario.getId(), "[]");
+
+        List<NutritionRecordResponse> records = recordService.generateForCompletedMealPlan(
+                family.getId(), mealPlan.getId());
+
+        assertThat(records).singleElement().satisfies(record -> {
+            assertThat(record.memberProfileId()).isEqualTo(mario.getId());
+            assertThat(record.nutrients().calories()).isEqualByComparingTo("120.000");
+            assertThat(record.nutrients().protein()).isEqualByComparingTo("2.000");
+        });
+    }
+
+    @Test
     void recordAdjustmentKeepsOriginalAndStoresCorrection() {
         NutritionFamilyPo family = family("Mario Family", COOK_USER_ID);
         roleBinding(COOK_USER_ID, NutritionRoleCode.COOK, NutritionScopeType.FAMILY, family.getId());
@@ -417,6 +449,17 @@ class NutritionRecordServiceTests {
         recipe.setSourceType(NutritionRecipeSourceType.FAMILY_PRIVATE);
         recipe.setName(name);
         recipe.setCategory("DINNER");
+        recipe.setServingCount(servingCount);
+        recipe.setStatus(NutritionStatus.ACTIVE);
+        return recipeRepository.saveAndFlush(recipe);
+    }
+
+    private NutritionRecipePo platformRecipe(String name, int servingCount) {
+        NutritionRecipePo recipe = new NutritionRecipePo();
+        recipe.setFamilyId(null);
+        recipe.setSourceType(NutritionRecipeSourceType.PLATFORM_PUBLIC);
+        recipe.setName(name);
+        recipe.setCategory("LUNCH");
         recipe.setServingCount(servingCount);
         recipe.setStatus(NutritionStatus.ACTIVE);
         return recipeRepository.saveAndFlush(recipe);
