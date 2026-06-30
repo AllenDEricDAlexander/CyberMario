@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import top.egon.mario.nutrition.po.NutritionStandardFoodPo;
 import top.egon.mario.nutrition.po.enums.NutritionStatus;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -13,4 +14,6 @@ public interface NutritionStandardFoodRepository extends JpaRepository<Nutrition
 
     Optional<NutritionStandardFoodPo> findFirstByNameCnIgnoreCaseAndCategoryIgnoreCaseAndStatusAndDeletedFalseOrderByIdAsc(
             String nameCn, String category, NutritionStatus status);
+
+    List<NutritionStandardFoodPo> findByIdInAndStatusAndDeletedFalse(Collection<Long> ids, NutritionStatus status);
 }

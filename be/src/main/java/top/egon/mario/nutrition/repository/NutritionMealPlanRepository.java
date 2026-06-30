@@ -31,4 +31,7 @@ public interface NutritionMealPlanRepository extends JpaRepository<NutritionMeal
 
     List<NutritionMealPlanPo> findByFamilyIdAndPlanDateAndDeletedFalseOrderByIdDesc(
             Long familyId, LocalDate planDate);
+
+    List<NutritionMealPlanPo> findByFamilyIdAndPlanDateBetweenAndDeletedFalseOrderByPlanDateAscIdAsc(
+            Long familyId, LocalDate periodStart, LocalDate periodEnd);
 }
