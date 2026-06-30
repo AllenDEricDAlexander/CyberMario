@@ -304,6 +304,22 @@
 - arXiv 工具日志状态包含搜索、导入 pending/running/success/failed/skipped 等过程信息。
 - arXiv 日志页面和接口只允许 `SUPER_ADMIN` 访问。
 
+## 13. 营养管理（Nutrition Management）
+
+- 已实现家庭 AI 营养 MVP 的后端领域、RBAC 资源、前端路由和页面切片。
+- 支持 clan、family、clan-family 关系和 family-scoped member profile 模型。
+- family 是菜单、确认、购物清单、预算、食谱和营养记录的业务隔离边界。
+- 营养权限分为平台 RBAC 菜单/API 入口和 nutrition-scoped role binding / data grant 显式授权。
+- 支持 member health profile、健康标签、饮食目标、过敏/忌口/限制配置和同家庭可见的健康档案。
+- 支持平台 standard food 数据和 family recipe 数据，并记录食谱食材与营养素。
+- 支持标准食物和家庭食谱 CSV import job，包含导入确认和错误记录。
+- 支持按家庭生成 AI 菜单建议，生成待 cook review 的 meal plan，并保留 AI 原始输出、推荐理由和复核所需数据；当前 AI 推荐/发布路径不自动调用 `NutritionRuleCheckService` 做规则筛查。
+- 支持 meal plan 发布、成员或代理 meal confirmation、确认截止、meal completion 和 meal summary。
+- 支持由 meal plan 生成 shopping list、更新采购项和记录 food price record。
+- 支持 weekly/monthly budget statistics 和预算快照。
+- 支持 meal completion 后生成 nutrition record、手工调整/加餐记录、daily overview 和 family weekly/monthly basic reports。
+- 前端营养路由包括家庭营养、成员健康、食谱库、AI 菜单、用餐确认、用餐汇总、购物清单、预算、营养记录和平台配置页面。
+
 ## Clocktower Phase 1
 
 - [x] Script, role, night-order, term, and jinx query APIs.
@@ -327,7 +343,7 @@
 - [x] Game replay is queried by `gameId`; `/clocktower/games/{gameId}/replay` is authorized through the Clocktower replay menu.
 - [x] Management audit supports room, game, chat, invitation, member, and ban projections through Clocktower admin APIs.
 
-## 13. 数据权限与边界
+## 14. 数据权限与边界
 
 - RBAC API 权限控制“能不能调用接口”。
 - RAG 知识库用户授权控制“能看到哪些知识库和文档”。
@@ -340,7 +356,7 @@
 - 已有迁移清理普通用户不应拥有的 dashboard global 授权。
 - 本次钟楼重构接受一个 RBAC 迁移偏差：`V27__retire_old_clocktower_rbac_resources.sql` 一次性退休旧钟楼权限；后续类似能力应优先进入 RBAC 资源同步器的 stale-resource retirement 机制。
 
-## 14. 数据库迁移现状
+## 15. 数据库迁移现状
 
 - `V1__create_rbac_schema.sql`：RBAC 基础 schema。
 - `V2__convert_rbac_enums_to_integer.sql`：RBAC 枚举持久化调整。
@@ -369,7 +385,7 @@
 - `V26__create_room_im_clocktower_refactor_schema.sql`：Room / IM / Clocktower game refactor schema。
 - `V27__retire_old_clocktower_rbac_resources.sql`：一次性退休旧钟楼 RBAC 权限；这是本次重构接受的迁移偏差。
 
-## 15. 已有测试覆盖线索
+## 16. 已有测试覆盖线索
 
 - 前端有 request、tokenStorage、urlSearch、async、enum、pageDataState 等基础工具测试。
 - 前端有 AdminLayout 菜单、权限影响和样式相关测试。
@@ -377,12 +393,12 @@
 - 前端有 Agent 预设权限、默认预设和 agent service 测试。
 - 前端有 MCP service 和 MCP Server 编辑抽屉测试。
 - 前端有 RAG service 测试。
-- 后端测试目录存在，但当前仓库中可见的主要测试线索集中在前端。
+- 后端已有 nutrition slice 测试，覆盖 schema migration、RBAC resource provider、access service、CSV import、rule check、AI service、meal plan/confirmation、shopping、budget、nutrition record 和 controller smoke 路径。
 
-## 16. 目前需要注意的实现细节
+## 17. 目前需要注意的实现细节
 
 - `fe/node_modules` 和 `fe/dist` 当前存在于工作区，但它们是生成/依赖产物，不应作为功能来源。
-- `README.md` 只简要提到 Dynamic MCP Client Management，真实功能主要需要从源码确认。
+- `README.md` 作为高层项目入口维护紧凑 feature list；完整功能细节仍以本文件和对应模块源码为准。
 - arXiv 日志菜单由 RAG 菜单展示，但接口权限资源在 Agent 侧声明。
 - Agent MCP 资源 provider 中的顶层 Agent 菜单当前命名为“首页控制台”，实际用于承载 `/dashboard`。
 - 基础 Agent Chat 使用 `/demo/chat/stream`，Agent 调试使用 `/api/agent/debug/chat/stream`，RAG 问答使用
