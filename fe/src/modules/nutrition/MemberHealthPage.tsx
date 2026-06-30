@@ -29,8 +29,8 @@ function MemberHealthPage() {
     return (
         <NutritionStack>
             <PageToolbar
-                actions={<Button icon={<UserSwitchOutlined/>} onClick={() => setDrawerOpen(true)} type="primary">监护人控制</Button>}
-                description="维护家庭成员、健康目标和儿童账号监护关系。"
+                actions={<Button icon={<UserSwitchOutlined/>} onClick={() => setDrawerOpen(true)}>查看监护预览</Button>}
+                description="维护家庭成员、健康目标和儿童账号监护关系；当前 Fixture MVP 仅提供监护关系预览。"
                 title="成员健康"
             />
             <NutritionPageGrid>
@@ -55,10 +55,11 @@ function MemberHealthPage() {
                     />
                 </NutritionSection>
             </NutritionPageGrid>
-            <Drawer onClose={() => setDrawerOpen(false)} open={drawerOpen} title="健康档案与监护人控制">
+            <Drawer onClose={() => setDrawerOpen(false)} open={drawerOpen} title="监护关系预览">
                 <Descriptions column={1} bordered size="small">
+                    <Descriptions.Item label="预览状态">只读 Fixture，不会保存变更</Descriptions.Item>
                     <Descriptions.Item label="成员">小米</Descriptions.Item>
-                    <Descriptions.Item label="监护人控制">由 Mario 代理确认菜单和风险提醒</Descriptions.Item>
+                    <Descriptions.Item label="监护关系">由 Mario 代理确认菜单和风险提醒</Descriptions.Item>
                     <Descriptions.Item label="健康目标">目标热量 1600 kcal，花生过敏，低糖</Descriptions.Item>
                 </Descriptions>
             </Drawer>

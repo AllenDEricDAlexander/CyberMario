@@ -39,14 +39,20 @@ const associationColumns: ColumnsType<ClanFamilyAssociation> = [
     {title: '状态', dataIndex: 'status', width: 110, render: (value) => <Tag color="success">{value}</Tag>},
 ]
 
+const grantPreviewValues = {
+    familyId: nutritionFamilies[0].id,
+    grantee: associations[0].clanName,
+    scope: ['CONFIRMATION', 'HEALTH_READ'],
+}
+
 function ClanFamilyPage() {
     const [grantOpen, setGrantOpen] = useState(false)
 
     return (
         <NutritionStack>
             <PageToolbar
-                actions={<Button icon={<SafetyCertificateOutlined/>} onClick={() => setGrantOpen(true)} type="primary">打开授权</Button>}
-                description="管理 Clan、家庭和跨家庭营养协作授权，所有跨家庭访问都需要显式授权。"
+                actions={<Button icon={<SafetyCertificateOutlined/>} onClick={() => setGrantOpen(true)}>查看授权预览</Button>}
+                description="管理 Clan、家庭和跨家庭营养协作授权；当前 Fixture MVP 仅提供授权只读预览。"
                 title="家庭营养"
             />
             <NutritionPageGrid>
@@ -82,14 +88,14 @@ function ClanFamilyPage() {
             <Drawer
                 onClose={() => setGrantOpen(false)}
                 open={grantOpen}
-                title="显式授权"
+                title="授权只读预览"
             >
-                <Form layout="vertical">
+                <Form disabled initialValues={grantPreviewValues} layout="vertical">
                     <Form.Item label="授权家庭" name="familyId">
                         <Select options={nutritionFamilies.map((family) => ({label: family.name, value: family.id}))}/>
                     </Form.Item>
                     <Form.Item label="授权对象" name="grantee">
-                        <Input placeholder="输入用户 ID 或 Clan 名称"/>
+                        <Input/>
                     </Form.Item>
                     <Form.Item label="授权范围" name="scope">
                         <Select
@@ -103,6 +109,7 @@ function ClanFamilyPage() {
                     </Form.Item>
                 </Form>
                 <Descriptions column={1} size="small">
+                    <Descriptions.Item label="预览状态">只读 Fixture，不会保存变更</Descriptions.Item>
                     <Descriptions.Item label="控制方式">显式授权</Descriptions.Item>
                     <Descriptions.Item label="审计要求">保存授权人、被授权人和范围</Descriptions.Item>
                 </Descriptions>
