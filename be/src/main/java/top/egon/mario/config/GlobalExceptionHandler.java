@@ -16,6 +16,7 @@ import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.im.service.ImException;
+import top.egon.mario.nutrition.service.NutritionException;
 import top.egon.mario.rag.service.RagException;
 import top.egon.mario.rbac.service.RbacException;
 
@@ -86,6 +87,17 @@ public class GlobalExceptionHandler {
             String traceId = TraceContext.traceId(contextView);
             return Mono.just(TraceContext.withMdc(traceId, () -> {
                 LogUtil.warn(log).log("rag request rejected, code={}", ex.getCode());
+                return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getCode(), ex.getMessage(), traceId));
+            }));
+        });
+    }
+
+    @ExceptionHandler(NutritionException.class)
+    public Mono<ResponseEntity<ApiResponse<Void>>> handleNutritionException(NutritionException ex) {
+        return Mono.deferContextual(contextView -> {
+            String traceId = TraceContext.traceId(contextView);
+            return Mono.just(TraceContext.withMdc(traceId, () -> {
+                LogUtil.warn(log).log("nutrition request rejected, code={}", ex.getCode());
                 return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getCode(), ex.getMessage(), traceId));
             }));
         });

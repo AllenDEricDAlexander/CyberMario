@@ -10,6 +10,7 @@ import top.egon.mario.nutrition.po.enums.NutritionStatus;
 
 import java.time.Instant;
 import java.util.Collection;
+import java.util.List;
 
 public interface NutritionDataGrantRepository extends JpaRepository<NutritionDataGrantPo, Long> {
 
@@ -32,4 +33,7 @@ public interface NutritionDataGrantRepository extends JpaRepository<NutritionDat
                                 @Param("permissionLevels") Collection<NutritionGrantPermissionLevel> permissionLevels,
                                 @Param("status") NutritionStatus status,
                                 @Param("now") Instant now);
+
+    List<NutritionDataGrantPo> findByFamilyIdAndGranteeTypeAndGranteeIdAndDataScopeOrderByIdAsc(
+            Long familyId, String granteeType, Long granteeId, NutritionGrantDataScope dataScope);
 }

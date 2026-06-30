@@ -26,6 +26,7 @@ class NutritionRbacResourceProviderTests {
                         "menu:nutrition",
                         "menu:nutrition:families",
                         "menu:nutrition:platform",
+                        "api:nutrition:clan:*",
                         "api:nutrition:family:*",
                         "api:nutrition:platform:*"
                 );
@@ -49,7 +50,7 @@ class NutritionRbacResourceProviderTests {
                 .satisfies(seed -> {
                     assertThat(seed.type()).isEqualTo(PermissionType.API);
                     assertThat(seed.api().publicFlag()).isFalse();
-                    assertThat(seed.api().urlPattern()).isEqualTo("/api/nutrition/family/**");
+                    assertThat(seed.api().urlPattern()).isEqualTo("/api/nutrition/families/**");
                 });
     }
 
@@ -64,14 +65,15 @@ class NutritionRbacResourceProviderTests {
                 .filteredOn(seed -> "NUTRITION_USER".equals(seed.roleCode()))
                 .singleElement()
                 .satisfies(seed -> assertThat(seed.permissionCodes())
-                        .contains("menu:nutrition", "menu:nutrition:families", "api:nutrition:family:*")
+                        .contains("menu:nutrition", "menu:nutrition:families",
+                                "api:nutrition:clan:*", "api:nutrition:family:*")
                         .doesNotContain("menu:nutrition:platform", "api:nutrition:platform:*"));
         assertThat(provider.rolePresets())
                 .filteredOn(seed -> "NUTRITION_PLATFORM_ADMIN".equals(seed.roleCode()))
                 .singleElement()
                 .satisfies(seed -> assertThat(seed.permissionCodes())
                         .contains("menu:nutrition", "menu:nutrition:families",
-                                "menu:nutrition:platform", "api:nutrition:family:*",
-                                "api:nutrition:platform:*"));
+                                "menu:nutrition:platform", "api:nutrition:clan:*",
+                                "api:nutrition:family:*", "api:nutrition:platform:*"));
     }
 }

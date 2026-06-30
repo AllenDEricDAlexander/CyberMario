@@ -50,7 +50,7 @@ public class NutritionRbacResourceProvider implements RbacResourceProvider {
                         60,
                         List.of(
                                 "menu:nutrition", "menu:nutrition:families", "menu:nutrition:platform",
-                                "api:nutrition:family:*", "api:nutrition:platform:*",
+                                "api:nutrition:clan:*", "api:nutrition:family:*", "api:nutrition:platform:*",
                                 AUTH_SELF_API_PERMISSION_CODE, ME_SELF_API_PERMISSION_CODE
                         ),
                         RbacResourceSource.PROVIDER
@@ -62,7 +62,8 @@ public class NutritionRbacResourceProvider implements RbacResourceProvider {
                         "System role for family nutrition usage.",
                         70,
                         List.of(
-                                "menu:nutrition", "menu:nutrition:families", "api:nutrition:family:*",
+                                "menu:nutrition", "menu:nutrition:families",
+                                "api:nutrition:clan:*", "api:nutrition:family:*",
                                 AUTH_SELF_API_PERMISSION_CODE, ME_SELF_API_PERMISSION_CODE
                         ),
                         RbacResourceSource.PROVIDER

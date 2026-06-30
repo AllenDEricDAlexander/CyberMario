@@ -9,6 +9,7 @@ import top.egon.mario.nutrition.po.enums.NutritionSubjectType;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public interface NutritionScopedRoleBindingRepository extends JpaRepository<NutritionScopedRoleBindingPo, Long> {
 
@@ -19,4 +20,8 @@ public interface NutritionScopedRoleBindingRepository extends JpaRepository<Nutr
     List<NutritionScopedRoleBindingPo> findBySubjectTypeAndSubjectIdAndRoleCodeInAndScopeTypeAndStatusAndDeletedFalse(
             NutritionSubjectType subjectType, Long subjectId, Collection<NutritionRoleCode> roleCodes,
             NutritionScopeType scopeType, NutritionStatus status);
+
+    Optional<NutritionScopedRoleBindingPo> findBySubjectTypeAndSubjectIdAndRoleCodeAndScopeTypeAndScopeId(
+            NutritionSubjectType subjectType, Long subjectId, NutritionRoleCode roleCode,
+            NutritionScopeType scopeType, Long scopeId);
 }
