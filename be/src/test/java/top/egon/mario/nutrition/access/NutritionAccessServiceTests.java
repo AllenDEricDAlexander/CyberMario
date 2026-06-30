@@ -143,6 +143,32 @@ class NutritionAccessServiceTests {
     }
 
     @Test
+    void memberConfirmationAllowsFamilyAndProfileGuardianProxyOnly() {
+        NutritionFamilyPo family = family("Mario Family", 10L);
+        NutritionMemberProfilePo member = memberProfile(family.getId(), 401L);
+        NutritionMemberProfilePo otherMember = memberProfile(family.getId(), 402L);
+        roleBinding(403L, NutritionRoleCode.GUARDIAN, NutritionScopeType.FAMILY, family.getId());
+        roleBinding(404L, NutritionRoleCode.PROFILE_GUARDIAN,
+                NutritionScopeType.MEMBER_PROFILE, member.getId());
+        roleBinding(405L, NutritionRoleCode.MEMBER, NutritionScopeType.FAMILY, family.getId());
+        roleBinding(402L, NutritionRoleCode.PROFILE_OWNER,
+                NutritionScopeType.MEMBER_PROFILE, otherMember.getId());
+
+        assertThatCode(() -> accessService.requireConfirmMemberProfile(403L, family.getId(), member.getId()))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> accessService.requireConfirmMemberProfile(404L, family.getId(), member.getId()))
+                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> accessService.requireConfirmMemberProfile(405L, family.getId(), member.getId()))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_FORBIDDEN");
+        assertThatThrownBy(() -> accessService.requireConfirmMemberProfile(402L, family.getId(), member.getId()))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_FORBIDDEN");
+    }
+
+    @Test
     void inactiveMemberProfileCannotBeConfirmedByBoundUserOrFamilyCook() {
         NutritionFamilyPo family = family("Mario Family", 10L);
         NutritionMemberProfilePo disabledMember = memberProfile(family.getId(), 301L, NutritionStatus.DISABLED);

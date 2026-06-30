@@ -50,6 +50,14 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
             NutritionRoleCode.FAMILY_ADMIN,
             NutritionRoleCode.COOK
     ));
+    private static final Set<NutritionRoleCode> CONFIRM_FAMILY_ROLES = Set.copyOf(EnumSet.of(
+            NutritionRoleCode.FAMILY_ADMIN,
+            NutritionRoleCode.COOK,
+            NutritionRoleCode.GUARDIAN
+    ));
+    private static final Set<NutritionRoleCode> CONFIRM_MEMBER_PROFILE_ROLES = Set.of(
+            NutritionRoleCode.PROFILE_GUARDIAN
+    );
     private static final Set<NutritionRoleCode> READ_CLAN_ROLES = Set.copyOf(EnumSet.of(
             NutritionRoleCode.CLAN_ADMIN,
             NutritionRoleCode.CLAN_MEMBER
@@ -114,7 +122,11 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
         if (userId != null && userId.equals(memberProfile.getBoundUserId())) {
             return;
         }
-        requireCookFamily(userId, familyId);
+        if (hasFamilyRole(userId, familyId, CONFIRM_FAMILY_ROLES) || isFamilyOwner(userId, familyId)
+                || hasMemberProfileRole(userId, memberProfileId, CONFIRM_MEMBER_PROFILE_ROLES)) {
+            return;
+        }
+        throw forbidden();
     }
 
     @Override
@@ -145,6 +157,16 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
                 .existsBySubjectTypeAndSubjectIdAndRoleCodeInAndScopeTypeAndScopeIdAndStatusAndDeletedFalse(
                         NutritionSubjectType.USER, userId, roleCodes, NutritionScopeType.FAMILY, familyId,
                         NutritionStatus.ACTIVE);
+    }
+
+    private boolean hasMemberProfileRole(Long userId, Long memberProfileId, Collection<NutritionRoleCode> roleCodes) {
+        if (userId == null || memberProfileId == null || roleCodes == null || roleCodes.isEmpty()) {
+            return false;
+        }
+        return roleBindingRepository
+                .existsBySubjectTypeAndSubjectIdAndRoleCodeInAndScopeTypeAndScopeIdAndStatusAndDeletedFalse(
+                        NutritionSubjectType.USER, userId, roleCodes, NutritionScopeType.MEMBER_PROFILE,
+                        memberProfileId, NutritionStatus.ACTIVE);
     }
 
     private boolean isActiveFamily(Long familyId) {
