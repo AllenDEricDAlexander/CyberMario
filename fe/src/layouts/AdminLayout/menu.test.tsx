@@ -349,4 +349,41 @@ describe('admin menu authorization', () => {
         expect(canAccessAdminPath('/clocktower/admin/audit', menuTree, true, ['SUPER_ADMIN']))
             .toBe(true)
     })
+
+    test('shows nutrition menu paths when nutrition permissions are present', () => {
+        const nutritionMenuTree: MenuTreeResponse[] = [
+            ...menuTree,
+            {
+                permissionId: 30,
+                permCode: 'menu:nutrition:families',
+                permName: '家庭营养',
+                routePath: '/nutrition/families',
+                hidden: false,
+                cacheable: true,
+                sortNo: 30,
+                children: [],
+            },
+            {
+                permissionId: 31,
+                permCode: 'menu:nutrition:platform',
+                permName: '营养平台',
+                routePath: '/nutrition/platform',
+                hidden: false,
+                cacheable: true,
+                sortNo: 31,
+                children: [],
+            },
+        ]
+
+        const keys = flattenMenuKeys(buildAuthorizedAdminMenuItems(nutritionMenuTree, false, ['NUTRITION_USER']))
+
+        expect(keys).toContain('/nutrition/families')
+        expect(keys).toContain('/nutrition/platform')
+        expect(canAccessAdminPath('/nutrition/families', nutritionMenuTree, false, ['NUTRITION_USER']))
+            .toBe(true)
+        expect(canAccessAdminPath('/nutrition/families/7', nutritionMenuTree, false, ['NUTRITION_USER']))
+            .toBe(true)
+        expect(canAccessAdminPath('/nutrition/platform', nutritionMenuTree, false, ['NUTRITION_USER']))
+            .toBe(true)
+    })
 })

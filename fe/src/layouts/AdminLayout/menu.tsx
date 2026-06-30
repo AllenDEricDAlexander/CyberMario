@@ -11,6 +11,7 @@ import {
     ExperimentOutlined,
     FileSearchOutlined,
     FileTextOutlined,
+    HeartOutlined,
     InboxOutlined,
     MenuOutlined,
     MessageOutlined,
@@ -51,6 +52,8 @@ const menuPathByKey: Record<string, string> = {
     '/clocktower/rules': '/clocktower/rules',
     '/clocktower/replays': '/clocktower/replays',
     '/clocktower/admin/audit': '/clocktower/admin/audit',
+    '/nutrition/families': '/nutrition/families',
+    '/nutrition/platform': '/nutrition/platform',
     '/rbac/users': '/rbac/users',
     '/rbac/roles': '/rbac/roles',
     '/rbac/permissions': '/rbac/permissions',
@@ -62,6 +65,15 @@ const menuPathByKey: Record<string, string> = {
 const compatibilityMenuPathAliases: Record<string, string> = {
     '/clocktower/rule': '/clocktower/rules',
     '/clocktower/replay': '/clocktower/replays',
+    '/nutrition/home': '/nutrition/families',
+    '/nutrition/members': '/nutrition/families',
+    '/nutrition/recipes': '/nutrition/families',
+    '/nutrition/ai-menus': '/nutrition/families',
+    '/nutrition/confirmations': '/nutrition/families',
+    '/nutrition/meal-summary': '/nutrition/families',
+    '/nutrition/shopping': '/nutrition/families',
+    '/nutrition/budget': '/nutrition/families',
+    '/nutrition/records': '/nutrition/families',
 }
 
 export const adminMenuItems: AdminMenuItem[] = [
@@ -192,6 +204,23 @@ export const adminMenuItems: AdminMenuItem[] = [
         ],
     },
     {
+        key: 'nutrition',
+        icon: <HeartOutlined/>,
+        label: '营养管理',
+        children: [
+            {
+                key: '/nutrition/families',
+                icon: <TeamOutlined/>,
+                label: '家庭营养',
+            },
+            {
+                key: '/nutrition/platform',
+                icon: <DatabaseOutlined/>,
+                label: '营养平台',
+            },
+        ],
+    },
+    {
         key: 'rbac',
         icon: <SafetyCertificateOutlined/>,
         label: 'RBAC 管理',
@@ -286,7 +315,31 @@ function canonicalAdminPath(pathname: string) {
     if (/^\/clocktower\/games\/[^/]+\/replay$/.test(pathname)) {
         return '/clocktower/replays'
     }
+    const nutritionPath = canonicalNutritionPath(pathname)
+    if (nutritionPath) {
+        return nutritionPath
+    }
     return compatibilityMenuPathAliases[pathname] ?? pathname
+}
+
+function canonicalNutritionPath(pathname: string) {
+    if (pathname === '/nutrition/platform' || pathname.startsWith('/nutrition/platform/')) {
+        return '/nutrition/platform'
+    }
+    const familyMenuPaths = [
+        '/nutrition/home',
+        '/nutrition/members',
+        '/nutrition/recipes',
+        '/nutrition/ai-menus',
+        '/nutrition/confirmations',
+        '/nutrition/meal-summary',
+        '/nutrition/shopping',
+        '/nutrition/budget',
+        '/nutrition/records',
+    ]
+    return familyMenuPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`))
+        ? '/nutrition/families'
+        : undefined
 }
 
 function filterMenuItems(
