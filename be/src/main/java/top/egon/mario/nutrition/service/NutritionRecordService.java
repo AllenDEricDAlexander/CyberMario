@@ -32,6 +32,7 @@ import top.egon.mario.nutrition.po.NutritionRiskCheckResultPo;
 import top.egon.mario.nutrition.po.enums.NutritionConfirmationStatus;
 import top.egon.mario.nutrition.po.enums.NutritionMealPlanStatus;
 import top.egon.mario.nutrition.po.enums.NutritionMealType;
+import top.egon.mario.nutrition.po.enums.NutritionRecipeSourceType;
 import top.egon.mario.nutrition.po.enums.NutritionRiskLevel;
 import top.egon.mario.nutrition.po.enums.NutritionStatus;
 import top.egon.mario.nutrition.repository.NutritionExtraFoodRecordRepository;
@@ -137,7 +138,7 @@ public class NutritionRecordService {
                 if (!selectsMealType(confirmation, item.getMealType())) {
                     continue;
                 }
-                NutritionTotals totals = itemTotals(item);
+                NutritionTotals totals = itemTotals(familyId, item);
                 NutritionRecordPo record = new NutritionRecordPo();
                 record.setFamilyId(familyId);
                 record.setMemberProfileId(confirmation.getMemberProfileId());
@@ -431,7 +432,7 @@ public class NutritionRecordService {
         return rightId > leftId ? right : left;
     }
 
-    private NutritionTotals itemTotals(NutritionMealPlanItemPo item) {
+    private NutritionTotals itemTotals(Long familyId, NutritionMealPlanItemPo item) {
         if (item.getRecipeId() == null) {
             return NutritionTotals.zero();
         }
@@ -439,11 +440,19 @@ public class NutritionRecordService {
                         item.getRecipeId(), NutritionStatus.ACTIVE)
                 .orElseThrow(() -> new NutritionException(
                         "NUTRITION_RECIPE_NOT_FOUND", "nutrition recipe not found"));
+        if (!isRecipeVisibleToFamily(familyId, recipe)) {
+            throw new NutritionException("NUTRITION_RECIPE_NOT_FOUND", "nutrition recipe not found");
+        }
         NutritionTotals recipeTotals = calculationService.calculateRecipe(recipe.getId());
         BigDecimal servingCount = item.getServingCount() == null ? BigDecimal.ONE : item.getServingCount();
         BigDecimal recipeServingCount = BigDecimal.valueOf(Math.max(recipe.getServingCount(), 1));
         BigDecimal scale = servingCount.divide(recipeServingCount, 6, RoundingMode.HALF_UP);
         return scale(recipeTotals, scale);
+    }
+
+    private boolean isRecipeVisibleToFamily(Long familyId, NutritionRecipePo recipe) {
+        return NutritionRecipeSourceType.PLATFORM_PUBLIC == recipe.getSourceType()
+                || Objects.equals(recipe.getFamilyId(), familyId);
     }
 
     private NutritionTotals scale(NutritionTotals totals, BigDecimal scale) {

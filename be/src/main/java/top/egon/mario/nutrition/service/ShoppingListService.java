@@ -29,6 +29,7 @@ import top.egon.mario.nutrition.po.NutritionStandardFoodPo;
 import top.egon.mario.nutrition.po.enums.NutritionConfirmationStatus;
 import top.egon.mario.nutrition.po.enums.NutritionMealPlanStatus;
 import top.egon.mario.nutrition.po.enums.NutritionMealType;
+import top.egon.mario.nutrition.po.enums.NutritionRecipeSourceType;
 import top.egon.mario.nutrition.po.enums.NutritionShoppingListStatus;
 import top.egon.mario.nutrition.po.enums.NutritionStatus;
 import top.egon.mario.nutrition.repository.NutritionFoodPriceRecordRepository;
@@ -115,6 +116,7 @@ public class ShoppingListService {
                 .findByIdInAndStatusAndDeletedFalse(recipeIds, NutritionStatus.ACTIVE)
                 .stream()
                 .collect(Collectors.toMap(NutritionRecipePo::getId, Function.identity()));
+        validateRecipesVisible(familyId, recipeIds, recipesById);
         Map<Long, List<NutritionRecipeIngredientPo>> ingredientsByRecipeId = recipeIds.isEmpty() ? Map.of()
                 : recipeIngredientRepository.findByRecipeIdInAndDeletedFalseOrderByIdAsc(recipeIds)
                 .stream()
@@ -306,6 +308,20 @@ public class ShoppingListService {
             throw new NutritionException(
                     "NUTRITION_MEAL_PLAN_STATUS_INVALID", "nutrition meal plan status transition is invalid");
         }
+    }
+
+    private void validateRecipesVisible(Long familyId, List<Long> recipeIds, Map<Long, NutritionRecipePo> recipesById) {
+        for (Long recipeId : recipeIds) {
+            NutritionRecipePo recipe = recipesById.get(recipeId);
+            if (recipe == null || !isRecipeVisibleToFamily(familyId, recipe)) {
+                throw new NutritionException("NUTRITION_RECIPE_NOT_FOUND", "nutrition recipe not found");
+            }
+        }
+    }
+
+    private boolean isRecipeVisibleToFamily(Long familyId, NutritionRecipePo recipe) {
+        return NutritionRecipeSourceType.PLATFORM_PUBLIC == recipe.getSourceType()
+                || Objects.equals(recipe.getFamilyId(), familyId);
     }
 
     private NutritionShoppingListPo getShoppingListPo(Long familyId, Long shoppingListId) {

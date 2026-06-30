@@ -197,6 +197,28 @@ class ShoppingListServiceTests {
     }
 
     @Test
+    void shoppingListRejectsPrivateRecipeFromAnotherFamily() {
+        NutritionFamilyPo family = family("Mario Family", COOK_USER_ID);
+        NutritionFamilyPo otherFamily = family("Peach Family", 9302L);
+        roleBinding(COOK_USER_ID, NutritionRoleCode.COOK, NutritionScopeType.FAMILY, family.getId());
+        NutritionStandardFoodPo peach = standardFood("Peach", "FRUIT");
+        NutritionRecipePo otherRecipe = recipe(otherFamily.getId(), "Peach Dessert", 1);
+        recipeIngredient(otherFamily.getId(), otherRecipe.getId(), peach.getId(), "Peach",
+                new BigDecimal("100.000"), "g");
+        NutritionMealPlanPo mealPlan = mealPlan(family.getId(), NutritionMealPlanStatus.CONFIRM_CLOSED);
+        mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.DINNER, otherRecipe.getId(),
+                "Peach Dessert", new BigDecimal("1.000"), 0);
+
+        assertThatThrownBy(() -> shoppingListService.generateShoppingList(
+                family.getId(), mealPlan.getId(), COOK_USER_ID))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_RECIPE_NOT_FOUND");
+        assertThat(shoppingListRepository.findAll()).isEmpty();
+        assertThat(shoppingListItemRepository.findAll()).isEmpty();
+    }
+
+    @Test
     void pendingReviewMealPlanCannotGenerateShoppingList() {
         NutritionFamilyPo family = family("Mario Family", COOK_USER_ID);
         roleBinding(COOK_USER_ID, NutritionRoleCode.COOK, NutritionScopeType.FAMILY, family.getId());

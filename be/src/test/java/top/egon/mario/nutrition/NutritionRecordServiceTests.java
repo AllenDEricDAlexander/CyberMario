@@ -57,6 +57,7 @@ import top.egon.mario.nutrition.repository.NutritionShoppingListItemRepository;
 import top.egon.mario.nutrition.repository.NutritionShoppingListRepository;
 import top.egon.mario.nutrition.repository.NutritionStandardFoodRepository;
 import top.egon.mario.nutrition.service.MealPlanService;
+import top.egon.mario.nutrition.service.NutritionException;
 import top.egon.mario.nutrition.service.NutritionRecordService;
 import top.egon.mario.nutrition.service.RecipeService;
 
@@ -65,6 +66,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Verifies completed meal nutrition records, corrections, extra foods, and basic family reports.
@@ -181,6 +183,36 @@ class NutritionRecordServiceTests {
             assertThat(record.getCalories()).isEqualByComparingTo("200.000");
             assertThat(record.getProtein()).isEqualByComparingTo("20.000");
         });
+    }
+
+    @Test
+    void completedMealRecordGenerationRejectsPrivateRecipeFromAnotherFamily() {
+        NutritionFamilyPo family = family("Mario Family", COOK_USER_ID);
+        NutritionFamilyPo otherFamily = family("Peach Family", 9504L);
+        NutritionMemberProfilePo mario = memberProfile(family.getId(), MARIO_USER_ID, "Mario");
+        NutritionStandardFoodPo peach = standardFood("Peach", "FRUIT",
+                "60.000", "1.000", "0.000", "15.000");
+        NutritionRecipePo otherRecipe = recipe(otherFamily.getId(), "Peach Dessert", 1);
+        NutritionRecipeIngredientPo ingredient = new NutritionRecipeIngredientPo();
+        ingredient.setFamilyId(otherFamily.getId());
+        ingredient.setRecipeId(otherRecipe.getId());
+        ingredient.setStandardFoodId(peach.getId());
+        ingredient.setRawFoodName("Peach");
+        ingredient.setAmount(new BigDecimal("100.000"));
+        ingredient.setUnit("g");
+        ingredient.setMappingStatus(RecipeService.MAPPING_STATUS_MAPPED);
+        recipeIngredientRepository.saveAndFlush(ingredient);
+        NutritionMealPlanPo mealPlan = mealPlan(family.getId(), LocalDate.of(2026, 7, 8),
+                NutritionMealPlanStatus.COMPLETED, "Peach dinner", new BigDecimal("10.00"), 1);
+        mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.DINNER, otherRecipe.getId(),
+                "Peach Dessert", new BigDecimal("1.000"), 0);
+        confirmation(family.getId(), mealPlan.getId(), mario.getId(), "[]");
+
+        assertThatThrownBy(() -> recordService.generateForCompletedMealPlan(family.getId(), mealPlan.getId()))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_RECIPE_NOT_FOUND");
+        assertThat(recordRepository.findAll()).isEmpty();
     }
 
     @Test

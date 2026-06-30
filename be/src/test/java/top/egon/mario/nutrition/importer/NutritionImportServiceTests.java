@@ -173,6 +173,29 @@ class NutritionImportServiceTests {
     }
 
     @Test
+    void confirmingCompletedStandardFoodImportReturnsExistingJobWithoutDuplicatingRows() {
+        NutritionImportJobResponse job = importService.createImportJob(new CreateNutritionImportJobRequest(
+                NutritionImportType.STANDARD_FOOD,
+                null,
+                "standard-food.csv",
+                """
+                        name,category,calories_per_100g,protein_per_100g,fat_per_100g,carbs_per_100g
+                        Tomato,vegetable,18.0,1.2,0.1,3.4
+                        """
+        ), platformAdmin());
+
+        NutritionImportJobResponse first = importService.confirmImportJob(job.id(), platformAdmin());
+        NutritionImportJobResponse second = importService.confirmImportJob(job.id(), platformAdmin());
+
+        assertThat(first.status()).isEqualTo(NutritionImportStatus.COMPLETED);
+        assertThat(second.status()).isEqualTo(NutritionImportStatus.COMPLETED);
+        assertThat(second.id()).isEqualTo(first.id());
+        assertThat(standardFoodRepository.findAll())
+                .extracting(food -> food.getNameCn() + ":" + food.getCategory())
+                .containsExactly("Tomato:vegetable");
+    }
+
+    @Test
     void standardFoodImportRecordsFailedStatusWhenConfirmPersistenceFails() {
         String overlongName = "T".repeat(129);
         NutritionImportJobResponse job = importService.createImportJob(new CreateNutritionImportJobRequest(

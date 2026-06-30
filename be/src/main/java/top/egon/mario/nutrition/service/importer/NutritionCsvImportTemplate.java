@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import top.egon.mario.nutrition.dto.request.CreateNutritionImportJobRequest;
 import top.egon.mario.nutrition.dto.response.NutritionImportErrorResponse;
@@ -109,7 +111,7 @@ public abstract class NutritionCsvImportTemplate<T> {
             job.setCompletedAt(Instant.now());
             return toResponse(importJobRepository.save(job));
         } catch (RuntimeException ex) {
-            failureRecorder.recordConfirmFailure(job.getId());
+            recordConfirmFailureAfterRollback(job.getId());
             throw ex;
         }
     }
@@ -130,6 +132,21 @@ public abstract class NutritionCsvImportTemplate<T> {
 
     protected void flushRows() {
         entityManager.flush();
+    }
+
+    private void recordConfirmFailureAfterRollback(Long jobId) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
+            failureRecorder.recordConfirmFailure(jobId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    failureRecorder.recordConfirmFailure(jobId);
+                }
+            }
+        });
     }
 
     protected final String value(CsvRow row, String columnName) {

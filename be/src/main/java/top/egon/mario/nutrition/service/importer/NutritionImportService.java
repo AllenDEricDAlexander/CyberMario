@@ -48,12 +48,18 @@ public class NutritionImportService {
 
     @Transactional
     public NutritionImportJobResponse confirmImportJob(@NotNull Long jobId, RbacPrincipal principal) {
-        NutritionImportJobPo job = getJob(jobId);
+        NutritionImportJobPo job = getLockedJob(jobId);
         return importer(job.getImportType()).confirmImportJob(job, principal);
     }
 
     private NutritionImportJobPo getJob(Long jobId) {
         return importJobRepository.findById(jobId)
+                .orElseThrow(() -> new NutritionException(
+                        "NUTRITION_IMPORT_JOB_NOT_FOUND", "nutrition import job not found"));
+    }
+
+    private NutritionImportJobPo getLockedJob(Long jobId) {
+        return importJobRepository.findLockedById(jobId)
                 .orElseThrow(() -> new NutritionException(
                         "NUTRITION_IMPORT_JOB_NOT_FOUND", "nutrition import job not found"));
     }
