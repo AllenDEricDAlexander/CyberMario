@@ -28,7 +28,8 @@ class NutritionRbacResourceProviderTests {
                         "menu:nutrition:platform",
                         "api:nutrition:clan:*",
                         "api:nutrition:family:*",
-                        "api:nutrition:platform:*"
+                        "api:nutrition:platform:*",
+                        "api:nutrition:import-job:*"
                 );
     }
 
@@ -52,6 +53,14 @@ class NutritionRbacResourceProviderTests {
                     assertThat(seed.api().publicFlag()).isFalse();
                     assertThat(seed.api().urlPattern()).isEqualTo("/api/nutrition/families/**");
                 });
+        assertThat(provider.resources())
+                .filteredOn(seed -> "api:nutrition:import-job:*".equals(seed.code()))
+                .singleElement()
+                .satisfies(seed -> {
+                    assertThat(seed.type()).isEqualTo(PermissionType.API);
+                    assertThat(seed.api().publicFlag()).isFalse();
+                    assertThat(seed.api().urlPattern()).isEqualTo("/api/nutrition/import-jobs/**");
+                });
     }
 
     @Test
@@ -66,7 +75,8 @@ class NutritionRbacResourceProviderTests {
                 .singleElement()
                 .satisfies(seed -> assertThat(seed.permissionCodes())
                         .contains("menu:nutrition", "menu:nutrition:families",
-                                "api:nutrition:clan:*", "api:nutrition:family:*")
+                                "api:nutrition:clan:*", "api:nutrition:family:*",
+                                "api:nutrition:import-job:*")
                         .doesNotContain("menu:nutrition:platform", "api:nutrition:platform:*"));
         assertThat(provider.rolePresets())
                 .filteredOn(seed -> "NUTRITION_PLATFORM_ADMIN".equals(seed.roleCode()))
@@ -74,6 +84,7 @@ class NutritionRbacResourceProviderTests {
                 .satisfies(seed -> assertThat(seed.permissionCodes())
                         .contains("menu:nutrition", "menu:nutrition:families",
                                 "menu:nutrition:platform", "api:nutrition:clan:*",
-                                "api:nutrition:family:*", "api:nutrition:platform:*"));
+                                "api:nutrition:family:*", "api:nutrition:platform:*",
+                                "api:nutrition:import-job:*"));
     }
 }

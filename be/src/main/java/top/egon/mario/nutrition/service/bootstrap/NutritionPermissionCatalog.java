@@ -40,7 +40,9 @@ public class NutritionPermissionCatalog {
                 new ApiPermissionSeed("api:nutrition:family:*", "家庭营养接口", "ANY",
                         "/api/nutrition/families/**", ApiMatcherType.ANT, ApiRiskLevel.MEDIUM),
                 new ApiPermissionSeed("api:nutrition:platform:*", "营养平台接口", "ANY",
-                        "/api/nutrition/platform/**", ApiMatcherType.ANT, ApiRiskLevel.HIGH)
+                        "/api/nutrition/platform/**", ApiMatcherType.ANT, ApiRiskLevel.HIGH),
+                new ApiPermissionSeed("api:nutrition:import-job:*", "营养导入接口", "ANY",
+                        "/api/nutrition/import-jobs/**", ApiMatcherType.ANT, ApiRiskLevel.HIGH)
         );
     }
 
