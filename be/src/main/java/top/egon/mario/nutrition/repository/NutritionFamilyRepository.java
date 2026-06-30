@@ -1,0 +1,16 @@
+package top.egon.mario.nutrition.repository;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import top.egon.mario.nutrition.po.NutritionFamilyPo;
+import top.egon.mario.nutrition.po.enums.NutritionStatus;
+
+import java.util.Optional;
+
+public interface NutritionFamilyRepository extends JpaRepository<NutritionFamilyPo, Long> {
+
+    Optional<NutritionFamilyPo> findByIdAndDeletedFalse(Long id);
+
+    boolean existsByIdAndStatusAndDeletedFalse(Long id, NutritionStatus status);
+
+    boolean existsByIdAndOwnerUserIdAndStatusAndDeletedFalse(Long id, Long ownerUserId, NutritionStatus status);
+}
