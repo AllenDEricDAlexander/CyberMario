@@ -11,8 +11,8 @@ type ImportJobPanelProps = {
 
 const errorColumns: ColumnsType<NutritionImportErrorResponse> = [
     {title: '行号', dataIndex: 'rowNo', width: 90},
-    {title: '字段', dataIndex: 'columnName', width: 140, render: (value) => value || '-'},
-    {title: '级别', dataIndex: 'severity', width: 110, render: (value) => <Tag color={severityColor(value)}>{value}</Tag>},
+    {title: '字段', dataIndex: 'columnName', width: 140, render: (_, record) => record.columnName || '-'},
+    {title: '级别', dataIndex: 'severity', width: 110, render: (_, record) => <Tag color={severityColor(record.severity)}>{record.severity}</Tag>},
     {title: '编码', dataIndex: 'errorCode', width: 160},
     {title: '问题', dataIndex: 'errorMessage'},
 ]
