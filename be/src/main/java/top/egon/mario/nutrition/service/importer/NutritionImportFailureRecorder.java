@@ -28,7 +28,7 @@ public class NutritionImportFailureRecorder {
     }
 
     public void recordConfirmFailure(Long jobId) {
-        transactionTemplate.executeWithoutResult(status -> importJobRepository.findById(jobId).ifPresent(job -> {
+        transactionTemplate.executeWithoutResult(status -> importJobRepository.findLockedById(jobId).ifPresent(job -> {
             if (NutritionImportStatus.COMPLETED == job.getStatus()) {
                 return;
             }
