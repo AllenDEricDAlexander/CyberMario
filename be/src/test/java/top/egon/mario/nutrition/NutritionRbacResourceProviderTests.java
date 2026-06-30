@@ -59,7 +59,7 @@ class NutritionRbacResourceProviderTests {
                 .satisfies(seed -> {
                     assertThat(seed.type()).isEqualTo(PermissionType.API);
                     assertThat(seed.api().publicFlag()).isFalse();
-                    assertThat(seed.api().urlPattern()).isEqualTo("/api/nutrition/import-jobs/**");
+                    assertThat(seed.api().urlPattern()).isEqualTo("/api/nutrition/platform/import-jobs/**");
                 });
     }
 

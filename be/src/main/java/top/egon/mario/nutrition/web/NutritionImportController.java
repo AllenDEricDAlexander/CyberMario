@@ -23,7 +23,7 @@ import top.egon.mario.rbac.service.security.RbacPrincipal;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/nutrition/import-jobs")
+@RequestMapping("/api/nutrition/platform/import-jobs")
 @Validated
 public class NutritionImportController extends ReactiveNutritionSupport {
 
