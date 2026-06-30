@@ -47,6 +47,7 @@ public class MealPlanService {
     private final NutritionMealPlanItemRepository mealPlanItemRepository;
     private final NutritionMealConfirmationRepository confirmationRepository;
     private final NutritionAccessService accessService;
+    private final NutritionRecordService nutritionRecordService;
     private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
@@ -112,11 +113,17 @@ public class MealPlanService {
         Long userId = requireActor(actorId);
         accessService.requireCookFamily(userId, familyId);
         NutritionMealPlanPo mealPlan = getMealPlan(familyId, mealPlanId);
+        if (mealPlan.getStatus() == NutritionMealPlanStatus.COMPLETED) {
+            nutritionRecordService.generateForCompletedMealPlan(familyId, mealPlan.getId());
+            return toResponse(mealPlan);
+        }
         if (mealPlan.getStatus() == NutritionMealPlanStatus.CONFIRM_CLOSED) {
             transition(mealPlan, NutritionMealPlanStatus.PREPARING);
         }
         transition(mealPlan, NutritionMealPlanStatus.COMPLETED);
-        return toResponse(mealPlanRepository.saveAndFlush(mealPlan));
+        NutritionMealPlanPo saved = mealPlanRepository.saveAndFlush(mealPlan);
+        nutritionRecordService.generateForCompletedMealPlan(familyId, saved.getId());
+        return toResponse(saved);
     }
 
     @Transactional

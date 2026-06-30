@@ -8,6 +8,9 @@ import java.util.List;
 
 public interface NutritionRiskCheckResultRepository extends JpaRepository<NutritionRiskCheckResultPo, Long> {
 
+    List<NutritionRiskCheckResultPo> findByFamilyIdAndStatusAndResolvedFalseAndDeletedFalseOrderByIdAsc(
+            Long familyId, NutritionStatus status);
+
     List<NutritionRiskCheckResultPo> findByFamilyIdAndSourceTypeAndSourceIdAndStatusAndResolvedFalseAndDeletedFalseOrderByIdAsc(
             Long familyId, String sourceType, Long sourceId, NutritionStatus status);
 
