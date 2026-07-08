@@ -12,6 +12,7 @@ import top.egon.mario.clocktower.game.action.dto.GameActionCommand;
 import top.egon.mario.clocktower.game.action.service.ClocktowerGameActionExecutor;
 import top.egon.mario.clocktower.game.mic.service.ClocktowerPublicMicService;
 import top.egon.mario.clocktower.game.nomination.service.ClocktowerGameNominationService;
+import top.egon.mario.clocktower.game.nomination.service.ClocktowerGameVoteService;
 import top.egon.mario.clocktower.game.po.ClocktowerGamePo;
 import top.egon.mario.clocktower.game.po.ClocktowerGameSeatPo;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameRepository;
@@ -34,6 +35,7 @@ public class ClocktowerGameActionExecutorImpl implements ClocktowerGameActionExe
     private final ClocktowerGameEventAppender eventAppender;
     private final ClocktowerPublicMicService publicMicService;
     private final ClocktowerGameNominationService nominationService;
+    private final ClocktowerGameVoteService voteService;
 
     @Override
     @Transactional
@@ -69,8 +71,7 @@ public class ClocktowerGameActionExecutorImpl implements ClocktowerGameActionExe
             case "FINISH_SPEECH" -> finishSpeech(game, seat, actor);
             case "PASS" -> pass(game, seat, command, actor);
             case "NOMINATE" -> nominationService.nominate(game, seat, command, actor);
-            case "VOTE" ->
-                    ClocktowerGameActionResponse.rejected("CLOCKTOWER_ACTION_NOT_IMPLEMENTED");
+            case "VOTE" -> voteService.vote(game, seat, command, actor);
             default -> reject(game, seat, command.actionType(), "UNKNOWN_ACTION_TYPE");
         };
     }

@@ -349,6 +349,52 @@ class ClocktowerGameActionServiceTests {
         assertThat(response.event().payload()).containsEntry("actorType", "AGENT");
     }
 
+    @Test
+    void alivePlayerVotesOnOpenNomination() {
+        StartedGame game = startDayGameWithAgents();
+        ClocktowerGameSeatPo nominator = game.seats().getFirst();
+        ClocktowerGameSeatPo nominee = game.seats().get(1);
+        Long nominationId = openNomination(game, nominator, nominee);
+
+        ClocktowerGameActionResponse response = humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(nominator.getId(), "VOTE", List.of(),
+                        nominationId, true, null, Map.of()),
+                principal(11L, "player1"));
+
+        assertThat(response.accepted()).isTrue();
+        assertThat(response.event().eventType()).isEqualTo("VOTE_CAST");
+        assertThat(response.event().payload())
+                .containsEntry("voteValue", true)
+                .containsEntry("usedDeadVote", false);
+    }
+
+    @Test
+    void deadYesVoteSpendsDeadVoteAndDuplicateVoteIsRejected() {
+        StartedGame game = startDayGameWithAgents();
+        ClocktowerGameSeatPo voter = game.seats().getFirst();
+        ClocktowerGameSeatPo nominee = game.seats().get(1);
+        Long nominationId = openNomination(game, voter, nominee);
+        voter.setLifeStatus("DEAD");
+        voter.setPublicLifeStatus("DEAD");
+        voter.setHasDeadVote(true);
+        gameSeatRepository.saveAndFlush(voter);
+
+        ClocktowerGameActionResponse first = humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(voter.getId(), "VOTE", List.of(),
+                        nominationId, true, null, Map.of()),
+                principal(11L, "player1"));
+        ClocktowerGameActionResponse duplicate = humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(voter.getId(), "VOTE", List.of(),
+                        nominationId, false, null, Map.of()),
+                principal(11L, "player1"));
+
+        assertThat(first.accepted()).isTrue();
+        assertThat(first.event().payload()).containsEntry("usedDeadVote", true);
+        assertThat(gameSeatRepository.findByIdAndDeletedFalse(voter.getId()).orElseThrow().isHasDeadVote()).isFalse();
+        assertThat(duplicate.accepted()).isFalse();
+        assertThat(duplicate.rejectedCode()).isEqualTo("CLOCKTOWER_VOTE_ALREADY_CAST");
+    }
+
     private StartedGame startDayGameWithAgents() {
         ClocktowerRoomResponse room = roomService.createRoom(createRequest(4), owner());
         roomService.claimSeat(room.roomId(), 1, new ClocktowerSeatClaimRequest("Player 1"),
@@ -385,6 +431,17 @@ class ClocktowerGameActionServiceTests {
                 .stream()
                 .map(ClocktowerGameEventPo::getEventType)
                 .toList();
+    }
+
+    private Long openNomination(StartedGame game, ClocktowerGameSeatPo nominator, ClocktowerGameSeatPo nominee) {
+        micService.startDayMicSession(game.gameId(), owner());
+        micService.closeSession(game.gameId(), owner());
+        ClocktowerGameActionResponse response = humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(nominator.getId(), "NOMINATE", List.of(nominee.getId()),
+                        null, null, null, Map.of()),
+                principal(11L, "player1"));
+        assertThat(response.accepted()).isTrue();
+        return ((Number) response.event().payload().get("nominationId")).longValue();
     }
 
     private ClocktowerRoomCreateRequest createRequest(int agentSeatCount) {
