@@ -222,7 +222,7 @@ Rules:
 6. A tie for top qualifying votes clears the candidate for v1.
 7. Close appends `NOMINATION_CLOSED`.
 8. Candidate recomputation appends `EXECUTION_CANDIDATE_UPDATED`.
-9. Close moves the game phase to `EXECUTION` so task 07 resolve can be exercised before task 08 flow cutover.
+9. Close keeps the game phase in `NOMINATION`, allowing additional same-day nominations before the Storyteller resolves execution.
 
 ### 7.4 Resolve Execution
 
@@ -250,7 +250,8 @@ Rules:
 6. Executing appends `PLAYER_EXECUTED` and `PLAYER_DIED`.
 7. No execution appends `NO_EXECUTION`.
 8. Resolve sets `status = RESOLVED`, `executed`, and `resolved_at`.
-9. Resolve does not advance to night; task 08 owns full flow transition.
+9. Resolve sets the game phase to `EXECUTION` before appending execution/no-execution events.
+10. Resolve does not advance to night; task 08 owns full flow transition.
 
 ## 8. Events
 

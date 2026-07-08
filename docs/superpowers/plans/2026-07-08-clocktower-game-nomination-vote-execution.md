@@ -487,7 +487,7 @@ void closeNominationCreatesExecutionCandidate() {
     assertThat(response.voteCount()).isEqualTo(2);
     assertThat(response.execution().nomineeGameSeatId()).isEqualTo(game.seats().get(1).getId());
     assertThat(gameRepository.findByIdAndDeletedFalse(game.gameId()).orElseThrow().getPhase())
-            .isEqualTo("EXECUTION");
+            .isEqualTo("NOMINATION");
     assertThat(gameEventTypes(game.gameId())).contains("NOMINATION_CLOSED", "EXECUTION_CANDIDATE_UPDATED");
 }
 ```
@@ -556,9 +556,9 @@ ClocktowerGameExecutionResponse resolveExecution(Long gameId,
         RbacPrincipal principal);
 ```
 
-Close must require owner access via `ClocktowerRoomAccessPolicy`, lock the game, close the nomination, compute the candidate, upsert the execution row, set game phase `EXECUTION`, and append close/candidate events.
+Close must require owner access via `ClocktowerRoomAccessPolicy`, lock the game, close the nomination, compute the candidate, upsert the execution row, keep game phase `NOMINATION`, and append close/candidate events.
 
-Resolve must require owner access, lock game and execution row, enforce candidate matching, kill the candidate when executing, append execution/death/no-execution events, set execution status `RESOLVED`, and leave phase advancement to task 08.
+Resolve must require owner access, lock game and execution row, enforce candidate matching, set game phase `EXECUTION`, kill the candidate when executing, append execution/death/no-execution events, set execution status `RESOLVED`, and leave night/next-day advancement to task 08.
 
 - [ ] **Step 4: Add controller**
 
