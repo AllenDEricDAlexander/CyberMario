@@ -281,6 +281,27 @@ class ClocktowerGameActionServiceTests {
         assertThat(response.rejectedCode()).isEqualTo("CLOCKTOWER_PASS_TYPE_UNSUPPORTED");
     }
 
+    @Test
+    void nominateVote_notImplementedUntilTask07() {
+        StartedGame game = startDayGameWithAgents();
+        ClocktowerGameSeatPo humanSeat = game.seats().getFirst();
+        ClocktowerGameSeatPo agentSeat = game.seats().get(1);
+
+        ClocktowerGameActionResponse nominate = humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(humanSeat.getId(), "NOMINATE", List.of(agentSeat.getId()),
+                        null, null, "nominate", Map.of()),
+                principal(11L, "player1"));
+        ClocktowerGameActionResponse vote = humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(humanSeat.getId(), "VOTE", List.of(),
+                        123L, true, null, Map.of("vote", true)),
+                principal(11L, "player1"));
+
+        assertThat(nominate.accepted()).isFalse();
+        assertThat(nominate.rejectedCode()).isEqualTo("CLOCKTOWER_ACTION_NOT_IMPLEMENTED");
+        assertThat(vote.accepted()).isFalse();
+        assertThat(vote.rejectedCode()).isEqualTo("CLOCKTOWER_ACTION_NOT_IMPLEMENTED");
+    }
+
     private StartedGame startDayGameWithAgents() {
         ClocktowerRoomResponse room = roomService.createRoom(createRequest(4), owner());
         roomService.claimSeat(room.roomId(), 1, new ClocktowerSeatClaimRequest("Player 1"),
