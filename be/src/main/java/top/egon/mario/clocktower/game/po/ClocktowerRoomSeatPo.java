@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import top.egon.mario.clocktower.agent.constant.ClocktowerActorType;
 import top.egon.mario.common.entity.BaseAuditablePo;
 
 @Getter
@@ -26,6 +27,15 @@ public class ClocktowerRoomSeatPo extends BaseAuditablePo {
 
     @Column(name = "user_id")
     private Long userId;
+
+    @Column(name = "actor_id")
+    private Long actorId;
+
+    @Column(name = "actor_type", nullable = false, length = 32)
+    private String actorType = ClocktowerActorType.HUMAN;
+
+    @Column(name = "agent_instance_id")
+    private Long agentInstanceId;
 
     @Column(name = "display_name", nullable = false, length = 128)
     private String displayName;
