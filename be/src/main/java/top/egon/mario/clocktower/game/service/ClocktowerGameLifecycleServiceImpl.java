@@ -7,6 +7,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import top.egon.mario.clocktower.agent.constant.ClocktowerActorType;
+import top.egon.mario.clocktower.agent.constant.ClocktowerAgentStatus;
+import top.egon.mario.clocktower.agent.po.ClocktowerAgentInstancePo;
+import top.egon.mario.clocktower.agent.repository.ClocktowerAgentInstanceRepository;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardValidateRequest;
 import top.egon.mario.clocktower.board.dto.response.BoardValidationResponse;
 import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
@@ -68,6 +72,9 @@ public class ClocktowerGameLifecycleServiceImpl implements ClocktowerGameLifecyc
     private static final String ACTION_END = "END";
     private static final String ACTION_ABORT = "ABORT";
     private static final String ACTION_ARCHIVE = "ARCHIVE";
+    private static final String AGENT_MODE_NONE = "NONE";
+    private static final String AGENT_POLICY_HEURISTIC_V0 = "HEURISTIC_V0";
+    private static final String CREATED_BY_AGENT_SEAT_COUNT = "agentSeatCount";
 
     private final RoomSpaceRepository roomSpaceRepository;
     private final RoomInvitationRepository roomInvitationRepository;
@@ -75,6 +82,7 @@ public class ClocktowerGameLifecycleServiceImpl implements ClocktowerGameLifecyc
     private final ClocktowerRoomSeatRepository roomSeatRepository;
     private final ClocktowerGameRepository gameRepository;
     private final ClocktowerGameSeatRepository gameSeatRepository;
+    private final ClocktowerAgentInstanceRepository agentInstanceRepository;
     private final ClocktowerGameEventRepository gameEventRepository;
     private final ClocktowerRoleRepository roleRepository;
     private final ClocktowerBoardService boardService;
@@ -112,16 +120,17 @@ public class ClocktowerGameLifecycleServiceImpl implements ClocktowerGameLifecyc
         List<ClocktowerGameSeatPo> gameSeats = seats.stream()
                 .map(seat -> gameSeat(savedGame.getId(), seat, rolesByCode.get(seat.getRoleCode())))
                 .toList();
-        gameSeatRepository.saveAll(gameSeats);
+        List<ClocktowerGameSeatPo> savedGameSeats = gameSeatRepository.saveAllAndFlush(gameSeats);
+        bindAgentInstances(savedGame, savedGameSeats);
 
         profile.setCurrentGameId(savedGame.getId());
         profile.setStatus(STATUS_IN_GAME);
         profile.setLastActiveAt(now);
         room.setLastActiveAt(now);
 
-        appendGameEvent(savedGame, "GAME_STARTED", now, Map.of("roomId", roomId, "gameNo", savedGame.getGameNo()));
+        appendGameEvent(savedGame, "GAME_STARTED", now, gameStartedPayload(roomId, savedGame.getGameNo(), seats));
         List<ClocktowerGameConversationResponse> conversations = activateGameConversations(savedGame.getId(),
-                principal.userId(), seats.stream().map(ClocktowerRoomSeatPo::getUserId).toList());
+                principal.userId(), humanUserIds(seats));
         return ClocktowerGameResponse.from(savedGame, conversations);
     }
 
@@ -261,23 +270,48 @@ public class ClocktowerGameLifecycleServiceImpl implements ClocktowerGameLifecyc
                                     Map<String, ClocktowerRolePo> rolesByCode) {
         for (ClocktowerRoomSeatPo seat : seats) {
             Map<String, Object> metadata = metadata(seat.getMetadataJson());
-            if (seat.getUserId() == null || !SEAT_STATUS_OCCUPIED.equals(seat.getStatus())
-                    || !realUser(metadata)) {
-                throw new ClocktowerException("CLOCKTOWER_GAME_SEAT_INVALID");
+            if (isSystemAgentSeat(seat, metadata)) {
+                validateAgentStartSeat(seat, metadata);
+            } else {
+                validateHumanStartSeat(profile, seat, metadata);
             }
-            if (Objects.equals(profile.getStorytellerUserId(), seat.getUserId())) {
-                throw new ClocktowerException("CLOCKTOWER_STORYTELLER_CANNOT_PLAY");
-            }
-            if (!ready(metadata)) {
-                throw new ClocktowerException("CLOCKTOWER_GAME_SEAT_NOT_READY");
-            }
-            if (!StringUtils.hasText(seat.getRoleCode())) {
-                throw new ClocktowerException("CLOCKTOWER_GAME_ROLE_REQUIRED");
-            }
-            ClocktowerRolePo role = rolesByCode.get(seat.getRoleCode());
-            if (role == null || !profile.getScriptCode().equals(role.getScriptCode().name())) {
-                throw new ClocktowerException("CLOCKTOWER_ASSIGNMENT_INVALID");
-            }
+            validateRoleAssignment(profile, seat, rolesByCode);
+        }
+    }
+
+    private void validateHumanStartSeat(ClocktowerRoomProfilePo profile, ClocktowerRoomSeatPo seat,
+                                        Map<String, Object> metadata) {
+        if (seat.getUserId() == null || !SEAT_STATUS_OCCUPIED.equals(seat.getStatus())
+                || !realUser(metadata)) {
+            throw new ClocktowerException("CLOCKTOWER_GAME_SEAT_INVALID");
+        }
+        if (Objects.equals(profile.getStorytellerUserId(), seat.getUserId())) {
+            throw new ClocktowerException("CLOCKTOWER_STORYTELLER_CANNOT_PLAY");
+        }
+        if (!ready(metadata)) {
+            throw new ClocktowerException("CLOCKTOWER_GAME_SEAT_NOT_READY");
+        }
+    }
+
+    private void validateAgentStartSeat(ClocktowerRoomSeatPo seat, Map<String, Object> metadata) {
+        if (seat.getUserId() != null || !SEAT_STATUS_OCCUPIED.equals(seat.getStatus())
+                || !ClocktowerActorType.AGENT.equals(seat.getActorType())
+                || seat.getActorId() == null || seat.getAgentInstanceId() == null) {
+            throw new ClocktowerException("CLOCKTOWER_GAME_SEAT_INVALID");
+        }
+        if (!ready(metadata)) {
+            throw new ClocktowerException("CLOCKTOWER_GAME_SEAT_NOT_READY");
+        }
+    }
+
+    private void validateRoleAssignment(ClocktowerRoomProfilePo profile, ClocktowerRoomSeatPo seat,
+                                        Map<String, ClocktowerRolePo> rolesByCode) {
+        if (!StringUtils.hasText(seat.getRoleCode())) {
+            throw new ClocktowerException("CLOCKTOWER_GAME_ROLE_REQUIRED");
+        }
+        ClocktowerRolePo role = rolesByCode.get(seat.getRoleCode());
+        if (role == null || !profile.getScriptCode().equals(role.getScriptCode().name())) {
+            throw new ClocktowerException("CLOCKTOWER_ASSIGNMENT_INVALID");
         }
     }
 
@@ -304,6 +338,15 @@ public class ClocktowerGameLifecycleServiceImpl implements ClocktowerGameLifecyc
         return value instanceof Boolean ready && ready;
     }
 
+    private boolean isSystemAgentSeat(ClocktowerRoomSeatPo seat, Map<String, Object> metadata) {
+        return ClocktowerActorType.AGENT.equals(seat.getActorType())
+                && seat.getActorId() != null
+                && seat.getAgentInstanceId() != null
+                && Boolean.TRUE.equals(metadata.get("agentSeat"))
+                && Boolean.TRUE.equals(metadata.get("systemManaged"))
+                && CREATED_BY_AGENT_SEAT_COUNT.equals(String.valueOf(metadata.get("createdBy")));
+    }
+
     private int nextGameNo(Long roomId) {
         return gameRepository.findTopByRoomIdAndDeletedFalseOrderByGameNoDesc(roomId)
                 .map(game -> game.getGameNo() + 1)
@@ -316,6 +359,10 @@ public class ClocktowerGameLifecycleServiceImpl implements ClocktowerGameLifecyc
         seat.setRoomSeatId(roomSeat.getId());
         seat.setSeatNo(roomSeat.getSeatNo());
         seat.setUserId(roomSeat.getUserId());
+        seat.setActorId(roomSeat.getActorId());
+        seat.setActorType(StringUtils.hasText(roomSeat.getActorType())
+                ? roomSeat.getActorType() : ClocktowerActorType.HUMAN);
+        seat.setAgentInstanceId(roomSeat.getAgentInstanceId());
         seat.setDisplayName(roomSeat.getDisplayName());
         seat.setRoleCode(role.getRoleCode());
         seat.setRoleType(role.getRoleType().name());
@@ -324,6 +371,48 @@ public class ClocktowerGameLifecycleServiceImpl implements ClocktowerGameLifecyc
         seat.setStatus(STATUS_ACTIVE);
         seat.setMetadataJson(roomSeat.getMetadataJson());
         return seat;
+    }
+
+    private void bindAgentInstances(ClocktowerGamePo game, List<ClocktowerGameSeatPo> gameSeats) {
+        for (ClocktowerGameSeatPo gameSeat : gameSeats) {
+            if (!ClocktowerActorType.AGENT.equals(gameSeat.getActorType())) {
+                continue;
+            }
+            ClocktowerAgentInstancePo instance = agentInstanceRepository
+                    .findByIdAndDeletedFalse(gameSeat.getAgentInstanceId())
+                    .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_GAME_SEAT_INVALID"));
+            if (!Objects.equals(instance.getRoomId(), game.getRoomId())
+                    || !Objects.equals(instance.getRoomSeatId(), gameSeat.getRoomSeatId())
+                    || !Objects.equals(instance.getActorId(), gameSeat.getActorId())) {
+                throw new ClocktowerException("CLOCKTOWER_GAME_SEAT_INVALID");
+            }
+            instance.setGameId(game.getId());
+            instance.setGameSeatId(gameSeat.getId());
+            instance.setStatus(ClocktowerAgentStatus.ACTIVE);
+            agentInstanceRepository.save(instance);
+        }
+    }
+
+    private List<Long> humanUserIds(List<ClocktowerRoomSeatPo> seats) {
+        return seats.stream()
+                .filter(seat -> !ClocktowerActorType.AGENT.equals(seat.getActorType()))
+                .map(ClocktowerRoomSeatPo::getUserId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+    }
+
+    private Map<String, Object> gameStartedPayload(Long roomId, int gameNo, List<ClocktowerRoomSeatPo> seats) {
+        long agentSeatCount = seats.stream()
+                .filter(seat -> isSystemAgentSeat(seat, metadata(seat.getMetadataJson())))
+                .count();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("roomId", roomId);
+        payload.put("gameNo", gameNo);
+        payload.put("humanSeatCount", seats.size() - agentSeatCount);
+        payload.put("agentSeatCount", agentSeatCount);
+        payload.put("agentMode", agentSeatCount > 0 ? AGENT_POLICY_HEURISTIC_V0 : AGENT_MODE_NONE);
+        return payload;
     }
 
     private String boardSnapshot(ClocktowerRoomProfilePo profile, List<ClocktowerRoomSeatPo> seats) {
