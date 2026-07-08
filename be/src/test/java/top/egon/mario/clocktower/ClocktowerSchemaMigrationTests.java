@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -19,6 +20,8 @@ class ClocktowerSchemaMigrationTests {
 
     private static final Path ROOM_IM_GAME_REFACTOR_MIGRATION = Path.of(
             "src/main/resources/db/migration/V26__create_room_im_clocktower_refactor_schema.sql");
+    private static final Path ACTOR_AGENT_FOUNDATION_MIGRATION = Path.of(
+            "src/main/resources/db/migration/V32__clocktower_actor_agent_foundation.sql");
 
     @Test
     void roomImGameRefactorMigrationCreatesGenericRoomTables() throws IOException {
@@ -159,6 +162,137 @@ class ClocktowerSchemaMigrationTests {
         assertThat(sql).contains("idx_clocktower_game_event_game_phase");
         assertThat(sql).doesNotContain("idx_clocktower_game_room_no");
         assertThat(sql).doesNotContain("idx_clocktower_game_event_game_seq");
+    }
+
+    @Test
+    void actorAgentFoundationMigrationCreatesActorAgentTablesAndSeatColumns() throws IOException {
+        assertThat(Files.exists(ACTOR_AGENT_FOUNDATION_MIGRATION)).isTrue();
+
+        String sql = Files.readString(ACTOR_AGENT_FOUNDATION_MIGRATION);
+        String lowerSql = sql.toLowerCase();
+
+        assertThat(sql).contains("CREATE TABLE clocktower_actor");
+        assertThat(sql).contains("CREATE TABLE clocktower_agent_profile");
+        assertThat(sql).contains("CREATE TABLE clocktower_agent_instance");
+        assertThat(sql).contains("ALTER TABLE clocktower_room_seat");
+        assertThat(sql).contains("ALTER TABLE clocktower_game_seat");
+        assertThat(sql).contains("ADD COLUMN actor_id BIGINT");
+        assertThat(sql).contains("ADD COLUMN actor_type VARCHAR(32) NOT NULL DEFAULT 'HUMAN'");
+        assertThat(sql).contains("ADD COLUMN agent_instance_id BIGINT");
+        assertThat(sql).contains("created_by BIGINT");
+        assertThat(sql).contains("updated_by BIGINT");
+        assertThat(sql).contains("version BIGINT NOT NULL DEFAULT 0");
+        assertThat(sql).contains("CONSTRAINT uk_clocktower_agent_profile_name UNIQUE (name, deleted)");
+        assertThat(sql).contains("CONSTRAINT uk_clocktower_agent_instance_actor UNIQUE (actor_id, deleted)");
+        assertThat(sql).contains("idx_clocktower_room_seat_actor");
+        assertThat(sql).contains("idx_clocktower_room_seat_agent");
+        assertThat(sql).contains("idx_clocktower_game_seat_actor");
+        assertThat(sql).contains("idx_clocktower_game_seat_agent");
+        assertThat(sql).contains("('balanced', 'Agent {n}', 'NORMAL', 50, 50, 50, 50)");
+        assertThat(sql).contains("('quiet', 'Agent {n}', 'QUIET', 25, 40, 35, 40)");
+        assertThat(sql).contains("('aggressive', 'Agent {n}', 'AGGRESSIVE', 65, 60, 75, 60)");
+        assertThat(sql).contains("('careful', 'Agent {n}', 'CAREFUL', 45, 35, 35, 25)");
+        assertThat(lowerSql).doesNotContain(" check ");
+        assertThat(lowerSql).doesNotContain("where deleted = false");
+        assertThat(sql).doesNotContain("uk_clocktower_actor_user");
+    }
+
+    @Test
+    void actorAgentFoundationMigrationAppliesAndSupportsHumanAndAgentSeats() {
+        JdbcTemplate jdbcTemplate = migratedJdbcTemplate("clocktower_actor_agent_foundation_%s"
+                .formatted(UUID.randomUUID()));
+
+        Integer profileCount = jdbcTemplate.queryForObject("""
+                select count(*)
+                from clocktower_agent_profile
+                where name in ('balanced', 'quiet', 'aggressive', 'careful')
+                """, Integer.class);
+        assertThat(profileCount).isEqualTo(4);
+
+        jdbcTemplate.update("""
+                insert into clocktower_actor (id, actor_type, user_id, display_name)
+                values (92001, 'AGENT', null, 'Agent 1')
+                """);
+        jdbcTemplate.update("""
+                insert into clocktower_agent_instance (id, room_id, profile_id, actor_id, status, auto_mode)
+                values (93001, 91001,
+                        (select id from clocktower_agent_profile where name = 'balanced'),
+                        92001, 'ACTIVE', 'FULL_AUTO')
+                """);
+        jdbcTemplate.update("""
+                insert into clocktower_room_seat
+                    (id, room_id, seat_no, user_id, display_name, role_code, status, actor_type)
+                values
+                    (94001, 91001, 1, 101, 'Human Player', 'EMPATH', 'OCCUPIED', 'HUMAN')
+                """);
+        jdbcTemplate.update("""
+                insert into clocktower_room_seat
+                    (id, room_id, seat_no, user_id, display_name, role_code, status,
+                     actor_id, actor_type, agent_instance_id)
+                values
+                    (94002, 91001, 2, null, 'Agent 1', 'CHEF', 'OCCUPIED',
+                     92001, 'AGENT', 93001)
+                """);
+        jdbcTemplate.update("""
+                insert into clocktower_game
+                    (id, room_id, game_no, script_code, status, phase, board_snapshot_json)
+                values
+                    (95001, 91001, 1, 'TROUBLE_BREWING', 'RUNNING', 'FIRST_NIGHT', '{}')
+                """);
+        jdbcTemplate.update("""
+                insert into clocktower_game_seat
+                    (id, game_id, room_seat_id, seat_no, user_id, display_name, role_code,
+                     status, actor_type)
+                values
+                    (96001, 95001, 94001, 1, 101, 'Human Player', 'EMPATH',
+                     'ACTIVE', 'HUMAN')
+                """);
+        jdbcTemplate.update("""
+                insert into clocktower_game_seat
+                    (id, game_id, room_seat_id, seat_no, user_id, display_name, role_code,
+                     status, actor_id, actor_type, agent_instance_id)
+                values
+                    (96002, 95001, 94002, 2, null, 'Agent 1', 'CHEF',
+                     'ACTIVE', 92001, 'AGENT', 93001)
+                """);
+
+        List<Map<String, Object>> roomSeats = jdbcTemplate.queryForList("""
+                select seat_no, user_id, actor_id, actor_type, agent_instance_id
+                from clocktower_room_seat
+                where room_id = 91001
+                order by seat_no
+                """);
+        assertThat(roomSeats).hasSize(2);
+        assertThat(roomSeats.get(0).get("actor_type")).isEqualTo("HUMAN");
+        assertThat(longValue(roomSeats.get(0), "user_id")).isEqualTo(101L);
+        assertThat(roomSeats.get(0).get("actor_id")).isNull();
+        assertThat(roomSeats.get(0).get("agent_instance_id")).isNull();
+        assertThat(roomSeats.get(1).get("actor_type")).isEqualTo("AGENT");
+        assertThat(roomSeats.get(1).get("user_id")).isNull();
+        assertThat(longValue(roomSeats.get(1), "actor_id")).isEqualTo(92001L);
+        assertThat(longValue(roomSeats.get(1), "agent_instance_id")).isEqualTo(93001L);
+
+        List<Map<String, Object>> gameSeats = jdbcTemplate.queryForList("""
+                select seat_no, user_id, actor_id, actor_type, agent_instance_id
+                from clocktower_game_seat
+                where game_id = 95001
+                order by seat_no
+                """);
+        assertThat(gameSeats).hasSize(2);
+        assertThat(gameSeats.get(0).get("actor_type")).isEqualTo("HUMAN");
+        assertThat(longValue(gameSeats.get(0), "user_id")).isEqualTo(101L);
+        assertThat(gameSeats.get(1).get("actor_type")).isEqualTo("AGENT");
+        assertThat(gameSeats.get(1).get("user_id")).isNull();
+        assertThat(longValue(gameSeats.get(1), "actor_id")).isEqualTo(92001L);
+        assertThat(longValue(gameSeats.get(1), "agent_instance_id")).isEqualTo(93001L);
+
+        String nullable = jdbcTemplate.queryForObject("""
+                select is_nullable
+                from information_schema.columns
+                where table_name = 'im_conversation_member'
+                  and column_name = 'user_id'
+                """, String.class);
+        assertThat(nullable).isEqualTo("NO");
     }
 
     @Test
@@ -410,5 +544,28 @@ class ClocktowerSchemaMigrationTests {
                 "select version from sys_permission where id = 9200", Long.class)).isEqualTo(1L);
         assertThat(jdbcTemplate.queryForObject(
                 "select status from sys_permission where id = 9201", Integer.class)).isEqualTo(1);
+    }
+
+    private JdbcTemplate migratedJdbcTemplate(String databaseName) {
+        DriverManagerDataSource dataSource = new DriverManagerDataSource();
+        dataSource.setDriverClassName("org.h2.Driver");
+        dataSource.setUrl("""
+                jdbc:h2:mem:%s;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+                """.formatted(databaseName).trim());
+        dataSource.setUsername("sa");
+        dataSource.setPassword("");
+
+        Flyway.configure()
+                .dataSource(dataSource)
+                .locations("classpath:db/migration")
+                .load()
+                .migrate();
+
+        return new JdbcTemplate(dataSource);
+    }
+
+    private static Long longValue(Map<String, Object> row, String column) {
+        Object value = row.get(column);
+        return value == null ? null : ((Number) value).longValue();
     }
 }
