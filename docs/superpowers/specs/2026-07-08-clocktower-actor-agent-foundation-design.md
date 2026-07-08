@@ -106,12 +106,10 @@ Add table `clocktower_agent_profile`:
 - `metadata_json`
 - audit columns
 
-Add one active-name uniqueness rule:
+Add one active-name uniqueness rule. The original task sketch used a PostgreSQL partial index. Because this task must remain a single migration under `classpath:db/migration` and the project runs those migrations through H2 PostgreSQL mode, use the H2-compatible `(name, deleted)` form:
 
 ```sql
-create unique index uk_clocktower_agent_profile_name
-    on clocktower_agent_profile(name)
-    where deleted = false;
+constraint uk_clocktower_agent_profile_name unique (name, deleted)
 ```
 
 Seed exactly four default profiles:
@@ -143,7 +141,7 @@ Indexes:
 
 - `idx_clocktower_agent_instance_room` on `room_id`
 - `idx_clocktower_agent_instance_game` on `game_id`
-- `uk_clocktower_agent_instance_actor` unique on `actor_id` where `deleted = false`
+- `uk_clocktower_agent_instance_actor` unique on `(actor_id, deleted)` for H2-compatible active-row uniqueness
 
 `auto_mode` values are data conventions only in this task:
 
