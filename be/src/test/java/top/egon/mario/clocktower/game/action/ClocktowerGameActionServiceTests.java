@@ -14,6 +14,8 @@ import top.egon.mario.clocktower.game.action.dto.ClocktowerGameActionResponse;
 import top.egon.mario.clocktower.game.action.service.ClocktowerAgentGameActionService;
 import top.egon.mario.clocktower.game.action.service.ClocktowerHumanGameActionService;
 import top.egon.mario.clocktower.game.dto.ClocktowerGameResponse;
+import top.egon.mario.clocktower.game.mic.service.ClocktowerPublicMicService;
+import top.egon.mario.clocktower.game.po.ClocktowerGameEventPo;
 import top.egon.mario.clocktower.game.po.ClocktowerGamePo;
 import top.egon.mario.clocktower.game.po.ClocktowerGameSeatPo;
 import top.egon.mario.clocktower.game.po.ClocktowerRoomSeatPo;
@@ -49,6 +51,9 @@ class ClocktowerGameActionServiceTests {
 
     @Autowired
     private ClocktowerGameLifecycleService gameService;
+
+    @Autowired
+    private ClocktowerPublicMicService micService;
 
     @Autowired
     private ClocktowerRoomLobbyService roomService;
@@ -171,6 +176,63 @@ class ClocktowerGameActionServiceTests {
                 .hasMessageContaining("CLOCKTOWER_GAME_NOT_RUNNING");
     }
 
+    @Test
+    void publicSpeech_requiresMic() {
+        StartedGame game = startDayGameWithAgents();
+        ClocktowerGameSeatPo humanSeat = game.seats().getFirst();
+
+        ClocktowerGameActionResponse response = humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(humanSeat.getId(), "PUBLIC_SPEECH", List.of(),
+                        null, null, "I am first", Map.of()),
+                principal(11L, "player1"));
+
+        assertThat(response.accepted()).isFalse();
+        assertThat(response.rejectedCode()).isEqualTo("CLOCKTOWER_MIC_SESSION_NOT_FOUND");
+    }
+
+    @Test
+    void publicSpeech_appendsGameEvent() {
+        StartedGame game = startDayGameWithAgents();
+        ClocktowerGameSeatPo humanSeat = game.seats().getFirst();
+        micService.startDayMicSession(game.gameId(), owner());
+
+        ClocktowerGameActionResponse response = humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(humanSeat.getId(), "PUBLIC_SPEECH", List.of(),
+                        null, null, "I am the empath.", Map.of("tone", "calm")),
+                principal(11L, "player1"));
+
+        assertThat(response.accepted()).isTrue();
+        assertThat(response.event()).isNotNull();
+        assertThat(response.event().eventType()).isEqualTo("PUBLIC_SPEECH");
+        assertThat(response.event().actorGameSeatId()).isEqualTo(humanSeat.getId());
+        assertThat(response.event().visibility()).isEqualTo("PUBLIC");
+        assertThat(response.event().payload())
+                .containsEntry("content", "I am the empath.")
+                .containsEntry("actorType", "HUMAN");
+        assertThat(gameEventTypes(game.gameId())).contains("PUBLIC_SPEECH");
+    }
+
+    @Test
+    void publicSpeechRejectsBlankOrLongContent() {
+        StartedGame game = startDayGameWithAgents();
+        ClocktowerGameSeatPo humanSeat = game.seats().getFirst();
+        micService.startDayMicSession(game.gameId(), owner());
+
+        ClocktowerGameActionResponse blank = humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(humanSeat.getId(), "PUBLIC_SPEECH", List.of(),
+                        null, null, " ", Map.of()),
+                principal(11L, "player1"));
+        ClocktowerGameActionResponse tooLong = humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(humanSeat.getId(), "PUBLIC_SPEECH", List.of(),
+                        null, null, "x".repeat(1001), Map.of()),
+                principal(11L, "player1"));
+
+        assertThat(blank.accepted()).isFalse();
+        assertThat(blank.rejectedCode()).isEqualTo("CLOCKTOWER_PUBLIC_SPEECH_CONTENT_REQUIRED");
+        assertThat(tooLong.accepted()).isFalse();
+        assertThat(tooLong.rejectedCode()).isEqualTo("CLOCKTOWER_PUBLIC_SPEECH_CONTENT_TOO_LONG");
+    }
+
     private StartedGame startDayGameWithAgents() {
         ClocktowerRoomResponse room = roomService.createRoom(createRequest(4), owner());
         roomService.claimSeat(room.roomId(), 1, new ClocktowerSeatClaimRequest("Player 1"),
@@ -200,6 +262,13 @@ class ClocktowerGameActionServiceTests {
             return metadataJson;
         }
         return "{\"ready\":true}";
+    }
+
+    private List<String> gameEventTypes(Long gameId) {
+        return gameEventRepository.findByGameIdAndStatusAndDeletedFalseOrderByEventSeqAsc(gameId, "VISIBLE")
+                .stream()
+                .map(ClocktowerGameEventPo::getEventType)
+                .toList();
     }
 
     private ClocktowerRoomCreateRequest createRequest(int agentSeatCount) {

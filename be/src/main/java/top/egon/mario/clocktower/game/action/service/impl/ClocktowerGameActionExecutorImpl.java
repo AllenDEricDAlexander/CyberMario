@@ -16,8 +16,10 @@ import top.egon.mario.clocktower.game.po.ClocktowerGameSeatPo;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameRepository;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameSeatRepository;
 import top.egon.mario.clocktower.game.service.ClocktowerGameEventAppender;
+import top.egon.mario.clocktower.view.dto.ClocktowerGameEventResponse;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -29,7 +31,6 @@ public class ClocktowerGameActionExecutorImpl implements ClocktowerGameActionExe
     private final ClocktowerGameRepository gameRepository;
     private final ClocktowerGameSeatRepository gameSeatRepository;
     private final ClocktowerGameEventAppender eventAppender;
-    @SuppressWarnings("unused")
     private final ClocktowerPublicMicService publicMicService;
 
     @Override
@@ -62,10 +63,39 @@ public class ClocktowerGameActionExecutorImpl implements ClocktowerGameActionExe
             throw new ClocktowerException("CLOCKTOWER_GAME_ACTION_SEAT_FORBIDDEN");
         }
         return switch (command.actionType()) {
-            case "PUBLIC_SPEECH", "FINISH_SPEECH", "PASS", "NOMINATE", "VOTE" ->
+            case "PUBLIC_SPEECH" -> publicSpeech(game, seat, command, actor);
+            case "FINISH_SPEECH", "PASS", "NOMINATE", "VOTE" ->
                     ClocktowerGameActionResponse.rejected("CLOCKTOWER_ACTION_NOT_IMPLEMENTED");
             default -> reject(game, seat, command.actionType(), "UNKNOWN_ACTION_TYPE");
         };
+    }
+
+    private ClocktowerGameActionResponse publicSpeech(ClocktowerGamePo game, ClocktowerGameSeatPo seat,
+                                                      GameActionCommand command, ActorContext actor) {
+        if (!speechPhase(game)) {
+            return reject(game, seat, "PUBLIC_SPEECH", "CLOCKTOWER_PUBLIC_SPEECH_PHASE_INVALID");
+        }
+        if (!StringUtils.hasText(command.content())) {
+            return reject(game, seat, "PUBLIC_SPEECH", "CLOCKTOWER_PUBLIC_SPEECH_CONTENT_REQUIRED");
+        }
+        if (command.content().length() > 1000) {
+            return reject(game, seat, "PUBLIC_SPEECH", "CLOCKTOWER_PUBLIC_SPEECH_CONTENT_TOO_LONG");
+        }
+        try {
+            publicMicService.requireCanSpeak(game.getId(), seat.getId());
+        } catch (ClocktowerException ex) {
+            return reject(game, seat, "PUBLIC_SPEECH", ex.getMessage());
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("content", command.content().trim());
+        payload.put("actorType", actor.actorType());
+        if (command.payload() != null && !command.payload().isEmpty()) {
+            payload.put("clientPayload", command.payload());
+        }
+        ClocktowerGameEventResponse event = eventAppender.append(game, "PUBLIC_SPEECH", seat.getId(), null,
+                "PUBLIC", List.of(), payload, Instant.now());
+        return ClocktowerGameActionResponse.accepted(event);
     }
 
     private boolean actorMatchesSeat(ActorContext actor, ClocktowerGameSeatPo seat) {
@@ -82,6 +112,10 @@ public class ClocktowerGameActionExecutorImpl implements ClocktowerGameActionExe
                     && Objects.equals(actor.actorId(), seat.getActorId());
         }
         return false;
+    }
+
+    private boolean speechPhase(ClocktowerGamePo game) {
+        return "DAY".equals(game.getPhase()) || "NOMINATION".equals(game.getPhase());
     }
 
     private ClocktowerGameActionResponse reject(ClocktowerGamePo game, ClocktowerGameSeatPo seat, String actionType,
