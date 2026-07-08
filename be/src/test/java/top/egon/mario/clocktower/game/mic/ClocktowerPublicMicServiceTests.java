@@ -200,6 +200,28 @@ class ClocktowerPublicMicServiceTests {
     }
 
     @Test
+    void finishCurrentTurnAsActorFinishesOnlyCurrentHolder() {
+        StartedGame game = startDayGameWithAgents();
+        ClocktowerMicSessionView started = micService.startDayMicSession(game.gameId(), owner());
+        Long holderSeatId = started.currentHolderGameSeatId();
+        Long otherSeatId = started.turns().stream()
+                .map(ClocktowerMicTurnView::gameSeatId)
+                .filter(seatId -> !seatId.equals(holderSeatId))
+                .findFirst()
+                .orElseThrow();
+
+        assertThatThrownBy(() -> micService.finishCurrentTurnAsActor(game.gameId(), otherSeatId))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_MIC_NOT_HOLDER");
+
+        ClocktowerMicSessionView finished = micService.finishCurrentTurnAsActor(game.gameId(), holderSeatId);
+
+        assertThat(turnBySeatNo(finished, 1).status()).isEqualTo("DONE");
+        assertThat(activeTurn(finished).seatNo()).isEqualTo(2);
+        assertThat(gameEventTypes(game.gameId())).contains("MIC_TURN_FINISHED");
+    }
+
+    @Test
     void finishingLastRoundRobinTurnOpensGrabMicWindow() {
         StartedGame game = startDayGameWithAgents();
 

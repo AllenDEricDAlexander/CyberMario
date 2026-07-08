@@ -11,6 +11,8 @@ public interface ClocktowerPublicMicService {
 
     ClocktowerMicSessionView finishCurrentTurn(Long gameId, Long turnId, RbacPrincipal principal);
 
+    ClocktowerMicSessionView finishCurrentTurnAsActor(Long gameId, Long actorGameSeatId);
+
     ClocktowerMicSessionView skipTurn(Long gameId, Long turnId, RbacPrincipal principal);
 
     ClocktowerMicSessionView grabMic(Long gameId, RbacPrincipal principal);

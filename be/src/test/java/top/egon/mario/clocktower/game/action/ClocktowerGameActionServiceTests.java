@@ -233,6 +233,54 @@ class ClocktowerGameActionServiceTests {
         assertThat(tooLong.rejectedCode()).isEqualTo("CLOCKTOWER_PUBLIC_SPEECH_CONTENT_TOO_LONG");
     }
 
+    @Test
+    void finishSpeech_finishesCurrentMicTurn() {
+        StartedGame game = startDayGameWithAgents();
+        ClocktowerGameSeatPo humanSeat = game.seats().getFirst();
+        micService.startDayMicSession(game.gameId(), owner());
+
+        ClocktowerGameActionResponse response = humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(humanSeat.getId(), "FINISH_SPEECH", List.of(),
+                        null, null, null, Map.of()),
+                principal(11L, "player1"));
+
+        assertThat(response.accepted()).isTrue();
+        assertThat(response.event().eventType()).isEqualTo("FINISH_SPEECH");
+        assertThat(gameEventTypes(game.gameId())).contains("FINISH_SPEECH", "MIC_TURN_FINISHED");
+        assertThat(micService.canSpeak(game.gameId(), humanSeat.getId())).isFalse();
+    }
+
+    @Test
+    void passMicTurn_finishesCurrentMicTurnAndAppendsPassEvent() {
+        StartedGame game = startDayGameWithAgents();
+        ClocktowerGameSeatPo humanSeat = game.seats().getFirst();
+        micService.startDayMicSession(game.gameId(), owner());
+
+        ClocktowerGameActionResponse response = humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(humanSeat.getId(), "PASS", List.of(),
+                        null, null, null, Map.of("passType", "MIC_TURN")),
+                principal(11L, "player1"));
+
+        assertThat(response.accepted()).isTrue();
+        assertThat(response.event().eventType()).isEqualTo("PLAYER_PASSED");
+        assertThat(response.event().payload()).containsEntry("passType", "MIC_TURN");
+        assertThat(gameEventTypes(game.gameId())).contains("PLAYER_PASSED", "MIC_TURN_FINISHED");
+    }
+
+    @Test
+    void passRejectsUnsupportedPassType() {
+        StartedGame game = startDayGameWithAgents();
+        ClocktowerGameSeatPo humanSeat = game.seats().getFirst();
+
+        ClocktowerGameActionResponse response = humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(humanSeat.getId(), "PASS", List.of(),
+                        null, null, null, Map.of("passType", "NIGHT_TASK")),
+                principal(11L, "player1"));
+
+        assertThat(response.accepted()).isFalse();
+        assertThat(response.rejectedCode()).isEqualTo("CLOCKTOWER_PASS_TYPE_UNSUPPORTED");
+    }
+
     private StartedGame startDayGameWithAgents() {
         ClocktowerRoomResponse room = roomService.createRoom(createRequest(4), owner());
         roomService.claimSeat(room.roomId(), 1, new ClocktowerSeatClaimRequest("Player 1"),

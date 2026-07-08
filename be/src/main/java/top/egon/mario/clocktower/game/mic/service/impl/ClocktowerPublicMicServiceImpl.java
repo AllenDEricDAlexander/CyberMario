@@ -124,6 +124,24 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
 
     @Override
     @Transactional
+    public ClocktowerMicSessionView finishCurrentTurnAsActor(Long gameId, Long actorGameSeatId) {
+        ClocktowerGamePo game = lockedGame(gameId);
+        ClocktowerGamePublicMicSessionPo session = lockedCurrentSession(game);
+        Instant now = Instant.now();
+        refreshExpiredState(game, session, now);
+        requireSessionOpen(session);
+        ClocktowerGamePublicMicTurnPo turn = currentTurn(session);
+        if (!TURN_ACTIVE.equals(turn.getStatus())
+                || !Objects.equals(session.getCurrentHolderGameSeatId(), actorGameSeatId)
+                || !Objects.equals(turn.getGameSeatId(), actorGameSeatId)) {
+            throw new ClocktowerException("CLOCKTOWER_MIC_NOT_HOLDER");
+        }
+        finishActiveTurn(game, session, turn, now, TURN_DONE, EVENT_MIC_TURN_FINISHED);
+        return toView(session);
+    }
+
+    @Override
+    @Transactional
     public ClocktowerMicSessionView skipTurn(Long gameId, Long turnId, RbacPrincipal principal) {
         ClocktowerGamePo game = lockedGame(gameId);
         requireStoryteller(game, principal);
