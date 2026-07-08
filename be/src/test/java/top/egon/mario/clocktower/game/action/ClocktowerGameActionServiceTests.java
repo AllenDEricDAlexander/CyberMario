@@ -141,6 +141,36 @@ class ClocktowerGameActionServiceTests {
                 .hasMessageContaining("CLOCKTOWER_AGENT_AUTO_MODE_PAUSED");
     }
 
+    @Test
+    void unknownActionTypeIsRejected() {
+        StartedGame game = startDayGameWithAgents();
+        ClocktowerGameSeatPo humanSeat = game.seats().getFirst();
+
+        ClocktowerGameActionResponse response = humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(humanSeat.getId(), "SING_LOUDLY", List.of(),
+                        null, null, null, Map.of()),
+                principal(11L, "player1"));
+
+        assertThat(response.accepted()).isFalse();
+        assertThat(response.rejectedCode()).isEqualTo("UNKNOWN_ACTION_TYPE");
+    }
+
+    @Test
+    void actionRequiresRunningGameAndActiveSeat() {
+        StartedGame game = startDayGameWithAgents();
+        ClocktowerGameSeatPo humanSeat = game.seats().getFirst();
+        ClocktowerGamePo gamePo = gameRepository.findByIdAndDeletedFalse(game.gameId()).orElseThrow();
+        gamePo.setStatus("ENDED");
+        gameRepository.saveAndFlush(gamePo);
+
+        assertThatThrownBy(() -> humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(humanSeat.getId(), "PUBLIC_SPEECH", List.of(),
+                        null, null, "hello", Map.of()),
+                principal(11L, "player1")))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_GAME_NOT_RUNNING");
+    }
+
     private StartedGame startDayGameWithAgents() {
         ClocktowerRoomResponse room = roomService.createRoom(createRequest(4), owner());
         roomService.claimSeat(room.roomId(), 1, new ClocktowerSeatClaimRequest("Player 1"),

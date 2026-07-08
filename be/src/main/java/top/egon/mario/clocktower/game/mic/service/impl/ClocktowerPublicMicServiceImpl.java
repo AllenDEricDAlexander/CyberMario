@@ -18,12 +18,12 @@ import top.egon.mario.clocktower.game.mic.po.ClocktowerGamePublicMicTurnPo;
 import top.egon.mario.clocktower.game.mic.repository.ClocktowerGamePublicMicSessionRepository;
 import top.egon.mario.clocktower.game.mic.repository.ClocktowerGamePublicMicTurnRepository;
 import top.egon.mario.clocktower.game.mic.service.ClocktowerPublicMicService;
-import top.egon.mario.clocktower.game.po.ClocktowerGameEventPo;
 import top.egon.mario.clocktower.game.po.ClocktowerGamePo;
 import top.egon.mario.clocktower.game.po.ClocktowerGameSeatPo;
-import top.egon.mario.clocktower.game.repository.ClocktowerGameEventRepository;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameRepository;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameSeatRepository;
+import top.egon.mario.clocktower.game.service.ClocktowerGameEventAppender;
+import top.egon.mario.clocktower.view.dto.ClocktowerGameEventResponse;
 import top.egon.mario.clocktower.room.policy.ClocktowerRoomAccessPolicy;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 import top.egon.mario.room.po.RoomSpacePo;
@@ -73,7 +73,7 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
 
     private final ClocktowerGameRepository gameRepository;
     private final ClocktowerGameSeatRepository gameSeatRepository;
-    private final ClocktowerGameEventRepository gameEventRepository;
+    private final ClocktowerGameEventAppender gameEventAppender;
     private final ClocktowerGamePublicMicSessionRepository sessionRepository;
     private final ClocktowerGamePublicMicTurnRepository turnRepository;
     private final RoomSpaceRepository roomSpaceRepository;
@@ -137,9 +137,9 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
         }
         turn.setStatus(TURN_SKIPPED);
         turn.setEndedAt(now);
-        ClocktowerGameEventPo event = appendGameEvent(game, EVENT_MIC_TURN_SKIPPED, now,
+        ClocktowerGameEventResponse event = appendGameEvent(game, EVENT_MIC_TURN_SKIPPED, now,
                 turnPayload(session, turn));
-        turn.setSpeechEventId(event.getId());
+        turn.setSpeechEventId(event.eventId());
         if (Objects.equals(session.getCurrentTurnId(), turn.getId())) {
             session.setCurrentHolderGameSeatId(null);
             session.setCurrentTurnId(null);
@@ -411,9 +411,9 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
                                   ClocktowerGamePublicMicTurnPo turn, Instant now) {
         turn.setStatus(TURN_EXPIRED);
         turn.setEndedAt(now);
-        ClocktowerGameEventPo event = appendGameEvent(game, EVENT_MIC_TURN_EXPIRED, now,
+        ClocktowerGameEventResponse event = appendGameEvent(game, EVENT_MIC_TURN_EXPIRED, now,
                 turnPayload(session, turn));
-        turn.setSpeechEventId(event.getId());
+        turn.setSpeechEventId(event.eventId());
         session.setCurrentHolderGameSeatId(null);
         session.setCurrentTurnId(null);
         if (STAGE_ROUND_ROBIN.equals(turn.getStage())) {
@@ -429,8 +429,8 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
                                   ClocktowerGamePublicMicTurnPo turn, Instant now, String status, String eventType) {
         turn.setStatus(status);
         turn.setEndedAt(now);
-        ClocktowerGameEventPo event = appendGameEvent(game, eventType, now, turnPayload(session, turn));
-        turn.setSpeechEventId(event.getId());
+        ClocktowerGameEventResponse event = appendGameEvent(game, eventType, now, turnPayload(session, turn));
+        turn.setSpeechEventId(event.eventId());
         session.setCurrentHolderGameSeatId(null);
         session.setCurrentTurnId(null);
         if (STAGE_ROUND_ROBIN.equals(turn.getStage())) {
@@ -589,27 +589,9 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_GAME_NOT_FOUND"));
     }
 
-    private ClocktowerGameEventPo appendGameEvent(ClocktowerGamePo game, String eventType, Instant occurredAt,
-                                                  Map<String, Object> payload) {
-        ClocktowerGameEventPo event = new ClocktowerGameEventPo();
-        event.setGameId(game.getId());
-        event.setEventSeq(nextEventSeq(game.getId()));
-        event.setEventType(eventType);
-        event.setPhase(game.getPhase());
-        event.setDayNo(game.getDayNo());
-        event.setNightNo(game.getNightNo());
-        event.setVisibility("PUBLIC");
-        event.setVisibleGameSeatIdsJson("[]");
-        event.setPayloadJson(writeJson(payload));
-        event.setStatus("VISIBLE");
-        event.setOccurredAt(occurredAt);
-        return gameEventRepository.saveAndFlush(event);
-    }
-
-    private long nextEventSeq(Long gameId) {
-        return gameEventRepository.findTopByGameIdAndDeletedFalseOrderByEventSeqDesc(gameId)
-                .map(event -> event.getEventSeq() + 1)
-                .orElse(1L);
+    private ClocktowerGameEventResponse appendGameEvent(ClocktowerGamePo game, String eventType, Instant occurredAt,
+                                                        Map<String, Object> payload) {
+        return gameEventAppender.append(game, eventType, null, null, "PUBLIC", List.of(), payload, occurredAt);
     }
 
     private Map<String, Object> metadata(String json) {
@@ -623,11 +605,4 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
         }
     }
 
-    private String writeJson(Object value) {
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException ex) {
-            throw new ClocktowerException("CLOCKTOWER_METADATA_INVALID");
-        }
-    }
 }
