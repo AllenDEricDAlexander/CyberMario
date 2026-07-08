@@ -18,6 +18,7 @@ public class ClocktowerSeatAssignmentPolicy {
     public static final String INVITE_ONLY = "INVITE_ONLY";
 
     private static final String STATUS_LOBBY = "LOBBY";
+    private static final String SEAT_STATUS_OCCUPIED = "OCCUPIED";
 
     private final ClocktowerRoomAccessPolicy accessPolicy;
     private final RoomInvitationRepository invitationRepository;
@@ -36,6 +37,9 @@ public class ClocktowerSeatAssignmentPolicy {
             throw new ClocktowerException("CLOCKTOWER_ROOM_NOT_LOBBY");
         }
         if (seat.getUserId() != null && !seat.getUserId().equals(principal.userId())) {
+            throw new ClocktowerException("CLOCKTOWER_SEAT_OCCUPIED");
+        }
+        if (SEAT_STATUS_OCCUPIED.equals(seat.getStatus()) && seat.getUserId() == null) {
             throw new ClocktowerException("CLOCKTOWER_SEAT_OCCUPIED");
         }
         return switch (normalizedPolicy(seatingPolicy)) {

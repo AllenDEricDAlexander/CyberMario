@@ -9,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import top.egon.mario.clocktower.agent.constant.ClocktowerAgentAutoMode;
+import top.egon.mario.clocktower.agent.service.ClocktowerAgentSeatService;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardValidateRequest;
 import top.egon.mario.clocktower.board.dto.response.BoardValidationResponse;
 import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardConfigResponse;
@@ -77,6 +79,7 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
     private static final String MEMBER_TYPE_MEMBER = "MEMBER";
     private static final String MEMBER_TYPE_SPECTATOR = "SPECTATOR";
     private static final String INVITATION_TYPE_SEAT_REQUEST = "SEAT_REQUEST";
+    private static final String DEFAULT_AGENT_PROFILE_NAME = "balanced";
 
     private final RoomFacade roomFacade;
     private final ClocktowerImAdapter clocktowerImAdapter;
@@ -85,6 +88,7 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
     private final RoomInvitationRepository roomInvitationRepository;
     private final ClocktowerRoomProfileRepository profileRepository;
     private final ClocktowerRoomSeatRepository seatRepository;
+    private final ClocktowerAgentSeatService agentSeatService;
     private final ClocktowerBoardService boardService;
     private final ClocktowerRoomAccessPolicy accessPolicy;
     private final ClocktowerSeatAssignmentPolicy seatAssignmentPolicy;
@@ -100,6 +104,7 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
         List<String> roleCodes = resolveCreateRoomRoleCodes(request, principal);
         validateBoard(scriptCode, playerCount, roleCodes);
         String resolvedSeatingPolicy = seatingPolicy(request.seatingPolicy());
+        int agentSeatCount = requireAgentSeatCount(request.agentSeatCount(), playerCount);
 
         Long temporaryContextId = nextTemporaryContextId();
         RoomFacade.RoomView created = roomCall(() -> roomFacade.createRoom(
@@ -121,9 +126,17 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
         profile.setMetadataJson(writeJson(Map.of("seatingPolicy", resolvedSeatingPolicy)));
         profileRepository.save(profile);
 
+        int firstAgentSeatNo = playerCount - agentSeatCount + 1;
+        int agentIndex = 0;
         for (int seatNo = 1; seatNo <= playerCount; seatNo++) {
             String roleCode = seatNo <= roleCodes.size() ? roleCodes.get(seatNo - 1) : null;
-            seatRepository.save(openSeat(room.getId(), seatNo, roleCode));
+            ClocktowerRoomSeatPo seat = seatRepository.save(openSeat(room.getId(), seatNo, roleCode));
+            if (seatNo >= firstAgentSeatNo) {
+                agentIndex++;
+                agentSeatService.createAgentForRoomSeat(room.getId(), seat.getId(), seatNo,
+                        "Agent " + agentIndex, roleCode, DEFAULT_AGENT_PROFILE_NAME,
+                        ClocktowerAgentAutoMode.FULL_AUTO);
+            }
         }
 
         Long publicConversationId = ensurePublicConversation(room.getId(), principal.userId());
@@ -604,6 +617,16 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
             throw new ClocktowerException("CLOCKTOWER_PLAYER_COUNT_INVALID");
         }
         return playerCount;
+    }
+
+    private int requireAgentSeatCount(int requested, int playerCount) {
+        if (requested < 0) {
+            throw new ClocktowerException("CLOCKTOWER_AGENT_SEAT_COUNT_INVALID");
+        }
+        if (requested >= playerCount) {
+            throw new ClocktowerException("CLOCKTOWER_AGENT_SEAT_COUNT_INVALID");
+        }
+        return requested;
     }
 
     private Long nextTemporaryContextId() {

@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
+import top.egon.mario.clocktower.agent.constant.ClocktowerActorType;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardSaveRequest;
 import top.egon.mario.clocktower.board.dto.response.ClocktowerBoardConfigResponse;
 import top.egon.mario.clocktower.board.service.ClocktowerBoardService;
@@ -30,6 +31,8 @@ import top.egon.mario.clocktower.room.dto.response.ClocktowerSeatResponse;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomProfileRepository;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomSeatRepository;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomLobbyService;
+import top.egon.mario.im.po.ImConversationMemberPo;
+import top.egon.mario.im.repository.ImConversationMemberRepository;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 import top.egon.mario.room.po.RoomInvitationPo;
 import top.egon.mario.room.po.RoomMemberPo;
@@ -79,6 +82,9 @@ class ClocktowerRoomRefactorServiceTests {
     @Autowired
     private ClocktowerRoomSeatRepository seatRepository;
 
+    @Autowired
+    private ImConversationMemberRepository conversationMemberRepository;
+
     @Test
     void createRoomCreatesGenericRoomProfileSeatDraftAndRoomPublicConversation() {
         RbacPrincipal owner = principal(1L, "mario");
@@ -118,6 +124,115 @@ class ClocktowerRoomRefactorServiceTests {
                     assertThat(conversation.groupKey()).isEqualTo(ClocktowerChatConstants.GROUP_PUBLIC);
                     assertThat(conversation.conversationType()).isEqualTo(ClocktowerChatConstants.CONVERSATION_ROOM);
                 });
+    }
+
+    @Test
+    void createRoomAgentSeatCountZeroKeepsAllSeatsOpen() {
+        ClocktowerRoomResponse room = roomService.createRoom(createRequest("OPEN_SEATING", 0),
+                principal(1L, "mario"));
+
+        assertThat(seatRepository.findByRoomIdOrderBySeatNoAsc(room.roomId()))
+                .extracting(ClocktowerRoomSeatPo::getStatus, ClocktowerRoomSeatPo::getActorType,
+                        ClocktowerRoomSeatPo::getActorId, ClocktowerRoomSeatPo::getAgentInstanceId)
+                .containsExactly(
+                        tuple("OPEN", ClocktowerActorType.HUMAN, null, null),
+                        tuple("OPEN", ClocktowerActorType.HUMAN, null, null),
+                        tuple("OPEN", ClocktowerActorType.HUMAN, null, null),
+                        tuple("OPEN", ClocktowerActorType.HUMAN, null, null),
+                        tuple("OPEN", ClocktowerActorType.HUMAN, null, null)
+                );
+        assertThat(room.seats())
+                .extracting(ClocktowerSeatResponse::actorType, ClocktowerSeatResponse::actorId,
+                        ClocktowerSeatResponse::agentInstanceId, ClocktowerSeatResponse::isAgent,
+                        ClocktowerSeatResponse::ready)
+                .containsOnly(tuple(ClocktowerActorType.HUMAN, null, null, false, false));
+    }
+
+    @Test
+    void createRoomAgentSeatCountFourCreatesTrailingAgentSeats() {
+        ClocktowerRoomResponse room = roomService.createRoom(createRequest("OPEN_SEATING", 4),
+                principal(1L, "mario"));
+
+        List<ClocktowerRoomSeatPo> seats = seatRepository.findByRoomIdOrderBySeatNoAsc(room.roomId());
+        assertThat(seats).hasSize(5);
+        assertThat(seats.get(0))
+                .extracting(ClocktowerRoomSeatPo::getSeatNo, ClocktowerRoomSeatPo::getStatus,
+                        ClocktowerRoomSeatPo::getActorType, ClocktowerRoomSeatPo::getActorId,
+                        ClocktowerRoomSeatPo::getAgentInstanceId)
+                .containsExactly(1, "OPEN", ClocktowerActorType.HUMAN, null, null);
+        assertThat(seats.subList(1, 5)).allSatisfy(seat -> {
+            assertThat(seat.getStatus()).isEqualTo("OCCUPIED");
+            assertThat(seat.getActorType()).isEqualTo(ClocktowerActorType.AGENT);
+            assertThat(seat.getActorId()).isNotNull();
+            assertThat(seat.getAgentInstanceId()).isNotNull();
+            assertThat(seat.getUserId()).isNull();
+            assertThat(seat.getMetadataJson()).contains("\"ready\":true");
+            assertThat(seat.getMetadataJson()).contains("\"agentSeat\":true");
+            assertThat(seat.getMetadataJson()).contains("\"systemManaged\":true");
+            assertThat(seat.getMetadataJson()).contains("\"agentPolicy\":\"HEURISTIC_V0\"");
+            assertThat(seat.getMetadataJson()).contains("\"autoMode\":\"FULL_AUTO\"");
+            assertThat(seat.getMetadataJson()).contains("\"createdBy\":\"agentSeatCount\"");
+        });
+        assertThat(seats.subList(1, 5))
+                .extracting(ClocktowerRoomSeatPo::getDisplayName)
+                .containsExactly("Agent 1", "Agent 2", "Agent 3", "Agent 4");
+
+        assertThat(room.seats().get(0).isAgent()).isFalse();
+        assertThat(room.seats().subList(1, 5)).allSatisfy(seat -> {
+            assertThat(seat.actorType()).isEqualTo(ClocktowerActorType.AGENT);
+            assertThat(seat.actorId()).isNotNull();
+            assertThat(seat.agentInstanceId()).isNotNull();
+            assertThat(seat.isAgent()).isTrue();
+            assertThat(seat.ready()).isTrue();
+            assertThat(seat.status()).isEqualTo("OCCUPIED");
+        });
+    }
+
+    @Test
+    void createRoomAgentSeatCountTooLargeRejected() {
+        long roomCount = roomSpaceRepository.count();
+
+        assertThatThrownBy(() -> roomService.createRoom(createRequest("OPEN_SEATING", 5),
+                principal(1L, "mario")))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_AGENT_SEAT_COUNT_INVALID");
+
+        assertThat(roomSpaceRepository.count()).isEqualTo(roomCount);
+    }
+
+    @Test
+    void createRoomAgentSeatsHaveNoUserId() {
+        ClocktowerRoomResponse room = roomService.createRoom(createRequest("OPEN_SEATING", 4),
+                principal(1L, "mario"));
+
+        assertThat(seatRepository.findByRoomIdOrderBySeatNoAsc(room.roomId()).subList(1, 5))
+                .extracting(ClocktowerRoomSeatPo::getUserId)
+                .containsOnlyNulls();
+    }
+
+    @Test
+    void createRoomAgentSeatsDoNotJoinPublicConversation() {
+        ClocktowerRoomResponse room = roomService.createRoom(createRequest("OPEN_SEATING", 4),
+                principal(1L, "mario"));
+
+        assertThat(conversationMemberRepository.findByConversationIdAndDeletedFalse(room.publicConversationId()))
+                .extracting(ImConversationMemberPo::getUserId)
+                .containsExactly(1L);
+    }
+
+    @Test
+    void claimSeatRejectsAgentSeatAsOccupied() {
+        ClocktowerRoomResponse room = roomService.createRoom(createRequest("OPEN_SEATING", 4),
+                principal(1L, "mario"));
+
+        assertThatThrownBy(() -> roomService.claimSeat(room.roomId(), 2,
+                new ClocktowerSeatClaimRequest("Luigi"), principal(2L, "luigi")))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_SEAT_OCCUPIED");
+
+        ClocktowerRoomSeatPo seat = seatRepository.findByRoomIdAndSeatNo(room.roomId(), 2).orElseThrow();
+        assertThat(seat.getActorType()).isEqualTo(ClocktowerActorType.AGENT);
+        assertThat(seat.getUserId()).isNull();
     }
 
     @Test
@@ -403,6 +518,10 @@ class ClocktowerRoomRefactorServiceTests {
     }
 
     private static ClocktowerRoomCreateRequest createRequest(String seatingPolicy) {
+        return createRequest(seatingPolicy, 0);
+    }
+
+    private static ClocktowerRoomCreateRequest createRequest(String seatingPolicy, int agentSeatCount) {
         return new ClocktowerRoomCreateRequest(
                 "Friday Clocktower",
                 ClocktowerScriptCode.TROUBLE_BREWING,
@@ -413,7 +532,7 @@ class ClocktowerRoomRefactorServiceTests {
                 "HUMAN",
                 true,
                 true,
-                0,
+                agentSeatCount,
                 "PUBLIC",
                 seatingPolicy
         );
