@@ -10,6 +10,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
+import top.egon.mario.clocktower.agent.po.ClocktowerActorPo;
+import top.egon.mario.clocktower.agent.po.ClocktowerAgentInstancePo;
+import top.egon.mario.clocktower.agent.po.ClocktowerAgentProfilePo;
 import top.egon.mario.clocktower.common.enums.ClocktowerAlignment;
 import top.egon.mario.clocktower.common.enums.ClocktowerNightType;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
@@ -65,6 +68,13 @@ class ClocktowerJpaMappingTests {
         assertManaged(ClocktowerGamePo.class);
         assertManaged(ClocktowerGameSeatPo.class);
         assertManaged(ClocktowerGameEventPo.class);
+    }
+
+    @Test
+    void clocktowerAgentPoClassesAreManagedByJpaContext() {
+        assertManaged(ClocktowerActorPo.class);
+        assertManaged(ClocktowerAgentProfilePo.class);
+        assertManaged(ClocktowerAgentInstancePo.class);
     }
 
     @Test
