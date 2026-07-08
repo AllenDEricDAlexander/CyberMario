@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import top.egon.mario.clocktower.agent.constant.ClocktowerActorType;
 import top.egon.mario.clocktower.board.dto.request.ClocktowerBoardSaveRequest;
@@ -31,8 +32,6 @@ import top.egon.mario.clocktower.room.dto.response.ClocktowerSeatResponse;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomProfileRepository;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomSeatRepository;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomLobbyService;
-import top.egon.mario.im.po.ImConversationMemberPo;
-import top.egon.mario.im.repository.ImConversationMemberRepository;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 import top.egon.mario.room.po.RoomInvitationPo;
 import top.egon.mario.room.po.RoomMemberPo;
@@ -83,7 +82,7 @@ class ClocktowerRoomRefactorServiceTests {
     private ClocktowerRoomSeatRepository seatRepository;
 
     @Autowired
-    private ImConversationMemberRepository conversationMemberRepository;
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     void createRoomCreatesGenericRoomProfileSeatDraftAndRoomPublicConversation() {
@@ -215,8 +214,7 @@ class ClocktowerRoomRefactorServiceTests {
         ClocktowerRoomResponse room = roomService.createRoom(createRequest("OPEN_SEATING", 4),
                 principal(1L, "mario"));
 
-        assertThat(conversationMemberRepository.findByConversationIdAndDeletedFalse(room.publicConversationId()))
-                .extracting(ImConversationMemberPo::getUserId)
+        assertThat(conversationMemberUserIds(room.publicConversationId()))
                 .containsExactly(1L);
     }
 
@@ -519,6 +517,16 @@ class ClocktowerRoomRefactorServiceTests {
 
     private static ClocktowerRoomCreateRequest createRequest(String seatingPolicy) {
         return createRequest(seatingPolicy, 0);
+    }
+
+    private List<Long> conversationMemberUserIds(Long conversationId) {
+        return jdbcTemplate.queryForList("""
+                select user_id
+                from im_conversation_member
+                where conversation_id = ?
+                  and deleted = false
+                order by user_id
+                """, Long.class, conversationId);
     }
 
     private static ClocktowerRoomCreateRequest createRequest(String seatingPolicy, int agentSeatCount) {

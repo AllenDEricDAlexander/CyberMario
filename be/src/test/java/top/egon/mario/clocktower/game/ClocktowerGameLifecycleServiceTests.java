@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import top.egon.mario.clocktower.agent.constant.ClocktowerActorType;
 import top.egon.mario.clocktower.agent.constant.ClocktowerAgentStatus;
@@ -30,8 +31,6 @@ import top.egon.mario.clocktower.room.dto.response.ClocktowerRoomResponse;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomProfileRepository;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomSeatRepository;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomLobbyService;
-import top.egon.mario.im.po.ImConversationMemberPo;
-import top.egon.mario.im.repository.ImConversationMemberRepository;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 import top.egon.mario.room.po.RoomInvitationPo;
 import top.egon.mario.room.po.RoomSpacePo;
@@ -87,7 +86,7 @@ class ClocktowerGameLifecycleServiceTests {
     private ClocktowerAgentInstanceRepository agentInstanceRepository;
 
     @Autowired
-    private ImConversationMemberRepository conversationMemberRepository;
+    private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -308,10 +307,8 @@ class ClocktowerGameLifecycleServiceTests {
 
         ClocktowerGameConversationResponse publicConversation = conversation(response,
                 ClocktowerChatConstants.GROUP_PUBLIC, ClocktowerChatConstants.CONVERSATION_PUBLIC);
-        assertThat(conversationMemberRepository
-                .findByConversationIdAndDeletedFalse(publicConversation.conversationId()))
-                .extracting(ImConversationMemberPo::getUserId)
-                .containsExactlyInAnyOrder(1L, 11L);
+        assertThat(conversationMemberUserIds(publicConversation.conversationId()))
+                .containsExactly(1L, 11L);
     }
 
     @Test
@@ -503,6 +500,16 @@ class ClocktowerGameLifecycleServiceTests {
                         && conversationType.equals(conversation.conversationType()))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private List<Long> conversationMemberUserIds(Long conversationId) {
+        return jdbcTemplate.queryForList("""
+                select user_id
+                from im_conversation_member
+                where conversation_id = ?
+                  and deleted = false
+                order by user_id
+                """, Long.class, conversationId);
     }
 
     private ClocktowerRoomCreateRequest createRequest() {
