@@ -22,6 +22,8 @@ class ClocktowerSchemaMigrationTests {
             "src/main/resources/db/migration/V26__create_room_im_clocktower_refactor_schema.sql");
     private static final Path ACTOR_AGENT_FOUNDATION_MIGRATION = Path.of(
             "src/main/resources/db/migration/V32__clocktower_actor_agent_foundation.sql");
+    private static final Path PUBLIC_MIC_MIGRATION = Path.of(
+            "src/main/resources/db/migration/V33__clocktower_public_mic.sql");
 
     @Test
     void roomImGameRefactorMigrationCreatesGenericRoomTables() throws IOException {
@@ -195,6 +197,122 @@ class ClocktowerSchemaMigrationTests {
         assertThat(lowerSql).doesNotContain(" check ");
         assertThat(lowerSql).doesNotContain("where deleted = false");
         assertThat(sql).doesNotContain("uk_clocktower_actor_user");
+    }
+
+    @Test
+    void publicMicMigrationCreatesSessionAndTurnTables() throws IOException {
+        assertThat(Files.exists(PUBLIC_MIC_MIGRATION)).isTrue();
+
+        String sql = Files.readString(PUBLIC_MIC_MIGRATION);
+
+        assertThat(sql).contains("CREATE TABLE clocktower_game_public_mic_session");
+        assertThat(sql).contains("CREATE TABLE clocktower_game_public_mic_turn");
+        assertThat(sql).contains("game_id BIGINT NOT NULL");
+        assertThat(sql).contains("day_no INTEGER NOT NULL");
+        assertThat(sql).contains("current_holder_game_seat_id BIGINT");
+        assertThat(sql).contains("current_turn_id BIGINT");
+        assertThat(sql).contains("round_started_at TIMESTAMP WITH TIME ZONE");
+        assertThat(sql).contains("grab_ends_at TIMESTAMP WITH TIME ZONE");
+        assertThat(sql).contains("speech_event_id BIGINT");
+        assertThat(sql).contains("created_by BIGINT");
+        assertThat(sql).contains("updated_by BIGINT");
+        assertThat(sql).contains("version BIGINT NOT NULL DEFAULT 0");
+        assertThat(sql).contains("deleted BOOLEAN NOT NULL DEFAULT FALSE");
+        assertThat(sql).contains("uk_clocktower_public_mic_session_game_day_deleted");
+        assertThat(sql).contains("idx_clocktower_public_mic_session_game_status");
+        assertThat(sql).contains("idx_clocktower_public_mic_turn_session_order");
+        assertThat(sql).contains("idx_clocktower_public_mic_turn_game_seat");
+    }
+
+    @Test
+    void publicMicMigrationAppliesAndStoresSessionAndTurns() {
+        JdbcTemplate jdbcTemplate = migratedJdbcTemplate("clocktower_public_mic_%s"
+                .formatted(UUID.randomUUID()));
+
+        jdbcTemplate.update("""
+                insert into clocktower_game
+                    (id, room_id, game_no, script_code, status, phase, day_no, board_snapshot_json)
+                values
+                    (97001, 970, 1, 'TROUBLE_BREWING', 'RUNNING', 'DAY', 1, '{}')
+                """);
+        jdbcTemplate.update("""
+                insert into clocktower_game_seat
+                    (id, game_id, room_seat_id, seat_no, user_id, display_name, role_code,
+                     status, actor_type)
+                values
+                    (97101, 97001, 97201, 1, 101, 'Human Player', 'EMPATH',
+                     'ACTIVE', 'HUMAN')
+                """);
+        jdbcTemplate.update("""
+                insert into clocktower_game_seat
+                    (id, game_id, room_seat_id, seat_no, user_id, display_name, role_code,
+                     status, actor_id, actor_type, agent_instance_id)
+                values
+                    (97102, 97001, 97202, 2, null, 'Agent 1', 'CHEF',
+                     'ACTIVE', 97301, 'AGENT', 97401)
+                """);
+        jdbcTemplate.update("""
+                insert into clocktower_game_public_mic_session
+                    (id, game_id, day_no, status, current_holder_game_seat_id, current_turn_id,
+                     round_started_at, metadata_json, created_at, updated_at)
+                values
+                    (98001, 97001, 1, 'ROUND_ROBIN', 97101, 98101,
+                     CURRENT_TIMESTAMP, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """);
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                insert into clocktower_game_public_mic_session
+                    (id, game_id, day_no, status, metadata_json, created_at, updated_at)
+                values
+                    (98002, 97001, 1, 'ROUND_ROBIN', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """)).isInstanceOf(Exception.class);
+
+        jdbcTemplate.update("""
+                insert into clocktower_game_public_mic_turn
+                    (id, session_id, game_id, day_no, game_seat_id, turn_order, stage,
+                     acquisition_type, status, started_at, expires_at, metadata_json,
+                     created_at, updated_at)
+                values
+                    (98101, 98001, 97001, 1, 97101, 1, 'ROUND_ROBIN',
+                     'ROUND_ROBIN', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '{}',
+                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """);
+        jdbcTemplate.update("""
+                insert into clocktower_game_public_mic_turn
+                    (id, session_id, game_id, day_no, game_seat_id, turn_order, stage,
+                     acquisition_type, status, metadata_json, created_at, updated_at)
+                values
+                    (98102, 98001, 97001, 1, 97102, 2, 'GRAB_MIC',
+                     'GRAB', 'PENDING', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """);
+
+        List<Map<String, Object>> turns = jdbcTemplate.queryForList("""
+                select turn.stage, turn.acquisition_type, turn.status, seat.actor_type
+                from clocktower_game_public_mic_turn turn
+                join clocktower_game_seat seat on seat.id = turn.game_seat_id
+                where turn.session_id = 98001
+                order by turn.turn_order
+                """);
+        assertThat(turns).hasSize(2);
+        assertThat(turns).extracting(row -> row.get("stage"))
+                .containsExactly("ROUND_ROBIN", "GRAB_MIC");
+        assertThat(turns).extracting(row -> row.get("status"))
+                .containsExactly("ACTIVE", "PENDING");
+        assertThat(turns).extracting(row -> row.get("actor_type"))
+                .containsExactly("HUMAN", "AGENT");
+
+        jdbcTemplate.update("""
+                update clocktower_game_public_mic_turn
+                set status = 'DONE',
+                    ended_at = CURRENT_TIMESTAMP,
+                    speech_event_id = 99001
+                where id = 98101
+                """);
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from clocktower_game_public_mic_turn where id = 98101", String.class))
+                .isEqualTo("DONE");
+        assertThat(jdbcTemplate.queryForObject(
+                "select speech_event_id from clocktower_game_public_mic_turn where id = 98101", Long.class))
+                .isEqualTo(99001L);
     }
 
     @Test
