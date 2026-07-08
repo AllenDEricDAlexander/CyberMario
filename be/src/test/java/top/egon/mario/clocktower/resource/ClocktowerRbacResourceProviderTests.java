@@ -92,6 +92,9 @@ class ClocktowerRbacResourceProviderTests {
                         "api:clocktower:game:lifecycle",
                         "api:clocktower:game:action",
                         "api:clocktower:game:storyteller",
+                        "api:clocktower:game:mic:read",
+                        "api:clocktower:game:mic:player",
+                        "api:clocktower:game:mic:storyteller",
                         "api:clocktower:game:event-stream",
                         "api:clocktower:game:replay",
                         "api:clocktower:chat:read",
@@ -158,6 +161,8 @@ class ClocktowerRbacResourceProviderTests {
                             "api:clocktower:room:seat",
                             "api:clocktower:game:read",
                             "api:clocktower:game:action",
+                            "api:clocktower:game:mic:read",
+                            "api:clocktower:game:mic:player",
                             "api:clocktower:game:event-stream",
                             "api:clocktower:game:replay",
                             "api:clocktower:chat:read",
@@ -171,7 +176,8 @@ class ClocktowerRbacResourceProviderTests {
                                     "api:clocktower:room:create",
                                     "api:clocktower:room:governance",
                                     "api:clocktower:game:lifecycle",
-                                    "api:clocktower:game:storyteller");
+                                    "api:clocktower:game:storyteller",
+                                    "api:clocktower:game:mic:storyteller");
                 });
         assertThat(rolePresets)
                 .filteredOn(role -> role.roleCode().equals("CLOCKTOWER_STORYTELLER"))
@@ -185,6 +191,9 @@ class ClocktowerRbacResourceProviderTests {
                         "api:clocktower:room:governance",
                         "api:clocktower:game:lifecycle",
                         "api:clocktower:game:storyteller",
+                        "api:clocktower:game:mic:read",
+                        "api:clocktower:game:mic:player",
+                        "api:clocktower:game:mic:storyteller",
                         "api:clocktower:game:replay"));
         assertThat(rolePresets)
                 .filteredOn(role -> role.roleCode().equals("CLOCKTOWER_ADMIN"))
@@ -244,6 +253,20 @@ class ClocktowerRbacResourceProviderTests {
                 "api:clocktower:game:lifecycle");
         assertMatches(rules, "POST", "/api/clocktower/games/9/end", "api:clocktower:game:lifecycle");
         assertMatches(rules, "POST", "/api/clocktower/games/9/actions", "api:clocktower:game:action");
+        assertMatches(rules, "GET", "/api/clocktower/games/9/mic",
+                "api:clocktower:game:mic:read");
+        assertMatches(rules, "POST", "/api/clocktower/games/9/mic/grab",
+                "api:clocktower:game:mic:player");
+        assertMatches(rules, "POST", "/api/clocktower/games/9/mic/release",
+                "api:clocktower:game:mic:player");
+        assertMatches(rules, "POST", "/api/clocktower/games/9/mic/start-day",
+                "api:clocktower:game:mic:storyteller");
+        assertMatches(rules, "POST", "/api/clocktower/games/9/mic/turns/3/skip",
+                "api:clocktower:game:mic:storyteller");
+        assertMatches(rules, "POST", "/api/clocktower/games/9/mic/extend",
+                "api:clocktower:game:mic:storyteller");
+        assertMatches(rules, "POST", "/api/clocktower/games/9/mic/close",
+                "api:clocktower:game:mic:storyteller");
         assertMatches(rules, "GET", "/api/clocktower/rooms/7/grimoire", "api:clocktower:game:storyteller");
         assertMatches(rules, "POST", "/api/clocktower/rooms/7/flow/advance",
                 "api:clocktower:game:storyteller");

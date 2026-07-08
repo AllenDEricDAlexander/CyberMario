@@ -31,6 +31,9 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
     private static final String GAME_LIFECYCLE = "api:clocktower:game:lifecycle";
     private static final String GAME_ACTION = "api:clocktower:game:action";
     private static final String GAME_STORYTELLER = "api:clocktower:game:storyteller";
+    private static final String GAME_MIC_READ = "api:clocktower:game:mic:read";
+    private static final String GAME_MIC_PLAYER = "api:clocktower:game:mic:player";
+    private static final String GAME_MIC_STORYTELLER = "api:clocktower:game:mic:storyteller";
     private static final String GAME_EVENT_STREAM = "api:clocktower:game:event-stream";
     private static final String GAME_REPLAY = "api:clocktower:game:replay";
     private static final String CHAT_READ = "api:clocktower:chat:read";
@@ -44,14 +47,15 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
     private static final List<String> PLAYER_PERMISSION_CODES = List.of(
             "menu:clocktower:rooms", "menu:clocktower:replays",
             SCRIPT_READ, ROOM_READ, ROOM_MEMBERSHIP, ROOM_SEAT,
-            GAME_READ, GAME_ACTION, GAME_EVENT_STREAM, GAME_REPLAY,
+            GAME_READ, GAME_ACTION, GAME_MIC_READ, GAME_MIC_PLAYER, GAME_EVENT_STREAM, GAME_REPLAY,
             CHAT_READ, CHAT_SEND, CHAT_CONVERSATION, CHAT_READ_STATE
     );
 
     private static final List<String> STORYTELLER_PERMISSION_CODES = List.of(
             "menu:clocktower:boards", "menu:clocktower:rooms", "menu:clocktower:rules", "menu:clocktower:replays",
             SCRIPT_READ, BOARD_ALL, ROOM_READ, ROOM_MEMBERSHIP, ROOM_SEAT, ROOM_CREATE, ROOM_GOVERNANCE,
-            GAME_READ, GAME_ACTION, GAME_EVENT_STREAM, GAME_REPLAY, GAME_LIFECYCLE, GAME_STORYTELLER,
+            GAME_READ, GAME_ACTION, GAME_MIC_READ, GAME_MIC_PLAYER, GAME_MIC_STORYTELLER,
+            GAME_EVENT_STREAM, GAME_REPLAY, GAME_LIFECYCLE, GAME_STORYTELLER,
             CHAT_READ, CHAT_SEND, CHAT_CONVERSATION, CHAT_READ_STATE
     );
 
@@ -93,6 +97,14 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
         resources.add(api(GAME_ACTION, "Clocktower game action", "POST",
                 "^/api/clocktower/(games/[^/]+|rooms/[^/]+)/actions$", ApiMatcherType.REGEX,
                 ApiRiskLevel.MEDIUM));
+        resources.add(api(GAME_MIC_READ, "Clocktower game mic read", "GET",
+                "^/api/clocktower/games/[^/]+/mic$", ApiMatcherType.REGEX, ApiRiskLevel.LOW));
+        resources.add(api(GAME_MIC_PLAYER, "Clocktower game mic player", "POST",
+                "^/api/clocktower/games/[^/]+/mic/(grab|release|turns/[^/]+/finish)$",
+                ApiMatcherType.REGEX, ApiRiskLevel.MEDIUM));
+        resources.add(api(GAME_MIC_STORYTELLER, "Clocktower game mic storyteller", "POST",
+                "^/api/clocktower/games/[^/]+/mic/(start-day|extend|close|turns/[^/]+/(finish|skip))$",
+                ApiMatcherType.REGEX, ApiRiskLevel.HIGH));
         resources.add(api(GAME_STORYTELLER, "Clocktower game storyteller", "ANY",
                 "^/api/clocktower/rooms/[^/]+/(flow(/.*)?|night-tasks/.*|nominations/.*|execution/.*|"
                         + "grimoire(/.*)?|night-checklist|storyteller/actions|rulings(/.*)?)$",
