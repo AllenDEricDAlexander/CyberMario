@@ -31,6 +31,9 @@ import top.egon.mario.clocktower.game.po.ClocktowerGamePo;
 import top.egon.mario.clocktower.game.po.ClocktowerGameSeatPo;
 import top.egon.mario.clocktower.game.po.ClocktowerRoomProfilePo;
 import top.egon.mario.clocktower.game.po.ClocktowerRoomSeatPo;
+import top.egon.mario.clocktower.game.nomination.po.ClocktowerGameExecutionPo;
+import top.egon.mario.clocktower.game.nomination.po.ClocktowerGameNominationPo;
+import top.egon.mario.clocktower.game.nomination.po.ClocktowerGameVotePo;
 import top.egon.mario.clocktower.room.po.ClocktowerRoomPo;
 import top.egon.mario.clocktower.room.po.ClocktowerSeatPo;
 import top.egon.mario.clocktower.script.po.ClocktowerNightOrderPo;
@@ -68,6 +71,9 @@ class ClocktowerJpaMappingTests {
         assertManaged(ClocktowerGamePo.class);
         assertManaged(ClocktowerGameSeatPo.class);
         assertManaged(ClocktowerGameEventPo.class);
+        assertManaged(ClocktowerGameNominationPo.class);
+        assertManaged(ClocktowerGameVotePo.class);
+        assertManaged(ClocktowerGameExecutionPo.class);
     }
 
     @Test
@@ -147,6 +153,45 @@ class ClocktowerJpaMappingTests {
         assertThat(reloadedEvent.getVisibleGameSeatIdsJson()).isEqualTo("[]");
         assertThat(reloadedEvent.getPayloadJson()).isEqualTo("{}");
         assertThat(reloadedEvent.getMetadataJson()).isEqualTo("{}");
+    }
+
+    @Test
+    void clocktowerGameNominationJsonColumnsRoundTripMinimalStrings() {
+        ClocktowerGameNominationPo nomination = new ClocktowerGameNominationPo();
+        nomination.setGameId(701L);
+        nomination.setDayNo(1);
+        nomination.setNominatorGameSeatId(801L);
+        nomination.setNomineeGameSeatId(802L);
+        nomination.setStatus("OPEN");
+        nomination.setRequiredVotes(3);
+        nomination.setOpenedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        nomination.setMetadataJson("{}");
+        entityManager.persist(nomination);
+
+        ClocktowerGameVotePo vote = new ClocktowerGameVotePo();
+        vote.setGameId(701L);
+        vote.setNominationId(901L);
+        vote.setVoterGameSeatId(803L);
+        vote.setVoteValue(true);
+        vote.setStatus("CAST");
+        vote.setMetadataJson("{}");
+        entityManager.persist(vote);
+
+        ClocktowerGameExecutionPo execution = new ClocktowerGameExecutionPo();
+        execution.setGameId(701L);
+        execution.setDayNo(1);
+        execution.setStatus("PENDING");
+        execution.setMetadataJson("{}");
+        entityManager.persist(execution);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(entityManager.find(ClocktowerGameNominationPo.class, nomination.getId()).getMetadataJson())
+                .isEqualTo("{}");
+        assertThat(entityManager.find(ClocktowerGameVotePo.class, vote.getId()).getMetadataJson()).isEqualTo("{}");
+        assertThat(entityManager.find(ClocktowerGameExecutionPo.class, execution.getId()).getMetadataJson())
+                .isEqualTo("{}");
     }
 
     @Test

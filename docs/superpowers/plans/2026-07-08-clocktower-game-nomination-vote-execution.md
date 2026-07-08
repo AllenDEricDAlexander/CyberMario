@@ -134,7 +134,7 @@ Expected: fail to compile because the three PO classes do not exist.
 
 - [ ] **Step 3: Add migration and persistence classes**
 
-Implement the migration with all audit columns from `BaseAuditablePo`, JSONB `metadata_json`, unique open nomination index, unique vote index, and unique execution-per-day index.
+Implement the migration with all audit columns from `BaseAuditablePo`, JSONB `metadata_json`, nullable `open_game_id` for the cross-database open nomination unique index, unique vote index, and unique execution-per-day index.
 
 Implement each PO by extending `BaseAuditablePo`, using `@Entity`, `@Table`, `@Getter`, `@Setter`, and JSONB mapping:
 
