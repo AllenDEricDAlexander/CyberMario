@@ -1,18 +1,26 @@
 package top.egon.mario.clocktower.game;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
+import top.egon.mario.clocktower.agent.constant.ClocktowerActorType;
+import top.egon.mario.clocktower.agent.constant.ClocktowerAgentStatus;
+import top.egon.mario.clocktower.agent.po.ClocktowerAgentInstancePo;
+import top.egon.mario.clocktower.agent.repository.ClocktowerAgentInstanceRepository;
 import top.egon.mario.clocktower.chat.ClocktowerChatConstants;
 import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.game.dto.ClocktowerGameConversationResponse;
 import top.egon.mario.clocktower.game.dto.ClocktowerGameResponse;
+import top.egon.mario.clocktower.game.po.ClocktowerGameEventPo;
 import top.egon.mario.clocktower.game.po.ClocktowerGamePo;
 import top.egon.mario.clocktower.game.po.ClocktowerGameSeatPo;
 import top.egon.mario.clocktower.game.po.ClocktowerRoomProfilePo;
 import top.egon.mario.clocktower.game.po.ClocktowerRoomSeatPo;
+import top.egon.mario.clocktower.game.repository.ClocktowerGameEventRepository;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameRepository;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameSeatRepository;
 import top.egon.mario.clocktower.game.service.ClocktowerGameLifecycleService;
@@ -22,6 +30,8 @@ import top.egon.mario.clocktower.room.dto.response.ClocktowerRoomResponse;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomProfileRepository;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomSeatRepository;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomLobbyService;
+import top.egon.mario.im.po.ImConversationMemberPo;
+import top.egon.mario.im.repository.ImConversationMemberRepository;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 import top.egon.mario.room.po.RoomInvitationPo;
 import top.egon.mario.room.po.RoomSpacePo;
@@ -31,6 +41,7 @@ import top.egon.mario.room.repository.RoomSpaceRepository;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,6 +53,8 @@ import static org.assertj.core.groups.Tuple.tuple;
 class ClocktowerGameLifecycleServiceTests {
 
     private static final List<String> ROLE_CODES = List.of("EMPATH", "CHEF", "MONK", "POISONER", "IMP");
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
+    };
 
     @Autowired
     private ClocktowerGameLifecycleService gameService;
@@ -66,6 +79,18 @@ class ClocktowerGameLifecycleServiceTests {
 
     @Autowired
     private ClocktowerGameSeatRepository gameSeatRepository;
+
+    @Autowired
+    private ClocktowerGameEventRepository gameEventRepository;
+
+    @Autowired
+    private ClocktowerAgentInstanceRepository agentInstanceRepository;
+
+    @Autowired
+    private ImConversationMemberRepository conversationMemberRepository;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Test
     void startGameRejectsWhenSeatsNotAcceptedReadyOrRealUsers() {
@@ -196,6 +221,119 @@ class ClocktowerGameLifecycleServiceTests {
     }
 
     @Test
+    void startGameWithAgentSeatsSuccess() {
+        ClocktowerRoomResponse room = agentRoom();
+
+        ClocktowerGameResponse response = gameService.startGame(room.roomId(), owner());
+
+        assertThat(response.status()).isEqualTo("RUNNING");
+        ClocktowerRoomProfilePo profile = profileRepository.findByRoomId(room.roomId()).orElseThrow();
+        assertThat(profile.getStatus()).isEqualTo("IN_GAME");
+        assertThat(profile.getCurrentGameId()).isEqualTo(response.gameId());
+        assertThat(gameSeatRepository.findByGameIdOrderBySeatNoAsc(response.gameId())).hasSize(5);
+    }
+
+    @Test
+    void startGameCopiesActorFieldsToGameSeat() {
+        ClocktowerRoomResponse room = agentRoom();
+
+        ClocktowerGameResponse response = gameService.startGame(room.roomId(), owner());
+
+        List<ClocktowerGameSeatPo> gameSeats = gameSeatRepository.findByGameIdOrderBySeatNoAsc(response.gameId());
+        assertThat(gameSeats.get(0))
+                .extracting(ClocktowerGameSeatPo::getActorType, ClocktowerGameSeatPo::getActorId,
+                        ClocktowerGameSeatPo::getAgentInstanceId, ClocktowerGameSeatPo::getUserId)
+                .containsExactly(ClocktowerActorType.HUMAN, null, null, 11L);
+        assertThat(gameSeats.subList(1, 5)).allSatisfy(seat -> {
+            assertThat(seat.getActorType()).isEqualTo(ClocktowerActorType.AGENT);
+            assertThat(seat.getActorId()).isNotNull();
+            assertThat(seat.getAgentInstanceId()).isNotNull();
+            assertThat(seat.getUserId()).isNull();
+        });
+    }
+
+    @Test
+    void startGameUpdatesAgentInstances() {
+        ClocktowerRoomResponse room = agentRoom();
+
+        ClocktowerGameResponse response = gameService.startGame(room.roomId(), owner());
+
+        List<ClocktowerGameSeatPo> agentSeats = gameSeatRepository.findByGameIdOrderBySeatNoAsc(response.gameId())
+                .stream()
+                .filter(seat -> ClocktowerActorType.AGENT.equals(seat.getActorType()))
+                .toList();
+        assertThat(agentSeats).hasSize(4);
+        for (ClocktowerGameSeatPo gameSeat : agentSeats) {
+            ClocktowerAgentInstancePo instance = agentInstanceRepository
+                    .findByIdAndDeletedFalse(gameSeat.getAgentInstanceId())
+                    .orElseThrow();
+            assertThat(instance.getGameId()).isEqualTo(response.gameId());
+            assertThat(instance.getGameSeatId()).isEqualTo(gameSeat.getId());
+            assertThat(instance.getRoomSeatId()).isEqualTo(gameSeat.getRoomSeatId());
+            assertThat(instance.getActorId()).isEqualTo(gameSeat.getActorId());
+            assertThat(instance.getStatus()).isEqualTo(ClocktowerAgentStatus.ACTIVE);
+        }
+    }
+
+    @Test
+    void startGameManualAgentMetadataRejected() {
+        Long roomId = readyRoom();
+        ClocktowerRoomSeatPo seat = roomSeatRepository.findByRoomIdAndSeatNo(roomId, 1).orElseThrow();
+        seat.setMetadataJson("{\"ready\":true,\"agent\":true,\"agentSeat\":true,"
+                + "\"systemManaged\":true,\"createdBy\":\"agentSeatCount\"}");
+        roomSeatRepository.saveAndFlush(seat);
+
+        assertStartRejected(roomId, "CLOCKTOWER_GAME_SEAT_INVALID");
+
+        assertThat(gameRepository.findByRoomIdAndDeletedFalseOrderByGameNoAsc(roomId)).isEmpty();
+    }
+
+    @Test
+    void startGameAgentSeatWithUserIdRejected() {
+        ClocktowerRoomResponse room = agentRoom();
+        ClocktowerRoomSeatPo agentSeat = roomSeatRepository.findByRoomIdAndSeatNo(room.roomId(), 2).orElseThrow();
+        agentSeat.setUserId(22L);
+        roomSeatRepository.saveAndFlush(agentSeat);
+
+        assertStartRejected(room.roomId(), "CLOCKTOWER_GAME_SEAT_INVALID");
+
+        assertThat(gameRepository.findByRoomIdAndDeletedFalseOrderByGameNoAsc(room.roomId())).isEmpty();
+    }
+
+    @Test
+    void startGameFiltersAgentFromImMembers() {
+        ClocktowerRoomResponse room = agentRoom();
+
+        ClocktowerGameResponse response = gameService.startGame(room.roomId(), owner());
+
+        ClocktowerGameConversationResponse publicConversation = conversation(response,
+                ClocktowerChatConstants.GROUP_PUBLIC, ClocktowerChatConstants.CONVERSATION_PUBLIC);
+        assertThat(conversationMemberRepository
+                .findByConversationIdAndDeletedFalse(publicConversation.conversationId()))
+                .extracting(ImConversationMemberPo::getUserId)
+                .containsExactlyInAnyOrder(1L, 11L);
+    }
+
+    @Test
+    void startGameEventPayloadIncludesAgentCounts() throws Exception {
+        ClocktowerRoomResponse room = agentRoom();
+
+        ClocktowerGameResponse response = gameService.startGame(room.roomId(), owner());
+
+        List<ClocktowerGameEventPo> events = gameEventRepository
+                .findByGameIdAndStatusAndDeletedFalseOrderByEventSeqAsc(response.gameId(), "VISIBLE");
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).getEventType()).isEqualTo("GAME_STARTED");
+        Map<String, Object> payload = objectMapper.readValue(events.get(0).getPayloadJson(), MAP_TYPE);
+        assertThat(payload)
+                .containsEntry("roomId", room.roomId().intValue())
+                .containsEntry("gameNo", 1)
+                .containsEntry("humanSeatCount", 1)
+                .containsEntry("agentSeatCount", 4)
+                .containsEntry("agentMode", "HEURISTIC_V0");
+    }
+
+    @Test
     void startGameLocksRoomAgainstDoubleStart() {
         Long roomId = readyRoom();
 
@@ -321,21 +459,57 @@ class ClocktowerGameLifecycleServiceTests {
 
     private Long readyRoom() {
         ClocktowerRoomResponse room = roomService.createRoom(createRequest(), owner());
-        for (int seatNo = 1; seatNo <= ROLE_CODES.size(); seatNo++) {
-            roomService.claimSeat(room.roomId(), seatNo, new ClocktowerSeatClaimRequest("Player " + seatNo),
-                    principal(10L + seatNo, "player" + seatNo));
-        }
-        List<ClocktowerRoomSeatPo> seats = roomSeatRepository.findByRoomIdOrderBySeatNoAsc(room.roomId());
-        for (int index = 0; index < seats.size(); index++) {
-            ClocktowerRoomSeatPo seat = seats.get(index);
-            seat.setRoleCode(ROLE_CODES.get(index));
-            seat.setMetadataJson("{\"ready\":true}");
-        }
-        roomSeatRepository.saveAllAndFlush(seats);
+        claimHumanSeats(room.roomId(), 1, ROLE_CODES.size());
+        assignReadyRoles(room.roomId());
         return room.roomId();
     }
 
+    private ClocktowerRoomResponse agentRoom() {
+        ClocktowerRoomResponse room = roomService.createRoom(createRequest(4), owner());
+        roomService.claimSeat(room.roomId(), 1, new ClocktowerSeatClaimRequest("Player 1"),
+                principal(11L, "player1"));
+        assignReadyRoles(room.roomId());
+        return room;
+    }
+
+    private void claimHumanSeats(Long roomId, int firstSeatNo, int lastSeatNo) {
+        for (int seatNo = firstSeatNo; seatNo <= lastSeatNo; seatNo++) {
+            roomService.claimSeat(roomId, seatNo, new ClocktowerSeatClaimRequest("Player " + seatNo),
+                    principal(10L + seatNo, "player" + seatNo));
+        }
+    }
+
+    private void assignReadyRoles(Long roomId) {
+        List<ClocktowerRoomSeatPo> seats = roomSeatRepository.findByRoomIdOrderBySeatNoAsc(roomId);
+        for (int index = 0; index < seats.size(); index++) {
+            ClocktowerRoomSeatPo seat = seats.get(index);
+            seat.setRoleCode(ROLE_CODES.get(index));
+            seat.setMetadataJson(readyMetadata(seat.getMetadataJson()));
+        }
+        roomSeatRepository.saveAllAndFlush(seats);
+    }
+
+    private String readyMetadata(String metadataJson) {
+        if (metadataJson != null && metadataJson.contains("\"agentSeat\":true")) {
+            return metadataJson;
+        }
+        return "{\"ready\":true}";
+    }
+
+    private ClocktowerGameConversationResponse conversation(ClocktowerGameResponse response, String groupKey,
+                                                           String conversationType) {
+        return response.conversations().stream()
+                .filter(conversation -> groupKey.equals(conversation.groupKey())
+                        && conversationType.equals(conversation.conversationType()))
+                .findFirst()
+                .orElseThrow();
+    }
+
     private ClocktowerRoomCreateRequest createRequest() {
+        return createRequest(0);
+    }
+
+    private ClocktowerRoomCreateRequest createRequest(int agentSeatCount) {
         return new ClocktowerRoomCreateRequest(
                 "Friday Clocktower",
                 ClocktowerScriptCode.TROUBLE_BREWING,
@@ -346,7 +520,7 @@ class ClocktowerGameLifecycleServiceTests {
                 "HUMAN",
                 true,
                 true,
-                0,
+                agentSeatCount,
                 "PUBLIC",
                 "OPEN_SEATING"
         );
