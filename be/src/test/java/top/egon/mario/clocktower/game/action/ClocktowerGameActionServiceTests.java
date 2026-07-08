@@ -80,12 +80,12 @@ class ClocktowerGameActionServiceTests {
         ClocktowerGameSeatPo agentSeat = game.seats().get(1);
 
         ClocktowerGameActionResponse ownSeat = humanActionService.submit(game.gameId(),
-                new ClocktowerGameActionRequest(humanSeat.getId(), "NOMINATE", List.of(agentSeat.getId()),
-                        null, null, null, Map.of()),
+                new ClocktowerGameActionRequest(humanSeat.getId(), "PASS", List.of(),
+                        null, null, null, Map.of("passType", "NIGHT_TASK")),
                 principal(11L, "player1"));
 
         assertThat(ownSeat.accepted()).isFalse();
-        assertThat(ownSeat.rejectedCode()).isEqualTo("CLOCKTOWER_ACTION_NOT_IMPLEMENTED");
+        assertThat(ownSeat.rejectedCode()).isEqualTo("CLOCKTOWER_PASS_TYPE_UNSUPPORTED");
         assertThatThrownBy(() -> humanActionService.submit(game.gameId(),
                 new ClocktowerGameActionRequest(agentSeat.getId(), "NOMINATE", List.of(humanSeat.getId()),
                         null, null, null, Map.of()),
@@ -117,11 +117,11 @@ class ClocktowerGameActionServiceTests {
                 .orElseThrow();
 
         ClocktowerGameActionResponse ownSeat = agentActionService.submitAgentAction(game.gameId(), instance.getId(),
-                new ClocktowerGameActionRequest(agentSeat.getId(), "NOMINATE", List.of(humanSeat.getId()),
-                        null, null, null, Map.of()));
+                new ClocktowerGameActionRequest(agentSeat.getId(), "PASS", List.of(),
+                        null, null, null, Map.of("passType", "NIGHT_TASK")));
 
         assertThat(ownSeat.accepted()).isFalse();
-        assertThat(ownSeat.rejectedCode()).isEqualTo("CLOCKTOWER_ACTION_NOT_IMPLEMENTED");
+        assertThat(ownSeat.rejectedCode()).isEqualTo("CLOCKTOWER_PASS_TYPE_UNSUPPORTED");
         assertThatThrownBy(() -> agentActionService.submitAgentAction(game.gameId(), instance.getId(),
                 new ClocktowerGameActionRequest(humanSeat.getId(), "NOMINATE", List.of(agentSeat.getId()),
                         null, null, null, Map.of())))
@@ -282,24 +282,71 @@ class ClocktowerGameActionServiceTests {
     }
 
     @Test
-    void nominateVote_notImplementedUntilTask07() {
+    void nominateOpensGameNominationAfterMicClosed() {
         StartedGame game = startDayGameWithAgents();
         ClocktowerGameSeatPo humanSeat = game.seats().getFirst();
         ClocktowerGameSeatPo agentSeat = game.seats().get(1);
+        micService.startDayMicSession(game.gameId(), owner());
+        micService.closeSession(game.gameId(), owner());
 
-        ClocktowerGameActionResponse nominate = humanActionService.submit(game.gameId(),
+        ClocktowerGameActionResponse response = humanActionService.submit(game.gameId(),
                 new ClocktowerGameActionRequest(humanSeat.getId(), "NOMINATE", List.of(agentSeat.getId()),
                         null, null, "nominate", Map.of()),
                 principal(11L, "player1"));
-        ClocktowerGameActionResponse vote = humanActionService.submit(game.gameId(),
-                new ClocktowerGameActionRequest(humanSeat.getId(), "VOTE", List.of(),
-                        123L, true, null, Map.of("vote", true)),
+
+        assertThat(response.accepted()).isTrue();
+        assertThat(response.event().eventType()).isEqualTo("NOMINATION_OPENED");
+        assertThat(response.event().actorGameSeatId()).isEqualTo(humanSeat.getId());
+        assertThat(response.event().targetGameSeatId()).isEqualTo(agentSeat.getId());
+        assertThat(response.event().payload()).containsEntry("actorType", "HUMAN");
+        assertThat(gameRepository.findByIdAndDeletedFalse(game.gameId()).orElseThrow().getPhase())
+                .isEqualTo("NOMINATION");
+        assertThat(gameEventTypes(game.gameId())).contains("NOMINATION_OPENED");
+    }
+
+    @Test
+    void nominateRejectsOpenMicAndSelfNomination() {
+        StartedGame game = startDayGameWithAgents();
+        ClocktowerGameSeatPo humanSeat = game.seats().getFirst();
+        ClocktowerGameSeatPo agentSeat = game.seats().get(1);
+        micService.startDayMicSession(game.gameId(), owner());
+
+        ClocktowerGameActionResponse openMic = humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(humanSeat.getId(), "NOMINATE", List.of(agentSeat.getId()),
+                        null, null, null, Map.of()),
                 principal(11L, "player1"));
 
-        assertThat(nominate.accepted()).isFalse();
-        assertThat(nominate.rejectedCode()).isEqualTo("CLOCKTOWER_ACTION_NOT_IMPLEMENTED");
-        assertThat(vote.accepted()).isFalse();
-        assertThat(vote.rejectedCode()).isEqualTo("CLOCKTOWER_ACTION_NOT_IMPLEMENTED");
+        assertThat(openMic.accepted()).isFalse();
+        assertThat(openMic.rejectedCode()).isEqualTo("CLOCKTOWER_NOMINATION_MIC_SESSION_OPEN");
+
+        micService.closeSession(game.gameId(), owner());
+        ClocktowerGameActionResponse self = humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(humanSeat.getId(), "NOMINATE", List.of(humanSeat.getId()),
+                        null, null, null, Map.of()),
+                principal(11L, "player1"));
+
+        assertThat(self.accepted()).isFalse();
+        assertThat(self.rejectedCode()).isEqualTo("CLOCKTOWER_NOMINATION_SELF_NOT_ALLOWED");
+    }
+
+    @Test
+    void agentCanNominateHumanSeat() {
+        StartedGame game = startDayGameWithAgents();
+        ClocktowerGameSeatPo humanSeat = game.seats().getFirst();
+        ClocktowerGameSeatPo agentSeat = game.seats().get(1);
+        ClocktowerAgentInstancePo instance = agentInstanceRepository
+                .findByGameSeatIdAndDeletedFalse(agentSeat.getId())
+                .orElseThrow();
+        micService.startDayMicSession(game.gameId(), owner());
+        micService.closeSession(game.gameId(), owner());
+
+        ClocktowerGameActionResponse response = agentActionService.submitAgentAction(game.gameId(), instance.getId(),
+                new ClocktowerGameActionRequest(agentSeat.getId(), "NOMINATE", List.of(humanSeat.getId()),
+                        null, null, null, Map.of()));
+
+        assertThat(response.accepted()).isTrue();
+        assertThat(response.event().eventType()).isEqualTo("NOMINATION_OPENED");
+        assertThat(response.event().payload()).containsEntry("actorType", "AGENT");
     }
 
     private StartedGame startDayGameWithAgents() {
