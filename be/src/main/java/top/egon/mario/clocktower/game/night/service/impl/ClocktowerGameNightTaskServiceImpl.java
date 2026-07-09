@@ -29,9 +29,12 @@ import top.egon.mario.clocktower.game.po.ClocktowerGameSeatPo;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameRepository;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameSeatRepository;
 import top.egon.mario.clocktower.game.service.ClocktowerGameEventAppender;
+import top.egon.mario.clocktower.room.policy.ClocktowerRoomAccessPolicy;
 import top.egon.mario.clocktower.script.po.ClocktowerNightOrderPo;
 import top.egon.mario.clocktower.view.dto.ClocktowerGameEventResponse;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
+import top.egon.mario.room.po.RoomSpacePo;
+import top.egon.mario.room.repository.RoomSpaceRepository;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -62,6 +65,8 @@ public class ClocktowerGameNightTaskServiceImpl implements ClocktowerGameNightTa
     private final ClocktowerNightOrderService nightOrderService;
     private final ClocktowerRoleSkillRegistry roleSkillRegistry;
     private final ClocktowerGameEventAppender eventAppender;
+    private final RoomSpaceRepository roomSpaceRepository;
+    private final ClocktowerRoomAccessPolicy accessPolicy;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -121,8 +126,17 @@ public class ClocktowerGameNightTaskServiceImpl implements ClocktowerGameNightTa
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ClocktowerNightTaskView> currentTasks(Long gameId, RbacPrincipal principal) {
-        return List.of();
+        ClocktowerGamePo game = gameRepository.findByIdAndDeletedFalse(gameId)
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_GAME_NOT_FOUND"));
+        requireStoryteller(game, principal);
+        return nightTaskRepository.findByGameIdAndNightNoAndDeletedFalseOrderBySortOrderAscIdAsc(
+                        game.getId(), game.getNightNo())
+                .stream()
+                .map(task -> ClocktowerNightTaskView.from(task, readMap(task.getChoiceJson()),
+                        readMap(task.getResultJson()), readMap(task.getMetadataJson())))
+                .toList();
     }
 
     @Override
@@ -205,9 +219,39 @@ public class ClocktowerGameNightTaskServiceImpl implements ClocktowerGameNightTa
     }
 
     @Override
+    @Transactional
     public ClocktowerNightTaskView skipTask(Long gameId, Long taskId, ClocktowerNightSkipRequest request,
                                            RbacPrincipal principal) {
-        throw new ClocktowerException("CLOCKTOWER_NIGHT_TASK_SERVICE_NOT_READY");
+        ClocktowerGamePo game = gameRepository.findLockedByIdAndDeletedFalse(gameId)
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_GAME_NOT_FOUND"));
+        requireStoryteller(game, principal);
+        ClocktowerGameNightTaskPo task = nightTaskRepository.findLockedByIdAndGameIdAndDeletedFalse(taskId, gameId)
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_NIGHT_TASK_NOT_FOUND"));
+        if (task.getNightNo() != game.getNightNo()) {
+            throw new ClocktowerException("CLOCKTOWER_NIGHT_TASK_NOT_CURRENT");
+        }
+        if ("DONE".equals(task.getStatus()) || "SKIPPED".equals(task.getStatus())) {
+            throw new ClocktowerException("CLOCKTOWER_NIGHT_TASK_ALREADY_RESOLVED");
+        }
+        Instant now = Instant.now();
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("skipped", true);
+        result.put("reason", request == null ? null : request.reason());
+        task.setStatus("SKIPPED");
+        task.setResultJson(writeJson(result));
+        task.setSkippedAt(now);
+        task.setCompletedAt(now);
+        task.setResolvedByActorId(principal.userId());
+        ClocktowerGameNightTaskPo saved = nightTaskRepository.saveAndFlush(task);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("taskId", saved.getId());
+        payload.put("roleCode", saved.getRoleCode());
+        payload.put("taskType", saved.getTaskType());
+        payload.put("reason", request == null ? null : request.reason());
+        eventAppender.append(game, "NIGHT_TASK_SKIPPED", null, saved.getActorGameSeatId(),
+                "STORYTELLER", List.of(), payload, now);
+        return ClocktowerNightTaskView.from(saved, readMap(saved.getChoiceJson()), result,
+                readMap(saved.getMetadataJson()));
     }
 
     private boolean actsThisNight(ClocktowerGamePo game, RoleSkill skill) {
@@ -254,6 +298,12 @@ public class ClocktowerGameNightTaskServiceImpl implements ClocktowerGameNightTa
         eventAppender.append(game, "ACTION_REJECTED", actorGameSeatId, null, "PRIVATE", List.of(actorGameSeatId),
                 Map.of("actionType", actionType, "rejectedCode", rejectedCode), Instant.now());
         return ClocktowerGameActionResponse.rejected(rejectedCode);
+    }
+
+    private void requireStoryteller(ClocktowerGamePo game, RbacPrincipal principal) {
+        RoomSpacePo room = roomSpaceRepository.findByIdAndDeletedFalse(game.getRoomId())
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
+        accessPolicy.requireOwner(room, principal);
     }
 
     private Long longPayload(Map<String, Object> payload, String key) {

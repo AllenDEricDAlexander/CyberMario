@@ -9,6 +9,12 @@ import top.egon.mario.clocktower.game.action.dto.ClocktowerGameActionRequest;
 import top.egon.mario.clocktower.game.action.dto.ClocktowerGameActionResponse;
 import top.egon.mario.clocktower.game.action.service.ClocktowerHumanGameActionService;
 import top.egon.mario.clocktower.game.dto.ClocktowerGameResponse;
+import top.egon.mario.clocktower.game.flow.dto.ClocktowerGameAdvanceRequest;
+import top.egon.mario.clocktower.game.flow.dto.ClocktowerGameAdvanceResult;
+import top.egon.mario.clocktower.game.flow.service.ClocktowerGameFlowService;
+import top.egon.mario.clocktower.game.night.dto.ClocktowerNightSkipRequest;
+import top.egon.mario.clocktower.game.night.dto.ClocktowerNightTaskView;
+import top.egon.mario.clocktower.game.night.web.ClocktowerGameNightTaskController;
 import top.egon.mario.clocktower.game.night.po.ClocktowerGameNightTaskPo;
 import top.egon.mario.clocktower.game.night.repository.ClocktowerGameNightTaskRepository;
 import top.egon.mario.clocktower.game.night.service.ClocktowerGameNightTaskService;
@@ -52,6 +58,9 @@ class ClocktowerGameNightTaskServiceTests {
     private ClocktowerHumanGameActionService humanActionService;
 
     @Autowired
+    private ClocktowerGameFlowService flowService;
+
+    @Autowired
     private ClocktowerRoomLobbyService roomService;
 
     @Autowired
@@ -66,6 +75,9 @@ class ClocktowerGameNightTaskServiceTests {
     @Autowired
     private ClocktowerGameNightTaskRepository nightTaskRepository;
 
+    @Autowired(required = false)
+    private ClocktowerGameNightTaskController nightTaskController;
+
     @Test
     void nightServicesAreAvailable() {
         assertThat(taskService).isNotNull();
@@ -73,6 +85,7 @@ class ClocktowerGameNightTaskServiceTests {
         assertThat(roleSkillRegistry).isNotNull();
         assertThat(roleSkillRegistry.find("POISONER")).isPresent();
         assertThat(roleSkillRegistry.find("IMP")).isPresent();
+        assertThat(nightTaskController).isNotNull();
     }
 
     @Test
@@ -120,6 +133,30 @@ class ClocktowerGameNightTaskServiceTests {
                 .findByGameIdAndNightNoAndDeletedFalseOrderBySortOrderAscIdAsc(game.gameId(), 2);
         assertThat(tasks).extracting(ClocktowerGameNightTaskPo::getRoleCode)
                 .containsExactly("POISONER", "MONK", "IMP", "EMPATH", "BUTLER");
+    }
+
+    @Test
+    void storytellerListsCurrentNightTasks() {
+        StartedGame game = startGameWithRoles(List.of("POISONER", "CHEF", "EMPATH", "FORTUNETELLER", "IMP"));
+
+        List<ClocktowerNightTaskView> tasks = taskService.currentTasks(game.gameId(), owner());
+
+        assertThat(tasks).extracting(ClocktowerNightTaskView::roleCode)
+                .containsExactly("POISONER", "CHEF", "EMPATH", "FORTUNETELLER");
+    }
+
+    @Test
+    void storytellerSkipsNightTasksAndFlowCanEnterDay() {
+        StartedGame game = startGameWithRoles(List.of("POISONER", "CHEF", "EMPATH", "FORTUNETELLER", "IMP"));
+
+        taskService.currentTasks(game.gameId(), owner())
+                .forEach(task -> taskService.skipTask(game.gameId(), task.taskId(),
+                        new ClocktowerNightSkipRequest("manual skip"), owner()));
+        ClocktowerGameAdvanceResult result = flowService.advance(game.gameId(),
+                new ClocktowerGameAdvanceRequest(null, null, java.util.Map.of()), owner());
+
+        assertThat(result.previousPhase()).isEqualTo("FIRST_NIGHT");
+        assertThat(result.phase()).isEqualTo("DAY");
     }
 
     @Test
