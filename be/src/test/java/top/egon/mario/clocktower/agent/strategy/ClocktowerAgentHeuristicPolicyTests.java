@@ -66,6 +66,19 @@ class ClocktowerAgentHeuristicPolicyTests {
     }
 
     @Test
+    void evilAgentCreatesDeterministicBluffWhenMemoryMissing() {
+        HeuristicAgentPolicy policy = policy();
+        AgentDecision decision = policy.decide(context(evilView(List.of(publicSpeech(), passIntent()), List.of()),
+                balancedProfile(80), "MIC_TURN_STARTED", Map.of()));
+
+        assertThat(decision.intent()).isInstanceOf(AgentIntent.PublicSpeech.class);
+        AgentIntent.PublicSpeech speech = (AgentIntent.PublicSpeech) decision.intent();
+        assertThat(speech.content()).contains("CHEF");
+        assertThat(speech.content()).doesNotContain("SPY");
+        assertThat(decision.diagnostics()).containsEntry("claimRoleCode", "CHEF");
+    }
+
+    @Test
     void nominationChoosesEligibleTargetAndDeadAgentDoesNotNominate() {
         HeuristicAgentPolicy policy = policy();
         AgentDecision aliveDecision = policy.decide(context(goodView(

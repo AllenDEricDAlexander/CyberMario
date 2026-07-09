@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import top.egon.mario.clocktower.agent.constant.ClocktowerAgentAutoMode;
+import top.egon.mario.clocktower.agent.memory.po.ClocktowerAgentMemoryPo;
+import top.egon.mario.clocktower.agent.memory.repository.ClocktowerAgentMemoryRepository;
 import top.egon.mario.clocktower.agent.po.ClocktowerAgentInstancePo;
 import top.egon.mario.clocktower.agent.po.ClocktowerAgentProfilePo;
 import top.egon.mario.clocktower.agent.repository.ClocktowerAgentInstanceRepository;
@@ -33,8 +35,10 @@ import top.egon.mario.clocktower.room.service.ClocktowerRoomLobbyService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -68,6 +72,9 @@ class ClocktowerAgentTaskRuntimeTests {
 
     @Autowired
     private ClocktowerAgentProfileRepository agentProfileRepository;
+
+    @Autowired
+    private ClocktowerAgentMemoryRepository agentMemoryRepository;
 
     @Autowired
     private ClocktowerAgentTaskRepository agentTaskRepository;
@@ -253,6 +260,99 @@ class ClocktowerAgentTaskRuntimeTests {
     }
 
     @Test
+    void runtimeNominationUsesLegalTargetAndCompletesTask() {
+        StartedGame game = startDayGameWithAgents(4);
+        ClocktowerGamePo po = gameRepository.findByIdAndDeletedFalse(game.gameId()).orElseThrow();
+        po.setPhase("NOMINATION");
+        gameRepository.saveAndFlush(po);
+        ClocktowerGameSeatPo firstAgent = game.agentSeats().getFirst();
+        ClocktowerAgentInstancePo instance = agentInstanceRepository.findByGameSeatIdAndDeletedFalse(
+                        firstAgent.getId())
+                .orElseThrow();
+        rememberScore(game, instance, game.humanSeat().getId(), "SUSPICION_SCORE", 90);
+        ClocktowerAgentTaskPo task = taskScheduler.scheduleForAgent(game.gameId(), instance.getId(),
+                firstAgent.getId(), ClocktowerAgentTriggerType.PHASE_CHANGED,
+                "phase:%s:nomination-runtime".formatted(game.gameId()), Map.of("phase", "NOMINATION"));
+
+        taskWorker.processBatch("test-worker", 20);
+
+        ClocktowerAgentTaskPo reloaded = agentTaskRepository.findByIdAndDeletedFalse(task.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(ClocktowerAgentTaskStatus.DONE);
+        assertThat(reloaded.getResultJson()).contains("NOMINATE");
+        assertThat(reloaded.getResultJson()).contains("NOMINATION_OPENED");
+        cancelGameTasks(game.gameId());
+    }
+
+    @Test
+    void runtimeVoteUsesSuspicionScoreAndCompletesTask() {
+        StartedGame game = startDayGameWithAgents(4);
+        ClocktowerGameSeatPo humanSeat = game.humanSeat();
+        ClocktowerGameSeatPo firstAgent = game.agentSeats().getFirst();
+        ClocktowerGameSeatPo nominee = game.agentSeats().get(1);
+        humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(humanSeat.getId(), "NOMINATE", List.of(nominee.getId()),
+                        null, null, "先投一轮信息位。", Map.of()),
+                principal(11L, "player1"));
+        ClocktowerAgentInstancePo instance = agentInstanceRepository.findByGameSeatIdAndDeletedFalse(
+                        firstAgent.getId())
+                .orElseThrow();
+        rememberScore(game, instance, nominee.getId(), "SUSPICION_SCORE", 90);
+        ClocktowerAgentTaskPo task = latestTask(game.gameId(), ClocktowerAgentTriggerType.VOTE_WINDOW_OPENED,
+                instance.getId());
+
+        taskWorker.processBatch("test-worker", 20);
+
+        ClocktowerAgentTaskPo reloaded = agentTaskRepository.findByIdAndDeletedFalse(task.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(ClocktowerAgentTaskStatus.DONE);
+        assertThat(reloaded.getResultJson()).contains("VOTE");
+        assertThat(reloaded.getResultJson()).contains("VOTE_CAST");
+        cancelGameTasks(game.gameId());
+    }
+
+    @Test
+    void evilRuntimeCreatesOneBluffPlanAndReusesIt() {
+        StartedGame game = startDayGameWithAgents(4);
+        ClocktowerGameSeatPo evilSeat = game.agentSeats().stream()
+                .filter(seat -> "EVIL".equals(seat.getAlignment()))
+                .findFirst()
+                .orElseThrow();
+        ClocktowerAgentInstancePo instance = agentInstanceRepository.findByGameSeatIdAndDeletedFalse(
+                        evilSeat.getId())
+                .orElseThrow();
+
+        micService.startDayMicSession(game.gameId(), owner());
+        advanceMicToHolder(game.gameId(), evilSeat.getId());
+        ClocktowerAgentTaskPo firstTask = latestTask(game.gameId(), ClocktowerAgentTriggerType.MIC_TURN_STARTED,
+                instance.getId());
+        taskWorker.processBatch("test-worker", 20);
+
+        ClocktowerAgentTaskPo firstReloaded = agentTaskRepository.findByIdAndDeletedFalse(firstTask.getId())
+                .orElseThrow();
+        assertThat(firstReloaded.getStatus()).isEqualTo(ClocktowerAgentTaskStatus.DONE);
+        assertThat(firstReloaded.getResultJson()).contains("PUBLIC_SPEECH");
+        assertThat(bluffPlans(game.gameId(), instance.getId())).hasSize(1);
+        cancelGameTasks(game.gameId());
+
+        ClocktowerGamePo po = gameRepository.findByIdAndDeletedFalse(game.gameId()).orElseThrow();
+        po.setDayNo(2);
+        gameRepository.saveAndFlush(po);
+        micService.startDayMicSession(game.gameId(), owner());
+        advanceMicToHolder(game.gameId(), evilSeat.getId());
+        ClocktowerAgentTaskPo secondTask = latestTask(game.gameId(), ClocktowerAgentTriggerType.MIC_TURN_STARTED,
+                instance.getId());
+        taskWorker.processBatch("test-worker", 20);
+
+        ClocktowerAgentTaskPo secondReloaded = agentTaskRepository.findByIdAndDeletedFalse(secondTask.getId())
+                .orElseThrow();
+        assertThat(secondReloaded.getStatus()).isEqualTo(ClocktowerAgentTaskStatus.DONE);
+        assertThat(secondReloaded.getResultJson()).contains("PUBLIC_SPEECH");
+        assertThat(bluffPlans(game.gameId(), instance.getId())).hasSize(1);
+        assertThat(bluffPlans(game.gameId(), instance.getId()).getFirst().getContentJson())
+                .contains("claimRoleCode");
+        cancelGameTasks(game.gameId());
+    }
+
+    @Test
     void pausedAndApprovalAgentsSkipRuntimeExecution() {
         StartedGame game = startDayGameWithAgents(4);
         ClocktowerGameSeatPo pausedSeat = game.agentSeats().getFirst();
@@ -287,7 +387,7 @@ class ClocktowerAgentTaskRuntimeTests {
     }
 
     @Test
-    void nightTaskOpenedSchedulesOwningAgentAndWorkerAutoChooses() {
+    void nightTaskOpenedSchedulesOwningAgentAndWorkerUsesHeuristicChoice() {
         StartedGame game = startFirstNightGameWithAgents(4);
         ClocktowerGameSeatPo firstAgentSeat = game.agentSeats().getFirst();
         ClocktowerAgentInstancePo instance = agentInstanceRepository
@@ -309,7 +409,10 @@ class ClocktowerAgentTaskRuntimeTests {
         ClocktowerGameNightTaskPo chosen = nightTaskRepository.findById(nightTask.getId()).orElseThrow();
         assertThat(queued.getMetadataJson()).contains(nightTask.getId().toString());
         assertThat(processed.getStatus()).isEqualTo(ClocktowerAgentTaskStatus.DONE);
+        assertThat(processed.getResultJson()).contains("NIGHT_CHOICE");
+        assertThat(processed.getResultJson()).contains("HEURISTIC_V0");
         assertThat(chosen.getStatus()).isEqualTo("CHOSEN");
+        cancelGameTasks(game.gameId());
     }
 
     @Test
@@ -384,6 +487,49 @@ class ClocktowerAgentTaskRuntimeTests {
                 .orElseThrow();
         profile.setTalkativeness(80);
         agentProfileRepository.saveAndFlush(profile);
+    }
+
+    private void rememberScore(StartedGame game, ClocktowerAgentInstancePo instance, Long subjectGameSeatId,
+                               String memoryType, int score) {
+        ClocktowerGamePo po = gameRepository.findByIdAndDeletedFalse(game.gameId()).orElseThrow();
+        ClocktowerAgentMemoryPo memory = new ClocktowerAgentMemoryPo();
+        memory.setGameId(game.gameId());
+        memory.setAgentInstanceId(instance.getId());
+        memory.setGameSeatId(instance.getGameSeatId());
+        memory.setMemoryType(memoryType);
+        memory.setVisibility("SELF");
+        memory.setSubjectGameSeatId(subjectGameSeatId);
+        memory.setContentJson("{\"score\":" + score + "}");
+        memory.setConfidence(80);
+        memory.setDayNo(po.getDayNo());
+        memory.setNightNo(po.getNightNo());
+        memory.setMetadataJson("{}");
+        agentMemoryRepository.saveAndFlush(memory);
+    }
+
+    private ClocktowerAgentTaskPo latestTask(Long gameId, String triggerType, Long agentInstanceId) {
+        return agentTaskRepository.findByGameIdAndTriggerTypeAndDeletedFalseOrderByIdAsc(gameId, triggerType)
+                .stream()
+                .filter(task -> Objects.equals(task.getAgentInstanceId(), agentInstanceId))
+                .max(Comparator.comparing(ClocktowerAgentTaskPo::getId))
+                .orElseThrow();
+    }
+
+    private void advanceMicToHolder(Long gameId, Long targetGameSeatId) {
+        ClocktowerMicSessionView view = micService.getMicSession(gameId, owner());
+        int guard = 0;
+        while (!Objects.equals(view.currentHolderGameSeatId(), targetGameSeatId)
+                && "ROUND_ROBIN".equals(view.status()) && guard < ROLE_CODES.size() + 2) {
+            view = micService.finishCurrentTurnAsActor(gameId, view.currentHolderGameSeatId());
+            guard++;
+        }
+        assertThat(view.currentHolderGameSeatId()).isEqualTo(targetGameSeatId);
+    }
+
+    private List<ClocktowerAgentMemoryPo> bluffPlans(Long gameId, Long agentInstanceId) {
+        return agentMemoryRepository
+                .findByGameIdAndAgentInstanceIdAndMemoryTypeInAndDeletedFalseOrderByCreatedAtAscIdAsc(
+                        gameId, agentInstanceId, List.of("BLUFF_PLAN"));
     }
 
     private ClocktowerRoomCreateRequest createRequest(int agentSeatCount) {
