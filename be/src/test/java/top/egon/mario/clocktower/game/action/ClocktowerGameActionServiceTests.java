@@ -18,6 +18,8 @@ import top.egon.mario.clocktower.game.mic.service.ClocktowerPublicMicService;
 import top.egon.mario.clocktower.game.night.po.ClocktowerGameNightTaskPo;
 import top.egon.mario.clocktower.game.night.repository.ClocktowerGameNightTaskRepository;
 import top.egon.mario.clocktower.game.night.service.ClocktowerGameNightTaskService;
+import top.egon.mario.clocktower.game.nomination.repository.ClocktowerGameNominationRepository;
+import top.egon.mario.clocktower.game.nomination.repository.ClocktowerGameVoteRepository;
 import top.egon.mario.clocktower.game.po.ClocktowerGameEventPo;
 import top.egon.mario.clocktower.game.po.ClocktowerGamePo;
 import top.egon.mario.clocktower.game.po.ClocktowerGameSeatPo;
@@ -26,6 +28,8 @@ import top.egon.mario.clocktower.game.repository.ClocktowerGameEventRepository;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameRepository;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameSeatRepository;
 import top.egon.mario.clocktower.game.service.ClocktowerGameLifecycleService;
+import top.egon.mario.clocktower.grimoire.repository.ClocktowerNominationRepository;
+import top.egon.mario.clocktower.grimoire.repository.ClocktowerVoteRepository;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomCreateRequest;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerSeatClaimRequest;
 import top.egon.mario.clocktower.room.dto.response.ClocktowerRoomResponse;
@@ -81,6 +85,18 @@ class ClocktowerGameActionServiceTests {
 
     @Autowired
     private ClocktowerAgentInstanceRepository agentInstanceRepository;
+
+    @Autowired
+    private ClocktowerGameNominationRepository gameNominationRepository;
+
+    @Autowired
+    private ClocktowerGameVoteRepository gameVoteRepository;
+
+    @Autowired
+    private ClocktowerNominationRepository legacyNominationRepository;
+
+    @Autowired
+    private ClocktowerVoteRepository legacyVoteRepository;
 
     @Test
     void humanSubmitAction_requiresOwnGameSeat() {
@@ -423,6 +439,25 @@ class ClocktowerGameActionServiceTests {
         assertThat(response.event().payload())
                 .containsEntry("voteValue", true)
                 .containsEntry("usedDeadVote", false);
+    }
+
+    @Test
+    void gameNominationAndVoteDoNotWriteLegacyTables() {
+        StartedGame game = startDayGameWithAgents();
+        ClocktowerGameSeatPo nominator = game.seats().getFirst();
+        ClocktowerGameSeatPo nominee = game.seats().get(1);
+        Long nominationId = openNomination(game, nominator, nominee);
+
+        humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(nominator.getId(), "VOTE", List.of(),
+                        nominationId, true, null, Map.of()),
+                principal(11L, "player1"));
+
+        assertThat(gameNominationRepository.findByGameIdAndDayNoAndDeletedFalseOrderByIdAsc(
+                game.gameId(), 1)).hasSize(1);
+        assertThat(gameVoteRepository.findByNominationIdAndDeletedFalseOrderByIdAsc(nominationId)).hasSize(1);
+        assertThat(legacyNominationRepository.findByRoomIdAndDeletedFalseOrderByIdAsc(game.roomId())).isEmpty();
+        assertThat(legacyVoteRepository.findByRoomIdAndDeletedFalseOrderByIdAsc(game.roomId())).isEmpty();
     }
 
     @Test

@@ -6,10 +6,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import top.egon.mario.clocktower.agent.constant.ClocktowerActorType;
 import top.egon.mario.clocktower.common.ClocktowerException;
+import top.egon.mario.clocktower.config.ClocktowerFeatureProperties;
 import top.egon.mario.clocktower.game.action.dto.ActorContext;
 import top.egon.mario.clocktower.game.action.dto.ClocktowerGameActionResponse;
 import top.egon.mario.clocktower.game.action.dto.GameActionCommand;
 import top.egon.mario.clocktower.game.action.service.ClocktowerGameActionExecutor;
+import top.egon.mario.clocktower.game.mic.config.ClocktowerPublicMicProperties;
 import top.egon.mario.clocktower.game.mic.service.ClocktowerPublicMicService;
 import top.egon.mario.clocktower.game.night.service.ClocktowerGameNightTaskService;
 import top.egon.mario.clocktower.game.nomination.service.ClocktowerGameNominationService;
@@ -38,12 +40,17 @@ public class ClocktowerGameActionExecutorImpl implements ClocktowerGameActionExe
     private final ClocktowerGameNominationService nominationService;
     private final ClocktowerGameVoteService voteService;
     private final ClocktowerGameNightTaskService nightTaskService;
+    private final ClocktowerFeatureProperties featureProperties;
+    private final ClocktowerPublicMicProperties micProperties;
 
     @Override
     @Transactional
     public ClocktowerGameActionResponse execute(GameActionCommand command, ActorContext actor) {
         if (command == null) {
             throw new ClocktowerException("CLOCKTOWER_GAME_ACTION_COMMAND_REQUIRED");
+        }
+        if (!featureProperties.gameActions().enabled()) {
+            throw new ClocktowerException("CLOCKTOWER_GAME_ACTIONS_DISABLED");
         }
         if (command.gameId() == null) {
             throw new ClocktowerException("CLOCKTOWER_GAME_ID_REQUIRED");
@@ -90,10 +97,14 @@ public class ClocktowerGameActionExecutorImpl implements ClocktowerGameActionExe
         if (command.content().length() > 1000) {
             return reject(game, seat, "PUBLIC_SPEECH", "CLOCKTOWER_PUBLIC_SPEECH_CONTENT_TOO_LONG");
         }
-        try {
-            publicMicService.requireCanSpeak(game.getId(), seat.getId());
-        } catch (ClocktowerException ex) {
-            return reject(game, seat, "PUBLIC_SPEECH", ex.getMessage());
+        if (micProperties.isEnabled()) {
+            try {
+                publicMicService.requireCanSpeak(game.getId(), seat.getId());
+            } catch (ClocktowerException ex) {
+                return reject(game, seat, "PUBLIC_SPEECH", ex.getMessage());
+            }
+        } else if (!"DAY".equals(game.getPhase())) {
+            return reject(game, seat, "PUBLIC_SPEECH", "CLOCKTOWER_PUBLIC_MIC_DISABLED");
         }
 
         Map<String, Object> payload = new LinkedHashMap<>();
