@@ -15,18 +15,33 @@ public final class AgentDecisionSummary {
     }
 
     public static Map<String, Object> build(ClocktowerAgentTaskPo task,
-                                            AgentDecision decision,
+                                            AgentPolicyResult policyResult,
                                             List<AgentLegalIntentView> legalIntents,
                                             List<ClocktowerGameActionResponse> responses,
                                             ClocktowerAgentMemoryRefreshResult memoryRefresh,
                                             boolean illegalIntentDowngraded) {
+        AgentDecision decision = policyResult.decision();
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("policy", HeuristicAgentPolicy.POLICY_NAME);
+        result.put("policy", policyResult.policyType());
+        result.put("policyStatus", policyResult.status());
         result.put("triggerType", task.getTriggerType());
         result.put("legalIntents", legalIntents.stream().map(AgentLegalIntentView::intentType).distinct().toList());
         result.put("selectedIntent", intentType(decision.intent()));
         result.put("reasoningSummary", decision.reasoningSummary());
         result.put("diagnostics", decision.diagnostics());
+        result.put("policyMetadata", policyResult.metadata());
+        if (policyResult.errorMessage() != null) {
+            result.put("policyError", policyResult.errorMessage());
+        }
+        if (policyResult.modelProvider() != null) {
+            result.put("modelProvider", policyResult.modelProvider());
+        }
+        if (policyResult.modelName() != null) {
+            result.put("modelName", policyResult.modelName());
+        }
+        if (policyResult.promptHash() != null) {
+            result.put("promptHash", policyResult.promptHash());
+        }
         result.put("illegalIntentDowngraded", illegalIntentDowngraded);
         result.put("accepted", responses.stream().allMatch(ClocktowerGameActionResponse::accepted));
         result.put("actions", responses.stream().map(AgentDecisionSummary::actionResult).toList());

@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import top.egon.mario.clocktower.agent.constant.ClocktowerAgentAutoMode;
+import top.egon.mario.clocktower.agent.decision.po.ClocktowerAgentDecisionPo;
+import top.egon.mario.clocktower.agent.decision.repository.ClocktowerAgentDecisionRepository;
 import top.egon.mario.clocktower.agent.memory.po.ClocktowerAgentMemoryPo;
 import top.egon.mario.clocktower.agent.memory.repository.ClocktowerAgentMemoryRepository;
 import top.egon.mario.clocktower.agent.po.ClocktowerAgentInstancePo;
@@ -78,6 +80,9 @@ class ClocktowerAgentTaskRuntimeTests {
 
     @Autowired
     private ClocktowerAgentTaskRepository agentTaskRepository;
+
+    @Autowired
+    private ClocktowerAgentDecisionRepository decisionRepository;
 
     @Autowired
     private ClocktowerAgentTaskScheduler taskScheduler;
@@ -230,7 +235,7 @@ class ClocktowerAgentTaskRuntimeTests {
                 .orElseThrow();
         assertThat(processed).isGreaterThanOrEqualTo(1);
         assertThat(reloaded.getStatus()).isEqualTo(ClocktowerAgentTaskStatus.DONE);
-        assertThat(reloaded.getResultJson()).contains("HEURISTIC_V0");
+        assertThat(reloaded.getResultJson()).contains("HEURISTIC");
         assertThat(reloaded.getResultJson()).contains("PUBLIC_SPEECH");
         assertThat(reloaded.getResultJson()).contains("FINISH_SPEECH");
         assertThat(refreshedInstance.getMetadataJson()).contains("lastSeenEventSeq");
@@ -253,9 +258,35 @@ class ClocktowerAgentTaskRuntimeTests {
 
         ClocktowerAgentTaskPo reloaded = agentTaskRepository.findByIdAndDeletedFalse(task.getId()).orElseThrow();
         assertThat(reloaded.getStatus()).isEqualTo(ClocktowerAgentTaskStatus.DONE);
-        assertThat(reloaded.getResultJson()).contains("HEURISTIC_V0");
+        assertThat(reloaded.getResultJson()).contains("HEURISTIC");
         assertThat(reloaded.getResultJson()).contains("NOOP");
         assertThat(reloaded.getResultJson()).contains("legalIntents");
+        List<ClocktowerAgentDecisionPo> decisions = decisionRepository.findByTriggerTaskIdAndDeletedFalseOrderByIdAsc(
+                task.getId());
+        assertThat(decisions).hasSize(1);
+        assertThat(decisions.getFirst().getPolicyType()).isEqualTo("HEURISTIC");
+        assertThat(decisions.getFirst().getDecisionType()).isEqualTo("NOOP");
+        assertThat(decisions.getFirst().getLegalIntentsJson()).contains("intentType");
+        assertThat(decisions.getFirst().getSelectedIntentJson()).contains("NOOP");
+        cancelGameTasks(game.gameId());
+    }
+
+    @Test
+    void runtimeDecisionSummaryUsesPolicyMetadata() {
+        StartedGame game = startDayGameWithAgents(4);
+        ClocktowerGameSeatPo firstAgentSeat = game.agentSeats().getFirst();
+        ClocktowerAgentInstancePo instance = agentInstanceRepository
+                .findByGameSeatIdAndDeletedFalse(firstAgentSeat.getId())
+                .orElseThrow();
+        ClocktowerAgentTaskPo task = taskScheduler.scheduleForAgent(game.gameId(), instance.getId(),
+                firstAgentSeat.getId(), ClocktowerAgentTriggerType.PUBLIC_EVENT_APPENDED,
+                "publicEvent:%s:policy-metadata".formatted(game.gameId()), Map.of("eventType", "PUBLIC_SPEECH"));
+
+        taskWorker.processBatch("test-worker", 20);
+
+        ClocktowerAgentTaskPo reloaded = agentTaskRepository.findByIdAndDeletedFalse(task.getId()).orElseThrow();
+        assertThat(reloaded.getResultJson()).contains("\"policy\":\"HEURISTIC\"");
+        assertThat(reloaded.getResultJson()).contains("\"policyStatus\":\"ACCEPTED\"");
         cancelGameTasks(game.gameId());
     }
 
@@ -410,7 +441,7 @@ class ClocktowerAgentTaskRuntimeTests {
         assertThat(queued.getMetadataJson()).contains(nightTask.getId().toString());
         assertThat(processed.getStatus()).isEqualTo(ClocktowerAgentTaskStatus.DONE);
         assertThat(processed.getResultJson()).contains("NIGHT_CHOICE");
-        assertThat(processed.getResultJson()).contains("HEURISTIC_V0");
+        assertThat(processed.getResultJson()).contains("HEURISTIC");
         assertThat(chosen.getStatus()).isEqualTo("CHOSEN");
         cancelGameTasks(game.gameId());
     }
