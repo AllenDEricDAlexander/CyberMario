@@ -8,6 +8,7 @@ import top.egon.mario.clocktower.game.night.role.NightTaskContext;
 import top.egon.mario.clocktower.game.night.role.NightTaskSpec;
 import top.egon.mario.clocktower.game.night.role.RoleSkill;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -54,6 +55,17 @@ public class MonkRoleSkill extends AbstractTroubleBrewingRoleSkill implements Ro
 
     @Override
     public NightResolution resolve(NightTaskContext context, NightChoice choice) {
-        return NightResolution.done(Map.of("marker", "MONK_PROTECTED", "targetGameSeatIds", choice.targetGameSeatIds()));
+        Long targetGameSeatId = choice.targetGameSeatIds().isEmpty() ? null : choice.targetGameSeatIds().getFirst();
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("marker", "MONK_PROTECTED");
+        result.put("targetGameSeatId", targetGameSeatId);
+        result.put("targetGameSeatIds", choice.targetGameSeatIds());
+
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("eventType", "MARKER_APPLIED");
+        event.put("targetGameSeatId", targetGameSeatId);
+        event.put("marker", "MONK_PROTECTED");
+        event.put("sourceRole", roleCode());
+        return new NightResolution(result, List.of(), List.of(event), List.of(), "DONE");
     }
 }
