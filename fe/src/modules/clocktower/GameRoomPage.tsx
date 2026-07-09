@@ -22,6 +22,7 @@ import type {
 } from './clocktowerTypes'
 import {ClocktowerChatPanel} from './components/ClocktowerChatPanel'
 import {EventTimeline} from './components/EventTimeline'
+import {PublicMicPanel} from './components/PublicMicPanel'
 import {RoleTypeTag} from './components/RoleTypeTag'
 import {type VotePanelValues, VotePanel} from './components/VotePanel'
 
@@ -261,6 +262,30 @@ export function GameRoomSurface({
         }
     }
 
+    async function submitPublicSpeech(content: string) {
+        if (!view.mySeat) {
+            message.warning('当前视角没有绑定座位')
+            return null
+        }
+        const response = await submitClocktowerGameAction(view.gameId, {
+            actorGameSeatId: view.mySeat.gameSeatId,
+            actionType: 'PUBLIC_SPEECH',
+            targetGameSeatIds: [],
+            nominationId: null,
+            vote: null,
+            content,
+            payload: {},
+        })
+        if (response.event) {
+            const gameEvent = response.event as ClocktowerGameEventResponse
+            setEvents((current) => [...current, mapGameEvent(view.roomId, gameEvent)])
+        }
+        if (!response.accepted) {
+            message.warning(`操作被拒绝：${response.rejectedCode ?? '-'}`)
+        }
+        return response.event
+    }
+
     return (
         <>
             <PageToolbar
@@ -288,6 +313,16 @@ export function GameRoomSurface({
                         <Card title="我的身份">
                             <GameSeatIdentity seat={view.mySeat}/>
                         </Card>
+                    )}
+                    {useGameActionApi && (
+                        <div style={{marginTop: view.viewerMode === 'SPECTATOR' ? 0 : 16}}>
+                            <PublicMicPanel
+                                gameId={view.gameId}
+                                myGameSeatId={view.mySeat?.gameSeatId}
+                                onSubmitSpeech={submitPublicSpeech}
+                                viewerMode={view.viewerMode}
+                            />
+                        </div>
                     )}
                     <Card style={{marginTop: view.viewerMode === 'SPECTATOR' ? 0 : 16}}>
                         <Tabs
