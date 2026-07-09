@@ -13,9 +13,11 @@ import {
 } from './clocktowerService'
 import type {
     ClocktowerEventResponse,
+    ClocktowerGameActionRequest,
     ClocktowerGameEventResponse,
     ClocktowerGameSeatResponse,
     ClocktowerGameViewResponse,
+    ClocktowerPlayerActionRequest,
     ClocktowerPlayerViewResponse,
     ClocktowerRoleType,
     PublicSeatResponse,
@@ -202,6 +204,42 @@ export function SeatPublicList({seats}: { seats: Array<PublicSeatResponse | Cloc
     )
 }
 
+export function buildClocktowerGameActionRequest(
+    view: ClocktowerGameViewResponse,
+    values: VotePanelValues,
+): ClocktowerGameActionRequest {
+    if (!view.mySeat) {
+        throw new Error('CLOCKTOWER_GAME_SEAT_REQUIRED')
+    }
+    return {
+        actorGameSeatId: view.mySeat.gameSeatId,
+        actionType: values.actionType,
+        targetGameSeatIds: values.targetSeatIds ?? [],
+        nominationId: null,
+        vote: null,
+        content: values.content,
+        payload: {},
+    }
+}
+
+export function buildClocktowerLegacyActionRequest(
+    view: ClocktowerGameViewResponse,
+    values: VotePanelValues,
+    clientActionId: string,
+): ClocktowerPlayerActionRequest {
+    if (!view.mySeat) {
+        throw new Error('CLOCKTOWER_ROOM_SEAT_REQUIRED')
+    }
+    return {
+        seatId: view.mySeat.roomSeatId,
+        actionType: values.actionType,
+        targetSeatIds: values.targetSeatIds ?? [],
+        content: values.content,
+        payload: {},
+        clientActionId,
+    }
+}
+
 export function GameRoomSurface({
     actionControlsEnabled = true,
     roomName,
@@ -231,23 +269,11 @@ export function GameRoomSurface({
         setSubmitting(true)
         try {
             const response = useGameActionApi
-                ? await submitClocktowerGameAction(view.gameId, {
-                    actorGameSeatId: view.mySeat.gameSeatId,
-                    actionType: values.actionType,
-                    targetGameSeatIds: values.targetSeatIds ?? [],
-                    nominationId: null,
-                    vote: null,
-                    content: values.content,
-                    payload: {},
-                })
-                : await submitClocktowerPlayerAction(view.roomId, {
-                    seatId: view.mySeat.roomSeatId,
-                    actionType: values.actionType,
-                    targetSeatIds: values.targetSeatIds ?? [],
-                    content: values.content,
-                    payload: {},
-                    clientActionId: crypto.randomUUID(),
-                })
+                ? await submitClocktowerGameAction(view.gameId, buildClocktowerGameActionRequest(view, values))
+                : await submitClocktowerPlayerAction(
+                    view.roomId,
+                    buildClocktowerLegacyActionRequest(view, values, crypto.randomUUID()),
+                )
             if (response.event) {
                 const event = useGameActionApi
                     ? mapGameEvent(view.roomId, response.event as ClocktowerGameEventResponse)

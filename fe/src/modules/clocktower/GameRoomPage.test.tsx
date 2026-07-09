@@ -1,6 +1,12 @@
 import {renderToStaticMarkup} from 'react-dom/server'
 import {describe, expect, test, vi} from 'vitest'
-import {Component as GameRoomPage, GameRoomSurface, SeatPublicList} from './GameRoomPage'
+import {
+    buildClocktowerGameActionRequest,
+    buildClocktowerLegacyActionRequest,
+    Component as GameRoomPage,
+    GameRoomSurface,
+    SeatPublicList,
+} from './GameRoomPage'
 import type {ClocktowerGameViewResponse} from './clocktowerTypes'
 
 vi.mock('react-router', () => ({
@@ -174,6 +180,41 @@ describe('GameRoomPage', () => {
         expect(markup).toContain('私聊')
         expect(markup).toContain('Alice')
         expect(markup).not.toContain('旁观席')
+    })
+
+    test('builds game action payload with game seat ids for GAME_V2 submit', () => {
+        const request = buildClocktowerGameActionRequest(gameView, {
+            actionType: 'NOMINATE',
+            targetSeatIds: [32],
+            content: 'nominate 2',
+        })
+
+        expect(request).toEqual({
+            actorGameSeatId: 31,
+            actionType: 'NOMINATE',
+            targetGameSeatIds: [32],
+            nominationId: null,
+            vote: null,
+            content: 'nominate 2',
+            payload: {},
+        })
+    })
+
+    test('builds legacy action payload with room seat ids only for legacy submit', () => {
+        const request = buildClocktowerLegacyActionRequest(gameView, {
+            actionType: 'NOMINATE',
+            targetSeatIds: [4],
+            content: 'nominate old 2',
+        }, 'client-action-1')
+
+        expect(request).toEqual({
+            seatId: 3,
+            actionType: 'NOMINATE',
+            targetSeatIds: [4],
+            content: 'nominate old 2',
+            payload: {},
+            clientActionId: 'client-action-1',
+        })
     })
 
     test('maps game public seats to game seat ids for new game actions', () => {
