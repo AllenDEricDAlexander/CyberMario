@@ -11,4 +11,7 @@ public interface ClocktowerGameEventRepository extends JpaRepository<ClocktowerG
     Optional<ClocktowerGameEventPo> findTopByGameIdAndDeletedFalseOrderByEventSeqDesc(Long gameId);
 
     List<ClocktowerGameEventPo> findByGameIdAndStatusAndDeletedFalseOrderByEventSeqAsc(Long gameId, String status);
+
+    List<ClocktowerGameEventPo> findByGameIdAndEventSeqGreaterThanAndStatusAndDeletedFalseOrderByEventSeqAsc(
+            Long gameId, Long eventSeq, String status);
 }
