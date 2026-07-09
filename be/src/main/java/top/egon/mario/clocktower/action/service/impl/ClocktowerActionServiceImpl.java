@@ -27,6 +27,10 @@ import top.egon.mario.rbac.service.security.RbacPrincipal;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Legacy room action service kept for pre-GAME_V2 rooms during the cutover window.
+ */
+@Deprecated
 @Service
 @RequiredArgsConstructor
 public class ClocktowerActionServiceImpl implements ClocktowerActionService {

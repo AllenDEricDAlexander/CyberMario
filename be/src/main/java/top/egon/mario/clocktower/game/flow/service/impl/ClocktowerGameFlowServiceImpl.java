@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import top.egon.mario.clocktower.common.ClocktowerException;
+import top.egon.mario.clocktower.config.ClocktowerFeatureProperties;
 import top.egon.mario.clocktower.game.flow.dto.ClocktowerGameAdvanceRequest;
 import top.egon.mario.clocktower.game.flow.dto.ClocktowerGameAdvanceResult;
 import top.egon.mario.clocktower.game.flow.dto.ClocktowerGameFlowView;
@@ -78,11 +79,13 @@ public class ClocktowerGameFlowServiceImpl implements ClocktowerGameFlowService 
     private final ClocktowerGameNightTaskGateway nightTaskGateway;
     private final ClocktowerGameVictoryService victoryService;
     private final ClocktowerGamePhaseSignalScheduler phaseSignalScheduler;
+    private final ClocktowerFeatureProperties featureProperties;
     private final ClocktowerPublicMicProperties micProperties;
 
     @Override
     @Transactional(readOnly = true)
     public ClocktowerGameFlowView getFlow(Long gameId, RbacPrincipal principal) {
+        requireNewFlowEnabled();
         viewerResolver.resolveGameViewer(gameId, principal);
         ClocktowerGamePo game = gameRepository.findByIdAndDeletedFalse(gameId)
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_GAME_NOT_FOUND"));
@@ -93,6 +96,7 @@ public class ClocktowerGameFlowServiceImpl implements ClocktowerGameFlowService 
     @Transactional
     public ClocktowerGameAdvanceResult advance(Long gameId, ClocktowerGameAdvanceRequest request,
                                                RbacPrincipal principal) {
+        requireNewFlowEnabled();
         ClocktowerGamePo game = lockedGame(gameId);
         requireStoryteller(game, principal);
         String previousPhase = game.getPhase();
@@ -117,6 +121,7 @@ public class ClocktowerGameFlowServiceImpl implements ClocktowerGameFlowService 
     @Transactional
     public ClocktowerGameAdvanceResult forceAdvance(Long gameId, ClocktowerGameAdvanceRequest request,
                                                     RbacPrincipal principal) {
+        requireNewFlowEnabled();
         ClocktowerGamePo game = lockedGame(gameId);
         requireStoryteller(game, principal);
         if (gameEnded(game)) {
@@ -135,6 +140,12 @@ public class ClocktowerGameFlowServiceImpl implements ClocktowerGameFlowService 
         ClocktowerGameFlowView nextFlow = buildFlow(advanced);
         return new ClocktowerGameAdvanceResult(advanced.getId(), previousPhase, advanced.getPhase(),
                 true, true, nextFlow);
+    }
+
+    private void requireNewFlowEnabled() {
+        if (!featureProperties.newFlow().enabled()) {
+            throw new ClocktowerException("CLOCKTOWER_NEW_FLOW_DISABLED");
+        }
     }
 
     private ClocktowerGameFlowView buildFlow(ClocktowerGamePo game) {

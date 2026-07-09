@@ -47,6 +47,10 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Legacy room flow service kept for pre-GAME_V2 rooms during the cutover window.
+ */
+@Deprecated
 @Service
 @RequiredArgsConstructor
 public class ClocktowerFlowServiceImpl implements ClocktowerFlowService {
