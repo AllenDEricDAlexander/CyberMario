@@ -28,6 +28,8 @@ class ClocktowerSchemaMigrationTests {
             "src/main/resources/db/migration/V36__extend_clocktower_game_night_task.sql");
     private static final Path AGENT_TASK_MIGRATION = Path.of(
             "src/main/resources/db/migration/V37__clocktower_agent_task.sql");
+    private static final Path AGENT_MEMORY_MIGRATION = Path.of(
+            "src/main/resources/db/migration/V38__clocktower_agent_memory.sql");
 
     @Test
     void roomImGameRefactorMigrationCreatesGenericRoomTables() throws IOException {
@@ -324,6 +326,73 @@ class ClocktowerSchemaMigrationTests {
         assertThat(((Number) row.get("attempts")).intValue()).isZero();
         assertThat(jsonValue(row, "metadata_json")).contains("test");
         assertThat(jsonValue(row, "result_json")).contains("{}");
+        assertThat(row.get("deleted")).isEqualTo(false);
+    }
+
+    @Test
+    void agentMemoryMigrationCreatesMemoryTableWithAuditAndIdempotency() throws IOException {
+        assertThat(Files.exists(AGENT_MEMORY_MIGRATION)).isTrue();
+
+        String sql = Files.readString(AGENT_MEMORY_MIGRATION);
+
+        assertThat(sql).contains("CREATE TABLE clocktower_agent_memory");
+        assertThat(sql).contains("game_id BIGINT NOT NULL");
+        assertThat(sql).contains("agent_instance_id BIGINT NOT NULL");
+        assertThat(sql).contains("game_seat_id BIGINT NOT NULL");
+        assertThat(sql).contains("source_event_id BIGINT");
+        assertThat(sql).contains("source_event_seq BIGINT");
+        assertThat(sql).contains("memory_type VARCHAR(64) NOT NULL");
+        assertThat(sql).contains("visibility VARCHAR(32) NOT NULL DEFAULT 'SELF'");
+        assertThat(sql).contains("content_json JSONB NOT NULL DEFAULT '{}'");
+        assertThat(sql).contains("metadata_json JSONB NOT NULL DEFAULT '{}'");
+        assertThat(sql).contains("created_by BIGINT");
+        assertThat(sql).contains("updated_by BIGINT");
+        assertThat(sql).contains("version BIGINT NOT NULL DEFAULT 0");
+        assertThat(sql).contains("deleted BOOLEAN NOT NULL DEFAULT FALSE");
+        assertThat(sql).contains("idx_clocktower_agent_memory_agent");
+        assertThat(sql).contains("idx_clocktower_agent_memory_subject");
+        assertThat(sql).contains("uk_clocktower_agent_memory_event");
+        assertThat(sql).contains("COALESCE(subject_game_seat_id, -1)");
+        assertThat(sql).doesNotContain("DROP TABLE");
+    }
+
+    @Test
+    void agentMemoryMigrationAppliesAndPreventsDuplicateEventMemory() {
+        JdbcTemplate jdbcTemplate = migratedJdbcTemplate("clocktower_agent_memory_%s"
+                .formatted(UUID.randomUUID()));
+
+        jdbcTemplate.update("""
+                insert into clocktower_agent_memory
+                    (id, game_id, agent_instance_id, game_seat_id, source_event_id, source_event_seq,
+                     memory_type, visibility, subject_game_seat_id, content_json, metadata_json,
+                     created_at, updated_at)
+                values
+                    (99201, 99001, 99101, 99301, 99401, 7,
+                     'ROLE_CLAIM', 'SELF', null, '{"claimedRole":"EMPATH"}', '{}',
+                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """);
+
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                insert into clocktower_agent_memory
+                    (id, game_id, agent_instance_id, game_seat_id, source_event_id, source_event_seq,
+                     memory_type, visibility, subject_game_seat_id, content_json, metadata_json,
+                     created_at, updated_at)
+                values
+                    (99202, 99001, 99101, 99301, 99401, 7,
+                     'ROLE_CLAIM', 'SELF', null, '{"claimedRole":"EMPATH"}', '{}',
+                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """)).isInstanceOf(Exception.class);
+
+        Map<String, Object> row = jdbcTemplate.queryForMap("""
+                select memory_type, visibility, confidence, content_json, deleted
+                from clocktower_agent_memory
+                where id = 99201
+                """);
+
+        assertThat(row.get("memory_type")).isEqualTo("ROLE_CLAIM");
+        assertThat(row.get("visibility")).isEqualTo("SELF");
+        assertThat(((Number) row.get("confidence")).intValue()).isEqualTo(50);
+        assertThat(jsonValue(row, "content_json")).contains("EMPATH");
         assertThat(row.get("deleted")).isEqualTo(false);
     }
 

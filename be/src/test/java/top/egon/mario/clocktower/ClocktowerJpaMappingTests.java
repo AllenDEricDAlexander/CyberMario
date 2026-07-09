@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
+import top.egon.mario.clocktower.agent.memory.po.ClocktowerAgentMemoryPo;
 import top.egon.mario.clocktower.agent.po.ClocktowerActorPo;
 import top.egon.mario.clocktower.agent.po.ClocktowerAgentInstancePo;
 import top.egon.mario.clocktower.agent.po.ClocktowerAgentProfilePo;
@@ -85,6 +86,7 @@ class ClocktowerJpaMappingTests {
         assertManaged(ClocktowerAgentProfilePo.class);
         assertManaged(ClocktowerAgentInstancePo.class);
         assertManaged(ClocktowerAgentTaskPo.class);
+        assertManaged(ClocktowerAgentMemoryPo.class);
     }
 
     @Test
@@ -263,6 +265,41 @@ class ClocktowerJpaMappingTests {
         assertThat(reloaded.getLastError()).isEqualTo("CLOCKTOWER_TEST_ERROR");
         assertThat(reloaded.getMetadataJson()).contains("99101");
         assertThat(reloaded.getResultJson()).contains("accepted");
+    }
+
+    @Test
+    void clocktowerAgentMemoryJsonColumnsRoundTripMinimalStrings() {
+        ClocktowerAgentMemoryPo memory = new ClocktowerAgentMemoryPo();
+        memory.setGameId(901L);
+        memory.setAgentInstanceId(902L);
+        memory.setGameSeatId(903L);
+        memory.setSourceEventId(904L);
+        memory.setSourceEventSeq(5L);
+        memory.setMemoryType("ROLE_CLAIM");
+        memory.setVisibility("SELF");
+        memory.setSubjectGameSeatId(903L);
+        memory.setContentJson("{\"claimedRole\":\"EMPATH\"}");
+        memory.setConfidence(80);
+        memory.setDayNo(1);
+        memory.setNightNo(0);
+        memory.setMetadataJson("{\"source\":\"test\"}");
+        entityManager.persist(memory);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        ClocktowerAgentMemoryPo reloaded = entityManager.find(ClocktowerAgentMemoryPo.class, memory.getId());
+        assertThat(reloaded.getGameId()).isEqualTo(901L);
+        assertThat(reloaded.getAgentInstanceId()).isEqualTo(902L);
+        assertThat(reloaded.getGameSeatId()).isEqualTo(903L);
+        assertThat(reloaded.getSourceEventId()).isEqualTo(904L);
+        assertThat(reloaded.getSourceEventSeq()).isEqualTo(5L);
+        assertThat(reloaded.getMemoryType()).isEqualTo("ROLE_CLAIM");
+        assertThat(reloaded.getVisibility()).isEqualTo("SELF");
+        assertThat(reloaded.getSubjectGameSeatId()).isEqualTo(903L);
+        assertThat(reloaded.getContentJson()).contains("EMPATH");
+        assertThat(reloaded.getConfidence()).isEqualTo(80);
+        assertThat(reloaded.getMetadataJson()).contains("test");
     }
 
     @Test
