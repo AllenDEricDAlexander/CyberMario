@@ -6,6 +6,7 @@ import top.egon.mario.clocktower.agent.decision.ClocktowerAgentDecisionPolicyTyp
 import top.egon.mario.clocktower.agent.decision.ClocktowerAgentDecisionStatus;
 import top.egon.mario.clocktower.agent.strategy.llm.ClocktowerAgentLlmPolicy;
 import top.egon.mario.clocktower.agent.strategy.llm.ClocktowerAgentLlmPolicyException;
+import top.egon.mario.clocktower.config.ClocktowerFeatureProperties;
 
 import java.util.Locale;
 import java.util.Map;
@@ -15,13 +16,16 @@ import java.util.Map;
 public class ConfigurableClocktowerAgentPolicy implements ClocktowerAgentPolicy {
 
     private final ClocktowerAgentPolicyProperties properties;
+    private final ClocktowerFeatureProperties featureProperties;
     private final HeuristicAgentPolicy heuristicPolicy;
     private final ClocktowerAgentLlmPolicy llmPolicy;
 
     public ConfigurableClocktowerAgentPolicy(ClocktowerAgentPolicyProperties properties,
+                                             ClocktowerFeatureProperties featureProperties,
                                              HeuristicAgentPolicy heuristicPolicy,
                                              ClocktowerAgentLlmPolicy llmPolicy) {
         this.properties = properties;
+        this.featureProperties = featureProperties;
         this.heuristicPolicy = heuristicPolicy;
         this.llmPolicy = llmPolicy;
     }
@@ -34,8 +38,16 @@ public class ConfigurableClocktowerAgentPolicy implements ClocktowerAgentPolicy 
     @Override
     public AgentPolicyResult decideWithMetadata(AgentDecisionContext context) {
         String mode = properties.policy().toUpperCase(Locale.ROOT);
-        if (ClocktowerAgentDecisionPolicyType.HEURISTIC.equals(mode) || !properties.llm().enabled()) {
-            return AgentPolicyResult.heuristic(heuristicPolicy.decide(context));
+        if (ClocktowerAgentDecisionPolicyType.HEURISTIC.equals(mode)
+                || !featureProperties.llmAgent().enabled()
+                || !properties.llm().enabled()) {
+            return new AgentPolicyResult(heuristicPolicy.decide(context),
+                    ClocktowerAgentDecisionPolicyType.HEURISTIC,
+                    ClocktowerAgentDecisionStatus.ACCEPTED,
+                    null, null, null, null,
+                    Map.of("configuredPolicy", mode,
+                            "llmAgentEnabled", featureProperties.llmAgent().enabled(),
+                            "agentLlmEnabled", properties.llm().enabled()));
         }
         try {
             ClocktowerAgentLlmPolicy.ClocktowerAgentLlmPolicyResult llm = llmPolicy.decide(context);

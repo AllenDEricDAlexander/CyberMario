@@ -18,6 +18,7 @@ import top.egon.mario.clocktower.agent.view.dto.AgentPrivateInfoView;
 import top.egon.mario.clocktower.agent.view.dto.AgentPrivateView;
 import top.egon.mario.clocktower.agent.view.dto.AgentPublicSeatView;
 import top.egon.mario.clocktower.agent.view.dto.AgentVisibleEventView;
+import top.egon.mario.clocktower.config.ClocktowerFeatureProperties;
 
 import java.time.Instant;
 import java.util.List;
@@ -99,6 +100,20 @@ class ClocktowerAgentLlmPolicyTests {
     }
 
     @Test
+    void configurablePolicyGlobalLlmAgentDisabledDoesNotCallLlm() {
+        FakeLlmClient llmClient = new FakeLlmClient("""
+                {"intentId":"intent-1","content":"LLM speech","reasoningSummary":"llm"}
+                """);
+        ConfigurableClocktowerAgentPolicy policy = configurablePolicy("LLM", true, false, llmClient);
+
+        AgentPolicyResult result = policy.decideWithMetadata(context(normalView()));
+
+        assertThat(llmClient.calls).isZero();
+        assertThat(result.policyType()).isEqualTo("HEURISTIC");
+        assertThat(result.metadata()).containsEntry("llmAgentEnabled", false);
+    }
+
+    @Test
     void configurablePolicyLlmModeUsesLegalLlmIntent() {
         FakeLlmClient llmClient = new FakeLlmClient("""
                 {"intentId":"intent-1","content":"我想听 2 号解释投票。","reasoningSummary":"llm legal"}
@@ -149,6 +164,12 @@ class ClocktowerAgentLlmPolicyTests {
 
     private ConfigurableClocktowerAgentPolicy configurablePolicy(String mode, boolean enabled,
                                                                 FakeLlmClient llmClient) {
+        return configurablePolicy(mode, enabled, true, llmClient);
+    }
+
+    private ConfigurableClocktowerAgentPolicy configurablePolicy(String mode, boolean enabled,
+                                                                boolean llmAgentEnabled,
+                                                                FakeLlmClient llmClient) {
         ClocktowerAgentPolicyProperties properties = new ClocktowerAgentPolicyProperties(
                 mode,
                 new ClocktowerAgentPolicyProperties.Llm(enabled,
@@ -160,12 +181,18 @@ class ClocktowerAgentLlmPolicyTests {
                         false,
                         top.egon.mario.agent.model.dto.enums.ModelScenario.AGENT_CHAT)
         );
+        ClocktowerFeatureProperties featureProperties = new ClocktowerFeatureProperties(
+                new ClocktowerFeatureProperties.FeatureFlag(true),
+                new ClocktowerFeatureProperties.FeatureFlag(true),
+                new ClocktowerFeatureProperties.FeatureFlag(true),
+                new ClocktowerFeatureProperties.FeatureFlag(llmAgentEnabled)
+        );
         ClocktowerAgentLlmPolicy llmPolicy = new ClocktowerAgentLlmPolicy(
                 llmClient,
                 new ClocktowerAgentPromptBuilder(),
                 new ClocktowerAgentLlmOutputParser(new ClocktowerAgentDecisionSanitizer(500))
         );
-        return new ConfigurableClocktowerAgentPolicy(properties, policy(), llmPolicy);
+        return new ConfigurableClocktowerAgentPolicy(properties, featureProperties, policy(), llmPolicy);
     }
 
     private HeuristicAgentPolicy policy() {
