@@ -8,6 +8,8 @@ import java.util.Optional;
 
 public interface ClocktowerAgentProfileRepository extends JpaRepository<ClocktowerAgentProfilePo, Long> {
 
+    Optional<ClocktowerAgentProfilePo> findByIdAndDeletedFalse(Long id);
+
     Optional<ClocktowerAgentProfilePo> findFirstByNameAndDeletedFalse(String name);
 
     List<ClocktowerAgentProfilePo> findByDeletedFalseOrderByIdAsc();

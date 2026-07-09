@@ -5,7 +5,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import top.egon.mario.clocktower.agent.constant.ClocktowerAgentAutoMode;
 import top.egon.mario.clocktower.agent.po.ClocktowerAgentInstancePo;
+import top.egon.mario.clocktower.agent.po.ClocktowerAgentProfilePo;
 import top.egon.mario.clocktower.agent.repository.ClocktowerAgentInstanceRepository;
+import top.egon.mario.clocktower.agent.repository.ClocktowerAgentProfileRepository;
 import top.egon.mario.clocktower.agent.runtime.po.ClocktowerAgentTaskPo;
 import top.egon.mario.clocktower.agent.runtime.repository.ClocktowerAgentTaskRepository;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
@@ -63,6 +65,9 @@ class ClocktowerAgentTaskRuntimeTests {
 
     @Autowired
     private ClocktowerAgentInstanceRepository agentInstanceRepository;
+
+    @Autowired
+    private ClocktowerAgentProfileRepository agentProfileRepository;
 
     @Autowired
     private ClocktowerAgentTaskRepository agentTaskRepository;
@@ -189,10 +194,14 @@ class ClocktowerAgentTaskRuntimeTests {
     }
 
     @Test
-    void workerProcessesMicTurnPassAndMarksTaskDone() {
+    void workerProcessesMicTurnSpeechAndMarksTaskDone() {
         StartedGame game = startDayGameWithAgents(4);
         ClocktowerGameSeatPo humanSeat = game.humanSeat();
         ClocktowerGameSeatPo firstAgentSeat = game.agentSeats().getFirst();
+        ClocktowerAgentInstancePo instance = agentInstanceRepository
+                .findByGameSeatIdAndDeletedFalse(firstAgentSeat.getId())
+                .orElseThrow();
+        makeTalkative(instance);
         micService.startDayMicSession(game.gameId(), owner());
         humanActionService.submit(game.gameId(),
                 new ClocktowerGameActionRequest(humanSeat.getId(), "PASS", List.of(),
@@ -214,9 +223,33 @@ class ClocktowerAgentTaskRuntimeTests {
                 .orElseThrow();
         assertThat(processed).isGreaterThanOrEqualTo(1);
         assertThat(reloaded.getStatus()).isEqualTo(ClocktowerAgentTaskStatus.DONE);
-        assertThat(reloaded.getResultJson()).contains("PLAYER_PASSED");
+        assertThat(reloaded.getResultJson()).contains("HEURISTIC_V0");
+        assertThat(reloaded.getResultJson()).contains("PUBLIC_SPEECH");
+        assertThat(reloaded.getResultJson()).contains("FINISH_SPEECH");
         assertThat(refreshedInstance.getMetadataJson()).contains("lastSeenEventSeq");
         assertThat(micService.canSpeak(game.gameId(), firstAgentSeat.getId())).isFalse();
+        cancelGameTasks(game.gameId());
+    }
+
+    @Test
+    void runtimeWritesDecisionSummaryForNoopTrigger() {
+        StartedGame game = startDayGameWithAgents(4);
+        ClocktowerGameSeatPo firstAgentSeat = game.agentSeats().getFirst();
+        ClocktowerAgentInstancePo instance = agentInstanceRepository
+                .findByGameSeatIdAndDeletedFalse(firstAgentSeat.getId())
+                .orElseThrow();
+        ClocktowerAgentTaskPo task = taskScheduler.scheduleForAgent(game.gameId(), instance.getId(),
+                firstAgentSeat.getId(), ClocktowerAgentTriggerType.PUBLIC_EVENT_APPENDED,
+                "publicEvent:%s:manual".formatted(game.gameId()), Map.of("eventType", "PUBLIC_SPEECH"));
+
+        taskWorker.processBatch("test-worker", 20);
+
+        ClocktowerAgentTaskPo reloaded = agentTaskRepository.findByIdAndDeletedFalse(task.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(ClocktowerAgentTaskStatus.DONE);
+        assertThat(reloaded.getResultJson()).contains("HEURISTIC_V0");
+        assertThat(reloaded.getResultJson()).contains("NOOP");
+        assertThat(reloaded.getResultJson()).contains("legalIntents");
+        cancelGameTasks(game.gameId());
     }
 
     @Test
@@ -344,6 +377,13 @@ class ClocktowerAgentTaskRuntimeTests {
             return metadataJson;
         }
         return "{\"ready\":true}";
+    }
+
+    private void makeTalkative(ClocktowerAgentInstancePo instance) {
+        ClocktowerAgentProfilePo profile = agentProfileRepository.findByIdAndDeletedFalse(instance.getProfileId())
+                .orElseThrow();
+        profile.setTalkativeness(80);
+        agentProfileRepository.saveAndFlush(profile);
     }
 
     private ClocktowerRoomCreateRequest createRequest(int agentSeatCount) {

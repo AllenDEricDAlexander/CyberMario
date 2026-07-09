@@ -10,17 +10,25 @@ import top.egon.mario.clocktower.agent.constant.ClocktowerAgentStatus;
 import top.egon.mario.clocktower.agent.memory.service.ClocktowerAgentMemoryService;
 import top.egon.mario.clocktower.agent.memory.service.ClocktowerAgentMemoryService.ClocktowerAgentMemoryRefreshResult;
 import top.egon.mario.clocktower.agent.po.ClocktowerAgentInstancePo;
+import top.egon.mario.clocktower.agent.po.ClocktowerAgentProfilePo;
 import top.egon.mario.clocktower.agent.repository.ClocktowerAgentInstanceRepository;
+import top.egon.mario.clocktower.agent.repository.ClocktowerAgentProfileRepository;
 import top.egon.mario.clocktower.agent.runtime.po.ClocktowerAgentTaskPo;
+import top.egon.mario.clocktower.agent.strategy.AgentDecision;
+import top.egon.mario.clocktower.agent.strategy.AgentDecisionContext;
+import top.egon.mario.clocktower.agent.strategy.AgentDecisionSummary;
+import top.egon.mario.clocktower.agent.strategy.AgentIntent;
+import top.egon.mario.clocktower.agent.strategy.AgentIntentExecutor;
+import top.egon.mario.clocktower.agent.strategy.ClocktowerAgentPolicy;
+import top.egon.mario.clocktower.agent.view.dto.AgentLegalIntentView;
+import top.egon.mario.clocktower.agent.view.dto.AgentPrivateView;
+import top.egon.mario.clocktower.agent.view.service.ClocktowerAgentPrivateViewService;
 import top.egon.mario.clocktower.common.ClocktowerException;
-import top.egon.mario.clocktower.game.action.dto.ClocktowerGameActionRequest;
 import top.egon.mario.clocktower.game.action.dto.ClocktowerGameActionResponse;
-import top.egon.mario.clocktower.game.action.service.ClocktowerAgentGameActionService;
-import top.egon.mario.clocktower.game.night.service.ClocktowerGameNightTaskService;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -30,9 +38,11 @@ public class ClocktowerAgentRuntime {
     };
 
     private final ClocktowerAgentInstanceRepository agentInstanceRepository;
+    private final ClocktowerAgentProfileRepository agentProfileRepository;
     private final ClocktowerAgentMemoryService memoryService;
-    private final ClocktowerAgentGameActionService agentGameActionService;
-    private final ClocktowerGameNightTaskService nightTaskService;
+    private final ClocktowerAgentPrivateViewService privateViewService;
+    private final ClocktowerAgentPolicy agentPolicy;
+    private final AgentIntentExecutor intentExecutor;
     private final ObjectMapper objectMapper;
 
     public ClocktowerAgentRuntimeResult handle(ClocktowerAgentTaskPo task) {
@@ -50,41 +60,79 @@ public class ClocktowerAgentRuntime {
         }
 
         ClocktowerAgentMemoryRefreshResult memoryRefresh = memoryService.refreshForRuntimeTask(task);
-        return switch (task.getTriggerType()) {
-            case ClocktowerAgentTriggerType.MIC_TURN_STARTED -> passMicTurn(task, memoryRefresh);
-            case ClocktowerAgentTriggerType.VOTE_WINDOW_OPENED -> voteFalse(task, memoryRefresh);
-            case ClocktowerAgentTriggerType.NIGHT_TASK_OPENED -> autoChooseNightTask(task, memoryRefresh);
-            default -> done(withMemoryRefresh(Map.of("actionType", "NOOP", "triggerType", task.getTriggerType()),
-                    memoryRefresh));
-        };
-    }
-
-    private ClocktowerAgentRuntimeResult passMicTurn(ClocktowerAgentTaskPo task,
-                                                     ClocktowerAgentMemoryRefreshResult memoryRefresh) {
-        ClocktowerGameActionResponse response = agentGameActionService.submitAgentAction(task.getGameId(),
-                task.getAgentInstanceId(), new ClocktowerGameActionRequest(task.getGameSeatId(), "PASS", List.of(),
-                        null, null, null, Map.of("passType", "MIC_TURN")));
-        return done(withMemoryRefresh(actionResult("PASS", response), memoryRefresh));
-    }
-
-    private ClocktowerAgentRuntimeResult voteFalse(ClocktowerAgentTaskPo task,
-                                                  ClocktowerAgentMemoryRefreshResult memoryRefresh) {
-        Long nominationId = longValue(metadata(task).get("nominationId"));
-        ClocktowerGameActionResponse response = agentGameActionService.submitAgentAction(task.getGameId(),
-                task.getAgentInstanceId(), new ClocktowerGameActionRequest(task.getGameSeatId(), "VOTE", List.of(),
-                        nominationId, false, null, Map.of("defaultVote", true)));
-        return done(withMemoryRefresh(actionResult("VOTE", response), memoryRefresh));
-    }
-
-    private ClocktowerAgentRuntimeResult autoChooseNightTask(ClocktowerAgentTaskPo task,
-                                                            ClocktowerAgentMemoryRefreshResult memoryRefresh) {
-        Long nightTaskId = longValue(metadata(task).get("taskId"));
-        if (nightTaskId == null) {
-            throw new ClocktowerException("CLOCKTOWER_AGENT_NIGHT_TASK_REQUIRED");
+        AgentPrivateView view = privateViewService.build(task.getGameId(), task.getAgentInstanceId());
+        ClocktowerAgentProfilePo profile = agentProfileRepository.findByIdAndDeletedFalse(instance.getProfileId())
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_AGENT_PROFILE_INVALID"));
+        AgentDecisionContext context = new AgentDecisionContext(view, profile, view.legalIntents(),
+                task.getTriggerType(), metadata(task), Map.of());
+        AgentDecision decision = agentPolicy.decide(context);
+        boolean illegalIntentDowngraded = !isLegal(decision.intent(), view.legalIntents());
+        if (illegalIntentDowngraded) {
+            decision = new AgentDecision(new AgentIntent.Noop("policy selected illegal intent"),
+                    "policy selected illegal intent",
+                    Map.of("originalIntent", AgentDecisionSummary.intentType(decision.intent())));
         }
-        ClocktowerGameActionResponse response = nightTaskService.autoChooseTask(task.getGameId(), nightTaskId,
-                task.getAgentInstanceId());
-        return done(withMemoryRefresh(actionResult("NIGHT_CHOICE", response), memoryRefresh));
+        List<ClocktowerGameActionResponse> responses = intentExecutor.execute(task, decision.intent());
+        return done(AgentDecisionSummary.build(task, decision, view.legalIntents(), responses, memoryRefresh,
+                illegalIntentDowngraded));
+    }
+
+    private boolean isLegal(AgentIntent intent, List<AgentLegalIntentView> legalIntents) {
+        if (intent instanceof AgentIntent.Noop) {
+            return true;
+        }
+        if (intent instanceof AgentIntent.PublicSpeech) {
+            return hasIntent(legalIntents, "PUBLIC_SPEECH");
+        }
+        if (intent instanceof AgentIntent.GrabMic) {
+            return hasIntent(legalIntents, "GRAB_MIC");
+        }
+        if (intent instanceof AgentIntent.FinishSpeech) {
+            return hasIntent(legalIntents, "PUBLIC_SPEECH");
+        }
+        if (intent instanceof AgentIntent.Pass) {
+            return hasIntent(legalIntents, "PASS");
+        }
+        if (intent instanceof AgentIntent.Nominate nominate) {
+            return legalIntents.stream()
+                    .filter(intentView -> "NOMINATE".equals(intentView.intentType()))
+                    .map(intentView -> longList(payloadValue(intentView, "eligibleTargetGameSeatIds")))
+                    .anyMatch(targets -> targets.contains(nominate.targetGameSeatId()));
+        }
+        if (intent instanceof AgentIntent.Vote vote) {
+            return legalIntents.stream()
+                    .filter(intentView -> "VOTE".equals(intentView.intentType()))
+                    .anyMatch(intentView -> Objects.equals(intentView.nominationId(), vote.nominationId())
+                            && Objects.equals(intentView.voteValue(), vote.vote()));
+        }
+        if (intent instanceof AgentIntent.NightChoice choice) {
+            List<Long> selectedTargets = choice.targetGameSeatIds() == null ? List.of() : choice.targetGameSeatIds();
+            return legalIntents.stream()
+                    .filter(intentView -> "NIGHT_CHOICE".equals(intentView.intentType()))
+                    .filter(intentView -> Objects.equals(intentView.taskId(), choice.taskId()))
+                    .map(intentView -> longList(payloadValue(intentView, "legalTargetGameSeatIds")))
+                    .anyMatch(legalTargets -> legalTargets.containsAll(selectedTargets)
+                            || selectedTargets.isEmpty() && legalTargets.isEmpty());
+        }
+        return false;
+    }
+
+    private boolean hasIntent(List<AgentLegalIntentView> legalIntents, String intentType) {
+        return legalIntents.stream().map(AgentLegalIntentView::intentType).anyMatch(intentType::equals);
+    }
+
+    private Object payloadValue(AgentLegalIntentView intentView, String key) {
+        return intentView.payload() == null ? null : intentView.payload().get(key);
+    }
+
+    private List<Long> longList(Object value) {
+        if (value instanceof List<?> list) {
+            return list.stream()
+                    .filter(Objects::nonNull)
+                    .map(this::longValue)
+                    .toList();
+        }
+        return List.of();
     }
 
     private ClocktowerAgentRuntimeResult done(Map<String, Object> result) {
@@ -94,26 +142,6 @@ public class ClocktowerAgentRuntime {
     private ClocktowerAgentRuntimeResult skipped(String reason) {
         return new ClocktowerAgentRuntimeResult(ClocktowerAgentTaskStatus.CANCELLED,
                 Map.of("skipped", true, "reason", reason));
-    }
-
-    private Map<String, Object> actionResult(String actionType, ClocktowerGameActionResponse response) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("actionType", actionType);
-        result.put("accepted", response.accepted());
-        result.put("rejectedCode", response.rejectedCode());
-        if (response.event() != null) {
-            result.put("eventId", response.event().eventId());
-            result.put("eventType", response.event().eventType());
-        }
-        return result;
-    }
-
-    private Map<String, Object> withMemoryRefresh(Map<String, Object> result,
-                                                  ClocktowerAgentMemoryRefreshResult memoryRefresh) {
-        Map<String, Object> enriched = new LinkedHashMap<>(result);
-        enriched.put("memoryLastSeenEventSeq", memoryRefresh.lastSeenEventSeq());
-        enriched.put("memoryInsertedCount", memoryRefresh.insertedCount());
-        return enriched;
     }
 
     private Map<String, Object> metadata(ClocktowerAgentTaskPo task) {
@@ -131,7 +159,7 @@ public class ClocktowerAgentRuntime {
         if (value instanceof Number number) {
             return number.longValue();
         }
-        return value == null ? null : Long.valueOf(value.toString());
+        return Long.valueOf(value.toString());
     }
 
     public record ClocktowerAgentRuntimeResult(String status, Map<String, Object> result) {
