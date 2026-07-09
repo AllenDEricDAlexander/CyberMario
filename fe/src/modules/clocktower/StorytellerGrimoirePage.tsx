@@ -53,6 +53,9 @@ import {ClocktowerChatPanel} from './components/ClocktowerChatPanel'
 import {EventTimeline} from './components/EventTimeline'
 import {NightChecklist} from './components/NightChecklist'
 import {RoleTypeTag} from './components/RoleTypeTag'
+import {StorytellerAgentPanel} from './components/StorytellerAgentPanel'
+import {StorytellerMicControlPanel} from './components/StorytellerMicControlPanel'
+import {StorytellerNightTaskPanel} from './components/StorytellerNightTaskPanel'
 
 type QuickSeatRulingType = Extract<ClocktowerRulingCreateRequest['rulingType'], 'MARK_DEAD' | 'RESTORE_ALIVE'>
 
@@ -706,6 +709,21 @@ export function StorytellerGameSurface({
                     <Card>
                         <Tabs
                             items={[
+                                {
+                                    key: 'agents',
+                                    label: 'Agent',
+                                    children: <StorytellerAgentPanel gameId={view.gameId}/>,
+                                },
+                                {
+                                    key: 'mic',
+                                    label: '麦序',
+                                    children: <StorytellerMicControlPanel gameId={view.gameId}/>,
+                                },
+                                {
+                                    key: 'night-tasks',
+                                    label: '夜晚任务',
+                                    children: <StorytellerNightTaskPanel gameId={view.gameId} seats={view.grimoire}/>,
+                                },
                                 {
                                     key: 'flow',
                                     label: '流程',

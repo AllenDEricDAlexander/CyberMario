@@ -11,6 +11,7 @@ import {
     rulingTypeOptions,
 } from './StorytellerGrimoirePage'
 import {NightChecklist} from './components/NightChecklist'
+import type {ClocktowerGameViewResponse} from './clocktowerTypes'
 
 vi.mock('react-router', () => ({
     Link: ({children, to}: { children: React.ReactNode; to: string }) => <a href={to}>{children}</a>,
@@ -60,7 +61,74 @@ vi.mock('./clocktowerService', () => ({
     createClocktowerRuling: vi.fn(),
     listClocktowerRulings: vi.fn().mockResolvedValue([]),
     undoClocktowerRuling: vi.fn(),
+    getClocktowerGameAgents: vi.fn().mockResolvedValue([]),
+    pauseClocktowerAgent: vi.fn(),
+    resumeClocktowerAgent: vi.fn(),
+    runClocktowerAgentNow: vi.fn(),
+    getClocktowerAgentMemory: vi.fn().mockResolvedValue([]),
+    getClocktowerAgentTasks: vi.fn().mockResolvedValue([]),
+    getClocktowerMicSession: vi.fn().mockResolvedValue(null),
+    startClocktowerDayMic: vi.fn(),
+    skipClocktowerMicTurn: vi.fn(),
+    extendClocktowerMicSession: vi.fn(),
+    closeClocktowerMicSession: vi.fn(),
+    getClocktowerNightTasks: vi.fn().mockResolvedValue([]),
+    resolveClocktowerNightTask: vi.fn(),
+    skipClocktowerGameNightTask: vi.fn(),
+    randomChoiceClocktowerNightTask: vi.fn(),
 }))
+
+function storytellerGameView(): ClocktowerGameViewResponse {
+    return {
+        gameId: 11,
+        roomId: 7,
+        gameNo: 1,
+        status: 'RUNNING',
+        phase: 'NIGHT',
+        viewerMode: 'STORYTELLER',
+        mySeat: null,
+        publicSeats: [],
+        grimoire: [
+            {
+                gameSeatId: 31,
+                roomSeatId: 3,
+                seatNo: 1,
+                userId: 101,
+                displayName: 'Alice',
+                roleCode: 'EMPATH',
+                roleType: 'TOWNSFOLK',
+                alignment: 'GOOD',
+                lifeStatus: 'ALIVE',
+                publicLifeStatus: 'ALIVE',
+                hasDeadVote: true,
+                traveler: false,
+                status: 'ACTIVE',
+            },
+        ],
+        availableActions: [],
+        events: [],
+        conversations: [
+            {
+                conversationId: 201,
+                roomId: 7,
+                gameId: 11,
+                channelKey: 'PUBLIC',
+                groupKey: 'PUBLIC',
+                conversationType: 'GROUP',
+                messageSeq: 3,
+            },
+            {
+                conversationId: 202,
+                roomId: 7,
+                gameId: 11,
+                channelKey: 'SPECTATOR',
+                groupKey: 'SPECTATOR',
+                conversationType: 'GROUP',
+                messageSeq: 2,
+            },
+        ],
+    }
+}
 
 describe('StorytellerGrimoirePage', () => {
     test('renders grimoire controls', () => {
@@ -347,59 +415,25 @@ describe('StorytellerGrimoirePage', () => {
         ])
     })
 
+    test('renders storyteller game surface console tabs', () => {
+        const markup = renderToStaticMarkup(
+            <StorytellerGameSurface
+                roomName="Friday"
+                view={storytellerGameView()}
+            />,
+        )
+
+        expect(markup).toContain('Agent')
+        expect(markup).toContain('麦序')
+        expect(markup).toContain('夜晚任务')
+        expect(markup).toContain('聊天监控')
+    })
+
     test('renders storyteller game surface with grimoire and player chat monitor excluding spectator channel', () => {
         const markup = renderToStaticMarkup(
             <StorytellerGameSurface
                 roomName="测试房间"
-                view={{
-                    gameId: 11,
-                    roomId: 7,
-                    gameNo: 1,
-                    status: 'RUNNING',
-                    phase: 'NIGHT',
-                    viewerMode: 'STORYTELLER',
-                    mySeat: null,
-                    publicSeats: [],
-                    grimoire: [
-                        {
-                            gameSeatId: 31,
-                            roomSeatId: 3,
-                            seatNo: 1,
-                            userId: 101,
-                            displayName: 'Alice',
-                            roleCode: 'EMPATH',
-                            roleType: 'TOWNSFOLK',
-                            alignment: 'GOOD',
-                            lifeStatus: 'ALIVE',
-                            publicLifeStatus: 'ALIVE',
-                            hasDeadVote: true,
-                            traveler: false,
-                            status: 'ACTIVE',
-                        },
-                    ],
-                    availableActions: [],
-                    events: [],
-                    conversations: [
-                        {
-                            conversationId: 201,
-                            roomId: 7,
-                            gameId: 11,
-                            channelKey: 'PUBLIC',
-                            groupKey: 'PUBLIC',
-                            conversationType: 'GROUP',
-                            messageSeq: 3,
-                        },
-                        {
-                            conversationId: 202,
-                            roomId: 7,
-                            gameId: 11,
-                            channelKey: 'SPECTATOR',
-                            groupKey: 'SPECTATOR',
-                            conversationType: 'GROUP',
-                            messageSeq: 2,
-                        },
-                    ],
-                }}
+                view={storytellerGameView()}
             />,
         )
 
