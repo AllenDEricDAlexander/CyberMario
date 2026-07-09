@@ -7,7 +7,9 @@ import top.egon.mario.clocktower.game.night.role.NightResolution;
 import top.egon.mario.clocktower.game.night.role.NightTaskContext;
 import top.egon.mario.clocktower.game.night.role.NightTaskSpec;
 import top.egon.mario.clocktower.game.night.role.RoleSkill;
+import top.egon.mario.clocktower.game.po.ClocktowerGameSeatPo;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -46,6 +48,13 @@ public class EmpathRoleSkill extends AbstractTroubleBrewingRoleSkill implements 
 
     @Override
     public NightResolution resolve(NightTaskContext context, NightChoice choice) {
-        return NightResolution.done(Map.of("roleCode", roleCode()));
+        List<ClocktowerGameSeatPo> neighbors = nearestAliveNeighbors(context);
+        long evilNeighborCount = neighbors.stream().filter(this::evil).count();
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("roleCode", roleCode());
+        result.put("infoType", "EVIL_NEIGHBOR_COUNT");
+        result.put("count", evilNeighborCount);
+        result.put("neighborGameSeatIds", neighbors.stream().map(ClocktowerGameSeatPo::getId).toList());
+        return privateInfo(context, result);
     }
 }

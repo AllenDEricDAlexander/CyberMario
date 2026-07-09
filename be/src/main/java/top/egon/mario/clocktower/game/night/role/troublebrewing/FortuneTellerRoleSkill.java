@@ -7,9 +7,13 @@ import top.egon.mario.clocktower.game.night.role.NightResolution;
 import top.egon.mario.clocktower.game.night.role.NightTaskContext;
 import top.egon.mario.clocktower.game.night.role.NightTaskSpec;
 import top.egon.mario.clocktower.game.night.role.RoleSkill;
+import top.egon.mario.clocktower.game.po.ClocktowerGameSeatPo;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Component
 public class FortuneTellerRoleSkill extends AbstractTroubleBrewingRoleSkill implements RoleSkill {
@@ -50,6 +54,16 @@ public class FortuneTellerRoleSkill extends AbstractTroubleBrewingRoleSkill impl
 
     @Override
     public NightResolution resolve(NightTaskContext context, NightChoice choice) {
-        return NightResolution.done(Map.of("targetGameSeatIds", choice.targetGameSeatIds()));
+        Set<Long> targetIds = choice.targetGameSeatIds().stream().collect(Collectors.toSet());
+        boolean hasDemon = context.seats().stream()
+                .filter(seat -> targetIds.contains(seat.getId()))
+                .map(ClocktowerGameSeatPo::getRoleType)
+                .anyMatch("DEMON"::equals);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("roleCode", roleCode());
+        result.put("infoType", "DEMON_CHECK");
+        result.put("targetGameSeatIds", choice.targetGameSeatIds());
+        result.put("answer", hasDemon ? "YES" : "NO");
+        return privateInfo(context, result);
     }
 }

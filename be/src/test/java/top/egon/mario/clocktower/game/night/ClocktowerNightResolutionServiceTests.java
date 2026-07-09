@@ -26,6 +26,8 @@ import top.egon.mario.clocktower.room.dto.request.ClocktowerSeatClaimRequest;
 import top.egon.mario.clocktower.room.dto.response.ClocktowerRoomResponse;
 import top.egon.mario.clocktower.room.repository.ClocktowerRoomSeatRepository;
 import top.egon.mario.clocktower.room.service.ClocktowerRoomLobbyService;
+import top.egon.mario.clocktower.view.dto.ClocktowerGameViewResponse;
+import top.egon.mario.clocktower.view.service.ClocktowerGameViewService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.util.List;
@@ -67,6 +69,9 @@ class ClocktowerNightResolutionServiceTests {
 
     @Autowired
     private ClocktowerGameNightTaskRepository nightTaskRepository;
+
+    @Autowired
+    private ClocktowerGameViewService gameViewService;
 
     @Test
     void poisonerAppliesMarker() {
@@ -112,6 +117,59 @@ class ClocktowerNightResolutionServiceTests {
         assertThat(eventTypes(game.gameId())).contains("PLAYER_DIED");
     }
 
+    @Test
+    void fortuneTellerReceivesPrivateInfoOnlyForSelf() {
+        StartedGame game = startGameWithRoles(List.of("POISONER", "FORTUNETELLER", "EMPATH", "CHEF", "IMP"));
+        ClocktowerGameSeatPo fortuneTeller = seatByRole(game, "FORTUNETELLER");
+        ClocktowerGameSeatPo imp = seatByRole(game, "IMP");
+        chooseTask(game, "FORTUNETELLER", List.of(game.seats().getFirst().getId(), imp.getId()));
+
+        resolutionService.resolveReady(game.gameId(), owner());
+
+        assertThat(events(game.gameId()))
+                .filteredOn(event -> "PRIVATE_INFO_RECEIVED".equals(event.getEventType()))
+                .anySatisfy(event -> {
+                    assertThat(event.getPayloadJson()).contains("\"roleCode\":\"FORTUNETELLER\"", "\"answer\":\"YES\"");
+                    assertThat(event.getVisibleGameSeatIdsJson()).contains(fortuneTeller.getId().toString());
+                });
+        ClocktowerGameViewResponse fortuneTellerView = gameViewService.gameView(game.gameId(),
+                principal(fortuneTeller.getUserId(), fortuneTeller.getDisplayName()));
+        ClocktowerGameViewResponse impView = gameViewService.gameView(game.gameId(),
+                principal(imp.getUserId(), imp.getDisplayName()));
+        assertThat(fortuneTellerView.events())
+                .anySatisfy(event -> assertThat(event.payload())
+                        .containsEntry("roleCode", "FORTUNETELLER"));
+        assertThat(impView.events())
+                .noneSatisfy(event -> assertThat(event.payload())
+                        .containsEntry("roleCode", "FORTUNETELLER"));
+    }
+
+    @Test
+    void spyReceivesPrivateGrimoireSnapshotOnlyForSelf() {
+        StartedGame game = startGameWithRoles(List.of("SPY", "WASHERWOMAN", "EMPATH", "CHEF",
+                "FORTUNETELLER", "MONK", "BUTLER", "IMP"));
+        ClocktowerGameSeatPo spy = seatByRole(game, "SPY");
+        ClocktowerGameSeatPo imp = seatByRole(game, "IMP");
+
+        resolutionService.resolveReady(game.gameId(), owner());
+
+        assertThat(events(game.gameId()))
+                .filteredOn(event -> "PRIVATE_INFO_RECEIVED".equals(event.getEventType()))
+                .anySatisfy(event -> {
+                    assertThat(event.getPayloadJson()).contains("\"roleCode\":\"SPY\"", "\"grimoire\"",
+                            "\"roleCode\":\"IMP\"");
+                    assertThat(event.getVisibleGameSeatIdsJson()).contains(spy.getId().toString());
+                });
+        ClocktowerGameViewResponse spyView = gameViewService.gameView(game.gameId(),
+                principal(spy.getUserId(), spy.getDisplayName()));
+        ClocktowerGameViewResponse impView = gameViewService.gameView(game.gameId(),
+                principal(imp.getUserId(), imp.getDisplayName()));
+        assertThat(spyView.events())
+                .anySatisfy(event -> assertThat(event.payload()).containsEntry("roleCode", "SPY"));
+        assertThat(impView.events())
+                .noneSatisfy(event -> assertThat(event.payload()).containsEntry("roleCode", "SPY"));
+    }
+
     private StartedGame startNightTwoWithRoles(List<String> roleCodes) {
         StartedGame game = startGameWithRoles(roleCodes);
         ClocktowerGamePo entity = gameRepository.findByIdAndDeletedFalse(game.gameId()).orElseThrow();
@@ -123,17 +181,28 @@ class ClocktowerNightResolutionServiceTests {
     }
 
     private ClocktowerGameNightTaskPo chooseTask(StartedGame game, String roleCode, Long targetGameSeatId) {
+        return chooseTask(game, roleCode, List.of(targetGameSeatId));
+    }
+
+    private ClocktowerGameNightTaskPo chooseTask(StartedGame game, String roleCode, List<Long> targetGameSeatIds) {
         ClocktowerGameNightTaskPo task = taskFor(game.gameId(), roleCode);
         ClocktowerGameSeatPo actor = game.seats().stream()
                 .filter(seat -> roleCode.equals(seat.getRoleCode()))
                 .findFirst()
                 .orElseThrow();
         ClocktowerGameActionResponse response = humanActionService.submit(game.gameId(),
-                new ClocktowerGameActionRequest(actor.getId(), "NIGHT_CHOICE", List.of(targetGameSeatId),
+                new ClocktowerGameActionRequest(actor.getId(), "NIGHT_CHOICE", targetGameSeatIds,
                         null, null, null, Map.of("taskId", task.getId())),
                 principal(actor.getUserId(), actor.getDisplayName()));
         assertThat(response.accepted()).isTrue();
         return nightTaskRepository.findById(task.getId()).orElseThrow();
+    }
+
+    private ClocktowerGameSeatPo seatByRole(StartedGame game, String roleCode) {
+        return game.seats().stream()
+                .filter(seat -> roleCode.equals(seat.getRoleCode()))
+                .findFirst()
+                .orElseThrow();
     }
 
     private ClocktowerGameNightTaskPo taskFor(Long gameId, String roleCode) {
@@ -186,10 +255,14 @@ class ClocktowerNightResolutionServiceTests {
     }
 
     private List<String> eventTypes(Long gameId) {
-        return gameEventRepository.findByGameIdAndStatusAndDeletedFalseOrderByEventSeqAsc(gameId, "VISIBLE")
+        return events(gameId)
                 .stream()
                 .map(ClocktowerGameEventPo::getEventType)
                 .toList();
+    }
+
+    private List<ClocktowerGameEventPo> events(Long gameId) {
+        return gameEventRepository.findByGameIdAndStatusAndDeletedFalseOrderByEventSeqAsc(gameId, "VISIBLE");
     }
 
     private RbacPrincipal owner() {

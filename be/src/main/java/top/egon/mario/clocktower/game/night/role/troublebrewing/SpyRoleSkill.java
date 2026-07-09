@@ -8,6 +8,7 @@ import top.egon.mario.clocktower.game.night.role.NightTaskContext;
 import top.egon.mario.clocktower.game.night.role.NightTaskSpec;
 import top.egon.mario.clocktower.game.night.role.RoleSkill;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -46,6 +47,12 @@ public class SpyRoleSkill extends AbstractTroubleBrewingRoleSkill implements Rol
 
     @Override
     public NightResolution resolve(NightTaskContext context, NightChoice choice) {
-        return NightResolution.done(Map.of("roleCode", roleCode()));
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("roleCode", roleCode());
+        result.put("infoType", "GRIMOIRE_SNAPSHOT");
+        result.put("grimoire", activeSeats(context).stream()
+                .map(seat -> seatSummary(seat, true))
+                .toList());
+        return privateInfo(context, result);
     }
 }

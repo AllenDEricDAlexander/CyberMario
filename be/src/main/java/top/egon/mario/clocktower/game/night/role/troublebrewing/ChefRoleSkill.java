@@ -7,7 +7,9 @@ import top.egon.mario.clocktower.game.night.role.NightResolution;
 import top.egon.mario.clocktower.game.night.role.NightTaskContext;
 import top.egon.mario.clocktower.game.night.role.NightTaskSpec;
 import top.egon.mario.clocktower.game.night.role.RoleSkill;
+import top.egon.mario.clocktower.game.po.ClocktowerGameSeatPo;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -46,6 +48,19 @@ public class ChefRoleSkill extends AbstractTroubleBrewingRoleSkill implements Ro
 
     @Override
     public NightResolution resolve(NightTaskContext context, NightChoice choice) {
-        return NightResolution.done(Map.of("roleCode", roleCode()));
+        List<ClocktowerGameSeatPo> seats = activeSeats(context);
+        int evilAdjacentPairs = 0;
+        for (int index = 0; index < seats.size(); index++) {
+            ClocktowerGameSeatPo current = seats.get(index);
+            ClocktowerGameSeatPo next = seats.get(Math.floorMod(index + 1, seats.size()));
+            if (evil(current) && evil(next)) {
+                evilAdjacentPairs++;
+            }
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("roleCode", roleCode());
+        result.put("infoType", "EVIL_ADJACENT_PAIRS");
+        result.put("count", evilAdjacentPairs);
+        return privateInfo(context, result);
     }
 }
