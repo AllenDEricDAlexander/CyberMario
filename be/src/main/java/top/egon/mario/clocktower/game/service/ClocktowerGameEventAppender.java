@@ -3,8 +3,10 @@ package top.egon.mario.clocktower.game.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import top.egon.mario.clocktower.common.ClocktowerException;
+import top.egon.mario.clocktower.agent.runtime.ClocktowerGameEventAppendedSignal;
 import top.egon.mario.clocktower.game.po.ClocktowerGameEventPo;
 import top.egon.mario.clocktower.game.po.ClocktowerGamePo;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameEventRepository;
@@ -20,6 +22,7 @@ public class ClocktowerGameEventAppender {
 
     private final ClocktowerGameEventRepository gameEventRepository;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     public ClocktowerGameEventResponse append(ClocktowerGamePo game,
                                               String eventType,
@@ -46,6 +49,9 @@ public class ClocktowerGameEventAppender {
         event.setStatus("VISIBLE");
         event.setOccurredAt(occurredAt);
         ClocktowerGameEventPo saved = gameEventRepository.saveAndFlush(event);
+        applicationEventPublisher.publishEvent(new ClocktowerGameEventAppendedSignal(saved.getId(),
+                saved.getGameId(), saved.getEventSeq(), saved.getEventType(), saved.getPhase(),
+                saved.getActorGameSeatId(), saved.getTargetGameSeatId(), eventPayload));
         return ClocktowerGameEventResponse.from(saved, visibleSeatIds, eventPayload);
     }
 

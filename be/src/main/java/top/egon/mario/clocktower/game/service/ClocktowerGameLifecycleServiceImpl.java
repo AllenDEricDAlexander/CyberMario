@@ -20,12 +20,10 @@ import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.game.dto.ClocktowerGameConversationResponse;
 import top.egon.mario.clocktower.game.dto.ClocktowerGameResponse;
 import top.egon.mario.clocktower.game.flow.service.ClocktowerGameNightTaskGateway;
-import top.egon.mario.clocktower.game.po.ClocktowerGameEventPo;
 import top.egon.mario.clocktower.game.po.ClocktowerGamePo;
 import top.egon.mario.clocktower.game.po.ClocktowerGameSeatPo;
 import top.egon.mario.clocktower.game.po.ClocktowerRoomProfilePo;
 import top.egon.mario.clocktower.game.po.ClocktowerRoomSeatPo;
-import top.egon.mario.clocktower.game.repository.ClocktowerGameEventRepository;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameRepository;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameSeatRepository;
 import top.egon.mario.clocktower.room.policy.ClocktowerRoomAccessPolicy;
@@ -84,7 +82,7 @@ public class ClocktowerGameLifecycleServiceImpl implements ClocktowerGameLifecyc
     private final ClocktowerGameRepository gameRepository;
     private final ClocktowerGameSeatRepository gameSeatRepository;
     private final ClocktowerAgentInstanceRepository agentInstanceRepository;
-    private final ClocktowerGameEventRepository gameEventRepository;
+    private final ClocktowerGameEventAppender gameEventAppender;
     private final ClocktowerRoleRepository roleRepository;
     private final ClocktowerBoardService boardService;
     private final ClocktowerRoomAccessPolicy accessPolicy;
@@ -439,25 +437,7 @@ public class ClocktowerGameLifecycleServiceImpl implements ClocktowerGameLifecyc
 
     private void appendGameEvent(ClocktowerGamePo game, String eventType, Instant occurredAt,
                                  Map<String, Object> payload) {
-        ClocktowerGameEventPo event = new ClocktowerGameEventPo();
-        event.setGameId(game.getId());
-        event.setEventSeq(nextEventSeq(game.getId()));
-        event.setEventType(eventType);
-        event.setPhase(game.getPhase());
-        event.setDayNo(game.getDayNo());
-        event.setNightNo(game.getNightNo());
-        event.setVisibility("PUBLIC");
-        event.setVisibleGameSeatIdsJson("[]");
-        event.setPayloadJson(writeJson(payload));
-        event.setStatus("VISIBLE");
-        event.setOccurredAt(occurredAt);
-        gameEventRepository.save(event);
-    }
-
-    private long nextEventSeq(Long gameId) {
-        return gameEventRepository.findTopByGameIdAndDeletedFalseOrderByEventSeqDesc(gameId)
-                .map(event -> event.getEventSeq() + 1)
-                .orElse(1L);
+        gameEventAppender.append(game, eventType, null, null, "PUBLIC", List.of(), payload, occurredAt);
     }
 
     private List<ClocktowerGameConversationResponse> activateGameConversations(Long gameId, Long ownerUserId,

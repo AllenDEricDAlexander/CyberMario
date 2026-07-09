@@ -113,8 +113,8 @@ public class ClocktowerGameNightTaskServiceImpl implements ClocktowerGameNightTa
                 task.setMandatory(spec.mandatory());
                 task.setSortOrder(order.getSortOrder());
                 task.setMetadataJson(writeJson(spec.metadata() == null ? Map.of() : spec.metadata()));
-                nightTaskRepository.save(task);
-                created.add(createdPayload(taskKey, order.getRoleCode(), spec.taskType()));
+                ClocktowerGameNightTaskPo saved = nightTaskRepository.save(task);
+                created.add(createdPayload(saved));
             }
         }
         nightTaskRepository.flush();
@@ -258,11 +258,13 @@ public class ClocktowerGameNightTaskServiceImpl implements ClocktowerGameNightTa
         return game.getNightNo() <= 1 ? skill.actsOnFirstNight() : skill.actsOnOtherNights();
     }
 
-    private Map<String, Object> createdPayload(String taskKey, String roleCode, String taskType) {
+    private Map<String, Object> createdPayload(ClocktowerGameNightTaskPo task) {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("taskKey", taskKey);
-        payload.put("roleCode", roleCode);
-        payload.put("taskType", taskType);
+        payload.put("taskId", task.getId());
+        payload.put("taskKey", task.getTaskKey());
+        payload.put("actorGameSeatId", task.getActorGameSeatId());
+        payload.put("roleCode", task.getRoleCode());
+        payload.put("taskType", task.getTaskType());
         return payload;
     }
 

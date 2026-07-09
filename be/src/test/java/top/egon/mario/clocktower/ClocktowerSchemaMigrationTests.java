@@ -26,6 +26,8 @@ class ClocktowerSchemaMigrationTests {
             "src/main/resources/db/migration/V33__clocktower_public_mic.sql");
     private static final Path GAME_NIGHT_TASK_EXTENSION_MIGRATION = Path.of(
             "src/main/resources/db/migration/V36__extend_clocktower_game_night_task.sql");
+    private static final Path AGENT_TASK_MIGRATION = Path.of(
+            "src/main/resources/db/migration/V37__clocktower_agent_task.sql");
 
     @Test
     void roomImGameRefactorMigrationCreatesGenericRoomTables() throws IOException {
@@ -265,6 +267,64 @@ class ClocktowerSchemaMigrationTests {
         assertThat(row.get("task_type").toString()).isEqualTo("CHOOSE_TARGET");
         assertThat(jsonValue(row, "choice_json")).contains("99102");
         assertThat(jsonValue(row, "result_json")).contains("{}");
+    }
+
+    @Test
+    void agentTaskMigrationCreatesQueueWithAuditAndIdempotency() throws IOException {
+        assertThat(Files.exists(AGENT_TASK_MIGRATION)).isTrue();
+
+        String sql = Files.readString(AGENT_TASK_MIGRATION);
+
+        assertThat(sql).contains("CREATE TABLE clocktower_agent_task");
+        assertThat(sql).contains("trigger_type VARCHAR(64) NOT NULL");
+        assertThat(sql).contains("trigger_key VARCHAR(160) NOT NULL");
+        assertThat(sql).contains("metadata_json JSONB NOT NULL DEFAULT '{}'");
+        assertThat(sql).contains("result_json JSONB NOT NULL DEFAULT '{}'");
+        assertThat(sql).contains("created_by BIGINT");
+        assertThat(sql).contains("updated_by BIGINT");
+        assertThat(sql).contains("version BIGINT NOT NULL DEFAULT 0");
+        assertThat(sql).contains("deleted BOOLEAN NOT NULL DEFAULT FALSE");
+        assertThat(sql).contains("uk_clocktower_agent_task_trigger");
+        assertThat(sql).contains("idx_clocktower_agent_task_pending");
+        assertThat(sql).doesNotContain("DROP TABLE");
+    }
+
+    @Test
+    void agentTaskMigrationAppliesAndEnforcesTriggerIdempotency() {
+        JdbcTemplate jdbcTemplate = migratedJdbcTemplate("clocktower_agent_task_%s"
+                .formatted(UUID.randomUUID()));
+
+        jdbcTemplate.update("""
+                insert into clocktower_agent_task
+                    (id, game_id, agent_instance_id, game_seat_id, trigger_type, trigger_key,
+                     status, priority, available_at, metadata_json, result_json, created_at, updated_at)
+                values
+                    (99101, 99001, 99201, 99301, 'GAME_STARTED', 'game:99001:started',
+                     'PENDING', 100, CURRENT_TIMESTAMP, '{"source":"test"}', '{}',
+                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """);
+
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                insert into clocktower_agent_task
+                    (id, game_id, agent_instance_id, game_seat_id, trigger_type, trigger_key,
+                     status, priority, available_at, metadata_json, result_json, created_at, updated_at)
+                values
+                    (99102, 99001, 99201, 99301, 'GAME_STARTED', 'game:99001:started',
+                     'PENDING', 100, CURRENT_TIMESTAMP, '{}', '{}',
+                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """)).isInstanceOf(Exception.class);
+
+        Map<String, Object> row = jdbcTemplate.queryForMap("""
+                select status, attempts, metadata_json, result_json, deleted
+                from clocktower_agent_task
+                where id = 99101
+                """);
+
+        assertThat(row.get("status")).isEqualTo("PENDING");
+        assertThat(((Number) row.get("attempts")).intValue()).isZero();
+        assertThat(jsonValue(row, "metadata_json")).contains("test");
+        assertThat(jsonValue(row, "result_json")).contains("{}");
+        assertThat(row.get("deleted")).isEqualTo(false);
     }
 
     @Test

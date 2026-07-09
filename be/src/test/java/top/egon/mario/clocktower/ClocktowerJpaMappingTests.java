@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import top.egon.mario.clocktower.agent.po.ClocktowerActorPo;
 import top.egon.mario.clocktower.agent.po.ClocktowerAgentInstancePo;
 import top.egon.mario.clocktower.agent.po.ClocktowerAgentProfilePo;
+import top.egon.mario.clocktower.agent.runtime.po.ClocktowerAgentTaskPo;
 import top.egon.mario.clocktower.common.enums.ClocktowerAlignment;
 import top.egon.mario.clocktower.common.enums.ClocktowerNightType;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
@@ -83,6 +84,7 @@ class ClocktowerJpaMappingTests {
         assertManaged(ClocktowerActorPo.class);
         assertManaged(ClocktowerAgentProfilePo.class);
         assertManaged(ClocktowerAgentInstancePo.class);
+        assertManaged(ClocktowerAgentTaskPo.class);
     }
 
     @Test
@@ -225,6 +227,42 @@ class ClocktowerJpaMappingTests {
         assertThat(reloaded.getResolvedByActorId()).isEqualTo(77L);
         assertThat(reloaded.isMandatory()).isTrue();
         assertThat(reloaded.getStatus()).isEqualTo("PENDING");
+    }
+
+    @Test
+    void clocktowerAgentTaskJsonColumnsRoundTripMinimalStrings() {
+        ClocktowerAgentTaskPo task = new ClocktowerAgentTaskPo();
+        task.setGameId(901L);
+        task.setAgentInstanceId(902L);
+        task.setGameSeatId(903L);
+        task.setTriggerType("MIC_TURN_STARTED");
+        task.setTriggerKey("micTurn:99101");
+        task.setStatus("PENDING");
+        task.setPriority(100);
+        task.setAvailableAt(Instant.parse("2026-01-01T00:00:00Z"));
+        task.setLockedAt(Instant.parse("2026-01-01T00:01:00Z"));
+        task.setLockedBy("worker-a");
+        task.setAttempts(1);
+        task.setLastError("CLOCKTOWER_TEST_ERROR");
+        task.setMetadataJson("{\"turnId\":99101}");
+        task.setResultJson("{\"accepted\":false}");
+        entityManager.persist(task);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        ClocktowerAgentTaskPo reloaded = entityManager.find(ClocktowerAgentTaskPo.class, task.getId());
+        assertThat(reloaded.getGameId()).isEqualTo(901L);
+        assertThat(reloaded.getAgentInstanceId()).isEqualTo(902L);
+        assertThat(reloaded.getGameSeatId()).isEqualTo(903L);
+        assertThat(reloaded.getTriggerType()).isEqualTo("MIC_TURN_STARTED");
+        assertThat(reloaded.getTriggerKey()).isEqualTo("micTurn:99101");
+        assertThat(reloaded.getStatus()).isEqualTo("PENDING");
+        assertThat(reloaded.getLockedBy()).isEqualTo("worker-a");
+        assertThat(reloaded.getAttempts()).isEqualTo(1);
+        assertThat(reloaded.getLastError()).isEqualTo("CLOCKTOWER_TEST_ERROR");
+        assertThat(reloaded.getMetadataJson()).contains("99101");
+        assertThat(reloaded.getResultJson()).contains("accepted");
     }
 
     @Test
