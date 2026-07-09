@@ -30,6 +30,8 @@ class ClocktowerSchemaMigrationTests {
             "src/main/resources/db/migration/V37__clocktower_agent_task.sql");
     private static final Path AGENT_MEMORY_MIGRATION = Path.of(
             "src/main/resources/db/migration/V38__clocktower_agent_memory.sql");
+    private static final Path AGENT_DECISION_MIGRATION = Path.of(
+            "src/main/resources/db/migration/V39__clocktower_agent_decision.sql");
 
     @Test
     void roomImGameRefactorMigrationCreatesGenericRoomTables() throws IOException {
@@ -393,6 +395,83 @@ class ClocktowerSchemaMigrationTests {
         assertThat(row.get("visibility")).isEqualTo("SELF");
         assertThat(((Number) row.get("confidence")).intValue()).isEqualTo(50);
         assertThat(jsonValue(row, "content_json")).contains("EMPATH");
+        assertThat(row.get("deleted")).isEqualTo(false);
+    }
+
+    @Test
+    void agentDecisionMigrationCreatesDecisionAuditTable() throws IOException {
+        assertThat(Files.exists(AGENT_DECISION_MIGRATION)).isTrue();
+
+        String sql = Files.readString(AGENT_DECISION_MIGRATION);
+
+        assertThat(sql).contains("CREATE TABLE clocktower_agent_decision");
+        assertThat(sql).contains("game_id BIGINT NOT NULL");
+        assertThat(sql).contains("agent_instance_id BIGINT NOT NULL");
+        assertThat(sql).contains("game_seat_id BIGINT NOT NULL");
+        assertThat(sql).contains("trigger_task_id BIGINT");
+        assertThat(sql).contains("phase VARCHAR(32) NOT NULL");
+        assertThat(sql).contains("day_no INTEGER NOT NULL DEFAULT 0");
+        assertThat(sql).contains("night_no INTEGER NOT NULL DEFAULT 0");
+        assertThat(sql).contains("decision_type VARCHAR(64) NOT NULL");
+        assertThat(sql).contains("policy_type VARCHAR(32) NOT NULL");
+        assertThat(sql).contains("legal_intents_json JSONB NOT NULL DEFAULT '[]'");
+        assertThat(sql).contains("selected_intent_json JSONB NOT NULL DEFAULT '{}'");
+        assertThat(sql).contains("reasoning_summary TEXT");
+        assertThat(sql).contains("model_provider VARCHAR(64)");
+        assertThat(sql).contains("model_name VARCHAR(128)");
+        assertThat(sql).contains("prompt_hash VARCHAR(128)");
+        assertThat(sql).contains("status VARCHAR(32) NOT NULL DEFAULT 'ACCEPTED'");
+        assertThat(sql).contains("error_message TEXT");
+        assertThat(sql).contains("metadata_json JSONB NOT NULL DEFAULT '{}'");
+        assertThat(sql).contains("created_by BIGINT");
+        assertThat(sql).contains("updated_by BIGINT");
+        assertThat(sql).contains("version BIGINT NOT NULL DEFAULT 0");
+        assertThat(sql).contains("deleted BOOLEAN NOT NULL DEFAULT FALSE");
+        assertThat(sql).contains("idx_clocktower_agent_decision_agent");
+        assertThat(sql).contains("idx_clocktower_agent_decision_task");
+        assertThat(sql).doesNotContain("prompt_json");
+        assertThat(sql).doesNotContain("full_prompt");
+        assertThat(sql).doesNotContain("DROP TABLE");
+    }
+
+    @Test
+    void agentDecisionMigrationAppliesAndStoresAuditJson() {
+        JdbcTemplate jdbcTemplate = migratedJdbcTemplate("clocktower_agent_decision_%s"
+                .formatted(UUID.randomUUID()));
+
+        jdbcTemplate.update("""
+                insert into clocktower_agent_decision
+                    (id, game_id, agent_instance_id, game_seat_id, trigger_task_id, phase,
+                     day_no, night_no, decision_type, policy_type, legal_intents_json,
+                     selected_intent_json, reasoning_summary, model_provider, model_name,
+                     prompt_hash, status, error_message, metadata_json, created_at, updated_at)
+                values
+                    (99301, 99001, 99101, 99201, 99401, 'DAY',
+                     1, 0, 'PUBLIC_SPEECH', 'LLM', '[{"intentType":"PUBLIC_SPEECH"}]',
+                     '{"intentType":"PUBLIC_SPEECH","content":"hello"}',
+                     'legal speech', 'DASHSCOPE', 'qwen-plus', 'hash-1',
+                     'ACCEPTED', null, '{"configuredPolicy":"LLM"}',
+                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """);
+
+        Map<String, Object> row = jdbcTemplate.queryForMap("""
+                select decision_type, policy_type, legal_intents_json, selected_intent_json,
+                       reasoning_summary, model_provider, model_name, prompt_hash, status,
+                       metadata_json, deleted
+                from clocktower_agent_decision
+                where id = 99301
+                """);
+
+        assertThat(row.get("decision_type")).isEqualTo("PUBLIC_SPEECH");
+        assertThat(row.get("policy_type")).isEqualTo("LLM");
+        assertThat(jsonValue(row, "legal_intents_json")).contains("PUBLIC_SPEECH");
+        assertThat(jsonValue(row, "selected_intent_json")).contains("hello");
+        assertThat(row.get("reasoning_summary")).isEqualTo("legal speech");
+        assertThat(row.get("model_provider")).isEqualTo("DASHSCOPE");
+        assertThat(row.get("model_name")).isEqualTo("qwen-plus");
+        assertThat(row.get("prompt_hash")).isEqualTo("hash-1");
+        assertThat(row.get("status")).isEqualTo("ACCEPTED");
+        assertThat(jsonValue(row, "metadata_json")).contains("configuredPolicy");
         assertThat(row.get("deleted")).isEqualTo(false);
     }
 
