@@ -5,6 +5,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
+import top.egon.mario.clocktower.game.action.dto.ClocktowerGameActionRequest;
+import top.egon.mario.clocktower.game.action.dto.ClocktowerGameActionResponse;
+import top.egon.mario.clocktower.game.action.service.ClocktowerHumanGameActionService;
 import top.egon.mario.clocktower.game.dto.ClocktowerGameResponse;
 import top.egon.mario.clocktower.game.night.po.ClocktowerGameNightTaskPo;
 import top.egon.mario.clocktower.game.night.repository.ClocktowerGameNightTaskRepository;
@@ -44,6 +47,9 @@ class ClocktowerGameNightTaskServiceTests {
 
     @Autowired
     private ClocktowerGameLifecycleService gameService;
+
+    @Autowired
+    private ClocktowerHumanGameActionService humanActionService;
 
     @Autowired
     private ClocktowerRoomLobbyService roomService;
@@ -116,6 +122,25 @@ class ClocktowerGameNightTaskServiceTests {
                 .containsExactly("POISONER", "MONK", "IMP", "EMPATH", "BUTLER");
     }
 
+    @Test
+    void humanNightChoiceSubmitsChoice() {
+        StartedGame game = startGameWithRoles(List.of("POISONER", "CHEF", "EMPATH", "FORTUNETELLER", "IMP"));
+        ClocktowerGameSeatPo poisoner = game.seats().getFirst();
+        ClocktowerGameNightTaskPo task = taskFor(game.gameId(), "POISONER");
+
+        ClocktowerGameActionResponse response = humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(poisoner.getId(), "NIGHT_CHOICE",
+                        List.of(game.seats().get(1).getId()), null, null, null,
+                        java.util.Map.of("taskId", task.getId())),
+                principal(20L, "player1"));
+
+        assertThat(response.accepted()).isTrue();
+        assertThat(response.event().eventType()).isEqualTo("NIGHT_CHOICE_SUBMITTED");
+        ClocktowerGameNightTaskPo reloaded = nightTaskRepository.findById(task.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo("CHOSEN");
+        assertThat(reloaded.getChoiceJson()).contains(game.seats().get(1).getId().toString());
+    }
+
     private StartedGame startGameWithRoles(List<String> roleCodes) {
         ClocktowerRoomResponse room = roomService.createRoom(createRequest(roleCodes), owner());
         for (int index = 0; index < roleCodes.size(); index++) {
@@ -136,6 +161,14 @@ class ClocktowerGameNightTaskServiceTests {
             seat.setMetadataJson("{\"ready\":true}");
         }
         roomSeatRepository.saveAllAndFlush(seats);
+    }
+
+    private ClocktowerGameNightTaskPo taskFor(Long gameId, String roleCode) {
+        return nightTaskRepository.findByGameIdAndNightNoAndDeletedFalseOrderBySortOrderAscIdAsc(gameId, 1)
+                .stream()
+                .filter(task -> roleCode.equals(task.getRoleCode()))
+                .findFirst()
+                .orElseThrow();
     }
 
     private ClocktowerRoomCreateRequest createRequest(List<String> roleCodes) {

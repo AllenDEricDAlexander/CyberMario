@@ -11,6 +11,7 @@ import top.egon.mario.clocktower.game.action.dto.ClocktowerGameActionResponse;
 import top.egon.mario.clocktower.game.action.dto.GameActionCommand;
 import top.egon.mario.clocktower.game.action.service.ClocktowerGameActionExecutor;
 import top.egon.mario.clocktower.game.mic.service.ClocktowerPublicMicService;
+import top.egon.mario.clocktower.game.night.service.ClocktowerGameNightTaskService;
 import top.egon.mario.clocktower.game.nomination.service.ClocktowerGameNominationService;
 import top.egon.mario.clocktower.game.nomination.service.ClocktowerGameVoteService;
 import top.egon.mario.clocktower.game.po.ClocktowerGamePo;
@@ -36,6 +37,7 @@ public class ClocktowerGameActionExecutorImpl implements ClocktowerGameActionExe
     private final ClocktowerPublicMicService publicMicService;
     private final ClocktowerGameNominationService nominationService;
     private final ClocktowerGameVoteService voteService;
+    private final ClocktowerGameNightTaskService nightTaskService;
 
     @Override
     @Transactional
@@ -72,6 +74,7 @@ public class ClocktowerGameActionExecutorImpl implements ClocktowerGameActionExe
             case "PASS" -> pass(game, seat, command, actor);
             case "NOMINATE" -> nominationService.nominate(game, seat, command, actor);
             case "VOTE" -> voteService.vote(game, seat, command, actor);
+            case "NIGHT_CHOICE" -> nightTaskService.submitChoice(game, command, actor);
             default -> reject(game, seat, command.actionType(), "UNKNOWN_ACTION_TYPE");
         };
     }

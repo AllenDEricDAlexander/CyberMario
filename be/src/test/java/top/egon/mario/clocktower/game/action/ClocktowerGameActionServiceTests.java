@@ -15,6 +15,9 @@ import top.egon.mario.clocktower.game.action.service.ClocktowerAgentGameActionSe
 import top.egon.mario.clocktower.game.action.service.ClocktowerHumanGameActionService;
 import top.egon.mario.clocktower.game.dto.ClocktowerGameResponse;
 import top.egon.mario.clocktower.game.mic.service.ClocktowerPublicMicService;
+import top.egon.mario.clocktower.game.night.po.ClocktowerGameNightTaskPo;
+import top.egon.mario.clocktower.game.night.repository.ClocktowerGameNightTaskRepository;
+import top.egon.mario.clocktower.game.night.service.ClocktowerGameNightTaskService;
 import top.egon.mario.clocktower.game.po.ClocktowerGameEventPo;
 import top.egon.mario.clocktower.game.po.ClocktowerGamePo;
 import top.egon.mario.clocktower.game.po.ClocktowerGameSeatPo;
@@ -69,6 +72,12 @@ class ClocktowerGameActionServiceTests {
 
     @Autowired
     private ClocktowerGameEventRepository gameEventRepository;
+
+    @Autowired
+    private ClocktowerGameNightTaskRepository nightTaskRepository;
+
+    @Autowired
+    private ClocktowerGameNightTaskService nightTaskService;
 
     @Autowired
     private ClocktowerAgentInstanceRepository agentInstanceRepository;
@@ -158,6 +167,54 @@ class ClocktowerGameActionServiceTests {
 
         assertThat(response.accepted()).isFalse();
         assertThat(response.rejectedCode()).isEqualTo("UNKNOWN_ACTION_TYPE");
+    }
+
+    @Test
+    void nightChoiceRequiresOwnTaskAndNightPhase() {
+        StartedGame game = startDayGameWithAgents();
+        ClocktowerGamePo entity = gameRepository.findByIdAndDeletedFalse(game.gameId()).orElseThrow();
+        entity.setPhase("FIRST_NIGHT");
+        entity.setNightNo(1);
+        gameRepository.saveAndFlush(entity);
+        ClocktowerGameSeatPo humanSeat = game.seats().getFirst();
+        ClocktowerGameSeatPo agentSeat = game.seats().get(1);
+        ClocktowerGameNightTaskPo task = nightTaskRepository
+                .findByGameIdAndNightNoAndActorGameSeatIdAndDeletedFalseOrderBySortOrderAscIdAsc(
+                        game.gameId(), 1, agentSeat.getId())
+                .getFirst();
+
+        ClocktowerGameActionResponse response = humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(humanSeat.getId(), "NIGHT_CHOICE", List.of(agentSeat.getId()),
+                        null, null, null, Map.of("taskId", task.getId())),
+                principal(11L, "player1"));
+
+        assertThat(response.accepted()).isFalse();
+        assertThat(response.rejectedCode()).isEqualTo("CLOCKTOWER_NIGHT_TASK_NOT_OWNED");
+    }
+
+    @Test
+    void agentAutoChooseTaskSubmitsChoiceOnly() {
+        StartedGame game = startDayGameWithAgents();
+        ClocktowerGamePo entity = gameRepository.findByIdAndDeletedFalse(game.gameId()).orElseThrow();
+        entity.setPhase("FIRST_NIGHT");
+        entity.setNightNo(1);
+        gameRepository.saveAndFlush(entity);
+        ClocktowerGameSeatPo agentSeat = game.seats().get(1);
+        ClocktowerAgentInstancePo instance = agentInstanceRepository
+                .findByGameSeatIdAndDeletedFalse(agentSeat.getId())
+                .orElseThrow();
+        ClocktowerGameNightTaskPo task = nightTaskRepository
+                .findByGameIdAndNightNoAndActorGameSeatIdAndDeletedFalseOrderBySortOrderAscIdAsc(
+                        game.gameId(), 1, agentSeat.getId())
+                .getFirst();
+
+        ClocktowerGameActionResponse response = nightTaskService.autoChooseTask(
+                game.gameId(), task.getId(), instance.getId());
+
+        assertThat(response.accepted()).isTrue();
+        ClocktowerGameNightTaskPo reloaded = nightTaskRepository.findById(task.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo("CHOSEN");
+        assertThat(reloaded.getChoiceJson()).contains("targetGameSeatIds");
     }
 
     @Test
