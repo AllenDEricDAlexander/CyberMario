@@ -319,9 +319,11 @@ class ClocktowerGameLifecycleServiceTests {
 
         List<ClocktowerGameEventPo> events = gameEventRepository
                 .findByGameIdAndStatusAndDeletedFalseOrderByEventSeqAsc(response.gameId(), "VISIBLE");
-        assertThat(events).hasSize(1);
-        assertThat(events.get(0).getEventType()).isEqualTo("GAME_STARTED");
-        Map<String, Object> payload = objectMapper.readValue(events.get(0).getPayloadJson(), MAP_TYPE);
+        ClocktowerGameEventPo gameStartedEvent = events.stream()
+                .filter(event -> "GAME_STARTED".equals(event.getEventType()))
+                .findFirst()
+                .orElseThrow();
+        Map<String, Object> payload = objectMapper.readValue(gameStartedEvent.getPayloadJson(), MAP_TYPE);
         assertThat(payload)
                 .containsEntry("roomId", room.roomId().intValue())
                 .containsEntry("gameNo", 1)

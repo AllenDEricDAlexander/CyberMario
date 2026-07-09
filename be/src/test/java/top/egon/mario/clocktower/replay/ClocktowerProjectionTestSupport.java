@@ -118,15 +118,16 @@ public final class ClocktowerProjectionTestSupport {
         chatService.sendMessage(privateConversationId, new ClocktowerChatSendMessageRequest("private whisper", null),
                 playerOne);
 
-        appendGameEvent(game.gameId(), 2L, "PUBLIC_TOWN_EVENT", "PUBLIC", List.of(),
+        long eventSeq = nextGameEventSeq(game.gameId());
+        appendGameEvent(game.gameId(), eventSeq++, "PUBLIC_TOWN_EVENT", "PUBLIC", List.of(),
                 Map.of("content", "public event"));
-        appendGameEvent(game.gameId(), 3L, "PLAYER_ONE_PRIVATE_EVENT", "PRIVATE", List.of(playerOneGameSeatId),
+        appendGameEvent(game.gameId(), eventSeq++, "PLAYER_ONE_PRIVATE_EVENT", "PRIVATE", List.of(playerOneGameSeatId),
                 Map.of("content", "own private event"));
-        appendGameEvent(game.gameId(), 4L, "PLAYER_TWO_PRIVATE_EVENT", "PRIVATE", List.of(playerTwoGameSeatId),
+        appendGameEvent(game.gameId(), eventSeq++, "PLAYER_TWO_PRIVATE_EVENT", "PRIVATE", List.of(playerTwoGameSeatId),
                 Map.of("content", "other private event"));
-        appendGameEvent(game.gameId(), 5L, "STORYTELLER_GRIMOIRE_EVENT", "STORYTELLER", List.of(),
+        appendGameEvent(game.gameId(), eventSeq++, "STORYTELLER_GRIMOIRE_EVENT", "STORYTELLER", List.of(),
                 Map.of("content", "storyteller event"));
-        appendGameEvent(game.gameId(), 6L, "ADMIN_AUDIT_EVENT", "AUDIT", List.of(),
+        appendGameEvent(game.gameId(), eventSeq, "ADMIN_AUDIT_EVENT", "AUDIT", List.of(),
                 Map.of("content", "audit event"));
 
         return new StartedProjection(room.roomId(), game.gameId(), publicConversationId, spectatorConversationId,
@@ -180,6 +181,12 @@ public final class ClocktowerProjectionTestSupport {
         event.setStatus("VISIBLE");
         event.setOccurredAt(Instant.now());
         gameEventRepository.saveAndFlush(event);
+    }
+
+    private long nextGameEventSeq(Long gameId) {
+        return gameEventRepository.findTopByGameIdAndDeletedFalseOrderByEventSeqDesc(gameId)
+                .map(ClocktowerGameEventPo::getEventSeq)
+                .orElse(0L) + 1;
     }
 
     private static Long conversationId(List<ClocktowerGameConversationResponse> conversations, String groupKey,
