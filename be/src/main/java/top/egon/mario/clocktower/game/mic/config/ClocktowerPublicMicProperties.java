@@ -12,6 +12,8 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "clocktower.public-mic")
 public class ClocktowerPublicMicProperties {
 
+    private boolean enabled = true;
+
     private long roundRobinTurnSeconds = 45;
 
     private long grabMicTotalSeconds = 300;

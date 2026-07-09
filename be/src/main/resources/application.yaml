@@ -136,6 +136,19 @@ info:
     description: Cyber Mario is a chat bot
 
 clocktower:
+  agent-player:
+    enabled: ${CLOCKTOWER_AGENT_PLAYER_ENABLED:true}
+  game-actions:
+    enabled: ${CLOCKTOWER_GAME_ACTIONS_ENABLED:true}
+  public-mic:
+    enabled: ${CLOCKTOWER_PUBLIC_MIC_ENABLED:true}
+    round-robin-turn-seconds: ${CLOCKTOWER_PUBLIC_MIC_ROUND_ROBIN_TURN_SECONDS:45}
+    grab-mic-total-seconds: ${CLOCKTOWER_PUBLIC_MIC_GRAB_MIC_TOTAL_SECONDS:300}
+    grab-mic-hold-seconds: ${CLOCKTOWER_PUBLIC_MIC_GRAB_MIC_HOLD_SECONDS:45}
+  new-flow:
+    enabled: ${CLOCKTOWER_NEW_FLOW_ENABLED:true}
+  llm-agent:
+    enabled: ${CLOCKTOWER_LLM_AGENT_ENABLED:false}
   agent:
     default-response-delay-ms: ${CLOCKTOWER_AGENT_DEFAULT_RESPONSE_DELAY_MS:800}
     worker:

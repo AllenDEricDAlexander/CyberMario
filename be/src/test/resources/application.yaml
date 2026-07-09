@@ -83,6 +83,16 @@ info:
     description: Cyber Mario is a chat bot
 
 clocktower:
+  agent-player:
+    enabled: true
+  game-actions:
+    enabled: true
+  public-mic:
+    enabled: true
+  new-flow:
+    enabled: true
+  llm-agent:
+    enabled: false
   agent:
     worker:
       runner:
