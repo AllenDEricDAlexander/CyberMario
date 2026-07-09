@@ -41,6 +41,20 @@ public class ClocktowerGameNightTaskPo extends BaseAuditablePo {
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
 
+    @Column(name = "task_type", nullable = false, length = 64)
+    private String taskType = "ST_RESOLVE";
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "choice_json", nullable = false, columnDefinition = "jsonb")
+    private String choiceJson = "{}";
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "result_json", nullable = false, columnDefinition = "jsonb")
+    private String resultJson = "{}";
+
+    @Column(name = "resolved_by_actor_id")
+    private Long resolvedByActorId;
+
     @Column(name = "completed_at")
     private Instant completedAt;
 

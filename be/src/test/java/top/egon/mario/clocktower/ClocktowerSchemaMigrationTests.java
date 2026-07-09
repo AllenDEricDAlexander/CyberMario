@@ -24,6 +24,8 @@ class ClocktowerSchemaMigrationTests {
             "src/main/resources/db/migration/V32__clocktower_actor_agent_foundation.sql");
     private static final Path PUBLIC_MIC_MIGRATION = Path.of(
             "src/main/resources/db/migration/V33__clocktower_public_mic.sql");
+    private static final Path GAME_NIGHT_TASK_EXTENSION_MIGRATION = Path.of(
+            "src/main/resources/db/migration/V36__extend_clocktower_game_night_task.sql");
 
     @Test
     void roomImGameRefactorMigrationCreatesGenericRoomTables() throws IOException {
@@ -222,6 +224,47 @@ class ClocktowerSchemaMigrationTests {
         assertThat(sql).contains("idx_clocktower_public_mic_session_game_status");
         assertThat(sql).contains("idx_clocktower_public_mic_turn_session_order");
         assertThat(sql).contains("idx_clocktower_public_mic_turn_game_seat");
+    }
+
+    @Test
+    void gameNightTaskExtensionMigrationAddsChoiceAndResolutionColumns() throws IOException {
+        assertThat(Files.exists(GAME_NIGHT_TASK_EXTENSION_MIGRATION)).isTrue();
+
+        String sql = Files.readString(GAME_NIGHT_TASK_EXTENSION_MIGRATION);
+
+        assertThat(sql).contains("ALTER TABLE clocktower_game_night_task ADD COLUMN task_type VARCHAR(64)");
+        assertThat(sql).contains("ALTER TABLE clocktower_game_night_task ADD COLUMN choice_json JSONB");
+        assertThat(sql).contains("ALTER TABLE clocktower_game_night_task ADD COLUMN result_json JSONB");
+        assertThat(sql).contains("ALTER TABLE clocktower_game_night_task ADD COLUMN resolved_by_actor_id BIGINT");
+        assertThat(sql).contains("UPDATE clocktower_game_night_task");
+        assertThat(sql).doesNotContain("DROP TABLE");
+    }
+
+    @Test
+    void gameNightTaskExtensionMigrationAppliesAndStoresChoiceJson() {
+        JdbcTemplate jdbcTemplate = migratedJdbcTemplate("clocktower_game_night_task_%s"
+                .formatted(UUID.randomUUID()));
+
+        jdbcTemplate.update("""
+                insert into clocktower_game_night_task
+                    (id, game_id, night_no, task_key, actor_game_seat_id, role_code, status,
+                     mandatory, sort_order, metadata_json, created_at, updated_at,
+                     task_type, choice_json, result_json)
+                values
+                    (99001, 990, 1, 'POISONER:99101:CHOOSE_TARGET', 99101, 'POISONER', 'CHOSEN',
+                     true, 1, '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+                     'CHOOSE_TARGET', '{"targetGameSeatIds":[99102]}', '{}')
+                """);
+
+        Map<String, Object> row = jdbcTemplate.queryForMap("""
+                select task_type, choice_json, result_json
+                from clocktower_game_night_task
+                where id = 99001
+                """);
+
+        assertThat(row.get("task_type").toString()).isEqualTo("CHOOSE_TARGET");
+        assertThat(jsonValue(row, "choice_json")).contains("99102");
+        assertThat(jsonValue(row, "result_json")).contains("{}");
     }
 
     @Test
@@ -685,5 +728,13 @@ class ClocktowerSchemaMigrationTests {
     private static Long longValue(Map<String, Object> row, String column) {
         Object value = row.get(column);
         return value == null ? null : ((Number) value).longValue();
+    }
+
+    private static String jsonValue(Map<String, Object> row, String column) {
+        Object value = row.get(column);
+        if (value instanceof byte[] bytes) {
+            return new String(bytes);
+        }
+        return value == null ? null : value.toString();
     }
 }

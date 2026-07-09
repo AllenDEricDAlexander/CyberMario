@@ -207,6 +207,10 @@ class ClocktowerJpaMappingTests {
         task.setStatus("PENDING");
         task.setMandatory(true);
         task.setSortOrder(10);
+        task.setTaskType("CHOOSE_TARGET");
+        task.setChoiceJson("{\"targetGameSeatIds\":[902]}");
+        task.setResultJson("{\"marker\":\"POISONED\"}");
+        task.setResolvedByActorId(77L);
         task.setMetadataJson("{}");
         entityManager.persist(task);
 
@@ -215,6 +219,10 @@ class ClocktowerJpaMappingTests {
 
         ClocktowerGameNightTaskPo reloaded = entityManager.find(ClocktowerGameNightTaskPo.class, task.getId());
         assertThat(reloaded.getMetadataJson()).isEqualTo("{}");
+        assertThat(reloaded.getTaskType()).isEqualTo("CHOOSE_TARGET");
+        assertThat(reloaded.getChoiceJson()).contains("targetGameSeatIds");
+        assertThat(reloaded.getResultJson()).contains("POISONED");
+        assertThat(reloaded.getResolvedByActorId()).isEqualTo(77L);
         assertThat(reloaded.isMandatory()).isTrue();
         assertThat(reloaded.getStatus()).isEqualTo("PENDING");
     }
