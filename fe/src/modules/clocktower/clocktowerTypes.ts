@@ -648,6 +648,84 @@ export type ClocktowerMicExtendRequest = {
     seconds: number
 }
 
+export type ClocktowerAgentConsoleView = {
+    agentInstanceId: number
+    actorId?: number | null
+    gameSeatId?: number | null
+    seatNo?: number | null
+    displayName?: string | null
+    profileName?: string | null
+    status: string
+    autoMode: string
+    roleCode?: string | null
+    alignment?: string | null
+    recentTaskStatus?: string | null
+    recentTaskTriggerType?: string | null
+    recentTaskResult?: Record<string, unknown> | null
+    recentError?: string | null
+}
+
+export type ClocktowerAgentTaskView = {
+    taskId: number
+    gameId: number
+    agentInstanceId: number
+    gameSeatId: number
+    triggerType: string
+    triggerKey: string
+    status: string
+    priority: number
+    availableAt: string
+    lockedAt?: string | null
+    lockedBy?: string | null
+    attempts: number
+    lastError?: string | null
+    metadata: Record<string, unknown>
+    result: Record<string, unknown>
+}
+
+export type ClocktowerAgentMemoryView = {
+    memoryId: number
+    gameId: number
+    agentInstanceId: number
+    gameSeatId: number
+    sourceEventId?: number | null
+    sourceEventSeq?: number | null
+    memoryType: string
+    visibility: string
+    subjectGameSeatId?: number | null
+    content: Record<string, unknown>
+    confidence: number
+    dayNo: number
+    nightNo: number
+    metadata: Record<string, unknown>
+}
+
+export type ClocktowerNightTaskView = {
+    taskId: number
+    gameId: number
+    nightNo: number
+    actorGameSeatId: number
+    roleCode: string
+    taskType: string
+    status: string
+    mandatory: boolean
+    sortOrder: number
+    choice: Record<string, unknown>
+    result: Record<string, unknown>
+    metadata: Record<string, unknown>
+}
+
+export type ClocktowerNightResolveRequest = {
+    result?: Record<string, unknown> | null
+    note?: string | null
+    targetGameSeatIds?: number[] | null
+    payload?: Record<string, unknown> | null
+}
+
+export type ClocktowerNightSkipRequest = {
+    reason?: string | null
+}
+
 export type ClocktowerGameSeatResponse = {
     gameSeatId: number
     roomSeatId: number

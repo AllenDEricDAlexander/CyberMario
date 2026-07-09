@@ -40,9 +40,19 @@ import {
     closeClocktowerMicSession,
     extendClocktowerMicSession,
     finishClocktowerMicTurn,
+    getClocktowerAgentMemory,
+    getClocktowerAgentTasks,
+    getClocktowerGameAgents,
     getClocktowerMicSession,
+    getClocktowerNightTasks,
     grabClocktowerMic,
+    pauseClocktowerAgent,
+    randomChoiceClocktowerNightTask,
     releaseClocktowerMic,
+    resolveClocktowerNightTask,
+    resumeClocktowerAgent,
+    runClocktowerAgentNow,
+    skipClocktowerGameNightTask,
     skipClocktowerMicTurn,
     startClocktowerDayMic,
     submitClocktowerGameAction,
@@ -405,6 +415,45 @@ describe('clocktowerService', () => {
             body: {seconds: 120},
         })
         expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/mic/close', {method: 'POST'})
+    })
+
+    it('uses storyteller agent control endpoints', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await getClocktowerGameAgents(11)
+        await pauseClocktowerAgent(11, 81)
+        await resumeClocktowerAgent(11, 81)
+        await runClocktowerAgentNow(11, 81)
+        await getClocktowerAgentMemory(11, 81)
+        await getClocktowerAgentTasks(11, 81)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/agents')
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/agents/81/pause', {method: 'POST'})
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/agents/81/resume', {method: 'POST'})
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/agents/81/run-now', {method: 'POST'})
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/agents/81/memory')
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/agents/81/tasks')
+    })
+
+    it('uses game night task endpoints', async () => {
+        const {requestJson} = await import('../../services/request')
+        const resolveRequest = {targetGameSeatIds: [31], payload: {}, note: 'override'}
+
+        await getClocktowerNightTasks(11)
+        await resolveClocktowerNightTask(11, 91, resolveRequest)
+        await skipClocktowerGameNightTask(11, 91, {reason: 'manual skip'})
+        await randomChoiceClocktowerNightTask(11, 91)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/night-tasks')
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/night-tasks/91/resolve', {
+            method: 'POST',
+            body: resolveRequest,
+        })
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/night-tasks/91/skip', {
+            method: 'POST',
+            body: {reason: 'manual skip'},
+        })
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/night-tasks/91/random-choice', {method: 'POST'})
     })
 
     it('loads room chat conversations', async () => {

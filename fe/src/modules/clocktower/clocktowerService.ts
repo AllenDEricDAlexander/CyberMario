@@ -10,6 +10,9 @@ import type {ConversationView, MessagePage, MessageView, UnreadView} from '../im
 import type {
     BoardValidationResponse,
     ClocktowerActionResponse,
+    ClocktowerAgentConsoleView,
+    ClocktowerAgentMemoryView,
+    ClocktowerAgentTaskView,
     ClocktowerAuditQuery,
     ClocktowerChatReadStateResponse,
     ClocktowerBoardConfigResponse,
@@ -32,6 +35,9 @@ import type {
     ClocktowerJinxRuleResponse,
     ClocktowerMessageResponse,
     ClocktowerMicSessionView,
+    ClocktowerNightResolveRequest,
+    ClocktowerNightSkipRequest,
+    ClocktowerNightTaskView,
     ClocktowerNightChecklistResponse,
     ClocktowerNightOrderGroupResponse,
     ClocktowerNightOrderResponse,
@@ -351,6 +357,68 @@ export function extendClocktowerMicSession(gameId: number, seconds: number) {
 
 export function closeClocktowerMicSession(gameId: number) {
     return requestJson<ClocktowerMicSessionView>(`/api/clocktower/games/${gameId}/mic/close`, {method: 'POST'})
+}
+
+export function getClocktowerGameAgents(gameId: number) {
+    return requestJson<ClocktowerAgentConsoleView[]>(`/api/clocktower/games/${gameId}/agents`)
+}
+
+export function pauseClocktowerAgent(gameId: number, agentInstanceId: number) {
+    return requestJson<ClocktowerAgentConsoleView>(`/api/clocktower/games/${gameId}/agents/${agentInstanceId}/pause`, {
+        method: 'POST',
+    })
+}
+
+export function resumeClocktowerAgent(gameId: number, agentInstanceId: number) {
+    return requestJson<ClocktowerAgentConsoleView>(`/api/clocktower/games/${gameId}/agents/${agentInstanceId}/resume`, {
+        method: 'POST',
+    })
+}
+
+export function runClocktowerAgentNow(gameId: number, agentInstanceId: number) {
+    return requestJson<ClocktowerAgentTaskView>(`/api/clocktower/games/${gameId}/agents/${agentInstanceId}/run-now`, {
+        method: 'POST',
+    })
+}
+
+export function getClocktowerAgentMemory(gameId: number, agentInstanceId: number) {
+    return requestJson<ClocktowerAgentMemoryView[]>(`/api/clocktower/games/${gameId}/agents/${agentInstanceId}/memory`)
+}
+
+export function getClocktowerAgentTasks(gameId: number, agentInstanceId: number) {
+    return requestJson<ClocktowerAgentTaskView[]>(`/api/clocktower/games/${gameId}/agents/${agentInstanceId}/tasks`)
+}
+
+export function getClocktowerNightTasks(gameId: number) {
+    return requestJson<ClocktowerNightTaskView[]>(`/api/clocktower/games/${gameId}/night-tasks`)
+}
+
+export function resolveClocktowerNightTask(
+    gameId: number,
+    taskId: number,
+    request?: ClocktowerNightResolveRequest,
+) {
+    return requestJson<ClocktowerNightTaskView>(`/api/clocktower/games/${gameId}/night-tasks/${taskId}/resolve`, {
+        method: 'POST',
+        body: request,
+    })
+}
+
+export function skipClocktowerGameNightTask(
+    gameId: number,
+    taskId: number,
+    request?: ClocktowerNightSkipRequest,
+) {
+    return requestJson<ClocktowerNightTaskView>(`/api/clocktower/games/${gameId}/night-tasks/${taskId}/skip`, {
+        method: 'POST',
+        body: request,
+    })
+}
+
+export function randomChoiceClocktowerNightTask(gameId: number, taskId: number) {
+    return requestJson<ClocktowerNightTaskView>(`/api/clocktower/games/${gameId}/night-tasks/${taskId}/random-choice`, {
+        method: 'POST',
+    })
 }
 
 export function submitClocktowerStorytellerAction(roomId: number, request: ClocktowerStorytellerActionRequest) {
