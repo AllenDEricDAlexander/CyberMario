@@ -125,7 +125,14 @@ export function ClocktowerRoomPlaySurface({
     }
 
     if (gameView.viewerMode === 'PLAYER' || gameView.viewerMode === 'SPECTATOR') {
-        return <GameRoomSurface actionControlsEnabled={false} roomName={room.name} view={gameView}/>
+        return (
+            <GameRoomSurface
+                actionControlsEnabled={gameView.viewerMode === 'PLAYER'}
+                roomName={room.name}
+                useGameActionApi
+                view={gameView}
+            />
+        )
     }
 
     return (

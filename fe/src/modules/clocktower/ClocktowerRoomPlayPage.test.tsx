@@ -114,7 +114,7 @@ describe('ClocktowerRoomPlayPage', () => {
         expect(markup).toContain('EMPATH')
     })
 
-    test('renders player play surface without legacy action submission controls', () => {
+    test('renders player play surface with new game action controls', () => {
         const markup = renderToStaticMarkup(
             <ClocktowerRoomPlaySurface
                 gameView={{
@@ -142,7 +142,7 @@ describe('ClocktowerRoomPlayPage', () => {
 
         expect(markup).toContain('玩家视角')
         expect(markup).toContain('聊天')
-        expect(markup).not.toContain('公开发言')
-        expect(markup).not.toContain('操作')
+        expect(markup).toContain('操作')
+        expect(markup).toContain('公开发言')
     })
 })

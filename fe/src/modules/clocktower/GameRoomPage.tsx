@@ -8,6 +8,7 @@ import {voidify} from '../../utils/async'
 import {
     getClocktowerPlayerView,
     streamClocktowerEvents,
+    submitClocktowerGameAction,
     submitClocktowerPlayerAction,
 } from './clocktowerService'
 import type {
@@ -170,24 +171,32 @@ function GameRoomPage() {
     )
 }
 
-export function SeatPublicList({seats}: { seats: ClocktowerPlayerViewResponse['publicSeats'] }) {
+export function SeatPublicList({seats}: { seats: Array<PublicSeatResponse | ClocktowerGameSeatResponse> }) {
     if (seats.length === 0) {
         return <Empty description="暂无座位"/>
     }
     return (
         <List
             dataSource={seats}
-            renderItem={(seat) => (
-                <List.Item>
-                    <Space wrap>
-                        <Tag>{seat.seatNo}</Tag>
-                        <Typography.Text strong>{seat.displayName}</Typography.Text>
-                        <Tag color={seat.connected ? 'success' : 'default'}>{seat.connected ? '在线' : '离线'}</Tag>
-                        <Tag color={seat.lifeStatus === 'ALIVE' ? 'success' : 'error'}>{seat.lifeStatus}</Tag>
-                        {seat.hasDeadVote ? <Tag color="warning">死票可用</Tag> : <Tag>死票已用</Tag>}
-                    </Space>
-                </List.Item>
-            )}
+            renderItem={(seat) => {
+                const displaySeat = mapPublicSeatDisplay(seat)
+                return (
+                    <List.Item>
+                        <Space wrap>
+                            <Tag>{displaySeat.seatNo}</Tag>
+                            <Typography.Text strong>{displaySeat.displayName}</Typography.Text>
+                            {displaySeat.agent && <Tag color="purple">Agent</Tag>}
+                            <Tag color={displaySeat.connected ? 'success' : 'default'}>
+                                {displaySeat.connected ? '在线' : '离线'}
+                            </Tag>
+                            <Tag color={displaySeat.lifeStatus === 'ALIVE' ? 'success' : 'error'}>
+                                {displaySeat.lifeStatus}
+                            </Tag>
+                            {displaySeat.hasDeadVote ? <Tag color="warning">死票可用</Tag> : <Tag>死票已用</Tag>}
+                        </Space>
+                    </List.Item>
+                )
+            }}
         />
     )
 }
@@ -195,10 +204,12 @@ export function SeatPublicList({seats}: { seats: ClocktowerPlayerViewResponse['p
 export function GameRoomSurface({
     actionControlsEnabled = true,
     roomName,
+    useGameActionApi = false,
     view,
 }: {
     actionControlsEnabled?: boolean
     roomName?: string
+    useGameActionApi?: boolean
     view: ClocktowerGameViewResponse
 }) {
     const {message} = App.useApp()
@@ -218,16 +229,29 @@ export function GameRoomSurface({
         }
         setSubmitting(true)
         try {
-            const response = await submitClocktowerPlayerAction(view.roomId, {
-                seatId: view.mySeat.roomSeatId,
-                actionType: values.actionType,
-                targetSeatIds: values.targetSeatIds ?? [],
-                content: values.content,
-                payload: {},
-                clientActionId: crypto.randomUUID(),
-            })
+            const response = useGameActionApi
+                ? await submitClocktowerGameAction(view.gameId, {
+                    actorGameSeatId: view.mySeat.gameSeatId,
+                    actionType: values.actionType,
+                    targetGameSeatIds: values.targetSeatIds ?? [],
+                    nominationId: null,
+                    vote: null,
+                    content: values.content,
+                    payload: {},
+                })
+                : await submitClocktowerPlayerAction(view.roomId, {
+                    seatId: view.mySeat.roomSeatId,
+                    actionType: values.actionType,
+                    targetSeatIds: values.targetSeatIds ?? [],
+                    content: values.content,
+                    payload: {},
+                    clientActionId: crypto.randomUUID(),
+                })
             if (response.event) {
-                setEvents((current) => [...current, response.event as ClocktowerEventResponse])
+                const event = useGameActionApi
+                    ? mapGameEvent(view.roomId, response.event as ClocktowerGameEventResponse)
+                    : response.event as ClocktowerEventResponse
+                setEvents((current) => [...current, event])
             }
             message.success(response.accepted ? '操作已提交' : `操作被拒绝：${response.rejectedCode ?? '-'}`)
         } catch (caught) {
@@ -246,7 +270,7 @@ export function GameRoomSurface({
             <Row gutter={[16, 16]}>
                 <Col lg={16} xs={24}>
                     <Card title="公共座位">
-                        <SeatPublicList seats={publicSeats}/>
+                        <SeatPublicList seats={useGameActionApi ? view.publicSeats : publicSeats}/>
                     </Card>
                     <Card style={{marginTop: 16}} title="公共事件">
                         <EventTimeline events={events}/>
@@ -347,7 +371,7 @@ function ActionSummary({actions}: { actions: ClocktowerGameViewResponse['availab
 
 function mapGamePublicSeats(seats: ClocktowerGameSeatResponse[]): PublicSeatResponse[] {
     return seats.map((seat) => ({
-        seatId: seat.roomSeatId,
+        seatId: seat.gameSeatId,
         seatNo: seat.seatNo,
         displayName: seat.displayName,
         roleCode: null,
@@ -355,6 +379,29 @@ function mapGamePublicSeats(seats: ClocktowerGameSeatResponse[]): PublicSeatResp
         connected: seat.status === 'ACTIVE',
         hasDeadVote: seat.hasDeadVote,
     }))
+}
+
+function mapPublicSeatDisplay(seat: PublicSeatResponse | ClocktowerGameSeatResponse) {
+    if ('gameSeatId' in seat) {
+        return {
+            seatId: seat.gameSeatId,
+            seatNo: seat.seatNo,
+            displayName: seat.displayName,
+            roleCode: null,
+            lifeStatus: seat.publicLifeStatus || seat.lifeStatus,
+            connected: seat.status === 'ACTIVE',
+            hasDeadVote: seat.hasDeadVote,
+            agent: gameSeatIsAgent(seat),
+        }
+    }
+    return {
+        ...seat,
+        agent: false,
+    }
+}
+
+function gameSeatIsAgent(seat: { actorType?: string | null; isAgent?: boolean; agentInstanceId?: number | null }) {
+    return seat.actorType === 'AGENT' || seat.isAgent === true || typeof seat.agentInstanceId === 'number'
 }
 
 function mapGameEvents(view: ClocktowerGameViewResponse): ClocktowerEventResponse[] {

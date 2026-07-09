@@ -38,6 +38,7 @@ vi.mock('./clocktowerService', () => ({
         privateThreads: [],
     }),
     streamClocktowerEvents: vi.fn(),
+    submitClocktowerGameAction: vi.fn(),
     submitClocktowerPlayerAction: vi.fn(),
     listClocktowerChatMessages: vi.fn().mockResolvedValue({items: [], page: 1, size: 20, total: 0}),
     markClocktowerChatRead: vi.fn(),
@@ -173,6 +174,32 @@ describe('GameRoomPage', () => {
         expect(markup).toContain('私聊')
         expect(markup).toContain('Alice')
         expect(markup).not.toContain('旁观席')
+    })
+
+    test('maps game public seats to game seat ids for new game actions', () => {
+        const markup = renderToStaticMarkup(
+            <GameRoomSurface
+                roomName="测试房间"
+                useGameActionApi
+                view={{
+                    ...gameView,
+                    publicSeats: [
+                        {
+                            ...gameView.publicSeats[0],
+                            gameSeatId: 32,
+                            roomSeatId: 4,
+                            actorType: 'AGENT',
+                            agentInstanceId: 802,
+                            isAgent: true,
+                        },
+                    ],
+                }}
+            />,
+        )
+
+        expect(markup).toContain('玩家视角')
+        expect(markup).toContain('公开发言')
+        expect(markup).toContain('Agent')
     })
 
     test('renders spectator view with read-only public chat and writable spectator channel', () => {
