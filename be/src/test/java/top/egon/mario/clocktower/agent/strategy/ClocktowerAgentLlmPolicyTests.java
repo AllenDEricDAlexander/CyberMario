@@ -3,10 +3,15 @@ package top.egon.mario.clocktower.agent.strategy;
 import org.junit.jupiter.api.Test;
 import top.egon.mario.clocktower.agent.po.ClocktowerAgentProfilePo;
 import top.egon.mario.clocktower.agent.strategy.llm.ClocktowerAgentDecisionSanitizer;
+import top.egon.mario.clocktower.agent.strategy.llm.ClocktowerAgentLlmClient;
 import top.egon.mario.clocktower.agent.strategy.llm.ClocktowerAgentLlmOutputParser;
+import top.egon.mario.clocktower.agent.strategy.llm.ClocktowerAgentLlmPolicy;
 import top.egon.mario.clocktower.agent.strategy.llm.ClocktowerAgentLlmPolicyException;
+import top.egon.mario.clocktower.agent.strategy.llm.ClocktowerAgentLlmRequest;
+import top.egon.mario.clocktower.agent.strategy.llm.ClocktowerAgentLlmResponse;
 import top.egon.mario.clocktower.agent.strategy.llm.ClocktowerAgentPrompt;
 import top.egon.mario.clocktower.agent.strategy.llm.ClocktowerAgentPromptBuilder;
+import top.egon.mario.clocktower.agent.strategy.troublebrewing.TroubleBrewingBluffPlanner;
 import top.egon.mario.clocktower.agent.view.dto.AgentLegalIntentView;
 import top.egon.mario.clocktower.agent.view.dto.AgentMemoryView;
 import top.egon.mario.clocktower.agent.view.dto.AgentPrivateInfoView;
@@ -78,16 +83,102 @@ class ClocktowerAgentLlmPolicyTests {
                 .hasMessageContaining("LLM_SPEECH_TOO_LONG");
     }
 
+    @Test
+    void configurablePolicyHeuristicModeDoesNotCallLlm() {
+        FakeLlmClient llmClient = new FakeLlmClient("""
+                {"intentId":"intent-1","content":"LLM speech","reasoningSummary":"llm"}
+                """);
+        ConfigurableClocktowerAgentPolicy policy = configurablePolicy("HEURISTIC", false, llmClient);
+
+        AgentPolicyResult result = policy.decideWithMetadata(context(normalView()));
+
+        assertThat(llmClient.calls).isZero();
+        assertThat(result.policyType()).isEqualTo("HEURISTIC");
+        assertThat(result.decision().intent()).isInstanceOf(AgentIntent.PublicSpeech.class);
+        assertThat(((AgentIntent.PublicSpeech) result.decision().intent()).content()).doesNotContain("LLM speech");
+    }
+
+    @Test
+    void configurablePolicyLlmModeUsesLegalLlmIntent() {
+        FakeLlmClient llmClient = new FakeLlmClient("""
+                {"intentId":"intent-1","content":"我想听 2 号解释投票。","reasoningSummary":"llm legal"}
+                """);
+        ConfigurableClocktowerAgentPolicy policy = configurablePolicy("LLM", true, llmClient);
+
+        AgentPolicyResult result = policy.decideWithMetadata(context(normalView()));
+
+        assertThat(llmClient.calls).isEqualTo(1);
+        assertThat(result.policyType()).isEqualTo("LLM");
+        assertThat(result.status()).isEqualTo("ACCEPTED");
+        assertThat(result.promptHash()).hasSize(64);
+        assertThat(result.modelProvider()).isEqualTo("DASHSCOPE");
+        assertThat(result.modelName()).isEqualTo("qwen-plus");
+        assertThat(((AgentIntent.PublicSpeech) result.decision().intent()).content()).contains("2 号");
+    }
+
+    @Test
+    void configurablePolicyInvalidLlmIntentFallsBackToHeuristic() {
+        FakeLlmClient llmClient = new FakeLlmClient("""
+                {"intentId":"intent-404","reasoningSummary":"bad"}
+                """);
+        ConfigurableClocktowerAgentPolicy policy = configurablePolicy("FALLBACK", true, llmClient);
+
+        AgentPolicyResult result = policy.decideWithMetadata(context(normalView()));
+
+        assertThat(result.policyType()).isEqualTo("FALLBACK_HEURISTIC");
+        assertThat(result.status()).isEqualTo("ILLEGAL_INTENT_FALLBACK");
+        assertThat(result.errorMessage()).contains("LLM_INTENT_UNKNOWN");
+    }
+
+    @Test
+    void configurablePolicyLlmExceptionFallsBackToHeuristic() {
+        FakeLlmClient llmClient = new FakeLlmClient(new RuntimeException("timeout"));
+        ConfigurableClocktowerAgentPolicy policy = configurablePolicy("LLM", true, llmClient);
+
+        AgentPolicyResult result = policy.decideWithMetadata(context(normalView()));
+
+        assertThat(result.policyType()).isEqualTo("FALLBACK_HEURISTIC");
+        assertThat(result.status()).isEqualTo("LLM_ERROR_FALLBACK");
+        assertThat(result.errorMessage()).contains("timeout");
+    }
+
     private AgentDecisionContext context(AgentPrivateView view) {
         return new AgentDecisionContext(view, balancedProfile(), view.legalIntents(),
                 "MIC_TURN_STARTED", Map.of("source", "test"), Map.of());
+    }
+
+    private ConfigurableClocktowerAgentPolicy configurablePolicy(String mode, boolean enabled,
+                                                                FakeLlmClient llmClient) {
+        ClocktowerAgentPolicyProperties properties = new ClocktowerAgentPolicyProperties(
+                mode,
+                new ClocktowerAgentPolicyProperties.Llm(enabled,
+                        top.egon.mario.agent.model.dto.enums.ModelProviderType.DASHSCOPE,
+                        "qwen-plus",
+                        8000,
+                        800,
+                        500,
+                        false,
+                        top.egon.mario.agent.model.dto.enums.ModelScenario.AGENT_CHAT)
+        );
+        ClocktowerAgentLlmPolicy llmPolicy = new ClocktowerAgentLlmPolicy(
+                llmClient,
+                new ClocktowerAgentPromptBuilder(),
+                new ClocktowerAgentLlmOutputParser(new ClocktowerAgentDecisionSanitizer(500))
+        );
+        return new ConfigurableClocktowerAgentPolicy(properties, policy(), llmPolicy);
+    }
+
+    private HeuristicAgentPolicy policy() {
+        TroubleBrewingBluffPlanner bluffPlanner = new TroubleBrewingBluffPlanner(null, null);
+        return new HeuristicAgentPolicy(new AgentSpeechPlanner(bluffPlanner),
+                new AgentNominationPlanner(), new AgentVotePlanner(), new AgentNightChoicePlanner());
     }
 
     private ClocktowerAgentProfilePo balancedProfile() {
         ClocktowerAgentProfilePo profile = new ClocktowerAgentProfilePo();
         profile.setName("balanced");
         profile.setStrategyLevel("NORMAL");
-        profile.setTalkativeness(50);
+        profile.setTalkativeness(70);
         profile.setAggression(50);
         profile.setRiskTolerance(50);
         profile.setDeceptionLevel(50);
@@ -135,5 +226,31 @@ class ClocktowerAgentLlmPolicyTests {
 
     private AgentLegalIntentView passIntent() {
         return new AgentLegalIntentView("PASS", null, null, null, Map.of("passType", "MIC_TURN"));
+    }
+
+    private static final class FakeLlmClient implements ClocktowerAgentLlmClient {
+
+        private final String response;
+        private final RuntimeException failure;
+        private int calls;
+
+        private FakeLlmClient(String response) {
+            this.response = response;
+            this.failure = null;
+        }
+
+        private FakeLlmClient(RuntimeException failure) {
+            this.response = null;
+            this.failure = failure;
+        }
+
+        @Override
+        public ClocktowerAgentLlmResponse decide(ClocktowerAgentLlmRequest request) {
+            calls++;
+            if (failure != null) {
+                throw failure;
+            }
+            return new ClocktowerAgentLlmResponse(response, "DASHSCOPE", "qwen-plus");
+        }
     }
 }
