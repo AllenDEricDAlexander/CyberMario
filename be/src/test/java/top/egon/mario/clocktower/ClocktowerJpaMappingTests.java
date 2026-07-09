@@ -34,6 +34,7 @@ import top.egon.mario.clocktower.game.po.ClocktowerRoomSeatPo;
 import top.egon.mario.clocktower.game.nomination.po.ClocktowerGameExecutionPo;
 import top.egon.mario.clocktower.game.nomination.po.ClocktowerGameNominationPo;
 import top.egon.mario.clocktower.game.nomination.po.ClocktowerGameVotePo;
+import top.egon.mario.clocktower.game.night.po.ClocktowerGameNightTaskPo;
 import top.egon.mario.clocktower.room.po.ClocktowerRoomPo;
 import top.egon.mario.clocktower.room.po.ClocktowerSeatPo;
 import top.egon.mario.clocktower.script.po.ClocktowerNightOrderPo;
@@ -74,6 +75,7 @@ class ClocktowerJpaMappingTests {
         assertManaged(ClocktowerGameNominationPo.class);
         assertManaged(ClocktowerGameVotePo.class);
         assertManaged(ClocktowerGameExecutionPo.class);
+        assertManaged(ClocktowerGameNightTaskPo.class);
     }
 
     @Test
@@ -192,6 +194,29 @@ class ClocktowerJpaMappingTests {
         assertThat(entityManager.find(ClocktowerGameVotePo.class, vote.getId()).getMetadataJson()).isEqualTo("{}");
         assertThat(entityManager.find(ClocktowerGameExecutionPo.class, execution.getId()).getMetadataJson())
                 .isEqualTo("{}");
+    }
+
+    @Test
+    void clocktowerGameNightTaskJsonColumnsRoundTripMinimalStrings() {
+        ClocktowerGameNightTaskPo task = new ClocktowerGameNightTaskPo();
+        task.setGameId(801L);
+        task.setNightNo(1);
+        task.setTaskKey("IMP:FIRST_NIGHT");
+        task.setActorGameSeatId(901L);
+        task.setRoleCode("IMP");
+        task.setStatus("PENDING");
+        task.setMandatory(true);
+        task.setSortOrder(10);
+        task.setMetadataJson("{}");
+        entityManager.persist(task);
+
+        entityManager.flush();
+        entityManager.clear();
+
+        ClocktowerGameNightTaskPo reloaded = entityManager.find(ClocktowerGameNightTaskPo.class, task.getId());
+        assertThat(reloaded.getMetadataJson()).isEqualTo("{}");
+        assertThat(reloaded.isMandatory()).isTrue();
+        assertThat(reloaded.getStatus()).isEqualTo("PENDING");
     }
 
     @Test
