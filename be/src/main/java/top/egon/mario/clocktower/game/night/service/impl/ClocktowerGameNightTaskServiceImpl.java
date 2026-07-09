@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -220,6 +221,48 @@ public class ClocktowerGameNightTaskServiceImpl implements ClocktowerGameNightTa
 
     @Override
     @Transactional
+    public ClocktowerNightTaskView randomChoiceTask(Long gameId, Long taskId, RbacPrincipal principal) {
+        ClocktowerGamePo game = gameRepository.findLockedByIdAndDeletedFalse(gameId)
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_GAME_NOT_FOUND"));
+        requireStoryteller(game, principal);
+        ClocktowerGameNightTaskPo task = nightTaskRepository.findLockedByIdAndGameIdAndDeletedFalse(taskId, gameId)
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_NIGHT_TASK_NOT_FOUND"));
+        if (task.getNightNo() != game.getNightNo()) {
+            throw new ClocktowerException("CLOCKTOWER_NIGHT_TASK_NOT_CURRENT");
+        }
+        if ("DONE".equals(task.getStatus()) || "SKIPPED".equals(task.getStatus())) {
+            throw new ClocktowerException("CLOCKTOWER_NIGHT_TASK_ALREADY_RESOLVED");
+        }
+        ClocktowerGameSeatPo actorSeat = gameSeatRepository.findByIdAndGameIdAndDeletedFalse(
+                        task.getActorGameSeatId(), gameId)
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_GAME_SEAT_NOT_FOUND"));
+        RoleSkill skill = roleSkillRegistry.find(task.getRoleCode())
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_NIGHT_ROLE_UNSUPPORTED"));
+        List<ClocktowerGameSeatPo> seats = gameSeatRepository.findByGameIdAndDeletedFalseOrderBySeatNoAsc(gameId);
+        List<ClocktowerGameNightTaskPo> currentTasks = nightTaskRepository
+                .findByGameIdAndNightNoAndDeletedFalseOrderBySortOrderAscIdAsc(gameId, game.getNightNo());
+        Map<String, Object> metadata = new LinkedHashMap<>(readMap(task.getMetadataJson()));
+        NightTaskContext context = new NightTaskContext(game, task, actorSeat, seats, currentTasks, metadata);
+        NightChoice choice = randomChoice(skill, context);
+        Map<String, Object> choicePayload = new LinkedHashMap<>();
+        choicePayload.put("targetGameSeatIds", choice.targetGameSeatIds());
+        choicePayload.put("payload", choice.payload());
+        choicePayload.put("source", "ST_RANDOM_CHOICE");
+        metadata.put("source", "ST_RANDOM_CHOICE");
+        metadata.put("requestedByStorytellerUserId", principal.userId());
+        task.setChoiceJson(writeJson(choicePayload));
+        task.setMetadataJson(writeJson(metadata));
+        task.setStatus(STATUS_CHOSEN);
+        ClocktowerGameNightTaskPo saved = nightTaskRepository.saveAndFlush(task);
+        eventAppender.append(game, "NIGHT_CHOICE_RANDOMIZED_BY_ST", null, saved.getActorGameSeatId(),
+                "STORYTELLER", List.of(), Map.of("taskId", saved.getId(), "roleCode", saved.getRoleCode(),
+                        "taskType", saved.getTaskType(), "targetGameSeatIds", choice.targetGameSeatIds()),
+                Instant.now());
+        return ClocktowerNightTaskView.from(saved, choicePayload, readMap(saved.getResultJson()), metadata);
+    }
+
+    @Override
+    @Transactional
     public ClocktowerNightTaskView skipTask(Long gameId, Long taskId, ClocktowerNightSkipRequest request,
                                            RbacPrincipal principal) {
         ClocktowerGamePo game = gameRepository.findLockedByIdAndDeletedFalse(gameId)
@@ -252,6 +295,18 @@ public class ClocktowerGameNightTaskServiceImpl implements ClocktowerGameNightTa
                 "STORYTELLER", List.of(), payload, now);
         return ClocktowerNightTaskView.from(saved, readMap(saved.getChoiceJson()), result,
                 readMap(saved.getMetadataJson()));
+    }
+
+    private NightChoice randomChoice(RoleSkill skill, NightTaskContext context) {
+        List<AvailableTargetSpec> selectable = skill.legalTargets(context)
+                .stream()
+                .filter(AvailableTargetSpec::selectable)
+                .toList();
+        if (selectable.isEmpty()) {
+            return skill.autoChoose(context);
+        }
+        AvailableTargetSpec target = selectable.get(ThreadLocalRandom.current().nextInt(selectable.size()));
+        return new NightChoice(List.of(target.gameSeatId()), Map.of());
     }
 
     private boolean actsThisNight(ClocktowerGamePo game, RoleSkill skill) {

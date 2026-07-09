@@ -178,6 +178,18 @@ class ClocktowerGameNightTaskServiceTests {
         assertThat(reloaded.getChoiceJson()).contains(game.seats().get(1).getId().toString());
     }
 
+    @Test
+    void storytellerRandomChoiceMarksTaskChosenAndAudited() {
+        StartedGame game = startGameWithRoles(List.of("POISONER", "CHEF", "EMPATH", "FORTUNETELLER", "IMP"));
+        ClocktowerGameNightTaskPo task = taskFor(game.gameId(), "POISONER");
+
+        ClocktowerNightTaskView view = taskService.randomChoiceTask(game.gameId(), task.getId(), owner());
+
+        assertThat(view.status()).isEqualTo("CHOSEN");
+        assertThat(view.choice()).containsKey("targetGameSeatIds");
+        assertThat(view.metadata()).containsEntry("source", "ST_RANDOM_CHOICE");
+    }
+
     private StartedGame startGameWithRoles(List<String> roleCodes) {
         ClocktowerRoomResponse room = roomService.createRoom(createRequest(roleCodes), owner());
         for (int index = 0; index < roleCodes.size(); index++) {

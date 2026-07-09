@@ -53,6 +53,14 @@ public class ClocktowerGameNightTaskController extends ClocktowerReactiveSupport
         return blocking(() -> resolutionService.resolveTask(gameId, taskId, request, principal));
     }
 
+    @PostMapping("/{taskId}/random-choice")
+    public Mono<ApiResponse<ClocktowerNightTaskView>> randomChoice(
+            @PathVariable Long gameId,
+            @PathVariable Long taskId,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> nightTaskService.randomChoiceTask(gameId, taskId, principal));
+    }
+
     @PostMapping("/resolve-ready")
     public Mono<ApiResponse<List<ClocktowerNightTaskView>>> resolveReady(
             @PathVariable Long gameId,

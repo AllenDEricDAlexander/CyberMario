@@ -9,6 +9,8 @@ import top.egon.mario.clocktower.game.action.dto.ClocktowerGameActionRequest;
 import top.egon.mario.clocktower.game.action.dto.ClocktowerGameActionResponse;
 import top.egon.mario.clocktower.game.action.service.ClocktowerHumanGameActionService;
 import top.egon.mario.clocktower.game.dto.ClocktowerGameResponse;
+import top.egon.mario.clocktower.game.night.dto.ClocktowerNightResolveRequest;
+import top.egon.mario.clocktower.game.night.dto.ClocktowerNightTaskView;
 import top.egon.mario.clocktower.game.night.po.ClocktowerGameNightTaskPo;
 import top.egon.mario.clocktower.game.night.repository.ClocktowerGameNightTaskRepository;
 import top.egon.mario.clocktower.game.night.service.ClocktowerGameNightTaskService;
@@ -115,6 +117,23 @@ class ClocktowerNightResolutionServiceTests {
         assertThat(target.getLifeStatus()).isEqualTo("DEAD");
         assertThat(target.getPublicLifeStatus()).isEqualTo("DEAD");
         assertThat(eventTypes(game.gameId())).contains("PLAYER_DIED");
+    }
+
+    @Test
+    void storytellerOverrideTargetRecordsMetadataAndUsesResolution() {
+        StartedGame game = startNightTwoWithRoles(List.of("POISONER", "MONK", "IMP", "EMPATH",
+                "BUTLER", "CHEF", "WASHERWOMAN", "RAVENKEEPER"));
+        ClocktowerGameNightTaskPo impTask = taskFor(game.gameId(), "IMP");
+        Long targetId = game.seats().getFirst().getId();
+
+        ClocktowerNightTaskView resolved = resolutionService.resolveTask(game.gameId(), impTask.getId(),
+                new ClocktowerNightResolveRequest(null, "ST override", List.of(targetId), Map.of()), owner());
+
+        assertThat(resolved.status()).isEqualTo("DONE");
+        assertThat(resolved.choice()).containsEntry("source", "ST_OVERRIDE");
+        assertThat(gameSeatRepository.findByIdAndDeletedFalse(targetId).orElseThrow().getLifeStatus())
+                .isEqualTo("DEAD");
+        assertThat(eventTypes(game.gameId())).contains("NIGHT_CHOICE_OVERRIDDEN_BY_ST");
     }
 
     @Test

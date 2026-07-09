@@ -11,6 +11,7 @@ import top.egon.mario.clocktower.game.night.dto.ClocktowerNightResolveRequest;
 import top.egon.mario.clocktower.game.night.dto.ClocktowerNightTaskView;
 import top.egon.mario.clocktower.game.night.po.ClocktowerGameNightTaskPo;
 import top.egon.mario.clocktower.game.night.repository.ClocktowerGameNightTaskRepository;
+import top.egon.mario.clocktower.game.night.role.AvailableTargetSpec;
 import top.egon.mario.clocktower.game.night.role.NightChoice;
 import top.egon.mario.clocktower.game.night.role.NightResolution;
 import top.egon.mario.clocktower.game.night.role.NightTaskContext;
@@ -68,6 +69,9 @@ public class ClocktowerNightResolutionServiceImpl implements ClocktowerNightReso
         ClocktowerGameNightTaskPo task = nightTaskRepository.findLockedByIdAndGameIdAndDeletedFalse(taskId, gameId)
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_NIGHT_TASK_NOT_FOUND"));
         requireCurrentNight(game, task);
+        if (request != null && request.targetGameSeatIds() != null) {
+            applyStorytellerChoiceOverride(game, task, request, principal);
+        }
         if (request != null && request.result() != null && !request.result().isEmpty()) {
             return completeWithManualResult(game, task, request.result(), principal, request.note());
         }
@@ -75,6 +79,63 @@ public class ClocktowerNightResolutionServiceImpl implements ClocktowerNightReso
             throw new ClocktowerException("CLOCKTOWER_NIGHT_TASK_NOT_READY");
         }
         return resolveLoadedTask(game, task, principal);
+    }
+
+    private void applyStorytellerChoiceOverride(ClocktowerGamePo game, ClocktowerGameNightTaskPo task,
+                                                ClocktowerNightResolveRequest request, RbacPrincipal principal) {
+        if (STATUS_DONE.equals(task.getStatus()) || STATUS_SKIPPED.equals(task.getStatus())) {
+            throw new ClocktowerException("CLOCKTOWER_NIGHT_TASK_ALREADY_RESOLVED");
+        }
+        ClocktowerGameSeatPo actorSeat = gameSeatRepository.findByIdAndGameIdAndDeletedFalse(
+                        task.getActorGameSeatId(), game.getId())
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_GAME_SEAT_NOT_FOUND"));
+        List<ClocktowerGameSeatPo> seats = gameSeatRepository.findByGameIdAndDeletedFalseOrderBySeatNoAsc(
+                game.getId());
+        RoleSkill skill = roleSkillRegistry.find(task.getRoleCode())
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_NIGHT_ROLE_UNSUPPORTED"));
+        List<Long> targetGameSeatIds = request.targetGameSeatIds() == null ? List.of() : request.targetGameSeatIds();
+        validateStorytellerTargets(game, task, actorSeat, seats, skill, targetGameSeatIds);
+        Map<String, Object> choicePayload = new LinkedHashMap<>();
+        choicePayload.put("targetGameSeatIds", targetGameSeatIds);
+        choicePayload.put("payload", request.payload() == null ? Map.of() : request.payload());
+        choicePayload.put("source", "ST_OVERRIDE");
+        Map<String, Object> metadata = new LinkedHashMap<>(readMap(task.getMetadataJson()));
+        metadata.put("source", "ST_OVERRIDE");
+        metadata.put("requestedByStorytellerUserId", principal.userId());
+        task.setChoiceJson(writeJson(choicePayload));
+        task.setMetadataJson(writeJson(metadata));
+        task.setStatus(STATUS_CHOSEN);
+        eventAppender.append(game, "NIGHT_CHOICE_OVERRIDDEN_BY_ST", null, task.getActorGameSeatId(),
+                "STORYTELLER", List.of(), Map.of("taskId", task.getId(), "roleCode", task.getRoleCode(),
+                        "taskType", task.getTaskType(), "targetGameSeatIds", targetGameSeatIds,
+                        "note", request.note()),
+                Instant.now());
+    }
+
+    private void validateStorytellerTargets(ClocktowerGamePo game,
+                                            ClocktowerGameNightTaskPo task,
+                                            ClocktowerGameSeatPo actorSeat,
+                                            List<ClocktowerGameSeatPo> seats,
+                                            RoleSkill skill,
+                                            List<Long> targetGameSeatIds) {
+        NightTaskContext context = new NightTaskContext(game, task, actorSeat, seats,
+                nightTaskRepository.findByGameIdAndNightNoAndDeletedFalseOrderBySortOrderAscIdAsc(
+                        game.getId(), game.getNightNo()),
+                readMap(task.getMetadataJson()));
+        if (TASK_RECEIVE_INFO.equals(task.getTaskType()) && targetGameSeatIds.isEmpty()) {
+            return;
+        }
+        if (targetGameSeatIds.isEmpty()) {
+            throw new ClocktowerException("CLOCKTOWER_NIGHT_TARGET_COUNT_INVALID");
+        }
+        List<Long> legalIds = skill.legalTargets(context)
+                .stream()
+                .filter(AvailableTargetSpec::selectable)
+                .map(AvailableTargetSpec::gameSeatId)
+                .toList();
+        if (!legalIds.containsAll(targetGameSeatIds)) {
+            throw new ClocktowerException("CLOCKTOWER_NIGHT_TARGET_INVALID");
+        }
     }
 
     @Override

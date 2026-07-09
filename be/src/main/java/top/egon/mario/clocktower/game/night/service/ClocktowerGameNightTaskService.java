@@ -20,6 +20,8 @@ public interface ClocktowerGameNightTaskService {
 
     ClocktowerGameActionResponse autoChooseTask(Long gameId, Long taskId, Long agentInstanceId);
 
+    ClocktowerNightTaskView randomChoiceTask(Long gameId, Long taskId, RbacPrincipal principal);
+
     ClocktowerNightTaskView skipTask(Long gameId, Long taskId, ClocktowerNightSkipRequest request,
                                      RbacPrincipal principal);
 }
