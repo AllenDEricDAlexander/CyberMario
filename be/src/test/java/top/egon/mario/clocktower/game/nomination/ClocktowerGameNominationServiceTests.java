@@ -14,6 +14,9 @@ import top.egon.mario.clocktower.game.action.service.ClocktowerAgentGameActionSe
 import top.egon.mario.clocktower.game.action.service.ClocktowerHumanGameActionService;
 import top.egon.mario.clocktower.game.dto.ClocktowerGameResponse;
 import top.egon.mario.clocktower.game.mic.service.ClocktowerPublicMicService;
+import top.egon.mario.clocktower.game.night.po.ClocktowerGameNightTaskPo;
+import top.egon.mario.clocktower.game.night.repository.ClocktowerGameNightTaskRepository;
+import top.egon.mario.clocktower.game.night.service.ClocktowerNightResolutionService;
 import top.egon.mario.clocktower.game.nomination.dto.ClocktowerGameExecutionResolveRequest;
 import top.egon.mario.clocktower.game.nomination.dto.ClocktowerGameExecutionResponse;
 import top.egon.mario.clocktower.game.nomination.dto.ClocktowerGameNominationResponse;
@@ -78,6 +81,12 @@ class ClocktowerGameNominationServiceTests {
     @Autowired
     private ClocktowerAgentInstanceRepository agentInstanceRepository;
 
+    @Autowired
+    private ClocktowerGameNightTaskRepository nightTaskRepository;
+
+    @Autowired
+    private ClocktowerNightResolutionService resolutionService;
+
     @Test
     void closeNominationCreatesExecutionCandidate() {
         StartedGame game = startDayGameWithAgents();
@@ -134,6 +143,26 @@ class ClocktowerGameNominationServiceTests {
         assertThat(response.executed()).isFalse();
         assertThat(response.nomineeGameSeatId()).isNull();
         assertThat(gameEventTypes(game.gameId())).contains("NO_EXECUTION");
+    }
+
+    @Test
+    void butlerVoteRequiresResolvedMasterVote() {
+        StartedGame game = startDayGameWithResolvedButler();
+        ClocktowerGameSeatPo master = seatByRole(game, "EMPATH");
+        ClocktowerGameSeatPo butler = seatByRole(game, "BUTLER");
+        Long nominationId = openNomination(game, game.seats().get(1), game.seats().get(2));
+
+        ClocktowerGameActionResponse beforeMaster = submitAction(game, butler,
+                new ClocktowerGameActionRequest(butler.getId(), "VOTE", List.of(),
+                        nominationId, true, null, Map.of()));
+        assertThat(beforeMaster.accepted()).isFalse();
+        assertThat(beforeMaster.rejectedCode()).isEqualTo("CLOCKTOWER_BUTLER_MASTER_NOT_VOTING");
+
+        voteYes(game, master, nominationId);
+        ClocktowerGameActionResponse afterMaster = submitAction(game, butler,
+                new ClocktowerGameActionRequest(butler.getId(), "VOTE", List.of(),
+                        nominationId, true, null, Map.of()));
+        assertThat(afterMaster.accepted()).isTrue();
     }
 
     private Long openAndCloseQualifyingNomination(StartedGame game) {
@@ -195,11 +224,55 @@ class ClocktowerGameNominationServiceTests {
                 gameSeatRepository.findByGameIdAndDeletedFalseOrderBySeatNoAsc(started.gameId()));
     }
 
+    private StartedGame startDayGameWithResolvedButler() {
+        List<String> roleCodes = List.of("EMPATH", "CHEF", "MONK", "WASHERWOMAN",
+                "FORTUNETELLER", "BUTLER", "POISONER", "IMP");
+        StartedGame game = startGameWithRoles(roleCodes);
+        chooseNightTask(game, "BUTLER", seatByRole(game, "EMPATH").getId());
+        resolutionService.resolveReady(game.gameId(), owner());
+        ClocktowerGamePo entity = gameRepository.findByIdAndDeletedFalse(game.gameId()).orElseThrow();
+        entity.setPhase("DAY");
+        entity.setDayNo(1);
+        gameRepository.saveAndFlush(entity);
+        return game;
+    }
+
+    private StartedGame startGameWithRoles(List<String> roleCodes) {
+        ClocktowerRoomResponse room = roomService.createRoom(createRequest(roleCodes, 0), owner());
+        for (int index = 0; index < roleCodes.size(); index++) {
+            roomService.claimSeat(room.roomId(), index + 1, new ClocktowerSeatClaimRequest("Player " + (index + 1)),
+                    principal(40L + index, "player" + (index + 1)));
+        }
+        assignReadyRoles(room.roomId(), roleCodes);
+        ClocktowerGameResponse started = gameService.startGame(room.roomId(), owner());
+        return new StartedGame(room.roomId(), started.gameId(),
+                gameSeatRepository.findByGameIdAndDeletedFalseOrderBySeatNoAsc(started.gameId()));
+    }
+
+    private void chooseNightTask(StartedGame game, String roleCode, Long targetGameSeatId) {
+        ClocktowerGamePo entity = gameRepository.findByIdAndDeletedFalse(game.gameId()).orElseThrow();
+        ClocktowerGameNightTaskPo task = nightTaskRepository
+                .findByGameIdAndNightNoAndDeletedFalseOrderBySortOrderAscIdAsc(game.gameId(), entity.getNightNo())
+                .stream()
+                .filter(candidate -> roleCode.equals(candidate.getRoleCode()))
+                .findFirst()
+                .orElseThrow();
+        ClocktowerGameSeatPo actor = seatByRole(game, roleCode);
+        ClocktowerGameActionResponse response = submitAction(game, actor,
+                new ClocktowerGameActionRequest(actor.getId(), "NIGHT_CHOICE", List.of(targetGameSeatId),
+                        null, null, null, Map.of("taskId", task.getId())));
+        assertThat(response.accepted()).isTrue();
+    }
+
     private void assignReadyRoles(Long roomId) {
+        assignReadyRoles(roomId, ROLE_CODES);
+    }
+
+    private void assignReadyRoles(Long roomId, List<String> roleCodes) {
         List<ClocktowerRoomSeatPo> seats = roomSeatRepository.findByRoomIdOrderBySeatNoAsc(roomId);
         for (int index = 0; index < seats.size(); index++) {
             ClocktowerRoomSeatPo seat = seats.get(index);
-            seat.setRoleCode(ROLE_CODES.get(index));
+            seat.setRoleCode(roleCodes.get(index));
             seat.setMetadataJson(readyMetadata(seat.getMetadataJson()));
         }
         roomSeatRepository.saveAllAndFlush(seats);
@@ -220,13 +293,17 @@ class ClocktowerGameNominationServiceTests {
     }
 
     private ClocktowerRoomCreateRequest createRequest(int agentSeatCount) {
+        return createRequest(ROLE_CODES, agentSeatCount);
+    }
+
+    private ClocktowerRoomCreateRequest createRequest(List<String> roleCodes, int agentSeatCount) {
         return new ClocktowerRoomCreateRequest(
                 "Friday Clocktower",
                 ClocktowerScriptCode.TROUBLE_BREWING,
-                ROLE_CODES.size(),
+                roleCodes.size(),
                 null,
                 null,
-                ROLE_CODES,
+                roleCodes,
                 "HUMAN",
                 true,
                 true,
@@ -234,6 +311,13 @@ class ClocktowerGameNominationServiceTests {
                 "PUBLIC",
                 "OPEN_SEATING"
         );
+    }
+
+    private ClocktowerGameSeatPo seatByRole(StartedGame game, String roleCode) {
+        return game.seats().stream()
+                .filter(seat -> roleCode.equals(seat.getRoleCode()))
+                .findFirst()
+                .orElseThrow();
     }
 
     private RbacPrincipal owner() {

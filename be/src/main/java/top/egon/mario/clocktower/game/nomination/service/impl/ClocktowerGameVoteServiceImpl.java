@@ -1,12 +1,18 @@
 package top.egon.mario.clocktower.game.nomination.service.impl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import top.egon.mario.clocktower.agent.constant.ClocktowerActorType;
+import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.game.action.dto.ActorContext;
 import top.egon.mario.clocktower.game.action.dto.ClocktowerGameActionResponse;
 import top.egon.mario.clocktower.game.action.dto.GameActionCommand;
+import top.egon.mario.clocktower.game.night.po.ClocktowerGameNightTaskPo;
+import top.egon.mario.clocktower.game.night.repository.ClocktowerGameNightTaskRepository;
 import top.egon.mario.clocktower.game.nomination.po.ClocktowerGameNominationPo;
 import top.egon.mario.clocktower.game.nomination.po.ClocktowerGameVotePo;
 import top.egon.mario.clocktower.game.nomination.repository.ClocktowerGameNominationRepository;
@@ -22,6 +28,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -31,11 +38,16 @@ public class ClocktowerGameVoteServiceImpl implements ClocktowerGameVoteService 
     private static final String LIFE_ALIVE = "ALIVE";
     private static final String STATUS_OPEN = "OPEN";
     private static final String STATUS_CAST = "CAST";
+    private static final String STATUS_DONE = "DONE";
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
+    };
 
     private final ClocktowerGameSeatRepository gameSeatRepository;
     private final ClocktowerGameNominationRepository nominationRepository;
     private final ClocktowerGameVoteRepository voteRepository;
+    private final ClocktowerGameNightTaskRepository nightTaskRepository;
     private final ClocktowerGameEventAppender eventAppender;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional
@@ -59,6 +71,9 @@ public class ClocktowerGameVoteServiceImpl implements ClocktowerGameVoteService 
         }
 
         boolean voteValue = command.vote();
+        if (voteValue && !butlerAllowedToVote(game, actorSeat, nomination)) {
+            return reject(game, actorSeat, "CLOCKTOWER_BUTLER_MASTER_NOT_VOTING");
+        }
         boolean usedDeadVote = false;
         if (!alive(actorSeat)) {
             if (voteValue) {
@@ -120,6 +135,67 @@ public class ClocktowerGameVoteServiceImpl implements ClocktowerGameVoteService 
 
     private boolean alive(ClocktowerGameSeatPo seat) {
         return LIFE_ALIVE.equals(seat.getLifeStatus()) && LIFE_ALIVE.equals(seat.getPublicLifeStatus());
+    }
+
+    private boolean butlerAllowedToVote(ClocktowerGamePo game, ClocktowerGameSeatPo actorSeat,
+                                        ClocktowerGameNominationPo nomination) {
+        if (!"BUTLER".equals(actorSeat.getRoleCode())) {
+            return true;
+        }
+        Long masterGameSeatId = butlerMasterGameSeatId(game, actorSeat);
+        if (masterGameSeatId == null) {
+            return false;
+        }
+        return voteRepository.findByNominationIdAndVoterGameSeatIdAndDeletedFalse(
+                        nomination.getId(), masterGameSeatId)
+                .map(ClocktowerGameVotePo::isVoteValue)
+                .orElse(false);
+    }
+
+    private Long butlerMasterGameSeatId(ClocktowerGamePo game, ClocktowerGameSeatPo actorSeat) {
+        return nightTaskRepository.findByGameIdAndNightNoAndDeletedFalseOrderBySortOrderAscIdAsc(
+                        game.getId(), game.getNightNo())
+                .stream()
+                .filter(task -> Objects.equals(task.getActorGameSeatId(), actorSeat.getId()))
+                .filter(task -> "BUTLER".equals(task.getRoleCode()))
+                .filter(task -> STATUS_DONE.equals(task.getStatus()))
+                .map(ClocktowerGameNightTaskPo::getResultJson)
+                .map(this::readMap)
+                .map(result -> firstNonNullLong(result.get("masterGameSeatId"), firstListValue(result, "masterGameSeatIds")))
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private Object firstListValue(Map<String, Object> payload, String key) {
+        Object value = payload.get(key);
+        if (value instanceof List<?> values && !values.isEmpty()) {
+            return values.getFirst();
+        }
+        return null;
+    }
+
+    private Long firstNonNullLong(Object first, Object second) {
+        Long value = longValue(first);
+        return value == null ? longValue(second) : value;
+    }
+
+    private Long longValue(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        return value == null ? null : Long.valueOf(value.toString());
+    }
+
+    private Map<String, Object> readMap(String json) {
+        if (json == null || json.isBlank()) {
+            return Map.of();
+        }
+        try {
+            return objectMapper.readValue(json, MAP_TYPE);
+        } catch (JsonProcessingException ex) {
+            throw new ClocktowerException("CLOCKTOWER_VOTE_METADATA_INVALID");
+        }
     }
 
     private ClocktowerGameActionResponse reject(ClocktowerGamePo game, ClocktowerGameSeatPo seat, String rejectedCode) {
