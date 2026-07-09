@@ -1,6 +1,7 @@
 import {CheckCircleOutlined, UserAddOutlined} from '@ant-design/icons'
 import {Badge, Button, Empty, Flex, Space, Table, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
+import {isAgentSeat} from '../RoomLobbyPage'
 import type {ClocktowerRoomReservationResponse, ClocktowerSeatResponse} from '../clocktowerTypes'
 
 type ClocktowerSeatGridProps = {
@@ -15,12 +16,13 @@ type SeatDraftRow = {
     state: SeatDraftState
 }
 
-type SeatDraftState = 'occupied' | 'reserved' | 'ready' | 'open'
+type SeatDraftState = 'occupied' | 'reserved' | 'ready' | 'agent' | 'open'
 
 const seatStateMeta = {
     occupied: {label: '已入座', color: 'processing' as const, badge: 'processing' as const},
     reserved: {label: '已预留', color: 'warning' as const, badge: 'warning' as const},
     ready: {label: '已就绪', color: 'success' as const, badge: 'success' as const},
+    agent: {label: 'Agent', color: 'purple' as const, badge: 'processing' as const},
     open: {label: '空座', color: 'default' as const, badge: 'default' as const},
 }
 
@@ -70,7 +72,10 @@ export function ClocktowerSeatGrid({
             key: 'tags',
             render: (_, row) => (
                 <Flex gap={4} wrap>
-                    {row.seat.connected ? <Tag color="success">在线</Tag> : <Tag>离线</Tag>}
+                    {isAgentSeat(row.seat) ? <Tag color="purple">Agent</Tag> : (
+                        row.seat.connected ? <Tag color="success">在线</Tag> : <Tag>离线</Tag>
+                    )}
+                    {isAgentSeat(row.seat) && <Tag color="blue">自动</Tag>}
                     {row.seat.ready === true && <Tag icon={<CheckCircleOutlined/>} color="success">已就绪</Tag>}
                     {row.seat.ready === false && <Tag color="warning">未就绪</Tag>}
                     {row.seat.roleCode && <Tag>{row.seat.roleCode}</Tag>}
@@ -112,6 +117,9 @@ export function ClocktowerSeatGrid({
 }
 
 function seatState(seat: ClocktowerSeatResponse, reservationSeatNos: Set<number>): SeatDraftState {
+    if (isAgentSeat(seat)) {
+        return seat.ready === true ? 'ready' : 'agent'
+    }
     if (seat.userId && seat.ready === true) {
         return 'ready'
     }

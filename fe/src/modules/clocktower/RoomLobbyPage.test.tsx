@@ -111,6 +111,26 @@ function clocktowerRoomFixture(overrides: Partial<ClocktowerRoomResponse> = {}):
     }
 }
 
+function agentSeatFixture() {
+    return {
+        seatId: 14,
+        seatNo: 4,
+        displayName: 'Agent Alice',
+        userId: null,
+        actorType: 'AGENT' as const,
+        actorId: 9001,
+        agentInstanceId: 801,
+        isAgent: true,
+        roleCode: 'MONK',
+        roleType: 'TOWNSFOLK' as const,
+        lifeStatus: 'ALIVE',
+        publicLifeStatus: 'ALIVE',
+        connected: false,
+        hasDeadVote: true,
+        ready: true,
+    }
+}
+
 describe('RoomLobbyPage', () => {
     beforeEach(() => {
         authState.roleCodes = ['CLOCKTOWER_STORYTELLER']
@@ -242,6 +262,64 @@ describe('RoomLobbyPage', () => {
             reserved: 1,
             required: 3,
         })
+    })
+
+    test('counts agent seats as occupied players', () => {
+        const room = clocktowerRoomFixture({
+            playerCount: 4,
+            seats: [...clocktowerRoomFixture().seats, agentSeatFixture()],
+            reservations: [],
+        })
+
+        expect(roomLobbyCounts(room)).toEqual({
+            occupied: 3,
+            reserved: 0,
+            required: 4,
+        })
+    })
+
+    test('allows ready agent seats without user id to satisfy start readiness', () => {
+        const base = clocktowerRoomFixture()
+        const room = clocktowerRoomFixture({
+            playerCount: 4,
+            seats: [
+                {
+                    ...base.seats[0],
+                    ready: true,
+                },
+                {
+                    ...base.seats[1],
+                    ready: true,
+                },
+                {
+                    ...base.seats[2],
+                    userId: 103,
+                    displayName: '玩家三',
+                    roleCode: 'WASHERWOMAN',
+                    ready: true,
+                },
+                agentSeatFixture(),
+            ],
+            reservations: [],
+        })
+
+        expect(canStartClocktowerRoom(room)).toBe(true)
+    })
+
+    test('renders agent seat badges instead of empty seat copy', () => {
+        const markup = renderToStaticMarkup(
+            <ClocktowerSeatGrid
+                claimingSeatNo={null}
+                onClaimSeat={vi.fn()}
+                reservations={[]}
+                seats={[agentSeatFixture()]}
+            />,
+        )
+
+        expect(markup).toContain('Agent Alice')
+        expect(markup).toContain('Agent')
+        expect(markup).toContain('自动')
+        expect(markup).not.toContain('未入座')
     })
 
     test('requires lobby status occupied seats and no active reservations before start', () => {

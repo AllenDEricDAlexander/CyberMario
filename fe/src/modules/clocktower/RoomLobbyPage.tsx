@@ -372,10 +372,30 @@ function MemberSummary({room}: { room: ClocktowerRoomResponse }) {
 
 export function roomLobbyCounts(room: ClocktowerRoomResponse | null) {
     return {
-        occupied: room?.seats.filter((seat) => Boolean(seat.userId)).length ?? 0,
+        occupied: room?.seats.filter(hasClocktowerSeatPlayer).length ?? 0,
         reserved: room?.reservations?.length ?? 0,
         required: room?.playerCount ?? 0,
     }
+}
+
+export function isAgentSeat(seat: { actorType?: string | null; isAgent?: boolean; agentInstanceId?: number | null }) {
+    return seat.actorType === 'AGENT' || seat.isAgent === true || typeof seat.agentInstanceId === 'number'
+}
+
+export function hasClocktowerSeatPlayer(seat: {
+    userId?: number | null
+    actorType?: string | null
+    isAgent?: boolean
+    agentInstanceId?: number | null
+}) {
+    return Boolean(seat.userId) || isAgentSeat(seat)
+}
+
+export function canStartClocktowerSeat(seat: ClocktowerRoomResponse['seats'][number]) {
+    return hasClocktowerSeatPlayer(seat)
+        && typeof seat.roleCode === 'string'
+        && seat.roleCode.trim().length > 0
+        && (!('ready' in seat) || seat.ready === true)
 }
 
 export function canManageClocktowerRoom(room: ClocktowerRoomResponse | null, currentUserId?: number | null) {
@@ -395,12 +415,7 @@ export function canStartClocktowerRoom(room: ClocktowerRoomResponse) {
     if (room.seats.length < room.playerCount) {
         return false
     }
-    return room.seats.slice(0, room.playerCount).every((seat) => (
-        Boolean(seat.userId)
-        && typeof seat.roleCode === 'string'
-        && seat.roleCode.trim().length > 0
-        && (!('ready' in seat) || seat.ready === true)
-    ))
+    return room.seats.slice(0, room.playerCount).every(canStartClocktowerSeat)
 }
 
 export function clocktowerRoomPlayPath(roomId: number) {
