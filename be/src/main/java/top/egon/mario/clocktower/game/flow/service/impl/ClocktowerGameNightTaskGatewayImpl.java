@@ -6,6 +6,7 @@ import top.egon.mario.clocktower.game.flow.dto.ClocktowerGameNightTaskSummary;
 import top.egon.mario.clocktower.game.flow.service.ClocktowerGameNightTaskGateway;
 import top.egon.mario.clocktower.game.night.po.ClocktowerGameNightTaskPo;
 import top.egon.mario.clocktower.game.night.repository.ClocktowerGameNightTaskRepository;
+import top.egon.mario.clocktower.game.night.service.ClocktowerGameNightTaskService;
 import top.egon.mario.clocktower.game.po.ClocktowerGamePo;
 
 import java.util.List;
@@ -20,6 +21,7 @@ public class ClocktowerGameNightTaskGatewayImpl implements ClocktowerGameNightTa
     private static final Set<String> COMPLETED_STATUSES = Set.of(STATUS_DONE, STATUS_SKIPPED);
 
     private final ClocktowerGameNightTaskRepository nightTaskRepository;
+    private final ClocktowerGameNightTaskService nightTaskService;
 
     @Override
     public ClocktowerGameNightTaskSummary summarize(ClocktowerGamePo game) {
@@ -37,6 +39,6 @@ public class ClocktowerGameNightTaskGatewayImpl implements ClocktowerGameNightTa
 
     @Override
     public void initializeNightTasks(ClocktowerGamePo game) {
-        // Task 09 owns script-specific night-task generation. Task 08 only needs the extension point.
+        nightTaskService.initializeNightTasks(game);
     }
 }

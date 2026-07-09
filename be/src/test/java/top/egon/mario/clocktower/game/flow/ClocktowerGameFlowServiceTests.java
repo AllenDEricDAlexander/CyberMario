@@ -152,8 +152,7 @@ class ClocktowerGameFlowServiceTests {
     @Test
     void advanceFirstNightTasksCompleteEntersDayAndStartsMic() {
         StartedGame game = startGame();
-        ClocktowerGameNightTaskPo task = nightTask(game.gameId(), 1, "IMP:FIRST_NIGHT", "DONE", true);
-        nightTaskRepository.saveAndFlush(task);
+        completeNightTasks(game.gameId(), 1);
 
         ClocktowerGameAdvanceResult result = flowService.advance(game.gameId(), emptyRequest(), owner());
 
@@ -298,6 +297,13 @@ class ClocktowerGameFlowServiceTests {
         task.setSortOrder(10);
         task.setMetadataJson("{}");
         return task;
+    }
+
+    private void completeNightTasks(Long gameId, int nightNo) {
+        List<ClocktowerGameNightTaskPo> tasks = nightTaskRepository
+                .findByGameIdAndNightNoAndDeletedFalseOrderBySortOrderAscIdAsc(gameId, nightNo);
+        tasks.forEach(task -> task.setStatus("DONE"));
+        nightTaskRepository.saveAllAndFlush(tasks);
     }
 
     private void assignReadyRoles(Long roomId) {

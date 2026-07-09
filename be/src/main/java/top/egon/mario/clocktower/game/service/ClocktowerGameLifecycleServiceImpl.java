@@ -19,6 +19,7 @@ import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.game.dto.ClocktowerGameConversationResponse;
 import top.egon.mario.clocktower.game.dto.ClocktowerGameResponse;
+import top.egon.mario.clocktower.game.flow.service.ClocktowerGameNightTaskGateway;
 import top.egon.mario.clocktower.game.po.ClocktowerGameEventPo;
 import top.egon.mario.clocktower.game.po.ClocktowerGamePo;
 import top.egon.mario.clocktower.game.po.ClocktowerGameSeatPo;
@@ -88,6 +89,7 @@ public class ClocktowerGameLifecycleServiceImpl implements ClocktowerGameLifecyc
     private final ClocktowerBoardService boardService;
     private final ClocktowerRoomAccessPolicy accessPolicy;
     private final ClocktowerImAdapter clocktowerImAdapter;
+    private final ClocktowerGameNightTaskGateway nightTaskGateway;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -129,6 +131,7 @@ public class ClocktowerGameLifecycleServiceImpl implements ClocktowerGameLifecyc
         room.setLastActiveAt(now);
 
         appendGameEvent(savedGame, "GAME_STARTED", now, gameStartedPayload(roomId, savedGame.getGameNo(), seats));
+        nightTaskGateway.initializeNightTasks(savedGame);
         List<ClocktowerGameConversationResponse> conversations = activateGameConversations(savedGame.getId(),
                 principal.userId(), humanUserIds(seats));
         return ClocktowerGameResponse.from(savedGame, conversations);
