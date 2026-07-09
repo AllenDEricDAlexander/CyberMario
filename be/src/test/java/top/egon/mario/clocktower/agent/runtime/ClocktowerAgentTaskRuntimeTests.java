@@ -20,6 +20,7 @@ import top.egon.mario.clocktower.game.po.ClocktowerGameSeatPo;
 import top.egon.mario.clocktower.game.po.ClocktowerRoomSeatPo;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameRepository;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameSeatRepository;
+import top.egon.mario.clocktower.game.service.ClocktowerGameEventAppender;
 import top.egon.mario.clocktower.game.service.ClocktowerGameLifecycleService;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomCreateRequest;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerSeatClaimRequest;
@@ -79,6 +80,9 @@ class ClocktowerAgentTaskRuntimeTests {
 
     @Autowired
     private ClocktowerGameNightTaskRepository nightTaskRepository;
+
+    @Autowired
+    private ClocktowerGameEventAppender eventAppender;
 
     @Test
     void gameStartedSchedulesAllAgentTasksAfterCommit() {
@@ -159,13 +163,20 @@ class ClocktowerAgentTaskRuntimeTests {
                 .findByGameIdAndTriggerTypeAndDeletedFalseOrderByIdAsc(
                         game.gameId(), ClocktowerAgentTriggerType.MIC_TURN_STARTED)
                 .getFirst();
+        eventAppender.append(gameRepository.findByIdAndDeletedFalse(game.gameId()).orElseThrow(),
+                "PUBLIC_SPEECH", humanSeat.getId(), null,
+                "PUBLIC", List.of(), Map.of("content", "我是共情者。"), Instant.now());
 
         int processed = taskWorker.processBatch("test-worker", 20);
 
         ClocktowerAgentTaskPo reloaded = agentTaskRepository.findByIdAndDeletedFalse(micTask.getId()).orElseThrow();
+        ClocktowerAgentInstancePo refreshedInstance = agentInstanceRepository
+                .findByGameSeatIdAndDeletedFalse(firstAgentSeat.getId())
+                .orElseThrow();
         assertThat(processed).isGreaterThanOrEqualTo(1);
         assertThat(reloaded.getStatus()).isEqualTo(ClocktowerAgentTaskStatus.DONE);
         assertThat(reloaded.getResultJson()).contains("PLAYER_PASSED");
+        assertThat(refreshedInstance.getMetadataJson()).contains("lastSeenEventSeq");
         assertThat(micService.canSpeak(game.gameId(), firstAgentSeat.getId())).isFalse();
     }
 
