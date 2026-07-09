@@ -13,6 +13,9 @@ public interface ClocktowerAgentMemoryRepository extends JpaRepository<Clocktowe
     List<ClocktowerAgentMemoryPo> findByGameIdAndAgentInstanceIdAndDeletedFalseOrderByCreatedAtAscIdAsc(
             Long gameId, Long agentInstanceId);
 
+    List<ClocktowerAgentMemoryPo> findByGameIdAndAgentInstanceIdAndDeletedFalseOrderByCreatedAtDescIdDesc(
+            Long gameId, Long agentInstanceId);
+
     boolean existsByGameIdAndAgentInstanceIdAndSourceEventIdAndMemoryTypeAndSubjectGameSeatIdAndDeletedFalse(
             Long gameId, Long agentInstanceId, Long sourceEventId, String memoryType, Long subjectGameSeatId);
 

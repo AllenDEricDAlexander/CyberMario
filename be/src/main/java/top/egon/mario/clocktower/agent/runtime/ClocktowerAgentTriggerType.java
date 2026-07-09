@@ -13,6 +13,7 @@ public final class ClocktowerAgentTriggerType {
     public static final String PRIVATE_INFO_RECEIVED = "PRIVATE_INFO_RECEIVED";
     public static final String PLAYER_DIED = "PLAYER_DIED";
     public static final String TIMER_TICK = "TIMER_TICK";
+    public static final String ST_RUN_NOW = "ST_RUN_NOW";
 
     private ClocktowerAgentTriggerType() {
     }

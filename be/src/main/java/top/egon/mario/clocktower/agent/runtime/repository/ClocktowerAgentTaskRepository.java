@@ -27,6 +27,9 @@ public interface ClocktowerAgentTaskRepository extends JpaRepository<ClocktowerA
 
     List<ClocktowerAgentTaskPo> findByGameIdAndDeletedFalseOrderByIdAsc(Long gameId);
 
+    List<ClocktowerAgentTaskPo> findByGameIdAndAgentInstanceIdAndDeletedFalseOrderByIdDesc(
+            Long gameId, Long agentInstanceId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select task
