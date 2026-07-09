@@ -13,6 +13,7 @@ export type ClocktowerRoomStatus = 'LOBBY' | 'SETUP' | 'RUNNING' | 'ENDED' | 'AR
 export type ClocktowerPhase = 'LOBBY' | 'SETUP' | 'FIRST_NIGHT' | 'DAY' | 'NOMINATION' | 'EXECUTION' | 'NIGHT' | 'ENDED'
 export type ClocktowerVisibility = 'PUBLIC' | 'PRIVATE' | 'STORYTELLER' | 'AUDIT'
 export type ClocktowerViewerMode = 'PLAYER' | 'STORYTELLER' | 'SPECTATOR' | 'INVITED' | 'ADMIN' | 'ADMIN_AUDIT'
+export type ClocktowerActorType = 'HUMAN' | 'AGENT' | 'STORYTELLER' | 'SYSTEM'
 export type ClocktowerEventType =
     | 'ROOM_CREATED'
     | 'PLAYER_JOINED'
@@ -363,6 +364,10 @@ export type ClocktowerRoomSeatResponse = {
     seatId: number
     seatNo: number
     userId?: number | null
+    actorId?: number | null
+    actorType?: ClocktowerActorType | null
+    agentInstanceId?: number | null
+    isAgent?: boolean
     displayName: string
     roleCode?: string | null
     roleType?: ClocktowerRoleType | null
@@ -592,11 +597,66 @@ export type ClocktowerGameEventResponse = {
     occurredAt: string
 }
 
+export type ClocktowerGameActionRequest = {
+    actorGameSeatId: number
+    actionType: string
+    targetGameSeatIds: number[]
+    nominationId?: number | null
+    vote?: boolean | null
+    content?: string | null
+    payload?: Record<string, unknown> | null
+}
+
+export type ClocktowerGameActionResponse = {
+    accepted: boolean
+    rejectedCode?: string | null
+    event?: ClocktowerGameEventResponse | null
+}
+
+export type ClocktowerMicTurnView = {
+    turnId: number
+    gameSeatId: number
+    seatNo?: number | null
+    displayName?: string | null
+    actorType?: ClocktowerActorType | null
+    agentInstanceId?: number | null
+    turnOrder: number
+    stage: string
+    acquisitionType: string
+    status: string
+    startedAt?: string | null
+    endedAt?: string | null
+    expiresAt?: string | null
+}
+
+export type ClocktowerMicSessionView = {
+    sessionId: number
+    gameId: number
+    dayNo?: number | null
+    status: 'ROUND_ROBIN' | 'GRAB_MIC' | 'CLOSED' | string
+    currentHolderGameSeatId?: number | null
+    currentTurnId?: number | null
+    roundStartedAt?: string | null
+    roundFinishedAt?: string | null
+    grabStartedAt?: string | null
+    grabEndsAt?: string | null
+    closedAt?: string | null
+    turns: ClocktowerMicTurnView[]
+}
+
+export type ClocktowerMicExtendRequest = {
+    seconds: number
+}
+
 export type ClocktowerGameSeatResponse = {
     gameSeatId: number
     roomSeatId: number
     seatNo: number
     userId?: number | null
+    actorId?: number | null
+    actorType?: ClocktowerActorType | null
+    agentInstanceId?: number | null
+    isAgent?: boolean
     displayName: string
     roleCode?: string | null
     roleType?: string | null

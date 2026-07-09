@@ -21,6 +21,8 @@ import type {
     ClocktowerConversationResponse,
     ClocktowerEventResponse,
     ClocktowerFlowResponse,
+    ClocktowerGameActionRequest,
+    ClocktowerGameActionResponse,
     ClocktowerGameAuditResponse,
     ClocktowerGameHistoryResponse,
     ClocktowerGameReplayResponse,
@@ -29,6 +31,7 @@ import type {
     ClocktowerGrimoireResponse,
     ClocktowerJinxRuleResponse,
     ClocktowerMessageResponse,
+    ClocktowerMicSessionView,
     ClocktowerNightChecklistResponse,
     ClocktowerNightOrderGroupResponse,
     ClocktowerNightOrderResponse,
@@ -302,6 +305,52 @@ export function submitClocktowerPlayerAction(roomId: number, request: Clocktower
         method: 'POST',
         body: request,
     })
+}
+
+export function submitClocktowerGameAction(gameId: number, request: ClocktowerGameActionRequest) {
+    return requestJson<ClocktowerGameActionResponse>(`/api/clocktower/games/${gameId}/actions`, {
+        method: 'POST',
+        body: request,
+    })
+}
+
+export function getClocktowerMicSession(gameId: number) {
+    return requestJson<ClocktowerMicSessionView>(`/api/clocktower/games/${gameId}/mic`)
+}
+
+export function startClocktowerDayMic(gameId: number) {
+    return requestJson<ClocktowerMicSessionView>(`/api/clocktower/games/${gameId}/mic/start-day`, {method: 'POST'})
+}
+
+export function finishClocktowerMicTurn(gameId: number, turnId: number) {
+    return requestJson<ClocktowerMicSessionView>(`/api/clocktower/games/${gameId}/mic/turns/${turnId}/finish`, {
+        method: 'POST',
+    })
+}
+
+export function skipClocktowerMicTurn(gameId: number, turnId: number) {
+    return requestJson<ClocktowerMicSessionView>(`/api/clocktower/games/${gameId}/mic/turns/${turnId}/skip`, {
+        method: 'POST',
+    })
+}
+
+export function grabClocktowerMic(gameId: number) {
+    return requestJson<ClocktowerMicSessionView>(`/api/clocktower/games/${gameId}/mic/grab`, {method: 'POST'})
+}
+
+export function releaseClocktowerMic(gameId: number) {
+    return requestJson<ClocktowerMicSessionView>(`/api/clocktower/games/${gameId}/mic/release`, {method: 'POST'})
+}
+
+export function extendClocktowerMicSession(gameId: number, seconds: number) {
+    return requestJson<ClocktowerMicSessionView>(`/api/clocktower/games/${gameId}/mic/extend`, {
+        method: 'POST',
+        body: {seconds},
+    })
+}
+
+export function closeClocktowerMicSession(gameId: number) {
+    return requestJson<ClocktowerMicSessionView>(`/api/clocktower/games/${gameId}/mic/close`, {method: 'POST'})
 }
 
 export function submitClocktowerStorytellerAction(roomId: number, request: ClocktowerStorytellerActionRequest) {

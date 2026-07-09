@@ -37,6 +37,15 @@ import {
     streamClocktowerEvents,
     submitClocktowerStorytellerAction,
     acceptClocktowerInvitation,
+    closeClocktowerMicSession,
+    extendClocktowerMicSession,
+    finishClocktowerMicTurn,
+    getClocktowerMicSession,
+    grabClocktowerMic,
+    releaseClocktowerMic,
+    skipClocktowerMicTurn,
+    startClocktowerDayMic,
+    submitClocktowerGameAction,
     undoClocktowerRuling,
     validateClocktowerBoard,
     startClocktowerRoom,
@@ -351,6 +360,51 @@ describe('clocktowerService', () => {
 
         expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/replay')
         expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/history')
+    })
+
+    it('submits new game actions through the game endpoint', async () => {
+        const {requestJson} = await import('../../services/request')
+        const request = {
+            actorGameSeatId: 31,
+            actionType: 'PUBLIC_SPEECH',
+            targetGameSeatIds: [],
+            nominationId: null,
+            vote: null,
+            content: '我先报信息。',
+            payload: {},
+        }
+
+        await submitClocktowerGameAction(11, request)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/actions', {
+            method: 'POST',
+            body: request,
+        })
+    })
+
+    it('uses game mic endpoints for public mic actions', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await getClocktowerMicSession(11)
+        await startClocktowerDayMic(11)
+        await finishClocktowerMicTurn(11, 91)
+        await skipClocktowerMicTurn(11, 92)
+        await grabClocktowerMic(11)
+        await releaseClocktowerMic(11)
+        await extendClocktowerMicSession(11, 120)
+        await closeClocktowerMicSession(11)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/mic')
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/mic/start-day', {method: 'POST'})
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/mic/turns/91/finish', {method: 'POST'})
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/mic/turns/92/skip', {method: 'POST'})
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/mic/grab', {method: 'POST'})
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/mic/release', {method: 'POST'})
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/mic/extend', {
+            method: 'POST',
+            body: {seconds: 120},
+        })
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/mic/close', {method: 'POST'})
     })
 
     it('loads room chat conversations', async () => {
