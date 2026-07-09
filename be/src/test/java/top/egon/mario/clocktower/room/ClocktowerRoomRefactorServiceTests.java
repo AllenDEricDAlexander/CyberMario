@@ -99,6 +99,9 @@ class ClocktowerRoomRefactorServiceTests {
         assertThat(profile.getScriptCode()).isEqualTo("TROUBLE_BREWING");
         assertThat(profile.getPlayerCount()).isEqualTo(5);
         assertThat(profile.getStatus()).isEqualTo("LOBBY");
+        assertThat(profile.getMetadataJson())
+                .contains("\"runtimeModel\":\"GAME_V2\"")
+                .contains("\"seatingPolicy\":\"OPEN_SEATING\"");
 
         assertThat(seatRepository.findByRoomIdOrderBySeatNoAsc(room.roomId()))
                 .extracting(ClocktowerRoomSeatPo::getStatus, ClocktowerRoomSeatPo::getRoleCode)

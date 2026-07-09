@@ -20,6 +20,7 @@ import top.egon.mario.clocktower.common.ClocktowerException;
 import top.egon.mario.clocktower.common.enums.ClocktowerPhase;
 import top.egon.mario.clocktower.common.enums.ClocktowerRoomStatus;
 import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
+import top.egon.mario.clocktower.config.ClocktowerFeatureProperties;
 import top.egon.mario.clocktower.game.po.ClocktowerRoomProfilePo;
 import top.egon.mario.clocktower.game.po.ClocktowerRoomSeatPo;
 import top.egon.mario.clocktower.room.dto.request.ClocktowerRoomBoardSwitchRequest;
@@ -80,6 +81,7 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
     private static final String MEMBER_TYPE_SPECTATOR = "SPECTATOR";
     private static final String INVITATION_TYPE_SEAT_REQUEST = "SEAT_REQUEST";
     private static final String DEFAULT_AGENT_PROFILE_NAME = "balanced";
+    private static final String RUNTIME_MODEL_GAME_V2 = "GAME_V2";
 
     private final RoomFacade roomFacade;
     private final ClocktowerImAdapter clocktowerImAdapter;
@@ -92,6 +94,7 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
     private final ClocktowerBoardService boardService;
     private final ClocktowerRoomAccessPolicy accessPolicy;
     private final ClocktowerSeatAssignmentPolicy seatAssignmentPolicy;
+    private final ClocktowerFeatureProperties featureProperties;
     private final ObjectMapper objectMapper;
     private final EntityManager entityManager;
 
@@ -123,7 +126,10 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
         profile.setPlayerCount(playerCount);
         profile.setStatus(STATUS_LOBBY);
         profile.setLastActiveAt(Instant.now());
-        profile.setMetadataJson(writeJson(Map.of("seatingPolicy", resolvedSeatingPolicy)));
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("runtimeModel", RUNTIME_MODEL_GAME_V2);
+        metadata.put("seatingPolicy", resolvedSeatingPolicy);
+        profile.setMetadataJson(writeJson(metadata));
         profileRepository.save(profile);
 
         int firstAgentSeatNo = playerCount - agentSeatCount + 1;
@@ -625,6 +631,9 @@ public class ClocktowerRoomLobbyServiceImpl implements ClocktowerRoomLobbyServic
         }
         if (requested >= playerCount) {
             throw new ClocktowerException("CLOCKTOWER_AGENT_SEAT_COUNT_INVALID");
+        }
+        if (requested > 0 && !featureProperties.agentPlayer().enabled()) {
+            throw new ClocktowerException("CLOCKTOWER_AGENT_PLAYER_DISABLED");
         }
         return requested;
     }
