@@ -11,6 +11,10 @@ import top.egon.mario.clocktower.agent.repository.ClocktowerAgentInstanceReposit
 import top.egon.mario.clocktower.agent.repository.ClocktowerAgentProfileRepository;
 import top.egon.mario.clocktower.agent.view.dto.AgentPrivateView;
 import top.egon.mario.clocktower.agent.view.service.ClocktowerAgentPrivateViewService;
+import top.egon.mario.clocktower.game.mic.po.ClocktowerGamePublicMicSessionPo;
+import top.egon.mario.clocktower.game.mic.repository.ClocktowerGamePublicMicSessionRepository;
+import top.egon.mario.clocktower.game.night.po.ClocktowerGameNightTaskPo;
+import top.egon.mario.clocktower.game.night.repository.ClocktowerGameNightTaskRepository;
 import top.egon.mario.clocktower.game.po.ClocktowerGamePo;
 import top.egon.mario.clocktower.game.po.ClocktowerGameSeatPo;
 import top.egon.mario.clocktower.game.repository.ClocktowerGameRepository;
@@ -50,6 +54,12 @@ class ClocktowerAgentPrivateViewServiceTests {
     @Autowired
     private ClocktowerGameEventAppender eventAppender;
 
+    @Autowired
+    private ClocktowerGamePublicMicSessionRepository micSessionRepository;
+
+    @Autowired
+    private ClocktowerGameNightTaskRepository nightTaskRepository;
+
     @Test
     void normalAgentViewHidesGrimoireAndOtherPrivateInfo() {
         TestGame game = createGame("EMPATH");
@@ -87,6 +97,84 @@ class ClocktowerAgentPrivateViewServiceTests {
         assertThat(view.grimoire()).extracting("roleCode").contains("SPY", "CHEF");
         assertThat(view.visibleEvents()).isEmpty();
         assertThat(view.privateInfos()).isEmpty();
+    }
+
+    @Test
+    void legalIntentsExposeSpeechOnlyForCurrentMicHolder() {
+        TestGame game = createGoodGame("EMPATH");
+        ClocktowerGamePublicMicSessionPo session = new ClocktowerGamePublicMicSessionPo();
+        session.setGameId(game.game().getId());
+        session.setDayNo(game.game().getDayNo());
+        session.setStatus("ROUND_ROBIN");
+        session.setCurrentHolderGameSeatId(game.otherSeat().getId());
+        session.setMetadataJson("{}");
+        micSessionRepository.saveAndFlush(session);
+
+        AgentPrivateView view = privateViewService.build(game.game().getId(), game.instance().getId());
+
+        assertThat(view.legalIntents()).extracting("intentType")
+                .doesNotContain("PUBLIC_SPEECH", "PASS");
+    }
+
+    @Test
+    void evilAgentViewIncludesEvilTeamButGoodAgentDoesNot() {
+        TestGame evilGame = createGame("SPY");
+        addDemonSeat(evilGame.game());
+
+        AgentPrivateView evilView = privateViewService.build(evilGame.game().getId(), evilGame.instance().getId());
+
+        assertThat(evilView.roleSpecificContext()).containsKey("evilTeam");
+        assertThat(evilView.roleSpecificContext()).containsKey("demonGameSeatId");
+
+        TestGame goodGame = createGoodGame("EMPATH");
+        AgentPrivateView goodView = privateViewService.build(goodGame.game().getId(), goodGame.instance().getId());
+
+        assertThat(goodView.roleSpecificContext()).doesNotContainKeys("evilTeam", "demonGameSeatId");
+    }
+
+    @Test
+    void legalIntentsExposeNominationTargetsWhenPhaseAllows() {
+        TestGame game = createGoodGame("MONK");
+        ClocktowerGamePo po = game.game();
+        po.setPhase("NOMINATION");
+        gameRepository.saveAndFlush(po);
+
+        AgentPrivateView view = privateViewService.build(po.getId(), game.instance().getId());
+
+        assertThat(view.legalIntents()).anySatisfy(intent -> {
+            assertThat(intent.intentType()).isEqualTo("NOMINATE");
+            assertThat(intent.payload()).containsEntry("eligibleTargetGameSeatIds", List.of(game.otherSeat().getId()));
+        });
+    }
+
+    @Test
+    void legalIntentsExposeNightChoiceTargetsFromRoleSkill() {
+        TestGame game = createGoodGame("MONK");
+        ClocktowerGamePo po = game.game();
+        po.setPhase("NIGHT");
+        po.setNightNo(2);
+        gameRepository.saveAndFlush(po);
+        ClocktowerGameNightTaskPo task = new ClocktowerGameNightTaskPo();
+        task.setGameId(po.getId());
+        task.setNightNo(po.getNightNo());
+        task.setTaskKey("MONK:%s".formatted(game.agentSeat().getId()));
+        task.setActorGameSeatId(game.agentSeat().getId());
+        task.setRoleCode("MONK");
+        task.setTaskType("TARGET");
+        task.setStatus("PENDING");
+        task.setSortOrder(1);
+        task.setChoiceJson("{}");
+        task.setResultJson("{}");
+        task.setMetadataJson("{}");
+        nightTaskRepository.saveAndFlush(task);
+
+        AgentPrivateView view = privateViewService.build(po.getId(), game.instance().getId());
+
+        assertThat(view.legalIntents()).anySatisfy(intent -> {
+            assertThat(intent.intentType()).isEqualTo("NIGHT_CHOICE");
+            assertThat(intent.taskId()).isEqualTo(task.getId());
+            assertThat(intent.payload()).containsEntry("legalTargetGameSeatIds", List.of(game.otherSeat().getId()));
+        });
     }
 
     private TestGame createGame(String agentRoleCode) {
@@ -144,6 +232,27 @@ class ClocktowerAgentPrivateViewServiceTests {
         otherSeat = gameSeatRepository.saveAndFlush(otherSeat);
 
         return new TestGame(game, instance, agentSeat, otherSeat);
+    }
+
+    private TestGame createGoodGame(String agentRoleCode) {
+        TestGame game = createGame(agentRoleCode);
+        game.agentSeat().setAlignment("GOOD");
+        game.agentSeat().setRoleType("TOWNSFOLK");
+        gameSeatRepository.saveAndFlush(game.agentSeat());
+        return game;
+    }
+
+    private ClocktowerGameSeatPo addDemonSeat(ClocktowerGamePo game) {
+        ClocktowerGameSeatPo demonSeat = new ClocktowerGameSeatPo();
+        demonSeat.setGameId(game.getId());
+        demonSeat.setSeatNo(3);
+        demonSeat.setActorType("AGENT");
+        demonSeat.setDisplayName("Demon");
+        demonSeat.setRoleCode("IMP");
+        demonSeat.setRoleType("DEMON");
+        demonSeat.setAlignment("EVIL");
+        demonSeat.setStatus("ACTIVE");
+        return gameSeatRepository.saveAndFlush(demonSeat);
     }
 
     private record TestGame(ClocktowerGamePo game, ClocktowerAgentInstancePo instance,
