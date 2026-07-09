@@ -7,6 +7,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import top.egon.mario.clocktower.agent.constant.ClocktowerAgentAutoMode;
 import top.egon.mario.clocktower.agent.constant.ClocktowerAgentStatus;
+import top.egon.mario.clocktower.agent.memory.service.ClocktowerAgentMemoryService;
+import top.egon.mario.clocktower.agent.memory.service.ClocktowerAgentMemoryService.ClocktowerAgentMemoryRefreshResult;
 import top.egon.mario.clocktower.agent.po.ClocktowerAgentInstancePo;
 import top.egon.mario.clocktower.agent.repository.ClocktowerAgentInstanceRepository;
 import top.egon.mario.clocktower.agent.runtime.po.ClocktowerAgentTaskPo;
@@ -28,6 +30,7 @@ public class ClocktowerAgentRuntime {
     };
 
     private final ClocktowerAgentInstanceRepository agentInstanceRepository;
+    private final ClocktowerAgentMemoryService memoryService;
     private final ClocktowerAgentGameActionService agentGameActionService;
     private final ClocktowerGameNightTaskService nightTaskService;
     private final ObjectMapper objectMapper;
@@ -46,37 +49,42 @@ public class ClocktowerAgentRuntime {
             return skipped("AUTO_MODE_REQUIRES_ST_APPROVAL");
         }
 
+        ClocktowerAgentMemoryRefreshResult memoryRefresh = memoryService.refreshForRuntimeTask(task);
         return switch (task.getTriggerType()) {
-            case ClocktowerAgentTriggerType.MIC_TURN_STARTED -> passMicTurn(task);
-            case ClocktowerAgentTriggerType.VOTE_WINDOW_OPENED -> voteFalse(task);
-            case ClocktowerAgentTriggerType.NIGHT_TASK_OPENED -> autoChooseNightTask(task);
-            default -> done(Map.of("actionType", "NOOP", "triggerType", task.getTriggerType()));
+            case ClocktowerAgentTriggerType.MIC_TURN_STARTED -> passMicTurn(task, memoryRefresh);
+            case ClocktowerAgentTriggerType.VOTE_WINDOW_OPENED -> voteFalse(task, memoryRefresh);
+            case ClocktowerAgentTriggerType.NIGHT_TASK_OPENED -> autoChooseNightTask(task, memoryRefresh);
+            default -> done(withMemoryRefresh(Map.of("actionType", "NOOP", "triggerType", task.getTriggerType()),
+                    memoryRefresh));
         };
     }
 
-    private ClocktowerAgentRuntimeResult passMicTurn(ClocktowerAgentTaskPo task) {
+    private ClocktowerAgentRuntimeResult passMicTurn(ClocktowerAgentTaskPo task,
+                                                     ClocktowerAgentMemoryRefreshResult memoryRefresh) {
         ClocktowerGameActionResponse response = agentGameActionService.submitAgentAction(task.getGameId(),
                 task.getAgentInstanceId(), new ClocktowerGameActionRequest(task.getGameSeatId(), "PASS", List.of(),
                         null, null, null, Map.of("passType", "MIC_TURN")));
-        return done(actionResult("PASS", response));
+        return done(withMemoryRefresh(actionResult("PASS", response), memoryRefresh));
     }
 
-    private ClocktowerAgentRuntimeResult voteFalse(ClocktowerAgentTaskPo task) {
+    private ClocktowerAgentRuntimeResult voteFalse(ClocktowerAgentTaskPo task,
+                                                  ClocktowerAgentMemoryRefreshResult memoryRefresh) {
         Long nominationId = longValue(metadata(task).get("nominationId"));
         ClocktowerGameActionResponse response = agentGameActionService.submitAgentAction(task.getGameId(),
                 task.getAgentInstanceId(), new ClocktowerGameActionRequest(task.getGameSeatId(), "VOTE", List.of(),
                         nominationId, false, null, Map.of("defaultVote", true)));
-        return done(actionResult("VOTE", response));
+        return done(withMemoryRefresh(actionResult("VOTE", response), memoryRefresh));
     }
 
-    private ClocktowerAgentRuntimeResult autoChooseNightTask(ClocktowerAgentTaskPo task) {
+    private ClocktowerAgentRuntimeResult autoChooseNightTask(ClocktowerAgentTaskPo task,
+                                                            ClocktowerAgentMemoryRefreshResult memoryRefresh) {
         Long nightTaskId = longValue(metadata(task).get("taskId"));
         if (nightTaskId == null) {
             throw new ClocktowerException("CLOCKTOWER_AGENT_NIGHT_TASK_REQUIRED");
         }
         ClocktowerGameActionResponse response = nightTaskService.autoChooseTask(task.getGameId(), nightTaskId,
                 task.getAgentInstanceId());
-        return done(actionResult("NIGHT_CHOICE", response));
+        return done(withMemoryRefresh(actionResult("NIGHT_CHOICE", response), memoryRefresh));
     }
 
     private ClocktowerAgentRuntimeResult done(Map<String, Object> result) {
@@ -98,6 +106,14 @@ public class ClocktowerAgentRuntime {
             result.put("eventType", response.event().eventType());
         }
         return result;
+    }
+
+    private Map<String, Object> withMemoryRefresh(Map<String, Object> result,
+                                                  ClocktowerAgentMemoryRefreshResult memoryRefresh) {
+        Map<String, Object> enriched = new LinkedHashMap<>(result);
+        enriched.put("memoryLastSeenEventSeq", memoryRefresh.lastSeenEventSeq());
+        enriched.put("memoryInsertedCount", memoryRefresh.insertedCount());
+        return enriched;
     }
 
     private Map<String, Object> metadata(ClocktowerAgentTaskPo task) {
