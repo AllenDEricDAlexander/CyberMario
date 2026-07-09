@@ -66,10 +66,13 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
     private static final String EVENT_MIC_TURN_STARTED = "MIC_TURN_STARTED";
     private static final String EVENT_MIC_TURN_FINISHED = "MIC_TURN_FINISHED";
     private static final String EVENT_MIC_TURN_SKIPPED = "MIC_TURN_SKIPPED";
+    private static final String EVENT_MIC_TURN_SKIPPED_BY_ST = "MIC_TURN_SKIPPED_BY_ST";
     private static final String EVENT_MIC_TURN_EXPIRED = "MIC_TURN_EXPIRED";
     private static final String EVENT_MIC_GRAB_OPENED = "MIC_GRAB_OPENED";
     private static final String EVENT_MIC_SESSION_EXTENDED = "MIC_SESSION_EXTENDED";
+    private static final String EVENT_MIC_SESSION_EXTENDED_BY_ST = "MIC_SESSION_EXTENDED_BY_ST";
     private static final String EVENT_MIC_SESSION_CLOSED = "MIC_SESSION_CLOSED";
+    private static final String EVENT_MIC_SESSION_CLOSED_BY_ST = "MIC_SESSION_CLOSED_BY_ST";
 
     private final ClocktowerGameRepository gameRepository;
     private final ClocktowerGameSeatRepository gameSeatRepository;
@@ -155,7 +158,7 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
         }
         turn.setStatus(TURN_SKIPPED);
         turn.setEndedAt(now);
-        ClocktowerGameEventResponse event = appendGameEvent(game, EVENT_MIC_TURN_SKIPPED, now,
+        ClocktowerGameEventResponse event = appendGameEvent(game, EVENT_MIC_TURN_SKIPPED_BY_ST, now,
                 turnPayload(session, turn));
         turn.setSpeechEventId(event.eventId());
         if (Objects.equals(session.getCurrentTurnId(), turn.getId())) {
@@ -234,7 +237,7 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
             throw new ClocktowerException("CLOCKTOWER_MIC_GRAB_NOT_OPEN");
         }
         if (session.getGrabEndsAt() == null || !session.getGrabEndsAt().isAfter(now)) {
-            closeSessionInternal(game, session, now);
+            closeSessionInternal(game, session, now, EVENT_MIC_SESSION_CLOSED);
             return toView(session);
         }
         if (session.getCurrentHolderGameSeatId() != null) {
@@ -273,7 +276,7 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
             throw new ClocktowerException("CLOCKTOWER_MIC_GRAB_NOT_OPEN");
         }
         session.setGrabEndsAt(session.getGrabEndsAt().plusSeconds(seconds));
-        appendGameEvent(game, EVENT_MIC_SESSION_EXTENDED, now,
+        appendGameEvent(game, EVENT_MIC_SESSION_EXTENDED_BY_ST, now,
                 Map.of("sessionId", session.getId(), "seconds", seconds, "grabEndsAt", session.getGrabEndsAt()));
         return toView(session);
     }
@@ -284,7 +287,7 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
         ClocktowerGamePo game = lockedGame(gameId);
         requireStoryteller(game, principal);
         ClocktowerGamePublicMicSessionPo session = lockedCurrentSession(game);
-        closeSessionInternal(game, session, Instant.now());
+        closeSessionInternal(game, session, Instant.now(), EVENT_MIC_SESSION_CLOSED_BY_ST);
         return toView(session);
     }
 
@@ -461,7 +464,7 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
                 && session.getCurrentTurnId() == null
                 && session.getGrabEndsAt() != null
                 && !session.getGrabEndsAt().isAfter(now)) {
-            closeSessionInternal(game, session, now);
+            closeSessionInternal(game, session, now, EVENT_MIC_SESSION_CLOSED);
         }
     }
 
@@ -479,7 +482,7 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
         } else if (SESSION_GRAB_MIC.equals(session.getStatus())
                 && session.getGrabEndsAt() != null
                 && !session.getGrabEndsAt().isAfter(now)) {
-            closeSessionInternal(game, session, now);
+            closeSessionInternal(game, session, now, EVENT_MIC_SESSION_CLOSED);
         }
     }
 
@@ -524,7 +527,8 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
                 Map.of("sessionId", session.getId(), "grabEndsAt", session.getGrabEndsAt()));
     }
 
-    private void closeSessionInternal(ClocktowerGamePo game, ClocktowerGamePublicMicSessionPo session, Instant now) {
+    private void closeSessionInternal(ClocktowerGamePo game, ClocktowerGamePublicMicSessionPo session, Instant now,
+                                      String eventType) {
         if (SESSION_CLOSED.equals(session.getStatus())) {
             return;
         }
@@ -536,7 +540,7 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
         session.setCurrentHolderGameSeatId(null);
         session.setCurrentTurnId(null);
         session.setClosedAt(now);
-        appendGameEvent(game, EVENT_MIC_SESSION_CLOSED, now, Map.of("sessionId", session.getId()));
+        appendGameEvent(game, eventType, now, Map.of("sessionId", session.getId()));
     }
 
     private void requireSessionOpen(ClocktowerGamePublicMicSessionPo session) {

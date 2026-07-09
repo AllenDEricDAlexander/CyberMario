@@ -250,7 +250,7 @@ class ClocktowerPublicMicServiceTests {
 
         assertThat(turnBySeatNo(advanced, 2).status()).isEqualTo("SKIPPED");
         assertThat(activeTurn(advanced).seatNo()).isEqualTo(3);
-        assertThat(gameEventTypes(game.gameId())).contains("MIC_TURN_SKIPPED");
+        assertThat(gameEventTypes(game.gameId())).contains("MIC_TURN_SKIPPED_BY_ST");
     }
 
     @Test
@@ -263,6 +263,16 @@ class ClocktowerPublicMicServiceTests {
         assertThat(turnBySeatNo(view, 1).status()).isEqualTo("SKIPPED");
         assertThat(activeTurn(view).seatNo()).isEqualTo(2);
         assertThat(view.currentHolderGameSeatId()).isEqualTo(activeTurn(view).gameSeatId());
+    }
+
+    @Test
+    void storytellerSkipTurnAppendsStorytellerEvent() {
+        StartedGame game = startDayGameWithAgents();
+        ClocktowerMicSessionView started = micService.startDayMicSession(game.gameId(), owner());
+
+        micService.skipTurn(game.gameId(), started.currentTurnId(), owner());
+
+        assertThat(gameEventTypes(game.gameId())).contains("MIC_TURN_SKIPPED_BY_ST");
     }
 
     @Test
@@ -367,7 +377,18 @@ class ClocktowerPublicMicServiceTests {
 
         assertThat(extended.grabEndsAt()).isEqualTo(grabOpen.grabEndsAt().plus(Duration.ofSeconds(60)));
         assertThat(activeTurn(extended).expiresAt()).isEqualTo(activeExpiresAt);
-        assertThat(gameEventTypes(game.gameId())).contains("MIC_SESSION_EXTENDED");
+        assertThat(gameEventTypes(game.gameId())).contains("MIC_SESSION_EXTENDED_BY_ST");
+    }
+
+    @Test
+    void storytellerExtendGrabAppendsStorytellerEvent() {
+        StartedGame game = startDayGameWithAgents();
+        ClocktowerMicSessionView view = finishRoundRobin(game);
+
+        micService.extendGrabMic(game.gameId(), 120, owner());
+
+        assertThat(view.status()).isEqualTo("GRAB_MIC");
+        assertThat(gameEventTypes(game.gameId())).contains("MIC_SESSION_EXTENDED_BY_ST");
     }
 
     @Test
@@ -387,6 +408,16 @@ class ClocktowerPublicMicServiceTests {
         assertThatThrownBy(() -> micService.requireCanSpeak(game.gameId(), holderSeatId))
                 .isInstanceOf(ClocktowerException.class)
                 .hasMessageContaining("CLOCKTOWER_MIC_CLOSED");
+    }
+
+    @Test
+    void storytellerCloseSessionAppendsStorytellerEvent() {
+        StartedGame game = startDayGameWithAgents();
+        micService.startDayMicSession(game.gameId(), owner());
+
+        micService.closeSession(game.gameId(), owner());
+
+        assertThat(gameEventTypes(game.gameId())).contains("MIC_SESSION_CLOSED_BY_ST");
     }
 
     @Test
