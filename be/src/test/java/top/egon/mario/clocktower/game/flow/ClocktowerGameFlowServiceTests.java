@@ -10,9 +10,12 @@ import top.egon.mario.clocktower.game.flow.dto.ClocktowerGameAdvanceRequest;
 import top.egon.mario.clocktower.game.flow.dto.ClocktowerGameAdvanceResult;
 import top.egon.mario.clocktower.game.flow.dto.ClocktowerGameFlowView;
 import top.egon.mario.clocktower.game.flow.service.ClocktowerGameFlowService;
+import top.egon.mario.clocktower.game.action.dto.ClocktowerGameActionRequest;
+import top.egon.mario.clocktower.game.action.service.ClocktowerHumanGameActionService;
 import top.egon.mario.clocktower.game.mic.service.ClocktowerPublicMicService;
 import top.egon.mario.clocktower.game.night.po.ClocktowerGameNightTaskPo;
 import top.egon.mario.clocktower.game.night.repository.ClocktowerGameNightTaskRepository;
+import top.egon.mario.clocktower.game.nomination.dto.ClocktowerGameExecutionResolveRequest;
 import top.egon.mario.clocktower.game.nomination.service.ClocktowerGameExecutionService;
 import top.egon.mario.clocktower.game.po.ClocktowerGameEventPo;
 import top.egon.mario.clocktower.game.po.ClocktowerGamePo;
@@ -34,6 +37,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(properties = "spring.ai.dashscope.api-key=test-api-key")
 @Transactional
@@ -54,6 +58,9 @@ class ClocktowerGameFlowServiceTests {
     private ClocktowerGameExecutionService executionService;
 
     @Autowired
+    private ClocktowerHumanGameActionService humanActionService;
+
+    @Autowired
     private ClocktowerRoomLobbyService roomService;
 
     @Autowired
@@ -70,6 +77,65 @@ class ClocktowerGameFlowServiceTests {
 
     @Autowired
     private ClocktowerGameNightTaskRepository nightTaskRepository;
+
+    @Test
+    void advanceNominationOpenNominationRejected() {
+        StartedGame game = startNominationGameWithOpenNomination();
+
+        ClocktowerGameFlowView flow = flowService.getFlow(game.gameId(), owner());
+
+        assertThat(flow.advanceAllowed()).isFalse();
+        assertThat(flow.blockingReasons()).contains("OPEN_NOMINATION_EXISTS");
+    }
+
+    @Test
+    void advanceNominationExecutionUnresolvedRejected() {
+        StartedGame game = startNominationGameWithClosedNomination();
+
+        ClocktowerGameFlowView flow = flowService.getFlow(game.gameId(), owner());
+
+        assertThat(flow.advanceAllowed()).isFalse();
+        assertThat(flow.blockingReasons()).contains("EXECUTION_NOT_RESOLVED");
+    }
+
+    @Test
+    void advanceExecutionExecutionResolvedEntersNight() {
+        StartedGame game = startNominationGameWithClosedNomination();
+        executionService.resolveExecution(game.gameId(),
+                new ClocktowerGameExecutionResolveRequest(false, null, null, "tie"),
+                owner());
+
+        ClocktowerGameAdvanceResult result = flowService.advance(game.gameId(), emptyRequest(), owner());
+
+        assertThat(result.previousPhase()).isEqualTo("EXECUTION");
+        assertThat(result.phase()).isEqualTo("NIGHT");
+        ClocktowerGamePo reloaded = gameRepository.findByIdAndDeletedFalse(game.gameId()).orElseThrow();
+        assertThat(reloaded.getPhase()).isEqualTo("NIGHT");
+        assertThat(reloaded.getNightNo()).isEqualTo(2);
+        assertThat(eventTypes(game.gameId())).contains("PHASE_CHANGED");
+    }
+
+    @Test
+    void forceAdvanceRequiresReason() {
+        StartedGame game = startGame();
+
+        assertThatThrownBy(() -> flowService.forceAdvance(game.gameId(),
+                new ClocktowerGameAdvanceRequest("DAY", null, Map.of()), owner()))
+                .hasMessageContaining("CLOCKTOWER_FORCE_ADVANCE_REASON_REQUIRED");
+    }
+
+    @Test
+    void forceAdvanceWritesForcedPhaseEvent() {
+        StartedGame game = startGame();
+
+        ClocktowerGameAdvanceResult result = flowService.forceAdvance(game.gameId(),
+                new ClocktowerGameAdvanceRequest("DAY", "manual test recovery", Map.of("source", "test")),
+                owner());
+
+        assertThat(result.forced()).isTrue();
+        assertThat(result.phase()).isEqualTo("DAY");
+        assertThat(eventTypes(game.gameId())).contains("PHASE_CHANGED");
+    }
 
     @Test
     void advanceFirstNightPendingTasksRejected() {
@@ -182,6 +248,43 @@ class ClocktowerGameFlowServiceTests {
         entity.setDayNo(1);
         gameRepository.saveAndFlush(entity);
         return game;
+    }
+
+    private StartedGame startNominationGameWithOpenNomination() {
+        StartedGame game = startDayGame();
+        micService.startDayMicSession(game.gameId(), owner());
+        micService.closeSession(game.gameId(), owner());
+        var response = humanActionService.submit(game.gameId(),
+                new ClocktowerGameActionRequest(
+                        game.seats().getFirst().getId(), "NOMINATE", List.of(game.seats().get(1).getId()),
+                        null, null, null, Map.of()),
+                principal(11L, "player1"));
+        assertThat(response.accepted()).isTrue();
+        return game;
+    }
+
+    private StartedGame startNominationGameWithClosedNomination() {
+        StartedGame game = startNominationGameWithOpenNomination();
+        Long nominationId = gameEventRepository
+                .findByGameIdAndStatusAndDeletedFalseOrderByEventSeqAsc(game.gameId(), "VISIBLE")
+                .stream()
+                .filter(event -> "NOMINATION_OPENED".equals(event.getEventType()))
+                .map(event -> extractNominationId(event.getPayloadJson()))
+                .findFirst()
+                .orElseThrow();
+        executionService.closeNomination(game.gameId(), nominationId, owner());
+        return game;
+    }
+
+    private Long extractNominationId(String payloadJson) {
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readTree(payloadJson)
+                    .get("nominationId")
+                    .asLong();
+        } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 
     private ClocktowerGameNightTaskPo nightTask(Long gameId, int nightNo, String taskKey, String status,
