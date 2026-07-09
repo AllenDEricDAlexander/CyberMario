@@ -15,6 +15,7 @@ import top.egon.mario.clocktower.game.flow.service.ClocktowerGameFlowService;
 import top.egon.mario.clocktower.game.flow.service.ClocktowerGameNightTaskGateway;
 import top.egon.mario.clocktower.game.flow.service.ClocktowerGamePhaseSignalScheduler;
 import top.egon.mario.clocktower.game.flow.service.ClocktowerGameVictoryService;
+import top.egon.mario.clocktower.game.mic.config.ClocktowerPublicMicProperties;
 import top.egon.mario.clocktower.game.mic.po.ClocktowerGamePublicMicSessionPo;
 import top.egon.mario.clocktower.game.mic.repository.ClocktowerGamePublicMicSessionRepository;
 import top.egon.mario.clocktower.game.mic.service.ClocktowerPublicMicService;
@@ -77,6 +78,7 @@ public class ClocktowerGameFlowServiceImpl implements ClocktowerGameFlowService 
     private final ClocktowerGameNightTaskGateway nightTaskGateway;
     private final ClocktowerGameVictoryService victoryService;
     private final ClocktowerGamePhaseSignalScheduler phaseSignalScheduler;
+    private final ClocktowerPublicMicProperties micProperties;
 
     @Override
     @Transactional(readOnly = true)
@@ -182,6 +184,11 @@ public class ClocktowerGameFlowServiceImpl implements ClocktowerGameFlowService 
 
     private String nextAfterDay(ClocktowerGamePo game, Map<String, Object> counters,
                                 List<String> blockingReasons) {
+        if (!micProperties.isEnabled()) {
+            counters.put("micEnabled", false);
+            counters.put("micStatus", "DISABLED");
+            return PHASE_NOMINATION;
+        }
         ClocktowerGamePublicMicSessionPo session = micSessionRepository
                 .findByGameIdAndDayNoAndDeletedFalse(game.getId(), game.getDayNo())
                 .orElse(null);
@@ -251,7 +258,7 @@ public class ClocktowerGameFlowServiceImpl implements ClocktowerGameFlowService 
         game.setLastActiveAt(now);
         ClocktowerGamePo saved = gameRepository.saveAndFlush(game);
         appendPhaseChanged(saved, previousPhase, forced, reason, metadata, now);
-        if (PHASE_DAY.equals(saved.getPhase())) {
+        if (PHASE_DAY.equals(saved.getPhase()) && micProperties.isEnabled()) {
             micService.startDayMicSession(saved.getId(), principal);
         }
         schedulePhaseSignal(saved, previousPhase, forced, metadata);

@@ -87,6 +87,7 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
     @Override
     @Transactional
     public ClocktowerMicSessionView startDayMicSession(Long gameId, RbacPrincipal principal) {
+        requireEnabled();
         ClocktowerGamePo game = lockedGame(gameId);
         requireStoryteller(game, principal);
         requireDayRunningGame(game);
@@ -99,6 +100,7 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
     @Override
     @Transactional
     public ClocktowerMicSessionView getMicSession(Long gameId, RbacPrincipal principal) {
+        requireEnabled();
         ClocktowerGamePo game = lockedGame(gameId);
         accessPolicy.requireAuthenticated(principal);
         ClocktowerGamePublicMicSessionPo session = sessionRepository
@@ -111,6 +113,7 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
     @Override
     @Transactional
     public ClocktowerMicSessionView finishCurrentTurn(Long gameId, Long turnId, RbacPrincipal principal) {
+        requireEnabled();
         ClocktowerGamePo game = lockedGame(gameId);
         ClocktowerGamePublicMicSessionPo session = lockedCurrentSession(game);
         Instant now = Instant.now();
@@ -128,6 +131,7 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
     @Override
     @Transactional
     public ClocktowerMicSessionView finishCurrentTurnAsActor(Long gameId, Long actorGameSeatId) {
+        requireEnabled();
         ClocktowerGamePo game = lockedGame(gameId);
         ClocktowerGamePublicMicSessionPo session = lockedCurrentSession(game);
         Instant now = Instant.now();
@@ -146,6 +150,7 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
     @Override
     @Transactional
     public ClocktowerMicSessionView skipTurn(Long gameId, Long turnId, RbacPrincipal principal) {
+        requireEnabled();
         ClocktowerGamePo game = lockedGame(gameId);
         requireStoryteller(game, principal);
         ClocktowerGamePublicMicSessionPo session = lockedCurrentSession(game);
@@ -172,6 +177,7 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
     @Override
     @Transactional
     public ClocktowerMicSessionView grabMic(Long gameId, RbacPrincipal principal) {
+        requireEnabled();
         ClocktowerGamePo game = lockedGame(gameId);
         ClocktowerGamePublicMicSessionPo session = lockedCurrentSession(game);
         Instant now = Instant.now();
@@ -187,6 +193,7 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
     @Override
     @Transactional
     public ClocktowerMicSessionView grabMicAsActor(Long gameId, Long actorGameSeatId) {
+        requireEnabled();
         ClocktowerGamePo game = lockedGame(gameId);
         ClocktowerGamePublicMicSessionPo session = lockedCurrentSession(game);
         Instant now = Instant.now();
@@ -249,6 +256,7 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
     @Override
     @Transactional
     public ClocktowerMicSessionView releaseMic(Long gameId, RbacPrincipal principal) {
+        requireEnabled();
         ClocktowerGamePo game = lockedGame(gameId);
         ClocktowerGamePublicMicSessionPo session = lockedCurrentSession(game);
         Instant now = Instant.now();
@@ -263,6 +271,7 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
     @Override
     @Transactional
     public ClocktowerMicSessionView extendGrabMic(Long gameId, long seconds, RbacPrincipal principal) {
+        requireEnabled();
         if (seconds <= 0) {
             throw new ClocktowerException("CLOCKTOWER_MIC_EXTEND_SECONDS_INVALID");
         }
@@ -284,6 +293,7 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
     @Override
     @Transactional
     public ClocktowerMicSessionView closeSession(Long gameId, RbacPrincipal principal) {
+        requireEnabled();
         ClocktowerGamePo game = lockedGame(gameId);
         requireStoryteller(game, principal);
         ClocktowerGamePublicMicSessionPo session = lockedCurrentSession(game);
@@ -305,6 +315,7 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
     @Override
     @Transactional(readOnly = true)
     public void requireCanSpeak(Long gameId, Long actorGameSeatId) {
+        requireEnabled();
         if (actorGameSeatId == null) {
             throw new ClocktowerException("CLOCKTOWER_MIC_NOT_HOLDER");
         }
@@ -325,6 +336,12 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
         }
         if (turn.getExpiresAt() != null && !turn.getExpiresAt().isAfter(Instant.now())) {
             throw new ClocktowerException("CLOCKTOWER_MIC_TURN_EXPIRED");
+        }
+    }
+
+    private void requireEnabled() {
+        if (!properties.isEnabled()) {
+            throw new ClocktowerException("CLOCKTOWER_PUBLIC_MIC_DISABLED");
         }
     }
 
