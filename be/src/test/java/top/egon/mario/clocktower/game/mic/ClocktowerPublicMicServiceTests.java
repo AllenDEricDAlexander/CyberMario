@@ -282,6 +282,39 @@ class ClocktowerPublicMicServiceTests {
     }
 
     @Test
+    void grabMicAsActorAllowsAgentSeatDuringGrabWindow() {
+        StartedGame game = startDayGameWithAgents();
+        finishRoundRobin(game);
+        ClocktowerGameSeatPo agentSeat = game.seats().stream()
+                .filter(seat -> "AGENT".equals(seat.getActorType()))
+                .findFirst()
+                .orElseThrow();
+
+        ClocktowerMicSessionView view = micService.grabMicAsActor(game.gameId(), agentSeat.getId());
+
+        ClocktowerMicTurnView active = activeTurn(view);
+        assertThat(active.actorType()).isEqualTo("AGENT");
+        assertThat(active.gameSeatId()).isEqualTo(agentSeat.getId());
+        assertThat(active.acquisitionType()).isEqualTo("GRAB");
+        assertThat(micService.canSpeak(game.gameId(), agentSeat.getId())).isTrue();
+    }
+
+    @Test
+    void grabMicAsActorRejectsOccupiedMic() {
+        StartedGame game = startDayGameWithAgents();
+        finishRoundRobin(game);
+        ClocktowerGameSeatPo agentSeat = game.seats().stream()
+                .filter(seat -> "AGENT".equals(seat.getActorType()))
+                .findFirst()
+                .orElseThrow();
+        micService.grabMic(game.gameId(), principal(11L, "player1"));
+
+        assertThatThrownBy(() -> micService.grabMicAsActor(game.gameId(), agentSeat.getId()))
+                .isInstanceOf(ClocktowerException.class)
+                .hasMessageContaining("CLOCKTOWER_MIC_OCCUPIED");
+    }
+
+    @Test
     void grabMicRejectsWhenHolderIsActive() {
         StartedGame game = startDayGameWithAgents();
         finishRoundRobin(game);

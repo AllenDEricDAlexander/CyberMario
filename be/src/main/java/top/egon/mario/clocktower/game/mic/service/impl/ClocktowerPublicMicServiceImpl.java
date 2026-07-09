@@ -173,18 +173,41 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
         ClocktowerGamePublicMicSessionPo session = lockedCurrentSession(game);
         Instant now = Instant.now();
         refreshExpiredState(game, session, now);
-        requireSessionOpen(session);
-        if (!SESSION_GRAB_MIC.equals(session.getStatus())) {
-            throw new ClocktowerException("CLOCKTOWER_MIC_GRAB_NOT_OPEN");
-        }
-        if (session.getGrabEndsAt() == null || !session.getGrabEndsAt().isAfter(now)) {
-            closeSessionInternal(game, session, now);
-            return toView(session);
-        }
-        if (session.getCurrentHolderGameSeatId() != null) {
-            throw new ClocktowerException("CLOCKTOWER_MIC_OCCUPIED");
+        ClocktowerMicSessionView unavailable = unavailableGrabMicResult(game, session, now);
+        if (unavailable != null) {
+            return unavailable;
         }
         ClocktowerGameSeatPo seat = requireHumanPlayerSeat(game, principal);
+        return grabMicForSeat(game, session, seat, now);
+    }
+
+    @Override
+    @Transactional
+    public ClocktowerMicSessionView grabMicAsActor(Long gameId, Long actorGameSeatId) {
+        ClocktowerGamePo game = lockedGame(gameId);
+        ClocktowerGamePublicMicSessionPo session = lockedCurrentSession(game);
+        Instant now = Instant.now();
+        refreshExpiredState(game, session, now);
+        ClocktowerGameSeatPo seat = gameSeatRepository.findByIdAndGameIdAndDeletedFalse(actorGameSeatId, game.getId())
+                .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_GAME_SEAT_NOT_FOUND"));
+        if (!ClocktowerActorType.HUMAN.equals(seat.getActorType())
+                && !ClocktowerActorType.AGENT.equals(seat.getActorType())) {
+            throw new ClocktowerException("CLOCKTOWER_GAME_SEAT_ACTOR_INVALID");
+        }
+        return grabMicForSeat(game, session, seat, now);
+    }
+
+    private ClocktowerMicSessionView grabMicForSeat(ClocktowerGamePo game,
+                                                    ClocktowerGamePublicMicSessionPo session,
+                                                    ClocktowerGameSeatPo seat,
+                                                    Instant now) {
+        ClocktowerMicSessionView unavailable = unavailableGrabMicResult(game, session, now);
+        if (unavailable != null) {
+            return unavailable;
+        }
+        if (!SEAT_STATUS_ACTIVE.equals(seat.getStatus())) {
+            throw new ClocktowerException("CLOCKTOWER_GAME_SEAT_INACTIVE");
+        }
         ClocktowerGamePublicMicTurnPo turn = new ClocktowerGamePublicMicTurnPo();
         turn.setSessionId(session.getId());
         turn.setGameId(session.getGameId());
@@ -201,6 +224,23 @@ public class ClocktowerPublicMicServiceImpl implements ClocktowerPublicMicServic
         session.setCurrentTurnId(turn.getId());
         appendGameEvent(game, EVENT_MIC_TURN_STARTED, now, turnPayload(session, turn));
         return toView(session);
+    }
+
+    private ClocktowerMicSessionView unavailableGrabMicResult(ClocktowerGamePo game,
+                                                              ClocktowerGamePublicMicSessionPo session,
+                                                              Instant now) {
+        requireSessionOpen(session);
+        if (!SESSION_GRAB_MIC.equals(session.getStatus())) {
+            throw new ClocktowerException("CLOCKTOWER_MIC_GRAB_NOT_OPEN");
+        }
+        if (session.getGrabEndsAt() == null || !session.getGrabEndsAt().isAfter(now)) {
+            closeSessionInternal(game, session, now);
+            return toView(session);
+        }
+        if (session.getCurrentHolderGameSeatId() != null) {
+            throw new ClocktowerException("CLOCKTOWER_MIC_OCCUPIED");
+        }
+        return null;
     }
 
     @Override

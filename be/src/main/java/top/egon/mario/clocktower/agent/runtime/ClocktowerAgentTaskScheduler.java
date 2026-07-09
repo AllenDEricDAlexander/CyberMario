@@ -66,6 +66,19 @@ public class ClocktowerAgentTaskScheduler {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public List<ClocktowerAgentTaskPo> scheduleForActiveAgentSeatsExcept(Long gameId, Long excludedGameSeatId,
+                                                                         String triggerType, String triggerKey,
+                                                                         Map<String, Object> metadata) {
+        return gameSeatRepository.findByGameIdAndDeletedFalseOrderBySeatNoAsc(gameId)
+                .stream()
+                .filter(this::activeAgentSeat)
+                .filter(seat -> !Objects.equals(seat.getId(), excludedGameSeatId))
+                .map(seat -> scheduleForAgent(gameId, seat.getAgentInstanceId(), seat.getId(),
+                        triggerType, triggerKey, metadata))
+                .toList();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ClocktowerAgentTaskPo scheduleForGameSeat(Long gameId, Long gameSeatId, String triggerType,
                                                      String triggerKey, Map<String, Object> metadata) {
         if (gameSeatId == null) {

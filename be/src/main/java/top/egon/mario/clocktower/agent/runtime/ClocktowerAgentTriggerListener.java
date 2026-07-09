@@ -15,7 +15,7 @@ public class ClocktowerAgentTriggerListener {
 
     private final ClocktowerAgentTaskScheduler taskScheduler;
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onGameEvent(ClocktowerGameEventAppendedSignal signal) {
         if (signal == null || signal.gameId() == null || signal.eventType() == null) {
             return;
@@ -24,7 +24,9 @@ public class ClocktowerAgentTriggerListener {
             case "GAME_STARTED" -> scheduleGameStarted(signal);
             case "PHASE_CHANGED" -> schedulePhaseChanged(signal);
             case "MIC_TURN_STARTED" -> scheduleMicTurn(signal);
+            case "MIC_GRAB_OPENED" -> scheduleMicGrab(signal);
             case "NOMINATION_OPENED" -> scheduleVoteWindow(signal);
+            case "PUBLIC_SPEECH", "VOTE_CAST", "PLAYER_DIED" -> schedulePublicReaction(signal);
             case "NIGHT_TASKS_CREATED" -> scheduleNightTasks(signal);
             default -> {
             }
@@ -49,11 +51,24 @@ public class ClocktowerAgentTriggerListener {
                 "micTurn:%s".formatted(turnId == null ? signal.eventId() : turnId), metadata(signal));
     }
 
+    private void scheduleMicGrab(ClocktowerGameEventAppendedSignal signal) {
+        Long sessionId = longValue(signal.payload().get("sessionId"));
+        taskScheduler.scheduleForActiveAgentSeats(signal.gameId(), ClocktowerAgentTriggerType.MIC_GRAB_OPENED,
+                "micGrab:%s".formatted(sessionId == null ? signal.eventId() : sessionId), metadata(signal));
+    }
+
     private void scheduleVoteWindow(ClocktowerGameEventAppendedSignal signal) {
         Long nominationId = longValue(signal.payload().get("nominationId"));
         taskScheduler.scheduleForActiveAgentSeats(signal.gameId(), ClocktowerAgentTriggerType.VOTE_WINDOW_OPENED,
                 "nomination:%s:vote".formatted(nominationId == null ? signal.eventId() : nominationId),
                 metadata(signal));
+        schedulePublicReaction(signal);
+    }
+
+    private void schedulePublicReaction(ClocktowerGameEventAppendedSignal signal) {
+        taskScheduler.scheduleForActiveAgentSeatsExcept(signal.gameId(), signal.actorGameSeatId(),
+                ClocktowerAgentTriggerType.PUBLIC_EVENT_APPENDED,
+                "publicEvent:%s:react".formatted(signal.eventId()), metadata(signal));
     }
 
     private void scheduleNightTasks(ClocktowerGameEventAppendedSignal signal) {

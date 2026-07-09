@@ -17,6 +17,8 @@ public interface ClocktowerPublicMicService {
 
     ClocktowerMicSessionView grabMic(Long gameId, RbacPrincipal principal);
 
+    ClocktowerMicSessionView grabMicAsActor(Long gameId, Long actorGameSeatId);
+
     ClocktowerMicSessionView releaseMic(Long gameId, RbacPrincipal principal);
 
     ClocktowerMicSessionView extendGrabMic(Long gameId, long seconds, RbacPrincipal principal);

@@ -12,6 +12,7 @@ import top.egon.mario.clocktower.common.enums.ClocktowerScriptCode;
 import top.egon.mario.clocktower.game.action.dto.ClocktowerGameActionRequest;
 import top.egon.mario.clocktower.game.action.service.ClocktowerHumanGameActionService;
 import top.egon.mario.clocktower.game.dto.ClocktowerGameResponse;
+import top.egon.mario.clocktower.game.mic.dto.ClocktowerMicSessionView;
 import top.egon.mario.clocktower.game.mic.service.ClocktowerPublicMicService;
 import top.egon.mario.clocktower.game.night.po.ClocktowerGameNightTaskPo;
 import top.egon.mario.clocktower.game.night.repository.ClocktowerGameNightTaskRepository;
@@ -98,6 +99,7 @@ class ClocktowerAgentTaskRuntimeTests {
             assertThat(task.getTriggerKey()).isEqualTo("game:%s:started".formatted(game.gameId()));
             assertThat(task.getMetadataJson()).contains("eventSeq");
         });
+        cancelGameTasks(game.gameId());
     }
 
     @Test
@@ -120,6 +122,7 @@ class ClocktowerAgentTaskRuntimeTests {
                 game.gameId(), ClocktowerAgentTriggerType.PHASE_CHANGED))
                 .extracting(ClocktowerAgentTaskPo::getTriggerKey)
                 .containsOnly("phase:%s:DAY:manual".formatted(game.gameId()));
+        cancelGameTasks(game.gameId());
     }
 
     @Test
@@ -147,6 +150,42 @@ class ClocktowerAgentTaskRuntimeTests {
         assertThat(tasks.getFirst().getAgentInstanceId()).isEqualTo(instance.getId());
         assertThat(tasks.getFirst().getGameSeatId()).isEqualTo(firstAgentSeat.getId());
         assertThat(tasks.getFirst().getMetadataJson()).contains("turnId");
+        cancelGameTasks(game.gameId());
+    }
+
+    @Test
+    void micGrabOpenedSchedulesActiveAgents() {
+        StartedGame game = startDayGameWithAgents(4);
+        ClocktowerMicSessionView view = micService.startDayMicSession(game.gameId(), owner());
+        while ("ROUND_ROBIN".equals(view.status())) {
+            view = micService.finishCurrentTurn(game.gameId(), view.currentTurnId(), owner());
+        }
+
+        List<ClocktowerAgentTaskPo> tasks = agentTaskRepository
+                .findByGameIdAndTriggerTypeAndDeletedFalseOrderByIdAsc(
+                        game.gameId(), ClocktowerAgentTriggerType.MIC_GRAB_OPENED);
+
+        assertThat(tasks).hasSize(4);
+        assertThat(tasks).allSatisfy(task -> assertThat(task.getTriggerKey()).contains("micGrab:"));
+        cancelGameTasks(game.gameId());
+    }
+
+    @Test
+    void publicSpeechSchedulesReactionForOtherAgentsOnly() {
+        StartedGame game = startDayGameWithAgents(4);
+        ClocktowerGameSeatPo firstAgent = game.agentSeats().getFirst();
+
+        eventAppender.append(gameRepository.findByIdAndDeletedFalse(game.gameId()).orElseThrow(),
+                "PUBLIC_SPEECH", firstAgent.getId(), null,
+                "PUBLIC", List.of(), Map.of("content", "我先报信息。"), Instant.now());
+
+        List<ClocktowerAgentTaskPo> tasks = agentTaskRepository
+                .findByGameIdAndTriggerTypeAndDeletedFalseOrderByIdAsc(
+                        game.gameId(), ClocktowerAgentTriggerType.PUBLIC_EVENT_APPENDED);
+
+        assertThat(tasks).hasSize(3);
+        assertThat(tasks).noneSatisfy(task -> assertThat(task.getGameSeatId()).isEqualTo(firstAgent.getId()));
+        cancelGameTasks(game.gameId());
     }
 
     @Test
@@ -330,6 +369,15 @@ class ClocktowerAgentTaskRuntimeTests {
 
     private RbacPrincipal principal(Long userId, String username) {
         return new RbacPrincipal(userId, username, Set.of(), Set.of(), "test");
+    }
+
+    private void cancelTasks(List<ClocktowerAgentTaskPo> tasks) {
+        tasks.forEach(task -> task.setStatus(ClocktowerAgentTaskStatus.CANCELLED));
+        agentTaskRepository.saveAllAndFlush(tasks);
+    }
+
+    private void cancelGameTasks(Long gameId) {
+        cancelTasks(agentTaskRepository.findByGameIdAndDeletedFalseOrderByIdAsc(gameId));
     }
 
     private record StartedGame(Long roomId, Long gameId, List<ClocktowerGameSeatPo> seats) {
