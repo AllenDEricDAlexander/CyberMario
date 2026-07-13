@@ -140,6 +140,15 @@ public class RecipeService {
         return createRecipe(familyId, NutritionRecipeSourceType.FAMILY_PRIVATE, request);
     }
 
+    @Transactional
+    public RecipeResponse createAiGeneratedRecipe(@NotNull Long familyId,
+                                                  @Valid @NotNull CreateRecipeRequest request,
+                                                  Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireCookFamily(userId, familyId);
+        return createRecipe(familyId, NutritionRecipeSourceType.AI_GENERATED, request);
+    }
+
     @Transactional(readOnly = true)
     public RecipeResponse getRecipe(@NotNull Long familyId, @NotNull Long recipeId, Long actorId) {
         Long userId = requireActor(actorId);

@@ -17,6 +17,7 @@ import top.egon.mario.nutrition.po.enums.NutritionAiJobStatus;
 import top.egon.mario.nutrition.po.enums.NutritionAiTriggerType;
 import top.egon.mario.nutrition.po.enums.NutritionMealPlanStatus;
 import top.egon.mario.nutrition.po.enums.NutritionMealType;
+import top.egon.mario.nutrition.po.enums.NutritionRecipeSourceType;
 import top.egon.mario.nutrition.repository.NutritionAiRecommendationJobRepository;
 import top.egon.mario.nutrition.repository.NutritionAiRecommendationRepository;
 import top.egon.mario.nutrition.repository.NutritionClanFamilyRepository;
@@ -47,6 +48,8 @@ import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -134,6 +137,9 @@ class NutritionAiServiceTests {
         var jobs = scheduler.generateDueRecommendations(LocalDate.of(2026, 7, 1), LocalTime.of(8, 5));
 
         assertThat(jobs).hasSize(1);
+        assertThat(jobs.getFirst().status()).isEqualTo(NutritionAiJobStatus.PENDING);
+        assertThat(modelClient.calls()).isZero();
+        assertThat(aiService.runPendingJobs(1)).isEqualTo(1);
         assertThat(aiJobRepository.findAll()).singleElement().satisfies(job -> {
             assertThat(job.getFamilyId()).isEqualTo(family.id());
             assertThat(job.getTriggerType()).isEqualTo(NutritionAiTriggerType.SCHEDULED);
@@ -159,7 +165,11 @@ class NutritionAiServiceTests {
         assertThat(mealPlanItemRepository.findAll()).singleElement().satisfies(item -> {
             assertThat(item.getMealType()).isEqualTo(NutritionMealType.DINNER);
             assertThat(item.getDishName()).isEqualTo("Tomato Pasta");
+            assertThat(item.getRecipeId()).isNotNull();
         });
+        assertThat(recipeRepository.findAll()).singleElement()
+                .extracting(recipe -> recipe.getSourceType())
+                .isEqualTo(NutritionRecipeSourceType.AI_GENERATED);
     }
 
     @Test
@@ -170,11 +180,16 @@ class NutritionAiServiceTests {
         var job = aiService.generateManualRecommendation(
                 family.id(), LocalDate.of(2026, 7, 2), List.of(NutritionMealType.DINNER), 8102L);
 
-        assertThat(job.status()).isEqualTo(NutritionAiJobStatus.FAILED);
+        assertThat(job.status()).isEqualTo(NutritionAiJobStatus.PENDING);
+        assertThat(modelClient.calls()).isZero();
+        assertThat(aiService.runPendingJobs(1)).isEqualTo(1);
+        assertThat(aiService.getJob(family.id(), job.id(), 8102L).status())
+                .isEqualTo(NutritionAiJobStatus.FAILED);
         assertThat(aiJobRepository.findAll()).singleElement().satisfies(saved -> {
             assertThat(saved.getFamilyId()).isEqualTo(family.id());
             assertThat(saved.getStatus()).isEqualTo(NutritionAiJobStatus.FAILED);
             assertThat(saved.getErrorMessage()).contains("model unavailable");
+            assertThat(saved.getMetadataJson()).contains("retryCount", "maxRetries", "nextRetryAt");
         });
         assertThat(aiRecommendationRepository.findAll()).isEmpty();
         assertThat(mealPlanRepository.findAll()).isEmpty();
@@ -191,7 +206,8 @@ class NutritionAiServiceTests {
         var job = aiService.generateManualRecommendation(
                 family.id(), LocalDate.of(2026, 7, 4), List.of(NutritionMealType.DINNER), 8104L);
 
-        assertThat(job.status()).isEqualTo(NutritionAiJobStatus.FAILED);
+        assertThat(job.status()).isEqualTo(NutritionAiJobStatus.PENDING);
+        assertThat(aiService.runPendingJobs(1)).isEqualTo(1);
         assertThat(aiJobRepository.findAll()).singleElement().satisfies(saved -> {
             assertThat(saved.getStatus()).isEqualTo(NutritionAiJobStatus.FAILED);
             assertThat(saved.getErrorMessage()).contains("NUTRITION_AI_OUTPUT_INVALID");
@@ -211,7 +227,8 @@ class NutritionAiServiceTests {
         var job = aiService.generateManualRecommendation(
                 family.id(), LocalDate.of(2026, 7, 5), List.of(NutritionMealType.DINNER), 8105L);
 
-        assertThat(job.status()).isEqualTo(NutritionAiJobStatus.FAILED);
+        assertThat(job.status()).isEqualTo(NutritionAiJobStatus.PENDING);
+        assertThat(aiService.runPendingJobs(1)).isEqualTo(1);
         assertThat(aiJobRepository.findAll()).singleElement().satisfies(saved -> {
             assertThat(saved.getStatus()).isEqualTo(NutritionAiJobStatus.FAILED);
             assertThat(saved.getErrorMessage()).contains("NUTRITION_AI_OUTPUT_INVALID");
@@ -232,6 +249,11 @@ class NutritionAiServiceTests {
                 family.id(), plannedDate, List.of(NutritionMealType.DINNER), 8103L);
         var second = aiService.generateManualRecommendation(
                 family.id(), plannedDate, List.of(NutritionMealType.DINNER), 8103L);
+
+        assertThat(first.status()).isEqualTo(NutritionAiJobStatus.PENDING);
+        assertThat(second.status()).isEqualTo(NutritionAiJobStatus.PENDING);
+        assertThat(modelClient.calls()).isZero();
+        assertThat(aiService.runPendingJobs(2)).isEqualTo(2);
 
         assertThat(first.id()).isNotEqualTo(second.id());
         assertThat(first.plannedDate()).isEqualTo(plannedDate);
@@ -255,12 +277,16 @@ class NutritionAiServiceTests {
         LocalDate plannedDate = LocalDate.of(2026, 7, 6);
         modelClient.addResponse(menuJson("First scheduled dinner", "Tomato Pasta"));
         var first = aiService.generateScheduledRecommendation(family.id(), plannedDate);
+        assertThat(first.status()).isEqualTo(NutritionAiJobStatus.PENDING);
+        assertThat(modelClient.calls()).isZero();
+        assertThat(aiService.runPendingJobs(1)).isEqualTo(1);
 
         var second = aiService.generateScheduledRecommendation(family.id(), plannedDate);
 
         assertThat(second.id()).isEqualTo(first.id());
-        assertThat(second.recommendationId()).isEqualTo(first.recommendationId());
-        assertThat(second.mealPlanId()).isEqualTo(first.mealPlanId());
+        assertThat(second.status()).isEqualTo(NutritionAiJobStatus.SUCCEEDED);
+        assertThat(second.recommendationId()).isNotNull();
+        assertThat(second.mealPlanId()).isNotNull();
         assertThat(modelClient.calls()).isEqualTo(1);
         assertThat(aiJobRepository.findAll()).hasSize(1);
         assertThat(aiRecommendationRepository.findAll()).hasSize(1);
@@ -292,6 +318,53 @@ class NutritionAiServiceTests {
         assertThat(aiJobRepository.findAll()).hasSize(1);
         assertThat(aiRecommendationRepository.findAll()).isEmpty();
         assertThat(mealPlanRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    void requiredUnmappedIngredientFailsWithoutPartialRecommendationOrRecipe() {
+        FamilyResponse family = createAiFamily(8108L, LocalTime.of(8, 0));
+        modelClient.addResponse("""
+                {"title":"Unsafe draft","reason":"unmapped","mealTypes":["DINNER"],"recipes":[{"mealType":"DINNER","name":"Mystery Soup","servingCount":2,"ingredients":[{"foodName":"Mystery Leaf","category":"VEGETABLE","amount":100,"unit":"g","optional":false}],"steps":[],"reason":"unknown ingredient"}],"costEstimate":12.50}
+                """);
+
+        var queued = aiService.generateManualRecommendation(
+                family.id(), LocalDate.of(2026, 7, 8), List.of(NutritionMealType.DINNER), 8108L);
+
+        assertThat(queued.status()).isEqualTo(NutritionAiJobStatus.PENDING);
+        assertThat(aiService.runPendingJobs(1)).isEqualTo(1);
+        assertThat(aiService.getJob(family.id(), queued.id(), 8108L).status())
+                .isEqualTo(NutritionAiJobStatus.FAILED);
+        assertThat(aiRecommendationRepository.findAll()).isEmpty();
+        assertThat(mealPlanRepository.findAll()).isEmpty();
+        assertThat(mealPlanItemRepository.findAll()).isEmpty();
+        assertThat(recipeRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    void lockedClaimPreventsDoubleExecution() throws Exception {
+        FamilyResponse family = createAiFamily(8109L, LocalTime.of(8, 0));
+        CountDownLatch modelEntered = new CountDownLatch(1);
+        CountDownLatch releaseModel = new CountDownLatch(1);
+        modelClient.addBlockingResponse(menuJson("Locked dinner", "Tomato Pasta"), modelEntered, releaseModel);
+        aiService.generateManualRecommendation(
+                family.id(), LocalDate.of(2026, 7, 9), List.of(NutritionMealType.DINNER), 8109L);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            var first = executor.submit(() -> aiService.runPendingJobs(1));
+            assertThat(modelEntered.await(2, TimeUnit.SECONDS)).isTrue();
+            var second = executor.submit(() -> aiService.runPendingJobs(1));
+
+            assertThat(second.get(2, TimeUnit.SECONDS)).isZero();
+            releaseModel.countDown();
+            assertThat(first.get(2, TimeUnit.SECONDS)).isEqualTo(1);
+        } finally {
+            releaseModel.countDown();
+            executor.shutdownNow();
+        }
+        assertThat(modelClient.calls()).isEqualTo(1);
+        assertThat(aiJobRepository.findAll()).singleElement()
+                .extracting(NutritionAiRecommendationJobPo::getStatus)
+                .isEqualTo(NutritionAiJobStatus.SUCCEEDED);
     }
 
     @Test
@@ -331,7 +404,7 @@ class NutritionAiServiceTests {
 
     private String menuJson(String title, String dishName) {
         return """
-                {"title":"%s","reason":"balanced family dinner","mealTypes":["DINNER"],"recipes":[{"mealType":"DINNER","name":"%s","servingCount":2,"reason":"simple pantry meal"}],"costEstimate":12.50}
+                {"title":"%s","reason":"balanced family dinner","mealTypes":["DINNER"],"recipes":[{"mealType":"DINNER","name":"%s","servingCount":2,"ingredients":[{"foodName":"Tomato","category":"VEGETABLE","amount":200,"unit":"g","optional":true}],"steps":[],"reason":"simple pantry meal"}],"costEstimate":12.50}
                 """.formatted(title, dishName);
     }
 
@@ -366,6 +439,10 @@ class NutritionAiServiceTests {
             responses.add(error);
         }
 
+        void addBlockingResponse(String rawJson, CountDownLatch entered, CountDownLatch release) {
+            responses.add(new BlockingResponse(rawJson, entered, release));
+        }
+
         void reset() {
             responses.clear();
             calls.set(0);
@@ -382,7 +459,22 @@ class NutritionAiServiceTests {
             if (response instanceof RuntimeException error) {
                 throw error;
             }
+            if (response instanceof BlockingResponse blocking) {
+                blocking.entered().countDown();
+                try {
+                    if (!blocking.release().await(2, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("timed out waiting to release model response");
+                    }
+                } catch (InterruptedException error) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("model response interrupted", error);
+                }
+                return blocking.rawJson();
+            }
             return (String) response;
+        }
+
+        private record BlockingResponse(String rawJson, CountDownLatch entered, CountDownLatch release) {
         }
     }
 }

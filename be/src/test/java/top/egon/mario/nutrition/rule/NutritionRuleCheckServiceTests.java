@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import top.egon.mario.nutrition.po.enums.NutritionRiskLevel;
 import top.egon.mario.nutrition.po.enums.NutritionStatus;
+import top.egon.mario.nutrition.po.enums.NutritionMemberType;
 import top.egon.mario.nutrition.repository.NutritionRiskCheckResultRepository;
 import top.egon.mario.nutrition.service.calculation.NutritionTotals;
 import top.egon.mario.nutrition.service.rule.BudgetContext;
@@ -171,6 +172,41 @@ class NutritionRuleCheckServiceTests {
             assertThat(saved.getRuleCode()).isEqualTo("ALLERGY");
             assertThat(saved.isResolved()).isTrue();
             assertThat(saved.getStatus()).isEqualTo(NutritionStatus.ARCHIVED);
+        });
+    }
+
+    @Test
+    void populationRuleBlocksAdultOnlyIngredientForChild() {
+        RuleCheckRequest request = new RuleCheckRequest(
+                FAMILY_ID, SOURCE_TYPE, SOURCE_ID,
+                List.of(new MemberRuleProfile(9305L, NutritionMemberType.CHILD,
+                        List.of(), List.of(), List.of(), List.of(), null)),
+                List.of(new RuleIngredient(9401L, "Coffee", List.of(), List.of("ADULT_ONLY"))),
+                NutritionTotals.zero(), null, null, List.of());
+
+        var results = ruleCheckService.check(request);
+
+        assertThat(results).singleElement().satisfies(result -> {
+            assertThat(result.ruleCode()).isEqualTo("POPULATION");
+            assertThat(result.riskLevel()).isEqualTo(NutritionRiskLevel.HIGH);
+            assertThat(result.blocking()).isTrue();
+            assertThat(result.memberProfileId()).isEqualTo(9305L);
+        });
+    }
+
+    @Test
+    void repetitionRuleWarnsWhenRecipeAppearedRecently() {
+        RuleCheckRequest request = new RuleCheckRequest(
+                FAMILY_ID, SOURCE_TYPE, SOURCE_ID, List.of(),
+                List.of(new RuleIngredient(9402L, "Rice", List.of(), List.of())),
+                NutritionTotals.zero(), null, null, List.of(9402L));
+
+        var results = ruleCheckService.check(request);
+
+        assertThat(results).singleElement().satisfies(result -> {
+            assertThat(result.ruleCode()).isEqualTo("REPETITION");
+            assertThat(result.riskLevel()).isEqualTo(NutritionRiskLevel.MEDIUM);
+            assertThat(result.blocking()).isFalse();
         });
     }
 

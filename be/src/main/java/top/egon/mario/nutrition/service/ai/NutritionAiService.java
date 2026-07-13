@@ -21,6 +21,10 @@ public interface NutritionAiService {
     NutritionAiRecommendationJobResponse generateScheduledRecommendation(@NotNull Long familyId,
                                                                          @NotNull LocalDate plannedDate);
 
+    int runPendingJobs(int limit);
+
+    NutritionAiRecommendationJobResponse getJob(@NotNull Long familyId, @NotNull Long jobId, Long actorId);
+
     List<NutritionAiRecommendationResponse> listRecommendations(@NotNull Long familyId, Long actorId);
 
     NutritionAiRecommendationResponse getRecommendation(@NotNull Long familyId, @NotNull Long recommendationId,

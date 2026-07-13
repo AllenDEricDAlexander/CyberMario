@@ -5,7 +5,12 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 import java.util.Locale;
 
-public record RuleIngredient(String rawFoodName, List<String> tags) {
+public record RuleIngredient(
+        Long recipeId,
+        String rawFoodName,
+        List<String> tags,
+        List<String> suitableTags
+) {
 
     public RuleIngredient {
         rawFoodName = StringUtils.hasText(rawFoodName) ? rawFoodName.trim() : "";
@@ -13,6 +18,14 @@ public record RuleIngredient(String rawFoodName, List<String> tags) {
                 .filter(StringUtils::hasText)
                 .map(String::trim)
                 .toList();
+        suitableTags = suitableTags == null ? List.of() : suitableTags.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .toList();
+    }
+
+    public RuleIngredient(String rawFoodName, List<String> tags) {
+        this(null, rawFoodName, tags, List.of());
     }
 
     public boolean matches(String tag) {
