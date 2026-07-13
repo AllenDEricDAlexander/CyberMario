@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 import top.egon.mario.common.api.ApiResponse;
@@ -90,8 +91,10 @@ public class MealPlanController extends ReactiveNutritionSupport {
     public Mono<ApiResponse<MealPlanResponse>> closeConfirmation(
             @PathVariable @Min(1) Long familyId,
             @PathVariable @Min(1) Long mealPlanId,
+            @RequestParam(defaultValue = "false") boolean closeEarly,
             @AuthenticationPrincipal RbacPrincipal principal) {
-        return blocking(() -> mealPlanService.closeConfirmation(familyId, mealPlanId, actorId(principal)));
+        return blocking(() -> mealPlanService.closeConfirmation(
+                familyId, mealPlanId, closeEarly, actorId(principal)));
     }
 
     @PostMapping("/{mealPlanId}/start-preparing")

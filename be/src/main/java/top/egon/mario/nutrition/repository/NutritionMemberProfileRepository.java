@@ -22,6 +22,8 @@ public interface NutritionMemberProfileRepository extends JpaRepository<Nutritio
 
     List<NutritionMemberProfilePo> findByFamilyIdAndDeletedFalseOrderByIdAsc(Long familyId);
 
+    long countByFamilyIdAndStatusAndDeletedFalse(Long familyId, NutritionStatus status);
+
     boolean existsByFamilyIdAndBoundUserIdAndIdNotAndStatusAndDeletedFalse(
             Long familyId, Long boundUserId, Long id, NutritionStatus status);
 }

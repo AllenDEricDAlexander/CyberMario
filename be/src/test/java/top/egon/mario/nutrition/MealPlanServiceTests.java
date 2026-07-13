@@ -194,7 +194,7 @@ class MealPlanServiceTests {
         NutritionMealPlanPo mealPlan = mealPlan(family.getId(), NutritionMealPlanStatus.PENDING_REVIEW);
         makePublishable(family, mealPlan);
         mealPlanService.publishMealPlan(family.getId(), mealPlan.getId(), COOK_USER_ID);
-        mealPlanService.closeConfirmation(family.getId(), mealPlan.getId(), COOK_USER_ID);
+        mealPlanService.closeConfirmation(family.getId(), mealPlan.getId(), true, COOK_USER_ID);
 
         MealPlanResponse response = mealPlanService.completeMealPlan(
                 family.getId(), mealPlan.getId(), COOK_USER_ID);

@@ -18,6 +18,10 @@ public interface NutritionRiskCheckResultRepository extends JpaRepository<Nutrit
     List<NutritionRiskCheckResultPo> findByFamilyIdAndMemberProfileIdAndSourceTypeAndSourceIdAndStatusAndResolvedFalseAndDeletedFalseOrderByIdAsc(
             Long familyId, Long memberProfileId, String sourceType, Long sourceId, NutritionStatus status);
 
+    List<NutritionRiskCheckResultPo> findByFamilyIdAndMemberProfileIdAndSourceTypeAndSourceIdInAndStatusAndResolvedFalseAndDeletedFalseOrderByIdAsc(
+            Long familyId, Long memberProfileId, String sourceType, Collection<Long> sourceIds,
+            NutritionStatus status);
+
     List<NutritionRiskCheckResultPo> findByFamilyIdAndSourceTypeAndSourceIdInAndStatusAndResolvedFalseAndDeletedFalseOrderByIdAsc(
             Long familyId, String sourceType, Collection<Long> sourceIds, NutritionStatus status);
 }

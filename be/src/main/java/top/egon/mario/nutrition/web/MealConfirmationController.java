@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -17,6 +18,8 @@ import top.egon.mario.nutrition.dto.request.MealConfirmationRequest;
 import top.egon.mario.nutrition.dto.response.MealConfirmationResponse;
 import top.egon.mario.nutrition.service.MealConfirmationService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
+
+import java.util.List;
 
 /**
  * Meal confirmation endpoints for the nutrition MVP.
@@ -37,6 +40,24 @@ public class MealConfirmationController extends ReactiveNutritionSupport {
             @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> confirmationService.confirmMeal(
                 familyId, mealPlanId, request, actorId(principal)));
+    }
+
+    @GetMapping("/meal-plans/{mealPlanId}/confirmations")
+    public Mono<ApiResponse<List<MealConfirmationResponse>>> listConfirmations(
+            @PathVariable @Min(1) Long familyId,
+            @PathVariable @Min(1) Long mealPlanId,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> confirmationService.listConfirmations(
+                familyId, mealPlanId, actorId(principal)));
+    }
+
+    @GetMapping("/confirmations/{confirmationId}")
+    public Mono<ApiResponse<MealConfirmationResponse>> getConfirmation(
+            @PathVariable @Min(1) Long familyId,
+            @PathVariable @Min(1) Long confirmationId,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> confirmationService.getConfirmation(
+                familyId, confirmationId, actorId(principal)));
     }
 
     @PutMapping("/confirmations/{confirmationId}")

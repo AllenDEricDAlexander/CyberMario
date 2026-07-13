@@ -1,7 +1,6 @@
 package top.egon.mario.nutrition.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -21,20 +20,24 @@ import top.egon.mario.nutrition.dto.response.MealPlanSummaryResponse;
 import top.egon.mario.nutrition.dto.response.MealRiskResponse;
 import top.egon.mario.nutrition.dto.response.NutritionAiRecommendationJobResponse;
 import top.egon.mario.nutrition.dto.response.RecipeResponse;
+import top.egon.mario.nutrition.po.NutritionMealConfirmationItemPo;
 import top.egon.mario.nutrition.po.NutritionMealConfirmationPo;
 import top.egon.mario.nutrition.po.NutritionMealOperationLogPo;
 import top.egon.mario.nutrition.po.NutritionMealPlanItemPo;
 import top.egon.mario.nutrition.po.NutritionMealPlanPo;
+import top.egon.mario.nutrition.po.NutritionMemberProfilePo;
 import top.egon.mario.nutrition.po.NutritionRiskCheckResultPo;
 import top.egon.mario.nutrition.po.enums.NutritionConfirmationStatus;
 import top.egon.mario.nutrition.po.enums.NutritionMealPlanStatus;
 import top.egon.mario.nutrition.po.enums.NutritionMealType;
 import top.egon.mario.nutrition.po.enums.NutritionRiskLevel;
 import top.egon.mario.nutrition.po.enums.NutritionStatus;
+import top.egon.mario.nutrition.repository.NutritionMealConfirmationItemRepository;
 import top.egon.mario.nutrition.repository.NutritionMealConfirmationRepository;
 import top.egon.mario.nutrition.repository.NutritionMealOperationLogRepository;
 import top.egon.mario.nutrition.repository.NutritionMealPlanItemRepository;
 import top.egon.mario.nutrition.repository.NutritionMealPlanRepository;
+import top.egon.mario.nutrition.repository.NutritionMemberProfileRepository;
 import top.egon.mario.nutrition.repository.NutritionRiskCheckResultRepository;
 import top.egon.mario.nutrition.service.access.NutritionAccessService;
 import top.egon.mario.nutrition.service.ai.NutritionAiService;
@@ -62,14 +65,14 @@ import java.util.stream.Collectors;
 public class MealPlanService {
 
     private static final String MEAL_PLAN_SOURCE_TYPE = "MEAL_PLAN";
-    private static final TypeReference<List<NutritionMealType>> MEAL_TYPE_LIST_TYPE = new TypeReference<>() {
-    };
     private static final Set<NutritionMealPlanStatus> EDITABLE_STATUSES = EnumSet.of(
             NutritionMealPlanStatus.PENDING_REVIEW, NutritionMealPlanStatus.ADJUSTED);
 
     private final NutritionMealPlanRepository mealPlanRepository;
     private final NutritionMealPlanItemRepository mealPlanItemRepository;
     private final NutritionMealConfirmationRepository confirmationRepository;
+    private final NutritionMealConfirmationItemRepository confirmationItemRepository;
+    private final NutritionMemberProfileRepository memberProfileRepository;
     private final NutritionRiskCheckResultRepository riskCheckResultRepository;
     private final NutritionMealOperationLogRepository operationLogRepository;
     private final NutritionAccessService accessService;
@@ -225,14 +228,28 @@ public class MealPlanService {
 
     @Transactional
     public MealPlanResponse closeConfirmation(@NotNull Long familyId, @NotNull Long mealPlanId, Long actorId) {
+        return closeConfirmation(familyId, mealPlanId, false, actorId);
+    }
+
+    @Transactional
+    public MealPlanResponse closeConfirmation(@NotNull Long familyId, @NotNull Long mealPlanId,
+                                              boolean closeEarly, Long actorId) {
         Long userId = requireActor(actorId);
         accessService.requireCookFamily(userId, familyId);
         NutritionMealPlanPo mealPlan = getLockedMealPlan(familyId, mealPlanId);
+        if (!closeEarly && mealPlan.getConfirmationCutoffAt() != null
+                && Instant.now().isBefore(mealPlan.getConfirmationCutoffAt())) {
+            throw new NutritionException(
+                    "NUTRITION_MEAL_CONFIRMATION_CUTOFF_NOT_REACHED",
+                    "nutrition meal confirmation cutoff has not been reached");
+        }
         String before = snapshot(mealPlan);
+        expireRemainingConfirmations(familyId, mealPlan, userId);
         refreshConfirmedMemberCount(mealPlan);
         transition(mealPlan, NutritionMealPlanStatus.CONFIRM_CLOSED);
         mealPlanRepository.saveAndFlush(mealPlan);
-        saveOperation(mealPlan, "CLOSE_CONFIRMATION", userId, before, snapshot(mealPlan), null, Map.of());
+        saveOperation(mealPlan, "CLOSE_CONFIRMATION", userId, before, snapshot(mealPlan), null,
+                Map.of("closeEarly", closeEarly));
         return toResponse(mealPlan);
     }
 
@@ -287,12 +304,69 @@ public class MealPlanService {
         NutritionMealPlanPo mealPlan = getMealPlan(familyId, mealPlanId);
         List<NutritionMealPlanItemPo> items = activeItems(mealPlan.getId());
         List<NutritionMealConfirmationPo> confirmations = confirmationRepository
-                .findByMealPlanIdAndConfirmationStatusAndDeletedFalse(
-                        mealPlan.getId(), NutritionConfirmationStatus.CONFIRMED);
-        List<MealPlanSummaryResponse.DishSummary> dishes = items.stream()
-                .map(item -> toDishSummary(item, confirmations))
+                .findByMealPlanIdAndDeletedFalseOrderByIdAsc(mealPlan.getId());
+        List<NutritionMealConfirmationPo> confirmed = confirmations.stream()
+                .filter(confirmation -> confirmation.getConfirmationStatus() == NutritionConfirmationStatus.CONFIRMED)
                 .toList();
-        return new MealPlanSummaryResponse(mealPlan.getId(), confirmations.size(), dishes);
+        List<Long> confirmedIds = confirmed.stream().map(NutritionMealConfirmationPo::getId).toList();
+        List<NutritionMealConfirmationItemPo> selectedItems = confirmedIds.isEmpty() ? List.of()
+                : confirmationItemRepository.findByConfirmationIdInAndDeletedFalseOrderByIdAsc(confirmedIds).stream()
+                .filter(NutritionMealConfirmationItemPo::isSelected).toList();
+        Map<Long, List<NutritionMealConfirmationItemPo>> selectedByPlanItem = selectedItems.stream()
+                .collect(Collectors.groupingBy(NutritionMealConfirmationItemPo::getMealPlanItemId));
+        List<MealPlanSummaryResponse.DishSummary> dishes = items.stream()
+                .map(item -> toDishSummary(item, selectedByPlanItem.getOrDefault(item.getId(), List.of())))
+                .toList();
+        int activeMemberCount = Math.toIntExact(memberProfileRepository
+                .countByFamilyIdAndStatusAndDeletedFalse(familyId, NutritionStatus.ACTIVE));
+        int confirmedMemberCount = confirmed.size();
+        int awayMemberCount = Math.toIntExact(confirmations.stream()
+                .filter(confirmation -> confirmation.getConfirmationStatus() == NutritionConfirmationStatus.AWAY)
+                .count());
+        int unconfirmedMemberCount = Math.max(activeMemberCount - confirmedMemberCount - awayMemberCount, 0);
+        List<NutritionRiskCheckResultPo> risks = summaryRisks(familyId, mealPlanId, items);
+        Map<NutritionRiskLevel, Long> riskCounts = risks.stream().collect(Collectors.groupingBy(
+                NutritionRiskCheckResultPo::getRiskLevel, Collectors.counting()));
+        List<String> remarks = confirmations.stream().map(NutritionMealConfirmationPo::getRemark)
+                .filter(StringUtils::hasText).toList();
+        boolean readyForShopping = EnumSet.of(NutritionMealPlanStatus.CONFIRM_CLOSED,
+                NutritionMealPlanStatus.PREPARING, NutritionMealPlanStatus.COMPLETED)
+                .contains(mealPlan.getStatus());
+        return new MealPlanSummaryResponse(mealPlan.getId(), activeMemberCount, confirmedMemberCount,
+                awayMemberCount, unconfirmedMemberCount, Map.copyOf(riskCounts), remarks,
+                readyForShopping, dishes);
+    }
+
+    private void expireRemainingConfirmations(Long familyId, NutritionMealPlanPo mealPlan, Long actorId) {
+        Map<Long, NutritionMealConfirmationPo> confirmationsByMemberId = confirmationRepository
+                .findByMealPlanIdAndDeletedFalseOrderByIdAsc(mealPlan.getId()).stream()
+                .collect(Collectors.toMap(NutritionMealConfirmationPo::getMemberProfileId, Function.identity()));
+        List<NutritionMealConfirmationPo> expired = new ArrayList<>();
+        for (NutritionMemberProfilePo member : memberProfileRepository
+                .findByFamilyIdAndStatusAndDeletedFalse(familyId, NutritionStatus.ACTIVE)) {
+            NutritionMealConfirmationPo confirmation = confirmationsByMemberId.get(member.getId());
+            if (confirmation != null && (confirmation.getConfirmationStatus() == NutritionConfirmationStatus.CONFIRMED
+                    || confirmation.getConfirmationStatus() == NutritionConfirmationStatus.AWAY)) {
+                continue;
+            }
+            if (confirmation == null) {
+                confirmation = new NutritionMealConfirmationPo();
+                confirmation.setFamilyId(familyId);
+                confirmation.setMealPlanId(mealPlan.getId());
+                confirmation.setMemberProfileId(member.getId());
+            }
+            confirmation.setConfirmationStatus(NutritionConfirmationStatus.EXPIRED);
+            confirmation.setEatAtHome(false);
+            confirmation.setConfirmedByUserId(actorId);
+            confirmation.setProxyByUserId(actorId);
+            confirmation.setConfirmedAt(Instant.now());
+            confirmation.setMetadataJson(writeJson(Map.of("expiredByClose", true)));
+            confirmation.setDeleted(false);
+            expired.add(confirmation);
+        }
+        if (!expired.isEmpty()) {
+            confirmationRepository.saveAllAndFlush(expired);
+        }
     }
 
     NutritionMealPlanPo markConfirmingForConfirmation(NutritionMealPlanPo mealPlan, Long actorId) {
@@ -449,18 +523,24 @@ public class MealPlanService {
     }
 
     private MealPlanSummaryResponse.DishSummary toDishSummary(
-            NutritionMealPlanItemPo item, List<NutritionMealConfirmationPo> confirmations) {
-        long selectedCount = confirmations.stream()
-                .filter(confirmation -> selectsMealType(confirmation, item.getMealType()))
-                .count();
-        BigDecimal confirmedServingTotal = item.getServingCount().multiply(BigDecimal.valueOf(selectedCount));
+            NutritionMealPlanItemPo item, List<NutritionMealConfirmationItemPo> selections) {
+        BigDecimal confirmedServingTotal = selections.stream()
+                .map(NutritionMealConfirmationItemPo::getServingCount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         return new MealPlanSummaryResponse.DishSummary(item.getId(), item.getDishName(), item.getMealType(),
-                item.getServingCount(), confirmedServingTotal);
+                item.getServingCount(), selections.size(), confirmedServingTotal);
     }
 
-    private boolean selectsMealType(NutritionMealConfirmationPo confirmation, NutritionMealType mealType) {
-        List<NutritionMealType> selectedMealTypes = readMealTypes(confirmation.getSelectedMealTypes());
-        return selectedMealTypes.isEmpty() || selectedMealTypes.contains(mealType);
+    private List<NutritionRiskCheckResultPo> summaryRisks(
+            Long familyId, Long mealPlanId, List<NutritionMealPlanItemPo> items) {
+        List<NutritionRiskCheckResultPo> risks = new ArrayList<>(activeRisks(familyId, mealPlanId));
+        if (!items.isEmpty()) {
+            risks.addAll(riskCheckResultRepository
+                    .findByFamilyIdAndSourceTypeAndSourceIdInAndStatusAndResolvedFalseAndDeletedFalseOrderByIdAsc(
+                            familyId, "MEAL_PLAN_ITEM", items.stream().map(NutritionMealPlanItemPo::getId).toList(),
+                            NutritionStatus.ACTIVE));
+        }
+        return risks;
     }
 
     private List<MealPlanResponse> toResponses(Long familyId, List<NutritionMealPlanPo> mealPlans) {
@@ -617,17 +697,6 @@ public class MealPlanService {
             return node == null ? objectMapper.createObjectNode() : node;
         } catch (JsonProcessingException error) {
             throw new NutritionException("NUTRITION_JSON_INVALID", "nutrition meal JSON is invalid");
-        }
-    }
-
-    private List<NutritionMealType> readMealTypes(String json) {
-        if (!StringUtils.hasText(json)) {
-            return List.of();
-        }
-        try {
-            return objectMapper.readValue(json, MEAL_TYPE_LIST_TYPE);
-        } catch (JsonProcessingException e) {
-            throw new NutritionException("NUTRITION_JSON_INVALID", "nutrition meal type JSON is invalid");
         }
     }
 
