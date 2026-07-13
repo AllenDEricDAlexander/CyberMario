@@ -77,7 +77,10 @@ class NutritionControllerSmokeTests {
                 .contains("/api/nutrition/families/{familyId}/standard-foods")
                 .contains("/api/nutrition/platform/recipes")
                 .contains("/api/nutrition/platform/recipes/{recipeId}")
-                .contains("/api/nutrition/families/{familyId}/recipes");
+                .contains("/api/nutrition/families/{familyId}/recipes")
+                .contains("/api/nutrition/families/{familyId}/recipes/{recipeId}")
+                .contains("/api/nutrition/families/{familyId}/recipes/{recipeId}/ingredients/{ingredientId}/mapping")
+                .contains("/api/nutrition/families/{familyId}/recipes/{recipeId}/validation");
 
         assertThat(controllerPaths(HealthTagController.class))
                 .contains("/api/nutrition/platform/health-tags")

@@ -17,7 +17,10 @@ import reactor.core.publisher.Mono;
 import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.nutrition.dto.request.CreateRecipeRequest;
 import top.egon.mario.nutrition.dto.request.CreateStandardFoodRequest;
+import top.egon.mario.nutrition.dto.request.UpdateRecipeIngredientMappingRequest;
+import top.egon.mario.nutrition.dto.response.RecipeIngredientResponse;
 import top.egon.mario.nutrition.dto.response.RecipeResponse;
+import top.egon.mario.nutrition.dto.response.RecipeValidationResponse;
 import top.egon.mario.nutrition.dto.response.StandardFoodResponse;
 import top.egon.mario.nutrition.service.RecipeService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
@@ -109,5 +112,51 @@ public class RecipeController extends ReactiveNutritionSupport {
                                                                 @Valid @RequestBody CreateRecipeRequest request,
                                                                 @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> recipeService.createFamilyRecipe(familyId, request, actorId(principal)));
+    }
+
+    @GetMapping("/families/{familyId}/recipes/{recipeId}")
+    public Mono<ApiResponse<RecipeResponse>> familyRecipe(
+            @PathVariable @Min(1) Long familyId,
+            @PathVariable @Min(1) Long recipeId,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> recipeService.getRecipe(familyId, recipeId, actorId(principal)));
+    }
+
+    @PutMapping("/families/{familyId}/recipes/{recipeId}")
+    public Mono<ApiResponse<RecipeResponse>> updateFamilyRecipe(
+            @PathVariable @Min(1) Long familyId,
+            @PathVariable @Min(1) Long recipeId,
+            @Valid @RequestBody CreateRecipeRequest request,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> recipeService.updateFamilyRecipe(
+                familyId, recipeId, request, actorId(principal)));
+    }
+
+    @DeleteMapping("/families/{familyId}/recipes/{recipeId}")
+    public Mono<ApiResponse<RecipeResponse>> deactivateFamilyRecipe(
+            @PathVariable @Min(1) Long familyId,
+            @PathVariable @Min(1) Long recipeId,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> recipeService.deactivateFamilyRecipe(
+                familyId, recipeId, actorId(principal)));
+    }
+
+    @PutMapping("/families/{familyId}/recipes/{recipeId}/ingredients/{ingredientId}/mapping")
+    public Mono<ApiResponse<RecipeIngredientResponse>> updateIngredientMapping(
+            @PathVariable @Min(1) Long familyId,
+            @PathVariable @Min(1) Long recipeId,
+            @PathVariable @Min(1) Long ingredientId,
+            @Valid @RequestBody UpdateRecipeIngredientMappingRequest request,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> recipeService.updateIngredientMapping(
+                familyId, recipeId, ingredientId, request, actorId(principal)));
+    }
+
+    @GetMapping("/families/{familyId}/recipes/{recipeId}/validation")
+    public Mono<ApiResponse<RecipeValidationResponse>> validateRecipe(
+            @PathVariable @Min(1) Long familyId,
+            @PathVariable @Min(1) Long recipeId,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> recipeService.validateRecipe(familyId, recipeId, actorId(principal)));
     }
 }

@@ -16,6 +16,7 @@ import top.egon.mario.nutrition.service.NutritionException;
 import top.egon.mario.nutrition.service.RecipeService;
 import top.egon.mario.nutrition.service.calculation.NutritionCalculationService;
 import top.egon.mario.nutrition.service.calculation.NutritionTotals;
+import top.egon.mario.nutrition.service.calculation.NutritionUnitConversionService;
 
 import java.math.BigDecimal;
 
@@ -30,6 +31,8 @@ class NutritionCalculationServiceTests {
 
     @Autowired
     private NutritionCalculationService calculationService;
+    @Autowired
+    private NutritionUnitConversionService conversionService;
     @Autowired
     private NutritionStandardFoodRepository standardFoodRepository;
     @Autowired
@@ -80,6 +83,25 @@ class NutritionCalculationServiceTests {
                 .isInstanceOf(NutritionException.class)
                 .extracting("code")
                 .isEqualTo("NUTRITION_RECIPE_NOT_FOUND");
+    }
+
+    @Test
+    void convertsMassAndExplicitHouseholdUnitsToGrams() {
+        assertThat(conversionService.toGrams(new BigDecimal("250"), "mg", null))
+                .isEqualByComparingTo("0.250");
+        assertThat(conversionService.toGrams(new BigDecimal("1.5"), "kg", null))
+                .isEqualByComparingTo("1500.0");
+        assertThat(conversionService.toGrams(new BigDecimal("2"), "piece", new BigDecimal("55")))
+                .isEqualByComparingTo("110");
+    }
+
+    @Test
+    void householdUnitWithoutExplicitWeightIsRejected() {
+        assertThatThrownBy(() -> conversionService.toGrams(
+                BigDecimal.ONE, "cup", null))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_UNIT_CONVERSION_MISSING");
     }
 
     private NutritionStandardFoodPo standardFood(String name, String category, String calories, String protein,

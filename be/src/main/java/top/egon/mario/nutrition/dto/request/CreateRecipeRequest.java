@@ -16,6 +16,17 @@ public record CreateRecipeRequest(
         @Size(max = 64) String category,
         @Size(max = 2048) String description,
         @Min(1) Integer servingCount,
-        @NotEmpty List<@Valid RecipeIngredientRequest> ingredients
+        @Min(0) Integer cookingMinutes,
+        @Size(max = 32) String difficultyLevel,
+        List<@NotBlank @Size(max = 128) String> suitableTags,
+        List<@NotBlank @Size(max = 128) String> allergenTags,
+        @NotEmpty List<@Valid RecipeIngredientRequest> ingredients,
+        List<@Valid RecipeStepRequest> steps
 ) {
+
+    public CreateRecipeRequest(String name, String category, String description, Integer servingCount,
+                               List<RecipeIngredientRequest> ingredients) {
+        this(name, category, description, servingCount, null, null,
+                List.of(), List.of(), ingredients, List.of());
+    }
 }
