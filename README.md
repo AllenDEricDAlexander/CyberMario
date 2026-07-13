@@ -16,8 +16,8 @@ feature inventory and implementation notes, see [FEATURE_CHECKLIST.md](FEATURE_C
 - RAG knowledge-base, document, ingestion-job, retrieval-lab, chat, feedback, and settings pages.
 - Hybrid RAG retrieval with pgvector, keyword search, optional rerank, retrieval traces, and source citations.
 - arXiv search tooling with protected background import into the RAG document pipeline.
-- Family AI nutrition MVP with family-scoped profiles, recipes, AI menu review, meal confirmation, shopping lists,
-  budgets, and basic nutrition reports.
+- Family AI nutrition workflow with scoped administration, health profiles, catalog imports, calculated recipes,
+  persisted AI menu review, dish-level confirmation, shopping, budgets, nutrition records, and reports.
 - Clocktower Phase 1 game support with script data, board validation, room lifecycle, grimoire, player actions, event
   stream, and basic replay.
 - RBAC user, role, permission, menu, button, API-rule, role-inheritance, and permission-version management.
@@ -141,6 +141,13 @@ Backend:
 ```bash
 cd be
 ./mvnw test
+```
+
+The recovered nutrition workflow has a focused persisted-flow acceptance suite:
+
+```bash
+cd be
+./mvnw -Dmaven.build.cache.enabled=false -Dtest=NutritionVerticalFlowTests test
 ```
 
 IM PostgreSQL contract checks can be run against a disposable PostgreSQL
