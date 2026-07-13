@@ -14,8 +14,10 @@ import top.egon.mario.nutrition.service.NutritionException;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Application service for nutrition import jobs.
@@ -31,7 +33,17 @@ public class NutritionImportService {
                                   List<NutritionCsvImportTemplate<?>> importers) {
         this.importJobRepository = importJobRepository;
         this.importers = new EnumMap<>(NutritionImportType.class);
-        importers.forEach(importer -> this.importers.put(importer.importType(), importer));
+        for (NutritionCsvImportTemplate<?> importer : importers) {
+            NutritionCsvImportTemplate<?> previous = this.importers.put(importer.importType(), importer);
+            if (previous != null) {
+                throw new IllegalStateException("Duplicate nutrition importer for " + importer.importType());
+            }
+        }
+        Set<NutritionImportType> missingTypes = EnumSet.allOf(NutritionImportType.class);
+        missingTypes.removeAll(this.importers.keySet());
+        if (!missingTypes.isEmpty()) {
+            throw new IllegalStateException("Missing nutrition importers for " + missingTypes);
+        }
     }
 
     @Transactional

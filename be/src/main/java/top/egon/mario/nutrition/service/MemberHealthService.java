@@ -26,6 +26,7 @@ import top.egon.mario.nutrition.po.enums.NutritionScopeType;
 import top.egon.mario.nutrition.po.enums.NutritionStatus;
 import top.egon.mario.nutrition.po.enums.NutritionSubjectType;
 import top.egon.mario.nutrition.repository.NutritionHealthProfileRepository;
+import top.egon.mario.nutrition.repository.NutritionHealthTagRepository;
 import top.egon.mario.nutrition.repository.NutritionMemberProfileRepository;
 import top.egon.mario.nutrition.repository.NutritionScopedRoleBindingRepository;
 import top.egon.mario.nutrition.service.access.NutritionAccessService;
@@ -46,6 +47,7 @@ public class MemberHealthService {
 
     private final NutritionMemberProfileRepository memberProfileRepository;
     private final NutritionHealthProfileRepository healthProfileRepository;
+    private final NutritionHealthTagRepository healthTagRepository;
     private final NutritionScopedRoleBindingRepository roleBindingRepository;
     private final UserRepository userRepository;
     private final NutritionAccessService accessService;
@@ -211,6 +213,10 @@ public class MemberHealthService {
         Long userId = requireActor(actorId);
         accessService.requireManageFamily(userId, familyId);
         getActiveMemberProfile(familyId, memberProfileId);
+        validateTags("DIET_GOAL", request.dietGoals());
+        validateTags("ALLERGY_TAG", request.allergyTags());
+        validateTags("DISLIKE_TAG", request.dislikeTags());
+        validateTags("HEALTH_TAG", request.restrictionTags());
         NutritionHealthProfilePo healthProfile = healthProfileRepository
                 .findByFamilyIdAndMemberProfileId(familyId, memberProfileId)
                 .orElseGet(NutritionHealthProfilePo::new);
@@ -291,6 +297,25 @@ public class MemberHealthService {
         userRepository.findByIdAndDeletedFalse(userId)
                 .orElseThrow(() -> new NutritionException(
                         "NUTRITION_USER_NOT_FOUND", "nutrition member login user not found"));
+    }
+
+    private void validateTags(String tagType, List<String> tagCodes) {
+        if (tagCodes == null) {
+            return;
+        }
+        tagCodes.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .filter(tagCode -> healthTagRepository
+                        .findByTagTypeIgnoreCaseAndTagCodeIgnoreCaseAndDeletedFalse(tagType, tagCode)
+                        .filter(tag -> NutritionStatus.ACTIVE == tag.getStatus())
+                        .isEmpty())
+                .findFirst()
+                .ifPresent(tagCode -> {
+                    throw new NutritionException("NUTRITION_HEALTH_TAG_INVALID",
+                            "active nutrition health tag is required: " + tagType + "/" + tagCode);
+                });
     }
 
     private MemberProfileResponse toMemberProfileResponse(NutritionMemberProfilePo memberProfile) {

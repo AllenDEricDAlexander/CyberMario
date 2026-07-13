@@ -3,6 +3,7 @@ package top.egon.mario.nutrition.web;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -72,7 +73,16 @@ class NutritionControllerSmokeTests {
     void platformAdminApisUsePlatformNutritionPath() {
         assertThat(controllerPaths(RecipeController.class))
                 .contains("/api/nutrition/platform/standard-foods")
+                .contains("/api/nutrition/platform/standard-foods/{foodId}")
+                .contains("/api/nutrition/families/{familyId}/standard-foods")
+                .contains("/api/nutrition/platform/recipes")
+                .contains("/api/nutrition/platform/recipes/{recipeId}")
                 .contains("/api/nutrition/families/{familyId}/recipes");
+
+        assertThat(controllerPaths(HealthTagController.class))
+                .contains("/api/nutrition/platform/health-tags")
+                .contains("/api/nutrition/platform/health-tags/{tagId}")
+                .contains("/api/nutrition/families/{familyId}/health-tags");
 
         assertThat(controllerPaths(NutritionImportController.class))
                 .containsExactlyInAnyOrder(
@@ -120,6 +130,10 @@ class NutritionControllerSmokeTests {
         if (putMapping != null) {
             return paths(putMapping.value(), putMapping.path());
         }
+        DeleteMapping deleteMapping = method.getAnnotation(DeleteMapping.class);
+        if (deleteMapping != null) {
+            return paths(deleteMapping.value(), deleteMapping.path());
+        }
         return List.of();
     }
 
@@ -143,9 +157,11 @@ class NutritionControllerSmokeTests {
     }
 
     private static StandardFoodResponse standardFood(Long id, String name) {
-        return new StandardFoodResponse(id, name, null, "vegetable",
-                BigDecimal.valueOf(18), BigDecimal.valueOf(1.2), BigDecimal.valueOf(0.1),
-                BigDecimal.valueOf(3.4), NutritionStatus.ACTIVE, Instant.parse("2026-06-30T00:00:00Z"),
+        return new StandardFoodResponse(id, name, null, List.of("tomato"), "vegetable",
+                null, null, BigDecimal.valueOf(18), BigDecimal.valueOf(1.2), BigDecimal.valueOf(0.1),
+                BigDecimal.valueOf(3.4), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO,
+                "LOW", BigDecimal.valueOf(15), List.of(), List.of("HEALTHY"), "MANUAL",
+                NutritionStatus.ACTIVE, Instant.parse("2026-06-30T00:00:00Z"),
                 Instant.parse("2026-06-30T00:00:00Z"));
     }
 
