@@ -717,7 +717,7 @@ export function StorytellerGameSurface({
                                 {
                                     key: 'mic',
                                     label: '麦序',
-                                    children: <StorytellerMicControlPanel gameId={view.gameId}/>,
+                                    children: <StorytellerMicControlPanel gameId={view.gameId} phase={view.phase}/>,
                                 },
                                 {
                                     key: 'night-tasks',
