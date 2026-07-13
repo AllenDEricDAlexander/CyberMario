@@ -76,12 +76,13 @@ describe('StorytellerGameFlowPanel', () => {
                 nextPhase: 'NOMINATION',
             },
         }
-        vi.mocked(advanceClocktowerGameFlow).mockImplementation(async () => {
+        vi.mocked(advanceClocktowerGameFlow).mockImplementation(() => {
             calls.push('advance')
-            return result
+            return Promise.resolve(result)
         })
-        const onGameChanged = vi.fn(async () => {
+        const onGameChanged = vi.fn(() => {
             calls.push('reload')
+            return Promise.resolve()
         })
 
         const flow = await advanceAndReloadClocktowerGameFlow(11, onGameChanged)

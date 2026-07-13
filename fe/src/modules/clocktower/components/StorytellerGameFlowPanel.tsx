@@ -81,7 +81,7 @@ export function StorytellerGameFlowPanelContent({
 }) {
     return (
         <Spin spinning={loading}>
-            <Space direction="vertical" size="middle" style={{width: '100%'}}>
+            <Space orientation="vertical" size="middle" style={{width: '100%'}}>
                 <Space wrap>
                     <Button icon={<ReloadOutlined/>} onClick={onRefresh}>刷新</Button>
                     <Button
@@ -118,7 +118,7 @@ export function StorytellerGameFlowPanelContent({
                             ]}
                             size="small"
                         />
-                        <Space direction="vertical" size="small" style={{width: '100%'}}>
+                        <Space orientation="vertical" size="small" style={{width: '100%'}}>
                             <Typography.Text strong>阻塞原因</Typography.Text>
                             {flow.blockingReasons.length === 0 ? (
                                 <Typography.Text type="secondary">无</Typography.Text>
@@ -130,7 +130,7 @@ export function StorytellerGameFlowPanelContent({
                                 />
                             )}
                         </Space>
-                        <Space direction="vertical" size="small" style={{width: '100%'}}>
+                        <Space orientation="vertical" size="small" style={{width: '100%'}}>
                             <Typography.Text strong>流程计数</Typography.Text>
                             <List
                                 dataSource={Object.entries(flow.counters)}

@@ -1,9 +1,11 @@
+import {isValidElement} from 'react'
 import {renderToStaticMarkup} from 'react-dom/server'
 import {describe, expect, test, vi} from 'vitest'
 import {
     ClocktowerRoomPlaySurface,
     loadClocktowerRoomPlayView,
 } from './ClocktowerRoomPlayPage'
+import {StorytellerGameSurface} from './StorytellerGrimoirePage'
 import type {ClocktowerGameViewResponse, ClocktowerRoomResponse} from './clocktowerTypes'
 
 vi.mock('react-router', () => ({
@@ -17,6 +19,8 @@ vi.mock('./clocktowerService', () => ({
     listClocktowerChatMessages: vi.fn().mockResolvedValue({items: [], page: 1, size: 20, total: 0}),
     markClocktowerChatRead: vi.fn(),
     sendClocktowerChatMessage: vi.fn(),
+    getClocktowerGameFlow: vi.fn(),
+    advanceClocktowerGameFlow: vi.fn(),
 }))
 
 const room: ClocktowerRoomResponse = {
@@ -112,6 +116,24 @@ describe('ClocktowerRoomPlayPage', () => {
         expect(markup).toContain('说书人魔典')
         expect(markup).toContain('聊天监控')
         expect(markup).toContain('EMPATH')
+    })
+
+    test('forwards reload to the storyteller game surface', () => {
+        const onReload = vi.fn().mockResolvedValue(undefined)
+        const surface = ClocktowerRoomPlaySurface({
+            gameView: {...view, viewerMode: 'STORYTELLER'},
+            onReload,
+            room,
+        })
+
+        expect(isValidElement(surface)).toBe(true)
+        if (!isValidElement(surface)) {
+            throw new Error('storyteller game surface missing')
+        }
+
+        const props = surface.props as {onGameChanged?: () => Promise<void>}
+        expect(surface.type).toBe(StorytellerGameSurface)
+        expect(props.onGameChanged).toBe(onReload)
     })
 
     test('renders player play surface with new game action controls', () => {

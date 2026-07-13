@@ -54,6 +54,7 @@ import {EventTimeline} from './components/EventTimeline'
 import {NightChecklist} from './components/NightChecklist'
 import {RoleTypeTag} from './components/RoleTypeTag'
 import {StorytellerAgentPanel} from './components/StorytellerAgentPanel'
+import {StorytellerGameFlowPanel} from './components/StorytellerGameFlowPanel'
 import {StorytellerMicControlPanel} from './components/StorytellerMicControlPanel'
 import {StorytellerNightTaskPanel} from './components/StorytellerNightTaskPanel'
 
@@ -670,9 +671,11 @@ export function GrimoireSeatList({
 }
 
 export function StorytellerGameSurface({
+    onGameChanged,
     roomName,
     view,
 }: {
+    onGameChanged?: () => Promise<void>
     roomName?: string
     view: ClocktowerGameViewResponse
 }) {
@@ -728,13 +731,10 @@ export function StorytellerGameSurface({
                                     key: 'flow',
                                     label: '流程',
                                     children: (
-                                        <Space orientation="vertical">
-                                            <Typography.Text strong>当前阶段</Typography.Text>
-                                            <Tag color="blue">{phaseText(view.phase)}</Tag>
-                                            <Typography.Text type="secondary">
-                                                当前游戏视图展示流程状态、事件和聊天监控。
-                                            </Typography.Text>
-                                        </Space>
+                                        <StorytellerGameFlowPanel
+                                            gameId={view.gameId}
+                                            onGameChanged={onGameChanged}
+                                        />
                                     ),
                                 },
                                 {
