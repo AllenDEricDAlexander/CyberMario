@@ -19,6 +19,7 @@ public record ShoppingListResponse(
         String title,
         BigDecimal estimatedTotalPrice,
         BigDecimal actualTotalPrice,
+        String generatedSnapshot,
         List<ShoppingListItemResponse> items,
         Instant createdAt,
         Instant updatedAt

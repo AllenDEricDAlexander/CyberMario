@@ -10,6 +10,9 @@ public interface NutritionFoodPriceRecordRepository extends JpaRepository<Nutrit
 
     List<NutritionFoodPriceRecordPo> findTop50ByFamilyIdAndDeletedFalseOrderByPriceDateDescIdDesc(Long familyId);
 
+    List<NutritionFoodPriceRecordPo> findTop50ByFamilyIdAndStandardFoodIdAndDeletedFalseOrderByPriceDateDescIdDesc(
+            Long familyId, Long standardFoodId);
+
     Optional<NutritionFoodPriceRecordPo> findByIdAndFamilyIdAndDeletedFalse(Long id, Long familyId);
 
     Optional<NutritionFoodPriceRecordPo> findFirstByFamilyIdAndStandardFoodIdAndSpecUnitIgnoreCaseAndDeletedFalseOrderByPriceDateDescIdDesc(

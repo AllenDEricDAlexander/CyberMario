@@ -16,6 +16,11 @@ public interface NutritionShoppingListRepository extends JpaRepository<Nutrition
 
     Optional<NutritionShoppingListPo> findByIdAndFamilyIdAndDeletedFalse(Long id, Long familyId);
 
+    List<NutritionShoppingListPo> findByFamilyIdAndDeletedFalseOrderByListDateDescIdDesc(Long familyId);
+
+    List<NutritionShoppingListPo> findByFamilyIdAndMealPlanIdAndDeletedFalseOrderByListDateDescIdDesc(
+            Long familyId, Long mealPlanId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select shoppingList from NutritionShoppingListPo shoppingList "
             + "where shoppingList.familyId = :familyId "

@@ -1,9 +1,9 @@
 package top.egon.mario.nutrition.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -13,11 +13,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import top.egon.mario.nutrition.dto.request.CreateFoodPriceRecordRequest;
+import top.egon.mario.nutrition.dto.request.TransitionShoppingListRequest;
 import top.egon.mario.nutrition.dto.request.UpdateShoppingListItemRequest;
 import top.egon.mario.nutrition.dto.response.FoodPriceRecordResponse;
 import top.egon.mario.nutrition.dto.response.ShoppingListItemResponse;
 import top.egon.mario.nutrition.dto.response.ShoppingListResponse;
 import top.egon.mario.nutrition.po.NutritionFoodPriceRecordPo;
+import top.egon.mario.nutrition.po.NutritionMealConfirmationItemPo;
 import top.egon.mario.nutrition.po.NutritionMealConfirmationPo;
 import top.egon.mario.nutrition.po.NutritionMealPlanItemPo;
 import top.egon.mario.nutrition.po.NutritionMealPlanPo;
@@ -28,11 +30,11 @@ import top.egon.mario.nutrition.po.NutritionShoppingListPo;
 import top.egon.mario.nutrition.po.NutritionStandardFoodPo;
 import top.egon.mario.nutrition.po.enums.NutritionConfirmationStatus;
 import top.egon.mario.nutrition.po.enums.NutritionMealPlanStatus;
-import top.egon.mario.nutrition.po.enums.NutritionMealType;
 import top.egon.mario.nutrition.po.enums.NutritionRecipeSourceType;
 import top.egon.mario.nutrition.po.enums.NutritionShoppingListStatus;
 import top.egon.mario.nutrition.po.enums.NutritionStatus;
 import top.egon.mario.nutrition.repository.NutritionFoodPriceRecordRepository;
+import top.egon.mario.nutrition.repository.NutritionMealConfirmationItemRepository;
 import top.egon.mario.nutrition.repository.NutritionMealConfirmationRepository;
 import top.egon.mario.nutrition.repository.NutritionMealPlanItemRepository;
 import top.egon.mario.nutrition.repository.NutritionMealPlanRepository;
@@ -42,6 +44,7 @@ import top.egon.mario.nutrition.repository.NutritionShoppingListItemRepository;
 import top.egon.mario.nutrition.repository.NutritionShoppingListRepository;
 import top.egon.mario.nutrition.repository.NutritionStandardFoodRepository;
 import top.egon.mario.nutrition.service.access.NutritionAccessService;
+import top.egon.mario.nutrition.service.calculation.NutritionCalculationService;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -70,13 +73,11 @@ public class ShoppingListService {
     private static final String ITEM_STATUS_CHECKED = "CHECKED";
     private static final String ITEM_STATUS_PURCHASED = "PURCHASED";
     private static final String SOURCE_TYPE_SHOPPING_LIST = "SHOPPING_LIST";
-    private static final Set<NutritionMealPlanStatus> GENERATABLE_MEAL_PLAN_STATUSES = EnumSet.of(
+    private static final Set<NutritionMealPlanStatus> PREVIEWABLE_MEAL_PLAN_STATUSES = EnumSet.of(
             NutritionMealPlanStatus.PUBLISHED,
             NutritionMealPlanStatus.CONFIRMING,
             NutritionMealPlanStatus.CONFIRM_CLOSED,
             NutritionMealPlanStatus.PREPARING);
-    private static final TypeReference<List<NutritionMealType>> MEAL_TYPE_LIST_TYPE = new TypeReference<>() {
-    };
 
     private final NutritionShoppingListRepository shoppingListRepository;
     private final NutritionShoppingListItemRepository shoppingListItemRepository;
@@ -84,26 +85,91 @@ public class ShoppingListService {
     private final NutritionMealPlanRepository mealPlanRepository;
     private final NutritionMealPlanItemRepository mealPlanItemRepository;
     private final NutritionMealConfirmationRepository confirmationRepository;
+    private final NutritionMealConfirmationItemRepository confirmationItemRepository;
     private final NutritionRecipeRepository recipeRepository;
     private final NutritionRecipeIngredientRepository recipeIngredientRepository;
     private final NutritionStandardFoodRepository standardFoodRepository;
     private final NutritionAccessService accessService;
+    private final NutritionCalculationService calculationService;
     private final ObjectMapper objectMapper;
 
+    @Transactional(readOnly = true)
+    public ShoppingListResponse previewShoppingList(@NotNull Long familyId, @NotNull Long mealPlanId,
+                                                    Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireReadFamily(userId, familyId);
+        NutritionMealPlanPo mealPlan = mealPlanRepository.findByIdAndFamilyIdAndDeletedFalse(mealPlanId, familyId)
+                .orElseThrow(() -> new NutritionException(
+                        "NUTRITION_MEAL_PLAN_NOT_FOUND", "nutrition meal plan not found"));
+        if (!PREVIEWABLE_MEAL_PLAN_STATUSES.contains(mealPlan.getStatus())) {
+            throw invalidMealPlanStatus();
+        }
+        ShoppingDraft draft = calculateDraft(familyId, mealPlan);
+        NutritionShoppingListPo preview = new NutritionShoppingListPo();
+        preview.setFamilyId(familyId);
+        preview.setMealPlanId(mealPlan.getId());
+        preview.setListDate(mealPlan.getPlanDate());
+        preview.setStatus(NutritionShoppingListStatus.DRAFT);
+        preview.setTitle(mealPlan.getTitle() + " shopping list preview");
+        preview.setGeneratedSnapshot(draft.generatedSnapshot());
+        List<NutritionShoppingListItemPo> items = draft.accumulators().stream()
+                .sorted(Comparator.comparing(IngredientAccumulator::rawFoodName))
+                .map(accumulator -> createShoppingListItem(familyId, null, accumulator))
+                .toList();
+        preview.setEstimatedTotalPrice(estimatedTotal(items));
+        return toResponse(preview, items);
+    }
+
     @Transactional
-    public ShoppingListResponse generateShoppingList(@NotNull Long familyId, @NotNull Long mealPlanId,
-                                                     Long actorId) {
+    public ShoppingListResponse generateFinalShoppingList(@NotNull Long familyId, @NotNull Long mealPlanId,
+                                                          Long actorId) {
         Long userId = requireActor(actorId);
         accessService.requireCookFamily(userId, familyId);
         NutritionMealPlanPo mealPlan = getLockedMealPlan(familyId, mealPlanId);
-        validateGeneratableStatus(mealPlan);
+        if (mealPlan.getStatus() != NutritionMealPlanStatus.CONFIRM_CLOSED) {
+            throw invalidMealPlanStatus();
+        }
+        ShoppingDraft draft = calculateDraft(familyId, mealPlan);
         List<NutritionShoppingListPo> existingLists = shoppingListRepository
                 .findLockedByFamilyIdAndMealPlanIdAndDeletedFalseOrderByIdAsc(familyId, mealPlan.getId());
-        if (!existingLists.isEmpty()) {
-            NutritionShoppingListPo existingList = existingLists.getFirst();
+        Optional<NutritionShoppingListPo> matchingList = existingLists.stream()
+                .filter(list -> Objects.equals(list.getGeneratedSnapshot(), draft.generatedSnapshot()))
+                .findFirst();
+        if (matchingList.isPresent()) {
+            NutritionShoppingListPo existingList = matchingList.orElseThrow();
             return toResponse(existingList, shoppingListItemRepository
                     .findByShoppingListIdAndDeletedFalseOrderByIdAsc(existingList.getId()));
         }
+
+        NutritionShoppingListPo shoppingList = new NutritionShoppingListPo();
+        shoppingList.setFamilyId(familyId);
+        shoppingList.setMealPlanId(mealPlan.getId());
+        shoppingList.setListDate(mealPlan.getPlanDate());
+        shoppingList.setStatus(NutritionShoppingListStatus.DRAFT);
+        shoppingList.setTitle(mealPlan.getTitle() + " shopping list");
+        shoppingList.setGeneratedSnapshot(draft.generatedSnapshot());
+        NutritionShoppingListPo savedList = shoppingListRepository.saveAndFlush(shoppingList);
+        Long shoppingListId = savedList.getId();
+        List<NutritionShoppingListItemPo> savedItems = draft.accumulators().stream()
+                .sorted(Comparator.comparing(IngredientAccumulator::rawFoodName))
+                .map(accumulator -> createShoppingListItem(familyId, shoppingListId, accumulator))
+                .map(shoppingListItemRepository::save)
+                .toList();
+        savedList.setEstimatedTotalPrice(estimatedTotal(savedItems));
+        shoppingListRepository.saveAndFlush(savedList);
+        return toResponse(savedList, savedItems);
+    }
+
+    /**
+     * Compatibility entry point retained for existing clients.
+     */
+    @Transactional
+    public ShoppingListResponse generateShoppingList(@NotNull Long familyId, @NotNull Long mealPlanId,
+                                                     Long actorId) {
+        return generateFinalShoppingList(familyId, mealPlanId, actorId);
+    }
+
+    private ShoppingDraft calculateDraft(Long familyId, NutritionMealPlanPo mealPlan) {
         List<NutritionMealPlanItemPo> mealItems = mealPlanItemRepository
                 .findByMealPlanIdAndStatusAndDeletedFalseOrderBySortOrderAscIdAsc(
                         mealPlan.getId(), NutritionStatus.ACTIVE);
@@ -129,7 +195,27 @@ public class ShoppingListService {
                 .toList());
         List<NutritionMealConfirmationPo> confirmations = confirmationRepository
                 .findByMealPlanIdAndConfirmationStatusAndDeletedFalse(
-                        mealPlan.getId(), NutritionConfirmationStatus.CONFIRMED);
+                        mealPlan.getId(), NutritionConfirmationStatus.CONFIRMED)
+                .stream()
+                .sorted(Comparator.comparing(NutritionMealConfirmationPo::getId))
+                .toList();
+        List<NutritionMealConfirmationItemPo> confirmationItems = confirmations.isEmpty() ? List.of()
+                : confirmationItemRepository.findByConfirmationIdInAndDeletedFalseOrderByIdAsc(
+                        confirmations.stream().map(NutritionMealConfirmationPo::getId).toList());
+        Map<Long, NutritionMealPlanItemPo> mealItemsById = mealItems.stream()
+                .collect(Collectors.toMap(NutritionMealPlanItemPo::getId, Function.identity()));
+        Map<Long, BigDecimal> confirmedServingsByItemId = new LinkedHashMap<>();
+        for (NutritionMealConfirmationItemPo confirmationItem : confirmationItems) {
+            if (!Objects.equals(confirmationItem.getFamilyId(), familyId)
+                    || !mealItemsById.containsKey(confirmationItem.getMealPlanItemId())) {
+                throw new NutritionException(
+                        "NUTRITION_CONFIRMATION_ITEM_INVALID", "nutrition confirmation item is invalid");
+            }
+            if (confirmationItem.isSelected()) {
+                confirmedServingsByItemId.merge(confirmationItem.getMealPlanItemId(),
+                        confirmationItem.getServingCount(), BigDecimal::add);
+            }
+        }
 
         Map<IngredientKey, IngredientAccumulator> accumulators = new LinkedHashMap<>();
         for (NutritionMealPlanItemPo mealItem : mealItems) {
@@ -140,7 +226,8 @@ public class ShoppingListService {
             if (recipe == null) {
                 throw new NutritionException("NUTRITION_RECIPE_NOT_FOUND", "nutrition recipe not found");
             }
-            BigDecimal effectiveServings = effectiveServings(mealItem, confirmations);
+            BigDecimal effectiveServings = confirmedServingsByItemId
+                    .getOrDefault(mealItem.getId(), BigDecimal.ZERO);
             if (effectiveServings.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
@@ -149,7 +236,8 @@ public class ShoppingListService {
             List<NutritionRecipeIngredientPo> ingredients = ingredientsByRecipeId
                     .getOrDefault(recipe.getId(), List.of());
             for (NutritionRecipeIngredientPo ingredient : ingredients) {
-                BigDecimal plannedAmount = ingredient.getAmount().multiply(scale).setScale(3, RoundingMode.HALF_UP);
+                BigDecimal plannedAmount = calculationService.ingredientGrams(ingredient)
+                        .multiply(scale).setScale(3, RoundingMode.HALF_UP);
                 if (plannedAmount.compareTo(BigDecimal.ZERO) <= 0) {
                     continue;
                 }
@@ -157,7 +245,7 @@ public class ShoppingListService {
                         ? null
                         : foodsById.get(ingredient.getStandardFoodId());
                 String rawFoodName = food == null ? ingredient.getRawFoodName() : food.getNameCn();
-                String plannedUnit = normalizeUnit(ingredient.getUnit());
+                String plannedUnit = "g";
                 IngredientKey key = IngredientKey.of(ingredient.getStandardFoodId(), rawFoodName, plannedUnit);
                 accumulators.computeIfAbsent(key, ignored -> new IngredientAccumulator(
                                 ingredient.getStandardFoodId(), rawFoodName, food == null ? recipe.getCategory() : food.getCategory(),
@@ -166,31 +254,8 @@ public class ShoppingListService {
             }
         }
 
-        NutritionShoppingListPo shoppingList = new NutritionShoppingListPo();
-        shoppingList.setFamilyId(familyId);
-        shoppingList.setMealPlanId(mealPlan.getId());
-        shoppingList.setListDate(mealPlan.getPlanDate());
-        shoppingList.setStatus(NutritionShoppingListStatus.ACTIVE);
-        shoppingList.setTitle(mealPlan.getTitle() + " shopping list");
-        shoppingList.setGeneratedSnapshot(generatedSnapshot(mealPlan, mealItems));
-        NutritionShoppingListPo savedList = shoppingListRepository.saveAndFlush(shoppingList);
-        Long shoppingListId = savedList.getId();
-
-        List<NutritionShoppingListItemPo> savedItems = accumulators.values().stream()
-                .sorted(Comparator.comparing(IngredientAccumulator::rawFoodName))
-                .map(accumulator -> createShoppingListItem(familyId, shoppingListId, accumulator))
-                .map(shoppingListItemRepository::save)
-                .toList();
-        BigDecimal estimatedTotal = savedItems.stream()
-                .map(NutritionShoppingListItemPo::getMetadataJson)
-                .map(metadata -> readDecimal(metadata, "estimatedTotalPrice"))
-                .filter(Objects::nonNull)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        if (estimatedTotal.compareTo(BigDecimal.ZERO) > 0) {
-            savedList.setEstimatedTotalPrice(money(estimatedTotal));
-            savedList = shoppingListRepository.saveAndFlush(savedList);
-        }
-        return toResponse(savedList, savedItems);
+        return new ShoppingDraft(accumulators.values().stream().toList(),
+                generatedSnapshot(mealPlan, confirmations, confirmationItems));
     }
 
     @Transactional(readOnly = true)
@@ -203,6 +268,52 @@ public class ShoppingListService {
                 .findByShoppingListIdAndDeletedFalseOrderByIdAsc(shoppingList.getId()));
     }
 
+    @Transactional(readOnly = true)
+    public List<ShoppingListResponse> listShoppingLists(@NotNull Long familyId, Long mealPlanId, Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireReadFamily(userId, familyId);
+        List<NutritionShoppingListPo> lists = mealPlanId == null
+                ? shoppingListRepository.findByFamilyIdAndDeletedFalseOrderByListDateDescIdDesc(familyId)
+                : shoppingListRepository
+                .findByFamilyIdAndMealPlanIdAndDeletedFalseOrderByListDateDescIdDesc(familyId, mealPlanId);
+        return lists.stream()
+                .map(list -> toResponse(list, shoppingListItemRepository
+                        .findByShoppingListIdAndDeletedFalseOrderByIdAsc(list.getId())))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<FoodPriceRecordResponse> listPriceRecords(@NotNull Long familyId, Long standardFoodId,
+                                                          Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireReadFamily(userId, familyId);
+        List<NutritionFoodPriceRecordPo> records = standardFoodId == null
+                ? priceRecordRepository.findTop50ByFamilyIdAndDeletedFalseOrderByPriceDateDescIdDesc(familyId)
+                : priceRecordRepository
+                .findTop50ByFamilyIdAndStandardFoodIdAndDeletedFalseOrderByPriceDateDescIdDesc(
+                        familyId, standardFoodId);
+        return records.stream().map(this::toPriceRecordResponse).toList();
+    }
+
+    @Transactional
+    public ShoppingListResponse transitionShoppingList(@NotNull Long familyId, @NotNull Long shoppingListId,
+                                                       @Valid @NotNull TransitionShoppingListRequest request,
+                                                       Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireCookFamily(userId, familyId);
+        NutritionShoppingListPo shoppingList = getShoppingListPo(familyId, shoppingListId);
+        NutritionShoppingListStatus current = shoppingList.getStatus();
+        NutritionShoppingListStatus target = request.targetStatus();
+        if (current != target && !allowedTargets(current).contains(target)) {
+            throw new NutritionException(
+                    "NUTRITION_SHOPPING_LIST_STATUS_INVALID", "nutrition shopping list status transition is invalid");
+        }
+        shoppingList.setStatus(target);
+        NutritionShoppingListPo saved = shoppingListRepository.saveAndFlush(shoppingList);
+        return toResponse(saved, shoppingListItemRepository
+                .findByShoppingListIdAndDeletedFalseOrderByIdAsc(saved.getId()));
+    }
+
     @Transactional
     public ShoppingListItemResponse updateShoppingListItem(@NotNull Long familyId, @NotNull Long shoppingListId,
                                                            @NotNull Long itemId,
@@ -211,6 +322,7 @@ public class ShoppingListService {
         Long userId = requireActor(actorId);
         accessService.requireCookFamily(userId, familyId);
         NutritionShoppingListPo shoppingList = getShoppingListPo(familyId, shoppingListId);
+        requirePurchasingEditable(shoppingList);
         NutritionShoppingListItemPo item = shoppingListItemRepository
                 .findByIdAndFamilyIdAndShoppingListIdAndDeletedFalse(itemId, familyId, shoppingList.getId())
                 .orElseThrow(() -> new NutritionException(
@@ -267,6 +379,8 @@ public class ShoppingListService {
         NutritionFoodPriceRecordPo saved = priceRecordRepository.saveAndFlush(priceRecord);
 
         if (item != null) {
+            NutritionShoppingListPo shoppingList = getShoppingListPo(familyId, item.getShoppingListId());
+            requirePurchasingEditable(shoppingList);
             item.setChannel(priceRecord.getChannel());
             item.setBrand(priceRecord.getBrand());
             item.setSpecAmount(priceRecord.getSpecAmount());
@@ -280,7 +394,7 @@ public class ShoppingListService {
             item.setMetadataJson(writeDecimal(item.getMetadataJson(), "purchaseQuantity",
                     priceRecord.getPurchaseQuantity()));
             shoppingListItemRepository.saveAndFlush(item);
-            findShoppingListPo(familyId, item.getShoppingListId()).ifPresent(this::recalculateActualTotal);
+            recalculateActualTotal(shoppingList);
         }
         return toPriceRecordResponse(saved);
     }
@@ -293,6 +407,7 @@ public class ShoppingListService {
         return new ShoppingListResponse(shoppingList.getId(), shoppingList.getFamilyId(),
                 shoppingList.getMealPlanId(), shoppingList.getListDate(), shoppingList.getStatus(),
                 shoppingList.getTitle(), shoppingList.getEstimatedTotalPrice(), shoppingList.getActualTotalPrice(),
+                shoppingList.getGeneratedSnapshot(),
                 items.stream().map(this::toItemResponse).toList(),
                 shoppingList.getCreatedAt(), shoppingList.getUpdatedAt());
     }
@@ -303,11 +418,9 @@ public class ShoppingListService {
                         "NUTRITION_MEAL_PLAN_NOT_FOUND", "nutrition meal plan not found"));
     }
 
-    private void validateGeneratableStatus(NutritionMealPlanPo mealPlan) {
-        if (!GENERATABLE_MEAL_PLAN_STATUSES.contains(mealPlan.getStatus())) {
-            throw new NutritionException(
-                    "NUTRITION_MEAL_PLAN_STATUS_INVALID", "nutrition meal plan status transition is invalid");
-        }
+    private NutritionException invalidMealPlanStatus() {
+        return new NutritionException(
+                "NUTRITION_MEAL_PLAN_STATUS_INVALID", "nutrition meal plan status transition is invalid");
     }
 
     private void validateRecipesVisible(Long familyId, List<Long> recipeIds, Map<Long, NutritionRecipePo> recipesById) {
@@ -328,6 +441,26 @@ public class ShoppingListService {
         return findShoppingListPo(familyId, shoppingListId)
                 .orElseThrow(() -> new NutritionException(
                         "NUTRITION_SHOPPING_LIST_NOT_FOUND", "nutrition shopping list not found"));
+    }
+
+    private Set<NutritionShoppingListStatus> allowedTargets(NutritionShoppingListStatus current) {
+        return switch (current) {
+            case DRAFT -> EnumSet.of(NutritionShoppingListStatus.ACTIVE, NutritionShoppingListStatus.CANCELLED);
+            case ACTIVE -> EnumSet.of(NutritionShoppingListStatus.PURCHASING,
+                    NutritionShoppingListStatus.CANCELLED);
+            case PURCHASING -> EnumSet.of(NutritionShoppingListStatus.PURCHASED,
+                    NutritionShoppingListStatus.CANCELLED);
+            case PURCHASED -> EnumSet.of(NutritionShoppingListStatus.CLOSED);
+            case CLOSED, CANCELLED -> EnumSet.noneOf(NutritionShoppingListStatus.class);
+        };
+    }
+
+    private void requirePurchasingEditable(NutritionShoppingListPo shoppingList) {
+        if (shoppingList.getStatus() != NutritionShoppingListStatus.ACTIVE
+                && shoppingList.getStatus() != NutritionShoppingListStatus.PURCHASING) {
+            throw new NutritionException(
+                    "NUTRITION_SHOPPING_LIST_STATUS_INVALID", "nutrition shopping list is not editable");
+        }
     }
 
     private NutritionShoppingListItemPo createShoppingListItem(Long familyId, Long shoppingListId,
@@ -360,30 +493,13 @@ public class ShoppingListService {
                 .map(unitPrice -> money(unitPrice.multiply(accumulator.plannedAmount())));
     }
 
-    private BigDecimal effectiveServings(NutritionMealPlanItemPo item, List<NutritionMealConfirmationPo> confirmations) {
-        if (confirmations.isEmpty()) {
-            return item.getServingCount();
-        }
-        long selectedCount = confirmations.stream()
-                .filter(confirmation -> selectsMealType(confirmation, item.getMealType()))
-                .count();
-        return item.getServingCount().multiply(BigDecimal.valueOf(selectedCount));
-    }
-
-    private boolean selectsMealType(NutritionMealConfirmationPo confirmation, NutritionMealType mealType) {
-        List<NutritionMealType> selectedMealTypes = readMealTypes(confirmation.getSelectedMealTypes());
-        return selectedMealTypes.isEmpty() || selectedMealTypes.contains(mealType);
-    }
-
-    private List<NutritionMealType> readMealTypes(String json) {
-        if (!StringUtils.hasText(json)) {
-            return List.of();
-        }
-        try {
-            return objectMapper.readValue(json, MEAL_TYPE_LIST_TYPE);
-        } catch (JsonProcessingException e) {
-            throw new NutritionException("NUTRITION_JSON_INVALID", "nutrition meal type JSON is invalid");
-        }
+    private BigDecimal estimatedTotal(List<NutritionShoppingListItemPo> items) {
+        BigDecimal total = items.stream()
+                .map(NutritionShoppingListItemPo::getMetadataJson)
+                .map(metadata -> readDecimal(metadata, "estimatedTotalPrice"))
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return total.compareTo(BigDecimal.ZERO) > 0 ? money(total) : null;
     }
 
     private Map<Long, NutritionStandardFoodPo> standardFoods(List<Long> standardFoodIds) {
@@ -466,10 +582,30 @@ public class ShoppingListService {
                 priceRecord.getNote(), priceRecord.getCreatedAt(), priceRecord.getUpdatedAt());
     }
 
-    private String generatedSnapshot(NutritionMealPlanPo mealPlan, List<NutritionMealPlanItemPo> mealItems) {
+    private String generatedSnapshot(NutritionMealPlanPo mealPlan,
+                                     List<NutritionMealConfirmationPo> confirmations,
+                                     List<NutritionMealConfirmationItemPo> confirmationItems) {
         ObjectNode node = objectMapper.createObjectNode();
         node.put("mealPlanId", mealPlan.getId());
-        node.put("mealPlanItemCount", mealItems.size());
+        node.put("mealPlanVersion", mealPlan.getVersion());
+        ArrayNode confirmationNodes = node.putArray("confirmations");
+        for (NutritionMealConfirmationPo confirmation : confirmations) {
+            ObjectNode confirmationNode = confirmationNodes.addObject();
+            confirmationNode.put("id", confirmation.getId());
+            confirmationNode.put("version", confirmation.getVersion());
+            ArrayNode itemNodes = confirmationNode.putArray("items");
+            confirmationItems.stream()
+                    .filter(item -> Objects.equals(item.getConfirmationId(), confirmation.getId()))
+                    .sorted(Comparator.comparing(NutritionMealConfirmationItemPo::getId))
+                    .forEach(item -> {
+                        ObjectNode itemNode = itemNodes.addObject();
+                        itemNode.put("id", item.getId());
+                        itemNode.put("version", item.getVersion());
+                        itemNode.put("mealPlanItemId", item.getMealPlanItemId());
+                        itemNode.put("selected", item.isSelected());
+                        itemNode.put("servingCount", item.getServingCount());
+                    });
+        }
         try {
             return objectMapper.writeValueAsString(node);
         } catch (JsonProcessingException e) {
@@ -524,15 +660,6 @@ public class ShoppingListService {
         return amount(specAmount.multiply(purchaseQuantity));
     }
 
-    private String normalizeUnit(String value) {
-        String unit = trimToNull(value);
-        if (unit == null) {
-            throw new NutritionException("NUTRITION_SHOPPING_UNIT_REQUIRED",
-                    "nutrition shopping list item unit is required");
-        }
-        return unit;
-    }
-
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
@@ -550,6 +677,12 @@ public class ShoppingListService {
             throw new NutritionException("NUTRITION_FORBIDDEN", "Nutrition family access is required");
         }
         return actorId;
+    }
+
+    private record ShoppingDraft(
+            List<IngredientAccumulator> accumulators,
+            String generatedSnapshot
+    ) {
     }
 
     private record IngredientKey(Long standardFoodId, String rawFoodName, String plannedUnit) {
