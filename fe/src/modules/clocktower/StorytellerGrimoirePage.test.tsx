@@ -1,3 +1,5 @@
+import {Tabs, type TabsProps} from 'antd'
+import {isValidElement, type ElementType, type ReactElement, type ReactNode} from 'react'
 import {renderToStaticMarkup} from 'react-dom/server'
 import {describe, expect, test, vi} from 'vitest'
 import {
@@ -10,6 +12,8 @@ import {
     TaskList,
     rulingTypeOptions,
 } from './StorytellerGrimoirePage'
+import {StorytellerGameFlowPanel} from './components/StorytellerGameFlowPanel'
+import {StorytellerMicControlPanel} from './components/StorytellerMicControlPanel'
 import {NightChecklist} from './components/NightChecklist'
 import type {ClocktowerGameViewResponse} from './clocktowerTypes'
 
@@ -76,7 +80,39 @@ vi.mock('./clocktowerService', () => ({
     resolveClocktowerNightTask: vi.fn(),
     skipClocktowerGameNightTask: vi.fn(),
     randomChoiceClocktowerNightTask: vi.fn(),
+    getClocktowerGameFlow: vi.fn().mockResolvedValue({
+        gameId: 11,
+        status: 'RUNNING',
+        phase: 'NIGHT',
+        dayNo: 0,
+        nightNo: 1,
+        advanceAllowed: true,
+        blockingReasons: [],
+        nextPhase: 'DAY',
+        counters: {},
+    }),
+    advanceClocktowerGameFlow: vi.fn(),
 }))
+
+function findElementByType<Props>(node: ReactNode, type: ElementType): ReactElement<Props> | null {
+    if (Array.isArray(node)) {
+        for (const child of node as ReactNode[]) {
+            const match = findElementByType<Props>(child, type)
+            if (match) {
+                return match
+            }
+        }
+        return null
+    }
+    if (!isValidElement(node)) {
+        return null
+    }
+    if (node.type === type) {
+        return node as ReactElement<Props>
+    }
+    const element = node as ReactElement<{children?: ReactNode}>
+    return findElementByType<Props>(element.props.children, type)
+}
 
 function storytellerGameView(): ClocktowerGameViewResponse {
     return {
@@ -427,6 +463,34 @@ describe('StorytellerGrimoirePage', () => {
         expect(markup).toContain('麦序')
         expect(markup).toContain('夜晚任务')
         expect(markup).toContain('聊天监控')
+    })
+
+    test('wires GAME_V2 flow and phase-aware mic tabs', () => {
+        const onGameChanged = vi.fn().mockResolvedValue(undefined)
+        const surface = StorytellerGameSurface({
+            roomName: 'Friday',
+            view: storytellerGameView(),
+            onGameChanged,
+        })
+        const tabs = findElementByType<TabsProps>(surface, Tabs)
+        const flowItem = tabs?.props.items?.find((item) => item.key === 'flow')
+        const micItem = tabs?.props.items?.find((item) => item.key === 'mic')
+
+        expect(isValidElement(flowItem?.children)).toBe(true)
+        expect(isValidElement(micItem?.children)).toBe(true)
+        if (!isValidElement(flowItem?.children) || !isValidElement(micItem?.children)) {
+            throw new Error('storyteller console tab content missing')
+        }
+
+        const flowProps = flowItem.children.props as {
+            gameId: number
+            onGameChanged?: () => Promise<void>
+        }
+        const micProps = micItem.children.props as {gameId: number; phase: string}
+        expect(flowItem.children.type).toBe(StorytellerGameFlowPanel)
+        expect(flowProps).toMatchObject({gameId: 11, onGameChanged})
+        expect(micItem.children.type).toBe(StorytellerMicControlPanel)
+        expect(micProps).toMatchObject({gameId: 11, phase: 'NIGHT'})
     })
 
     test('renders storyteller game surface with grimoire and player chat monitor excluding spectator channel', () => {

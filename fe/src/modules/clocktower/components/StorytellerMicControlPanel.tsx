@@ -13,7 +13,7 @@ import type {ClocktowerMicSessionView, ClocktowerMicTurnView} from '../clocktowe
 
 type MicControlAction = 'start' | 'skip' | 'extend' | 'close'
 
-export function StorytellerMicControlPanel({gameId}: { gameId: number }) {
+export function StorytellerMicControlPanel({gameId, phase}: { gameId: number; phase: string }) {
     const {message} = App.useApp()
     const [session, setSession] = useState<ClocktowerMicSessionView | null>(null)
     const [loading, setLoading] = useState(false)
@@ -21,16 +21,21 @@ export function StorytellerMicControlPanel({gameId}: { gameId: number }) {
     const [now, setNow] = useState(() => new Date())
 
     const refresh = useCallback(async () => {
+        if (!isClocktowerDayPhase(phase)) {
+            setSession(null)
+            setLoading(false)
+            return
+        }
         setLoading(true)
         try {
-            setSession(await getClocktowerMicSession(gameId))
+            setSession(await loadStorytellerMicSession(gameId, phase))
         } catch (caught) {
             reportGlobalError(caught)
             setSession(null)
         } finally {
             setLoading(false)
         }
-    }, [gameId])
+    }, [gameId, phase])
 
     useEffect(() => {
         void refresh()
@@ -42,11 +47,14 @@ export function StorytellerMicControlPanel({gameId}: { gameId: number }) {
     }, [])
 
     async function runAction(action: MicControlAction) {
+        if (action === 'start' && !isClocktowerDayPhase(phase)) {
+            return
+        }
         setActionLoading(action)
         try {
             let next: ClocktowerMicSessionView | null = session
             if (action === 'start') {
-                next = await startClocktowerDayMic(gameId)
+                next = await startStorytellerMicSession(gameId, phase)
             }
             if (action === 'skip' && session?.currentTurnId) {
                 next = await skipClocktowerMicTurn(gameId, session.currentTurnId)
@@ -69,6 +77,7 @@ export function StorytellerMicControlPanel({gameId}: { gameId: number }) {
     return (
         <StorytellerMicControlPanelContent
             actionLoading={actionLoading}
+            dayPhase={isClocktowerDayPhase(phase)}
             loading={loading}
             now={now}
             onClose={() => void runAction('close')}
@@ -83,6 +92,7 @@ export function StorytellerMicControlPanel({gameId}: { gameId: number }) {
 
 export function StorytellerMicControlPanelContent({
     actionLoading,
+    dayPhase,
     loading,
     now,
     onClose,
@@ -94,6 +104,7 @@ export function StorytellerMicControlPanelContent({
 }: {
     loading: boolean
     actionLoading: MicControlAction | null
+    dayPhase: boolean
     session: ClocktowerMicSessionView | null
     now: Date
     onRefresh: () => void
@@ -111,10 +122,16 @@ export function StorytellerMicControlPanelContent({
 
     return (
         <Spin spinning={loading}>
-            <Space direction="vertical" size="middle" style={{width: '100%'}}>
+            <Space orientation="vertical" size="middle" style={{width: '100%'}}>
                 <Space wrap>
                     <Button icon={<ReloadOutlined/>} onClick={onRefresh}>刷新</Button>
-                    <Button icon={<PlayCircleOutlined/>} loading={actionLoading === 'start'} onClick={onStart} type="primary">
+                    <Button
+                        disabled={!dayPhase}
+                        icon={<PlayCircleOutlined/>}
+                        loading={actionLoading === 'start'}
+                        onClick={onStart}
+                        type="primary"
+                    >
                         开启白天麦序
                     </Button>
                     <Button disabled={!canSkip} icon={<StepForwardOutlined/>} loading={actionLoading === 'skip'} onClick={onSkip}>
@@ -128,7 +145,7 @@ export function StorytellerMicControlPanelContent({
                     </Button>
                 </Space>
                 {!session ? (
-                    <Empty description="当前没有公聊麦序"/>
+                    <Empty description={dayPhase ? '当前没有公聊麦序' : '白天阶段可开启公聊麦序'}/>
                 ) : (
                     <>
                         <Space wrap>
@@ -159,6 +176,24 @@ export function StorytellerMicControlPanelContent({
             </Space>
         </Spin>
     )
+}
+
+export function isClocktowerDayPhase(phase: string) {
+    return phase === 'DAY'
+}
+
+export function loadStorytellerMicSession(gameId: number, phase: string) {
+    if (!isClocktowerDayPhase(phase)) {
+        return Promise.resolve(null)
+    }
+    return getClocktowerMicSession(gameId)
+}
+
+export function startStorytellerMicSession(gameId: number, phase: string) {
+    if (!isClocktowerDayPhase(phase)) {
+        return Promise.resolve(null)
+    }
+    return startClocktowerDayMic(gameId)
 }
 
 function currentMicTurn(session?: ClocktowerMicSessionView | null): ClocktowerMicTurnView | undefined {

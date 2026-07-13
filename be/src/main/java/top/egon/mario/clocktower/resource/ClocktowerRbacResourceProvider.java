@@ -89,7 +89,7 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
                 "^/api/clocktower/rooms/[^/]+/(board|invitations|members/[^/]+/(kick|ban)|start)$",
                 ApiMatcherType.REGEX, ApiRiskLevel.HIGH));
         resources.add(api(GAME_READ, "Clocktower game read", "GET",
-                "^/api/clocktower/(games/[^/]+/view|rooms/[^/]+/view)$", ApiMatcherType.REGEX,
+                "^/api/clocktower/(games/[^/]+/(view|flow)|rooms/[^/]+/view)$", ApiMatcherType.REGEX,
                 ApiRiskLevel.MEDIUM));
         resources.add(api(GAME_LIFECYCLE, "Clocktower game lifecycle", "POST",
                 "^/api/clocktower/(rooms/[^/]+/games/(start|timeout-abort)|games/[^/]+/(end|abort))$",
@@ -106,8 +106,10 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
                 "^/api/clocktower/games/[^/]+/mic/(start-day|extend|close|turns/[^/]+/(finish|skip))$",
                 ApiMatcherType.REGEX, ApiRiskLevel.HIGH));
         resources.add(api(GAME_STORYTELLER, "Clocktower game storyteller", "ANY",
-                "^/api/clocktower/rooms/[^/]+/(flow(/.*)?|night-tasks/.*|nominations/.*|execution/.*|"
-                        + "grimoire(/.*)?|night-checklist|storyteller/actions|rulings(/.*)?)$",
+                "^/api/clocktower/(rooms/[^/]+/(flow(/.*)?|night-tasks/.*|nominations/.*|execution/.*|"
+                        + "grimoire(/.*)?|night-checklist|storyteller/actions|rulings(/.*)?)|"
+                        + "games/[^/]+/(agents(/.*)?|flow/(advance|force-advance)|night-tasks(/.*)?|"
+                        + "nominations/[^/]+/close|executions/resolve))$",
                 ApiMatcherType.REGEX, ApiRiskLevel.HIGH));
         resources.add(api(GAME_EVENT_STREAM, "Clocktower game event stream", "GET",
                 "^/api/clocktower/(games|rooms)/[^/]+/events/stream$", ApiMatcherType.REGEX,

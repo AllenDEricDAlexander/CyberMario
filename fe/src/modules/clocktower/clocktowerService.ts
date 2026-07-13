@@ -24,12 +24,15 @@ import type {
     ClocktowerConversationResponse,
     ClocktowerEventResponse,
     ClocktowerFlowResponse,
+    ClocktowerGameAdvanceRequest,
+    ClocktowerGameAdvanceResult,
     ClocktowerGameActionRequest,
     ClocktowerGameActionResponse,
     ClocktowerGameAuditResponse,
     ClocktowerGameHistoryResponse,
     ClocktowerGameReplayResponse,
     ClocktowerGameResponse,
+    ClocktowerGameFlowView,
     ClocktowerGameViewResponse,
     ClocktowerGrimoireResponse,
     ClocktowerJinxRuleResponse,
@@ -304,6 +307,22 @@ export function getClocktowerPlayerView(roomId: number, params: { seatId?: numbe
 
 export function getClocktowerGameView(gameId: number) {
     return requestJson<ClocktowerGameViewResponse>(`/api/clocktower/games/${gameId}/view`)
+}
+
+export function getClocktowerGameFlow(gameId: number) {
+    return requestJson<ClocktowerGameFlowView>(`/api/clocktower/games/${gameId}/flow`)
+}
+
+export function advanceClocktowerGameFlow(gameId: number, request?: ClocktowerGameAdvanceRequest) {
+    if (request === undefined) {
+        return requestJson<ClocktowerGameAdvanceResult>(`/api/clocktower/games/${gameId}/flow/advance`, {
+            method: 'POST',
+        })
+    }
+    return requestJson<ClocktowerGameAdvanceResult>(`/api/clocktower/games/${gameId}/flow/advance`, {
+        method: 'POST',
+        body: request,
+    })
 }
 
 export function submitClocktowerPlayerAction(roomId: number, request: ClocktowerPlayerActionRequest) {

@@ -485,6 +485,33 @@ export type ClocktowerFlowResponse = {
     victoryCandidate?: VictoryCandidateResponse | null
 }
 
+export type ClocktowerGameFlowView = {
+    gameId: number
+    status: string
+    phase: ClocktowerPhase
+    dayNo: number
+    nightNo: number
+    advanceAllowed: boolean
+    blockingReasons: string[]
+    nextPhase?: ClocktowerPhase | null
+    counters: Record<string, unknown>
+}
+
+export type ClocktowerGameAdvanceRequest = {
+    targetPhase?: ClocktowerPhase | null
+    reason?: string | null
+    metadata?: Record<string, unknown>
+}
+
+export type ClocktowerGameAdvanceResult = {
+    gameId: number
+    previousPhase: ClocktowerPhase
+    phase: ClocktowerPhase
+    advanced: boolean
+    forced: boolean
+    flow: ClocktowerGameFlowView
+}
+
 export type SkipNightTaskRequest = {
     reason: string
 }

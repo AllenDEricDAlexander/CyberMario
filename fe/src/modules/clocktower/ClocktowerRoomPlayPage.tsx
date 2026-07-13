@@ -121,7 +121,13 @@ export function ClocktowerRoomPlaySurface({
     }
 
     if (gameView.viewerMode === 'STORYTELLER') {
-        return <StorytellerGameSurface roomName={room.name} view={gameView}/>
+        return (
+            <StorytellerGameSurface
+                onGameChanged={onReload}
+                roomName={room.name}
+                view={gameView}
+            />
+        )
     }
 
     if (gameView.viewerMode === 'PLAYER' || gameView.viewerMode === 'SPECTATOR') {

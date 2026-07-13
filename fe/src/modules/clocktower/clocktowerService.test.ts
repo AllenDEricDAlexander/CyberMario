@@ -1,5 +1,6 @@
 import {describe, expect, it, vi} from 'vitest'
 import {
+    advanceClocktowerGameFlow,
     advanceClocktowerFlow,
     claimClocktowerSeat,
     closeClocktowerNomination,
@@ -11,6 +12,7 @@ import {
     enterClocktowerRoom,
     generateClocktowerBoard,
     getClocktowerGameAudit,
+    getClocktowerGameFlow,
     getClocktowerGameReplay,
     getClocktowerGameView,
     getClocktowerGroupedNightOrder,
@@ -360,6 +362,16 @@ describe('clocktowerService', () => {
         await getClocktowerGameView(11)
 
         expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/view')
+    })
+
+    it('loads and advances GAME_V2 flow by game id', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await getClocktowerGameFlow(11)
+        await advanceClocktowerGameFlow(11)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/flow')
+        expect(requestJson).toHaveBeenCalledWith('/api/clocktower/games/11/flow/advance', {method: 'POST'})
     })
 
     it('loads game replay and history endpoints', async () => {
