@@ -11,6 +11,10 @@ public interface NutritionClanFamilyRepository extends JpaRepository<NutritionCl
 
     Optional<NutritionClanFamilyPo> findByClanIdAndFamilyId(Long clanId, Long familyId);
 
+    Optional<NutritionClanFamilyPo> findByIdAndFamilyIdAndDeletedFalse(Long id, Long familyId);
+
+    List<NutritionClanFamilyPo> findByFamilyIdAndDeletedFalseOrderByIdAsc(Long familyId);
+
     List<NutritionClanFamilyPo> findByFamilyIdAndRelationStatusAndDeletedFalse(Long familyId,
                                                                                NutritionStatus relationStatus);
 

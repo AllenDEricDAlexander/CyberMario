@@ -17,4 +17,6 @@ public interface NutritionClanRepository extends JpaRepository<NutritionClanPo, 
     List<NutritionClanPo> findByIdInAndStatusAndDeletedFalse(Collection<Long> ids, NutritionStatus status);
 
     boolean existsByIdAndOwnerUserIdAndStatusAndDeletedFalse(Long id, Long ownerUserId, NutritionStatus status);
+
+    boolean existsByIdAndStatusAndDeletedFalse(Long id, NutritionStatus status);
 }

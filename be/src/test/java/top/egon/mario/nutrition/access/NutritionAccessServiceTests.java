@@ -26,6 +26,8 @@ import top.egon.mario.nutrition.repository.NutritionScopedRoleBindingRepository;
 import top.egon.mario.nutrition.service.NutritionException;
 import top.egon.mario.nutrition.service.access.NutritionAccessService;
 
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -127,6 +129,44 @@ class NutritionAccessServiceTests {
     }
 
     @Test
+    void writeGrantCanEditScopedDataButCannotManageFamily() {
+        NutritionFamilyPo family = family("Mario Family", 10L);
+        dataGrant(family.getId(), "USER", 106L, NutritionGrantDataScope.HEALTH_PROFILE,
+                NutritionGrantPermissionLevel.WRITE, null);
+
+        assertThat(accessService.canWriteFamilyScope(
+                106L, family.getId(), NutritionGrantDataScope.HEALTH_PROFILE)).isTrue();
+        assertThat(accessService.canManageFamilyScope(
+                106L, family.getId(), NutritionGrantDataScope.HEALTH_PROFILE)).isFalse();
+        assertThatCode(() -> accessService.requireWriteFamilyScope(
+                106L, family.getId(), NutritionGrantDataScope.HEALTH_PROFILE)).doesNotThrowAnyException();
+        assertThatThrownBy(() -> accessService.requireManageFamily(106L, family.getId()))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_FORBIDDEN");
+    }
+
+    @Test
+    void manageGrantCanManageOnlyItsActiveScope() {
+        NutritionFamilyPo family = family("Mario Family", 10L);
+        dataGrant(family.getId(), "USER", 107L, NutritionGrantDataScope.BUDGET,
+                NutritionGrantPermissionLevel.MANAGE, Instant.now().plusSeconds(60));
+        dataGrant(family.getId(), "USER", 107L, NutritionGrantDataScope.HEALTH_PROFILE,
+                NutritionGrantPermissionLevel.MANAGE, Instant.now().minusSeconds(60));
+
+        assertThat(accessService.canManageFamilyScope(
+                107L, family.getId(), NutritionGrantDataScope.BUDGET)).isTrue();
+        assertThatCode(() -> accessService.requireManageFamilyScope(
+                107L, family.getId(), NutritionGrantDataScope.BUDGET)).doesNotThrowAnyException();
+        assertThat(accessService.canWriteFamilyScope(
+                107L, family.getId(), NutritionGrantDataScope.BUDGET)).isTrue();
+        assertThat(accessService.canManageFamilyScope(
+                107L, family.getId(), NutritionGrantDataScope.HEALTH_PROFILE)).isFalse();
+        assertThat(accessService.canManageFamilyScope(
+                107L, family.getId(), NutritionGrantDataScope.NUTRITION_RECORD)).isFalse();
+    }
+
+    @Test
     void memberConfirmationAllowsBoundUserAndFamilyCookOnly() {
         NutritionFamilyPo family = family("Mario Family", 10L);
         NutritionMemberProfilePo member = memberProfile(family.getId(), 201L);
@@ -192,6 +232,30 @@ class NutritionAccessServiceTests {
                 .isEqualTo("NUTRITION_FORBIDDEN");
     }
 
+    @Test
+    void memberProfileWriteAllowsOwnerGuardianAndSpecificWriteGrant() {
+        NutritionFamilyPo family = family("Mario Family", 10L);
+        NutritionMemberProfilePo member = memberProfile(family.getId(), 501L);
+        roleBinding(502L, NutritionRoleCode.PROFILE_GUARDIAN,
+                NutritionScopeType.MEMBER_PROFILE, member.getId());
+        NutritionDataGrantPo grant = dataGrant(family.getId(), "USER", 503L,
+                NutritionGrantDataScope.MEMBER_PROFILE, NutritionGrantPermissionLevel.WRITE, null);
+        grant.setMemberProfileId(member.getId());
+        dataGrantRepository.save(grant);
+
+        assertThatCode(() -> accessService.requireWriteMemberProfile(
+                501L, family.getId(), member.getId())).doesNotThrowAnyException();
+        assertThatCode(() -> accessService.requireWriteMemberProfile(
+                502L, family.getId(), member.getId())).doesNotThrowAnyException();
+        assertThatCode(() -> accessService.requireWriteMemberProfile(
+                503L, family.getId(), member.getId())).doesNotThrowAnyException();
+        assertThatThrownBy(() -> accessService.requireWriteMemberProfile(
+                504L, family.getId(), member.getId()))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_FORBIDDEN");
+    }
+
     private NutritionFamilyPo family(String name, Long ownerUserId) {
         return family(name, ownerUserId, NutritionStatus.ACTIVE);
     }
@@ -234,12 +298,21 @@ class NutritionAccessServiceTests {
 
     private NutritionDataGrantPo dataGrant(Long familyId, String granteeType, Long granteeId,
                                            NutritionGrantDataScope dataScope) {
+        return dataGrant(familyId, granteeType, granteeId, dataScope,
+                NutritionGrantPermissionLevel.READ, null);
+    }
+
+    private NutritionDataGrantPo dataGrant(Long familyId, String granteeType, Long granteeId,
+                                           NutritionGrantDataScope dataScope,
+                                           NutritionGrantPermissionLevel permissionLevel,
+                                           Instant expiresAt) {
         NutritionDataGrantPo grant = new NutritionDataGrantPo();
         grant.setFamilyId(familyId);
         grant.setGranteeType(granteeType);
         grant.setGranteeId(granteeId);
         grant.setDataScope(dataScope);
-        grant.setPermissionLevel(NutritionGrantPermissionLevel.READ);
+        grant.setPermissionLevel(permissionLevel);
+        grant.setExpiresAt(expiresAt);
         grant.setStatus(NutritionStatus.ACTIVE);
         return dataGrantRepository.save(grant);
     }
