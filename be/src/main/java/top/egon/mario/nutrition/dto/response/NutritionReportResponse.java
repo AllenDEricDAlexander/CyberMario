@@ -20,7 +20,10 @@ public record NutritionReportResponse(
         BigDecimal totalCost,
         BigDecimal actualCost,
         BigDecimal estimatedCost,
-        List<CommonDish> commonDishes
+        BigDecimal perPersonCost,
+        List<CommonDish> commonDishes,
+        List<String> nutrientReminders,
+        List<NutritionTrendPointResponse> trends
 ) {
 
     public record CommonDish(

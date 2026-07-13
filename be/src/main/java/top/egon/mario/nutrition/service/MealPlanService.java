@@ -271,7 +271,7 @@ public class MealPlanService {
         accessService.requireCookFamily(userId, familyId);
         NutritionMealPlanPo mealPlan = getLockedMealPlan(familyId, mealPlanId);
         if (mealPlan.getStatus() == NutritionMealPlanStatus.COMPLETED) {
-            nutritionRecordService.generateForCompletedMealPlan(familyId, mealPlan.getId());
+            nutritionRecordService.generateForCompletedMealPlan(familyId, mealPlan.getId(), userId);
             return toResponse(mealPlan);
         }
         String before = snapshot(mealPlan);
@@ -280,7 +280,7 @@ public class MealPlanService {
         }
         transition(mealPlan, NutritionMealPlanStatus.COMPLETED);
         NutritionMealPlanPo saved = mealPlanRepository.saveAndFlush(mealPlan);
-        nutritionRecordService.generateForCompletedMealPlan(familyId, saved.getId());
+        nutritionRecordService.generateForCompletedMealPlan(familyId, saved.getId(), userId);
         saveOperation(saved, "COMPLETE", userId, before, snapshot(saved), null, Map.of());
         return toResponse(saved);
     }

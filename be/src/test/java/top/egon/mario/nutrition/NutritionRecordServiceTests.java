@@ -12,7 +12,9 @@ import top.egon.mario.nutrition.dto.response.NutritionDailyOverviewResponse;
 import top.egon.mario.nutrition.dto.response.NutritionRecordResponse;
 import top.egon.mario.nutrition.dto.response.NutritionReportResponse;
 import top.egon.mario.nutrition.po.NutritionFamilyPo;
+import top.egon.mario.nutrition.po.NutritionHealthProfilePo;
 import top.egon.mario.nutrition.po.NutritionMealConfirmationPo;
+import top.egon.mario.nutrition.po.NutritionMealConfirmationItemPo;
 import top.egon.mario.nutrition.po.NutritionMealPlanItemPo;
 import top.egon.mario.nutrition.po.NutritionMealPlanPo;
 import top.egon.mario.nutrition.po.NutritionMemberProfilePo;
@@ -162,10 +164,14 @@ class NutritionRecordServiceTests {
         NutritionRecipePo recipe = chickenDinnerRecipe(family.getId());
         NutritionMealPlanPo mealPlan = mealPlan(family.getId(), LocalDate.of(2026, 7, 8),
                 NutritionMealPlanStatus.PREPARING, "Chicken dinner", new BigDecimal("30.00"), 2);
-        mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.DINNER, recipe.getId(),
+        NutritionMealPlanItemPo dinner = mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.DINNER, recipe.getId(),
                 "Chicken Plate", new BigDecimal("1.000"), 0);
-        confirmation(family.getId(), mealPlan.getId(), mario.getId(), "[]");
-        confirmation(family.getId(), mealPlan.getId(), peach.getId(), "[\"DINNER\"]");
+        NutritionMealConfirmationPo marioConfirmation = confirmation(
+                family.getId(), mealPlan.getId(), mario.getId(), "[]");
+        NutritionMealConfirmationPo peachConfirmation = confirmation(
+                family.getId(), mealPlan.getId(), peach.getId(), "[\"DINNER\"]");
+        confirmationItem(family.getId(), marioConfirmation.getId(), dinner, true, "1.000");
+        confirmationItem(family.getId(), peachConfirmation.getId(), dinner, true, "0.500");
 
         MealPlanResponse first = mealPlanService.completeMealPlan(family.getId(), mealPlan.getId(), COOK_USER_ID);
         MealPlanResponse second = mealPlanService.completeMealPlan(family.getId(), mealPlan.getId(), COOK_USER_ID);
@@ -180,9 +186,18 @@ class NutritionRecordServiceTests {
             assertThat(record.getSourceType()).isEqualTo("MEAL_PLAN");
             assertThat(record.getMealPlanId()).isEqualTo(mealPlan.getId());
             assertThat(record.getMealConfirmationId()).isNotNull();
-            assertThat(record.getCalories()).isEqualByComparingTo("200.000");
-            assertThat(record.getProtein()).isEqualByComparingTo("20.000");
+            assertThat(record.getMetadataJson()).contains("\"sourceMealPlanItemId\":" + dinner.getId());
         });
+        assertThat(records).filteredOn(record -> record.getMemberProfileId().equals(mario.getId()))
+                .singleElement().satisfies(record -> {
+                    assertThat(record.getCalories()).isEqualByComparingTo("200.000");
+                    assertThat(record.getProtein()).isEqualByComparingTo("20.000");
+                });
+        assertThat(records).filteredOn(record -> record.getMemberProfileId().equals(peach.getId()))
+                .singleElement().satisfies(record -> {
+                    assertThat(record.getCalories()).isEqualByComparingTo("100.000");
+                    assertThat(record.getProtein()).isEqualByComparingTo("10.000");
+                });
     }
 
     @Test
@@ -204,11 +219,13 @@ class NutritionRecordServiceTests {
         recipeIngredientRepository.saveAndFlush(ingredient);
         NutritionMealPlanPo mealPlan = mealPlan(family.getId(), LocalDate.of(2026, 7, 8),
                 NutritionMealPlanStatus.COMPLETED, "Peach dinner", new BigDecimal("10.00"), 1);
-        mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.DINNER, otherRecipe.getId(),
+        NutritionMealPlanItemPo mealItem = mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.DINNER, otherRecipe.getId(),
                 "Peach Dessert", new BigDecimal("1.000"), 0);
-        confirmation(family.getId(), mealPlan.getId(), mario.getId(), "[]");
+        NutritionMealConfirmationPo confirmation = confirmation(family.getId(), mealPlan.getId(), mario.getId(), "[]");
+        confirmationItem(family.getId(), confirmation.getId(), mealItem, true, "1.000");
 
-        assertThatThrownBy(() -> recordService.generateForCompletedMealPlan(family.getId(), mealPlan.getId()))
+        assertThatThrownBy(() -> recordService.generateForCompletedMealPlan(
+                family.getId(), mealPlan.getId(), COOK_USER_ID))
                 .isInstanceOf(NutritionException.class)
                 .extracting("code")
                 .isEqualTo("NUTRITION_RECIPE_NOT_FOUND");
@@ -233,12 +250,13 @@ class NutritionRecordServiceTests {
         recipeIngredientRepository.saveAndFlush(ingredient);
         NutritionMealPlanPo mealPlan = mealPlan(family.getId(), LocalDate.of(2026, 7, 8),
                 NutritionMealPlanStatus.COMPLETED, "Rice lunch", new BigDecimal("8.00"), 1);
-        mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.LUNCH, publicRecipe.getId(),
+        NutritionMealPlanItemPo mealItem = mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.LUNCH, publicRecipe.getId(),
                 "Rice Bowl", new BigDecimal("1.000"), 0);
-        confirmation(family.getId(), mealPlan.getId(), mario.getId(), "[]");
+        NutritionMealConfirmationPo confirmation = confirmation(family.getId(), mealPlan.getId(), mario.getId(), "[]");
+        confirmationItem(family.getId(), confirmation.getId(), mealItem, true, "1.000");
 
         List<NutritionRecordResponse> records = recordService.generateForCompletedMealPlan(
-                family.getId(), mealPlan.getId());
+                family.getId(), mealPlan.getId(), COOK_USER_ID);
 
         assertThat(records).singleElement().satisfies(record -> {
             assertThat(record.memberProfileId()).isEqualTo(mario.getId());
@@ -260,6 +278,10 @@ class NutritionRecordServiceTests {
                 new NutritionRecordAdjustmentRequest(
                         nutrientsRequest("50.000", "5.000", "2.000", "3.000"), "ate half portion"),
                 COOK_USER_ID);
+        NutritionRecordResponse latestCorrection = recordService.adjustRecord(family.getId(), correction.id(),
+                new NutritionRecordAdjustmentRequest(
+                        nutrientsRequest("40.000", "4.000", "1.000", "2.000"), "corrected again"),
+                COOK_USER_ID);
 
         assertThat(correction.sourceType()).isEqualTo("ADJUSTMENT");
         assertThat(correction.nutrients().calories()).isEqualByComparingTo("50.000");
@@ -267,21 +289,23 @@ class NutritionRecordServiceTests {
             assertThat(saved.getStatus()).isEqualTo(NutritionStatus.ACTIVE);
             assertThat(saved.getCalories()).isEqualByComparingTo("200.000");
         });
-        assertThat(recordRepository.findAll()).hasSize(2);
+        assertThat(recordRepository.findAll()).hasSize(3);
         assertThat(recordRepository.findAll()).filteredOn(record -> "ADJUSTMENT".equals(record.getSourceType()))
-                .singleElement()
-                .satisfies(record -> assertThat(record.getMetadataJson()).contains("\"originalRecordId\":"
+                .hasSize(2)
+                .allSatisfy(record -> assertThat(record.getMetadataJson()).contains("\"originalRecordId\":"
                         + original.getId()));
-        assertThat(adjustmentRepository.findAll()).singleElement()
-                .satisfies(adjustment -> assertThat(adjustment.getNutritionRecordId()).isEqualTo(original.getId()));
+        assertThat(adjustmentRepository.findAll()).hasSize(2)
+                .allSatisfy(adjustment -> assertThat(adjustment.getNutritionRecordId())
+                        .isEqualTo(original.getId()));
+        assertThat(latestCorrection.nutrients().calories()).isEqualByComparingTo("40.000");
 
         NutritionDailyOverviewResponse overview = recordService.dailyOverview(
                 family.getId(), LocalDate.of(2026, 7, 9), COOK_USER_ID);
-        assertThat(overview.totalNutrients().calories()).isEqualByComparingTo("50.000");
+        assertThat(overview.totalNutrients().calories()).isEqualByComparingTo("40.000");
 
         NutritionReportResponse report = recordService.familyWeeklyReport(
                 family.getId(), LocalDate.of(2026, 7, 6), COOK_USER_ID);
-        assertThat(report.totalNutrients().calories()).isEqualByComparingTo("50.000");
+        assertThat(report.totalNutrients().calories()).isEqualByComparingTo("40.000");
     }
 
     @Test
@@ -305,6 +329,55 @@ class NutritionRecordServiceTests {
             assertThat(member.totalNutrients().carbs()).isEqualByComparingTo("12.000");
             assertThat(member.records()).singleElement()
                     .satisfies(record -> assertThat(record.sourceType()).isEqualTo("EXTRA_FOOD"));
+        });
+    }
+
+    @Test
+    void profileOwnerCanRecordStandardFoodAndCannotChangeAnotherProfile() {
+        NutritionFamilyPo family = family("Mario Family", COOK_USER_ID);
+        NutritionMemberProfilePo mario = memberProfile(family.getId(), MARIO_USER_ID, "Mario");
+        NutritionMemberProfilePo peach = memberProfile(family.getId(), PEACH_USER_ID, "Peach");
+        NutritionStandardFoodPo chicken = standardFood("Chicken Breast", "MEAT",
+                "200.000", "20.000", "8.000", "10.000");
+        NutritionRecordPo peachRecord = nutritionRecord(family.getId(), peach.getId(),
+                LocalDate.of(2026, 7, 10), NutritionMealType.SNACK, "EXTRA_FOOD",
+                nutrients("90.000", "5.000", "1.000", "12.000"));
+
+        NutritionRecordResponse response = recordService.createExtraFoodRecord(family.getId(),
+                new CreateExtraFoodRecordRequest(mario.getId(), LocalDate.of(2026, 7, 10),
+                        NutritionMealType.SNACK, "Chicken snack", chicken.getId(),
+                        new BigDecimal("50.000"), "g", null, null), MARIO_USER_ID);
+
+        assertThat(response.nutrients().calories()).isEqualByComparingTo("100.000");
+        assertThat(response.nutrients().protein()).isEqualByComparingTo("10.000");
+        assertThat(response.calculationSnapshot()).contains("STANDARD_FOOD_CALCULATED");
+        assertThatThrownBy(() -> recordService.adjustRecord(family.getId(), peachRecord.getId(),
+                new NutritionRecordAdjustmentRequest(
+                        nutrientsRequest("50.000", "2.000", "1.000", "5.000"), "not mine"),
+                MARIO_USER_ID))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_FORBIDDEN");
+    }
+
+    @Test
+    void dailyOverviewComparesActualNutrientsWithMemberTargets() {
+        NutritionFamilyPo family = family("Mario Family", COOK_USER_ID);
+        NutritionMemberProfilePo mario = memberProfile(family.getId(), MARIO_USER_ID, "Mario");
+        roleBinding(MARIO_USER_ID, NutritionRoleCode.MEMBER, NutritionScopeType.FAMILY, family.getId());
+        healthProfile(family.getId(), mario.getId(), "2000.000", "100.000", "60.000", "250.000");
+        nutritionRecord(family.getId(), mario.getId(), LocalDate.of(2026, 7, 10),
+                NutritionMealType.DINNER, "MEAL_PLAN",
+                nutrients("200.000", "20.000", "8.000", "10.000"));
+
+        NutritionDailyOverviewResponse overview = recordService.dailyOverview(
+                family.getId(), LocalDate.of(2026, 7, 10), MARIO_USER_ID);
+
+        assertThat(overview.targetNutrients().calories()).isEqualByComparingTo("2000.000");
+        assertThat(overview.remainingNutrients().calories()).isEqualByComparingTo("1800.000");
+        assertThat(overview.memberSummaries()).singleElement().satisfies(member -> {
+            assertThat(member.targetNutrients().protein()).isEqualByComparingTo("100.000");
+            assertThat(member.remainingNutrients().protein()).isEqualByComparingTo("80.000");
         });
     }
 
@@ -345,6 +418,12 @@ class NutritionRecordServiceTests {
                     assertThat(dish.dishName()).isEqualTo("Tomato Pasta");
                     assertThat(dish.count()).isEqualTo(2);
                 });
+        assertThat(reportSnapshotRepository.findAll()).isEmpty();
+
+        NutritionReportResponse generated = recordService.generateFamilyWeeklyReport(
+                family.getId(), LocalDate.of(2026, 7, 6), COOK_USER_ID);
+        assertThat(generated.snapshotId()).isNotNull();
+        assertThat(generated.trends()).hasSize(2);
         assertThat(reportSnapshotRepository.findAll()).singleElement()
                 .satisfies(snapshot -> assertThat(snapshot.getReportSnapshot()).contains("Tomato Pasta"));
     }
@@ -376,11 +455,14 @@ class NutritionRecordServiceTests {
         NutritionMemberProfilePo mario = memberProfile(family.getId(), MARIO_USER_ID, "Mario");
         NutritionMealPlanPo mealPlan = mealPlan(family.getId(), LocalDate.of(2026, 7, 6),
                 NutritionMealPlanStatus.PREPARING, "Selected dinner", new BigDecimal("20.00"), 1);
-        mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.LUNCH, null,
+        NutritionMealPlanItemPo lunch = mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.LUNCH, null,
                 "Vegetable Soup", new BigDecimal("1.000"), 0);
-        mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.DINNER, null,
+        NutritionMealPlanItemPo dinner = mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.DINNER, null,
                 "Tomato Pasta", new BigDecimal("1.000"), 1);
-        confirmation(family.getId(), mealPlan.getId(), mario.getId(), "[\"DINNER\"]");
+        NutritionMealConfirmationPo confirmation = confirmation(
+                family.getId(), mealPlan.getId(), mario.getId(), "[\"DINNER\"]");
+        confirmationItem(family.getId(), confirmation.getId(), lunch, false, "1.000");
+        confirmationItem(family.getId(), confirmation.getId(), dinner, true, "1.000");
         mealPlanService.completeMealPlan(family.getId(), mealPlan.getId(), COOK_USER_ID);
 
         NutritionReportResponse response = recordService.familyWeeklyReport(
@@ -407,6 +489,20 @@ class NutritionRecordServiceTests {
         memberProfile.setMemberType(NutritionMemberType.ADULT);
         memberProfile.setStatus(NutritionStatus.ACTIVE);
         return memberProfileRepository.saveAndFlush(memberProfile);
+    }
+
+    private NutritionHealthProfilePo healthProfile(Long familyId, Long memberProfileId, String calories,
+                                                    String protein, String fat, String carbs) {
+        NutritionHealthProfilePo health = new NutritionHealthProfilePo();
+        health.setFamilyId(familyId);
+        health.setMemberProfileId(memberProfileId);
+        health.setTargetCalories(new BigDecimal(calories));
+        health.setTargetProtein(new BigDecimal(protein));
+        health.setTargetFat(new BigDecimal(fat));
+        health.setTargetCarbs(new BigDecimal(carbs));
+        health.setTargetSugar(new BigDecimal("50.000"));
+        health.setTargetSodium(new BigDecimal("2000.000"));
+        return healthProfileRepository.saveAndFlush(health);
     }
 
     private NutritionRecipePo chickenDinnerRecipe(Long familyId) {
@@ -503,6 +599,19 @@ class NutritionRecordServiceTests {
         confirmation.setEatAtHome(true);
         confirmation.setSelectedMealTypes(selectedMealTypes);
         return confirmationRepository.saveAndFlush(confirmation);
+    }
+
+    private NutritionMealConfirmationItemPo confirmationItem(Long familyId, Long confirmationId,
+                                                              NutritionMealPlanItemPo mealItem,
+                                                              boolean selected, String servingCount) {
+        NutritionMealConfirmationItemPo item = new NutritionMealConfirmationItemPo();
+        item.setFamilyId(familyId);
+        item.setConfirmationId(confirmationId);
+        item.setMealPlanItemId(mealItem.getId());
+        item.setMealType(mealItem.getMealType());
+        item.setSelected(selected);
+        item.setServingCount(new BigDecimal(servingCount));
+        return confirmationItemRepository.saveAndFlush(item);
     }
 
     private NutritionShoppingListPo shoppingList(Long familyId, Long mealPlanId, LocalDate listDate,

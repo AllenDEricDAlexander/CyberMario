@@ -22,7 +22,7 @@ public record CreateExtraFoodRecordRequest(
         @Min(1) Long standardFoodId,
         @NotNull @DecimalMin(value = "0.000", inclusive = false) BigDecimal amount,
         @NotBlank @Size(max = 32) String unit,
-        @Valid @NotNull NutritionNutrientsRequest nutrients,
+        @Valid NutritionNutrientsRequest nutrients,
         @Size(max = 512) String note
 ) {
 }

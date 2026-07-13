@@ -15,6 +15,8 @@ public interface NutritionAccessService {
 
     boolean canManageFamilyScope(Long userId, Long familyId, NutritionGrantDataScope scope);
 
+    boolean canCookFamily(Long userId, Long familyId);
+
     void requireReadFamily(Long userId, Long familyId);
 
     void requireWriteFamilyScope(Long userId, Long familyId, NutritionGrantDataScope scope);

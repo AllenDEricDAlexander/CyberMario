@@ -1,7 +1,6 @@
 package top.egon.mario.nutrition.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
@@ -19,7 +18,10 @@ import top.egon.mario.nutrition.dto.response.NutritionDailyOverviewResponse;
 import top.egon.mario.nutrition.dto.response.NutritionNutrientsResponse;
 import top.egon.mario.nutrition.dto.response.NutritionRecordResponse;
 import top.egon.mario.nutrition.dto.response.NutritionReportResponse;
+import top.egon.mario.nutrition.dto.response.NutritionTrendPointResponse;
 import top.egon.mario.nutrition.po.NutritionExtraFoodRecordPo;
+import top.egon.mario.nutrition.po.NutritionHealthProfilePo;
+import top.egon.mario.nutrition.po.NutritionMealConfirmationItemPo;
 import top.egon.mario.nutrition.po.NutritionMealConfirmationPo;
 import top.egon.mario.nutrition.po.NutritionMealPlanItemPo;
 import top.egon.mario.nutrition.po.NutritionMealPlanPo;
@@ -29,6 +31,7 @@ import top.egon.mario.nutrition.po.NutritionRecordAdjustmentPo;
 import top.egon.mario.nutrition.po.NutritionRecordPo;
 import top.egon.mario.nutrition.po.NutritionReportSnapshotPo;
 import top.egon.mario.nutrition.po.NutritionRiskCheckResultPo;
+import top.egon.mario.nutrition.po.NutritionStandardFoodPo;
 import top.egon.mario.nutrition.po.enums.NutritionConfirmationStatus;
 import top.egon.mario.nutrition.po.enums.NutritionMealPlanStatus;
 import top.egon.mario.nutrition.po.enums.NutritionMealType;
@@ -36,6 +39,8 @@ import top.egon.mario.nutrition.po.enums.NutritionRecipeSourceType;
 import top.egon.mario.nutrition.po.enums.NutritionRiskLevel;
 import top.egon.mario.nutrition.po.enums.NutritionStatus;
 import top.egon.mario.nutrition.repository.NutritionExtraFoodRecordRepository;
+import top.egon.mario.nutrition.repository.NutritionHealthProfileRepository;
+import top.egon.mario.nutrition.repository.NutritionMealConfirmationItemRepository;
 import top.egon.mario.nutrition.repository.NutritionMealConfirmationRepository;
 import top.egon.mario.nutrition.repository.NutritionMealPlanItemRepository;
 import top.egon.mario.nutrition.repository.NutritionMealPlanRepository;
@@ -45,9 +50,11 @@ import top.egon.mario.nutrition.repository.NutritionRecordAdjustmentRepository;
 import top.egon.mario.nutrition.repository.NutritionRecordRepository;
 import top.egon.mario.nutrition.repository.NutritionReportSnapshotRepository;
 import top.egon.mario.nutrition.repository.NutritionRiskCheckResultRepository;
+import top.egon.mario.nutrition.repository.NutritionStandardFoodRepository;
 import top.egon.mario.nutrition.service.access.NutritionAccessService;
 import top.egon.mario.nutrition.service.calculation.NutritionCalculationService;
 import top.egon.mario.nutrition.service.calculation.NutritionTotals;
+import top.egon.mario.nutrition.service.calculation.NutritionUnitConversionService;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -59,6 +66,7 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,8 +88,6 @@ public class NutritionRecordService {
     private static final String SOURCE_TYPE_EXTRA_FOOD = "EXTRA_FOOD";
     private static final String REPORT_TYPE_WEEKLY = "WEEKLY";
     private static final String REPORT_TYPE_MONTHLY = "MONTHLY";
-    private static final TypeReference<List<NutritionMealType>> MEAL_TYPE_LIST_TYPE = new TypeReference<>() {
-    };
 
     private final NutritionRecordRepository recordRepository;
     private final NutritionRecordAdjustmentRepository adjustmentRepository;
@@ -90,17 +96,24 @@ public class NutritionRecordService {
     private final NutritionMealPlanRepository mealPlanRepository;
     private final NutritionMealPlanItemRepository mealPlanItemRepository;
     private final NutritionMealConfirmationRepository confirmationRepository;
+    private final NutritionMealConfirmationItemRepository confirmationItemRepository;
     private final NutritionRecipeRepository recipeRepository;
     private final NutritionMemberProfileRepository memberProfileRepository;
+    private final NutritionHealthProfileRepository healthProfileRepository;
+    private final NutritionStandardFoodRepository standardFoodRepository;
     private final NutritionRiskCheckResultRepository riskCheckResultRepository;
     private final NutritionCalculationService calculationService;
+    private final NutritionUnitConversionService conversionService;
     private final BudgetService budgetService;
     private final NutritionAccessService accessService;
     private final ObjectMapper objectMapper;
 
     @Transactional
     public List<NutritionRecordResponse> generateForCompletedMealPlan(@NotNull Long familyId,
-                                                                      @NotNull Long mealPlanId) {
+                                                                      @NotNull Long mealPlanId,
+                                                                      Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireCookFamily(userId, familyId);
         NutritionMealPlanPo mealPlan = mealPlanRepository.findLockedByIdAndFamilyIdAndDeletedFalse(
                         mealPlanId, familyId)
                 .orElseThrow(() -> new NutritionException(
@@ -109,16 +122,6 @@ public class NutritionRecordService {
             throw new NutritionException(
                     "NUTRITION_MEAL_PLAN_STATUS_INVALID", "nutrition meal plan status transition is invalid");
         }
-        if (recordRepository.existsByFamilyIdAndMealPlanIdAndSourceTypeAndStatusAndDeletedFalse(
-                familyId, mealPlanId, SOURCE_TYPE_MEAL_PLAN, NutritionStatus.ACTIVE)) {
-            return recordRepository
-                    .findByFamilyIdAndMealPlanIdAndSourceTypeAndStatusAndDeletedFalseOrderByIdAsc(
-                            familyId, mealPlanId, SOURCE_TYPE_MEAL_PLAN, NutritionStatus.ACTIVE)
-                    .stream()
-                    .map(this::toRecordResponse)
-                    .toList();
-        }
-
         List<NutritionMealPlanItemPo> items = mealPlanItemRepository
                 .findByMealPlanIdAndStatusAndDeletedFalseOrderBySortOrderAscIdAsc(
                         mealPlanId, NutritionStatus.ACTIVE);
@@ -128,41 +131,70 @@ public class NutritionRecordService {
                 .stream()
                 .filter(NutritionMealConfirmationPo::isEatAtHome)
                 .toList();
+        Map<Long, NutritionMealConfirmationPo> confirmationsById = confirmations.stream()
+                .collect(Collectors.toMap(NutritionMealConfirmationPo::getId, Function.identity()));
+        List<NutritionMealConfirmationItemPo> confirmationItems = confirmations.isEmpty() ? List.of()
+                : confirmationItemRepository.findByConfirmationIdInAndDeletedFalseOrderByIdAsc(
+                        confirmations.stream().map(NutritionMealConfirmationPo::getId).toList());
+        Map<Long, NutritionMealPlanItemPo> itemsById = items.stream()
+                .collect(Collectors.toMap(NutritionMealPlanItemPo::getId, Function.identity()));
         List<NutritionRiskCheckResultPo> risks = riskCheckResultRepository
                 .findByFamilyIdAndSourceTypeAndSourceIdAndStatusAndResolvedFalseAndDeletedFalseOrderByIdAsc(
                         familyId, SOURCE_TYPE_MEAL_PLAN, mealPlanId, NutritionStatus.ACTIVE);
 
-        List<NutritionRecordPo> records = new ArrayList<>();
-        for (NutritionMealConfirmationPo confirmation : confirmations) {
-            for (NutritionMealPlanItemPo item : items) {
-                if (!selectsMealType(confirmation, item.getMealType())) {
-                    continue;
-                }
-                NutritionTotals totals = itemTotals(familyId, item);
-                NutritionRecordPo record = new NutritionRecordPo();
-                record.setFamilyId(familyId);
-                record.setMemberProfileId(confirmation.getMemberProfileId());
-                record.setMealPlanId(mealPlanId);
-                record.setMealConfirmationId(confirmation.getId());
-                record.setRecordDate(mealPlan.getPlanDate());
-                record.setMealType(item.getMealType());
-                record.setSourceType(SOURCE_TYPE_MEAL_PLAN);
-                apply(record, totals);
-                record.setRiskTags(toJson(riskTags(risks, confirmation.getMemberProfileId()),
-                        "nutrition record risk tags are invalid"));
-                record.setCalculationSnapshot(toJson(calculationSnapshot(item, totals),
-                        "nutrition record calculation snapshot is invalid"));
-                record.setStatus(NutritionStatus.ACTIVE);
-                record.setMetadataJson(toJson(Map.of(
-                        "mealPlanItemId", item.getId(),
-                        "dishName", item.getDishName()),
-                        "nutrition record metadata is invalid"));
-                records.add(record);
+        Map<RecordSourceKey, NutritionRecordPo> existingBySource = recordRepository
+                .findByFamilyIdAndMealPlanIdAndSourceTypeAndStatusAndDeletedFalseOrderByIdAsc(
+                        familyId, mealPlanId, SOURCE_TYPE_MEAL_PLAN, NutritionStatus.ACTIVE)
+                .stream()
+                .collect(Collectors.toMap(record -> new RecordSourceKey(
+                                record.getMemberProfileId(), sourceMealPlanItemId(record)),
+                        Function.identity(), (left, right) -> left));
+
+        List<NutritionRecordPo> results = new ArrayList<>();
+        for (NutritionMealConfirmationItemPo confirmationItem : confirmationItems) {
+            if (!confirmationItem.isSelected()) {
+                continue;
             }
+            NutritionMealConfirmationPo confirmation = confirmationsById.get(confirmationItem.getConfirmationId());
+            NutritionMealPlanItemPo item = itemsById.get(confirmationItem.getMealPlanItemId());
+            if (confirmation == null || item == null || !Objects.equals(confirmationItem.getFamilyId(), familyId)) {
+                throw new NutritionException(
+                        "NUTRITION_CONFIRMATION_ITEM_INVALID", "nutrition confirmation item is invalid");
+            }
+            RecordSourceKey key = new RecordSourceKey(confirmation.getMemberProfileId(), item.getId());
+            NutritionRecordPo existing = existingBySource.get(key);
+            if (existing != null) {
+                results.add(existing);
+                continue;
+            }
+            BigDecimal confirmedServing = confirmationItem.getServingCount();
+            NutritionTotals totals = itemTotals(familyId, item, confirmedServing);
+            NutritionRecordPo record = new NutritionRecordPo();
+            record.setFamilyId(familyId);
+            record.setMemberProfileId(confirmation.getMemberProfileId());
+            record.setMealPlanId(mealPlanId);
+            record.setMealConfirmationId(confirmation.getId());
+            record.setRecordDate(mealPlan.getPlanDate());
+            record.setMealType(item.getMealType());
+            record.setSourceType(SOURCE_TYPE_MEAL_PLAN);
+            apply(record, totals);
+            record.setRiskTags(toJson(riskTags(risks, confirmation.getMemberProfileId()),
+                    "nutrition record risk tags are invalid"));
+            record.setCalculationSnapshot(toJson(calculationSnapshot(item, confirmedServing, totals),
+                    "nutrition record calculation snapshot is invalid"));
+            record.setStatus(NutritionStatus.ACTIVE);
+            Map<String, Object> metadata = new LinkedHashMap<>();
+            metadata.put("sourceMealPlanItemId", item.getId());
+            metadata.put("mealPlanItemId", item.getId());
+            metadata.put("recipeId", item.getRecipeId());
+            metadata.put("servingCount", confirmedServing);
+            metadata.put("dishName", item.getDishName());
+            record.setMetadataJson(toJson(metadata, "nutrition record metadata is invalid"));
+            NutritionRecordPo saved = recordRepository.saveAndFlush(record);
+            existingBySource.put(key, saved);
+            results.add(saved);
         }
-        return recordRepository.saveAllAndFlush(records).stream()
-                .map(this::toRecordResponse)
-                .toList();
+        return results.stream().map(this::toRecordResponse).toList();
     }
 
     @Transactional(readOnly = true)
@@ -173,23 +205,41 @@ public class NutritionRecordService {
         List<NutritionRecordPo> records = recordRepository
                 .findByFamilyIdAndRecordDateAndStatusAndDeletedFalseOrderByMemberProfileIdAscMealTypeAscIdAsc(
                         familyId, date, NutritionStatus.ACTIVE);
+        List<NutritionRecordPo> effective = effectiveRecords(records);
         NutritionAccumulator total = new NutritionAccumulator();
-        effectiveRecords(records).forEach(total::add);
+        effective.forEach(total::add);
         Map<Long, List<NutritionRecordPo>> recordsByMember = new LinkedHashMap<>();
-        for (NutritionRecordPo record : records) {
+        for (NutritionRecordPo record : effective) {
             recordsByMember.computeIfAbsent(record.getMemberProfileId(), ignored -> new ArrayList<>()).add(record);
         }
-        List<NutritionDailyOverviewResponse.MemberSummary> memberSummaries = recordsByMember.entrySet().stream()
-                .map(entry -> {
+        Map<Long, NutritionHealthProfilePo> healthByMember = healthProfileRepository
+                .findActiveMemberHealthProfiles(familyId, NutritionStatus.ACTIVE)
+                .stream().collect(Collectors.toMap(
+                        NutritionHealthProfilePo::getMemberProfileId, Function.identity()));
+        List<NutritionMemberProfilePo> members = memberProfileRepository
+                .findByFamilyIdAndStatusAndDeletedFalse(familyId, NutritionStatus.ACTIVE);
+        NutritionAccumulator familyTarget = new NutritionAccumulator();
+        List<NutritionDailyOverviewResponse.MemberSummary> memberSummaries = members.stream()
+                .sorted(Comparator.comparing(NutritionMemberProfilePo::getId))
+                .map(member -> {
+                    List<NutritionRecordPo> memberRecords = recordsByMember
+                            .getOrDefault(member.getId(), List.of());
                     NutritionAccumulator memberTotal = new NutritionAccumulator();
-                    effectiveRecords(entry.getValue()).forEach(memberTotal::add);
-                    return new NutritionDailyOverviewResponse.MemberSummary(entry.getKey(),
+                    memberRecords.forEach(memberTotal::add);
+                    NutritionTotals target = targetTotals(healthByMember.get(member.getId()));
+                    familyTarget.add(target);
+                    return new NutritionDailyOverviewResponse.MemberSummary(member.getId(),
                             NutritionNutrientsResponse.from(memberTotal.toTotals()),
-                            entry.getValue().stream().map(this::toRecordResponse).toList());
+                            NutritionNutrientsResponse.from(target),
+                            NutritionNutrientsResponse.from(subtract(target, memberTotal.toTotals())),
+                            memberRecords.stream().map(this::toRecordResponse).toList());
                 })
                 .toList();
+        NutritionTotals totalValues = total.toTotals();
+        NutritionTotals targetValues = familyTarget.toTotals();
         return new NutritionDailyOverviewResponse(familyId, date,
-                NutritionNutrientsResponse.from(total.toTotals()), memberSummaries);
+                NutritionNutrientsResponse.from(totalValues), NutritionNutrientsResponse.from(targetValues),
+                NutritionNutrientsResponse.from(subtract(targetValues, totalValues)), memberSummaries);
     }
 
     @Transactional
@@ -197,10 +247,11 @@ public class NutritionRecordService {
                                                 @Valid @NotNull NutritionRecordAdjustmentRequest request,
                                                 Long actorId) {
         Long userId = requireActor(actorId);
-        accessService.requireCookFamily(userId, familyId);
-        NutritionRecordPo original = recordRepository.findByIdAndFamilyIdAndDeletedFalse(recordId, familyId)
+        NutritionRecordPo requestedRecord = recordRepository.findByIdAndFamilyIdAndDeletedFalse(recordId, familyId)
                 .orElseThrow(() -> new NutritionException(
                         "NUTRITION_RECORD_NOT_FOUND", "nutrition record not found"));
+        NutritionRecordPo original = originalRecord(familyId, requestedRecord);
+        requireRecordWrite(userId, familyId, original.getMemberProfileId());
 
         NutritionRecordAdjustmentPo adjustment = new NutritionRecordAdjustmentPo();
         adjustment.setFamilyId(familyId);
@@ -208,7 +259,8 @@ public class NutritionRecordService {
         adjustment.setMemberProfileId(original.getMemberProfileId());
         adjustment.setAdjustedByUserId(userId);
         adjustment.setAdjustmentType(SOURCE_TYPE_ADJUSTMENT);
-        adjustment.setBeforeSnapshot(toJson(nutritionSnapshot(original), "nutrition adjustment snapshot is invalid"));
+        adjustment.setBeforeSnapshot(toJson(nutritionSnapshot(requestedRecord),
+                "nutrition adjustment snapshot is invalid"));
         adjustment.setAfterSnapshot(toJson(request.nutrients(), "nutrition adjustment snapshot is invalid"));
         adjustment.setReason(trimToNull(request.reason()));
         adjustment.setAdjustedAt(Instant.now());
@@ -241,12 +293,30 @@ public class NutritionRecordService {
                                                          @Valid @NotNull CreateExtraFoodRecordRequest request,
                                                          Long actorId) {
         Long userId = requireActor(actorId);
-        accessService.requireCookFamily(userId, familyId);
         NutritionMemberProfilePo memberProfile = memberProfileRepository
                 .findByIdAndFamilyIdAndStatusAndDeletedFalse(
                         request.memberProfileId(), familyId, NutritionStatus.ACTIVE)
                 .orElseThrow(() -> new NutritionException(
                         "NUTRITION_MEMBER_PROFILE_NOT_FOUND", "nutrition member profile not found"));
+        requireRecordWrite(userId, familyId, memberProfile.getId());
+        NutritionTotals totals;
+        String nutritionSource;
+        if (request.standardFoodId() != null) {
+            NutritionStandardFoodPo food = standardFoodRepository.findByIdAndDeletedFalse(request.standardFoodId())
+                    .filter(candidate -> candidate.getStatus() == NutritionStatus.ACTIVE)
+                    .orElseThrow(() -> new NutritionException(
+                            "NUTRITION_STANDARD_FOOD_NOT_FOUND", "nutrition standard food not found"));
+            BigDecimal grams = conversionService.toGrams(request.amount(), request.unit(), null);
+            totals = standardFoodTotals(food, grams);
+            nutritionSource = "STANDARD_FOOD_CALCULATED";
+        } else {
+            if (request.nutrients() == null) {
+                throw new NutritionException(
+                        "NUTRITION_NUTRIENTS_REQUIRED", "nutrition nutrients are required");
+            }
+            totals = requestTotals(request.nutrients());
+            nutritionSource = "EXPLICIT";
+        }
 
         NutritionExtraFoodRecordPo extraFood = new NutritionExtraFoodRecordPo();
         extraFood.setFamilyId(familyId);
@@ -257,7 +327,10 @@ public class NutritionRecordService {
         extraFood.setStandardFoodId(request.standardFoodId());
         extraFood.setAmount(request.amount());
         extraFood.setUnit(request.unit().trim());
-        extraFood.setNutritionSnapshot(toJson(request.nutrients(), "nutrition extra food snapshot is invalid"));
+        extraFood.setNutritionSnapshot(toJson(NutritionNutrientsResponse.from(totals),
+                "nutrition extra food snapshot is invalid"));
+        extraFood.setMetadataJson(toJson(Map.of("nutritionSource", nutritionSource),
+                "nutrition extra food metadata is invalid"));
         extraFood.setNote(trimToNull(request.note()));
         extraFood.setStatus(NutritionStatus.ACTIVE);
         NutritionExtraFoodRecordPo savedExtraFood = extraFoodRecordRepository.saveAndFlush(extraFood);
@@ -268,29 +341,51 @@ public class NutritionRecordService {
         record.setRecordDate(request.recordDate());
         record.setMealType(request.mealType());
         record.setSourceType(SOURCE_TYPE_EXTRA_FOOD);
-        apply(record, request.nutrients());
+        apply(record, totals);
         record.setRiskTags("[]");
-        record.setCalculationSnapshot(toJson(request.nutrients(),
+        record.setCalculationSnapshot(toJson(Map.of(
+                        "nutritionSource", nutritionSource,
+                        "amount", request.amount(),
+                        "unit", request.unit(),
+                        "nutrients", NutritionNutrientsResponse.from(totals)),
                 "nutrition extra food calculation snapshot is invalid"));
         record.setStatus(NutritionStatus.ACTIVE);
         record.setMetadataJson(toJson(Map.of(
                 "extraFoodRecordId", savedExtraFood.getId(),
-                "foodName", savedExtraFood.getFoodName()),
+                "foodName", savedExtraFood.getFoodName(),
+                "nutritionSource", nutritionSource),
                 "nutrition extra food metadata is invalid"));
         return toRecordResponse(recordRepository.saveAndFlush(record));
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public NutritionReportResponse familyWeeklyReport(@NotNull Long familyId, LocalDate weekStart, Long actorId) {
         LocalDate start = (weekStart == null ? LocalDate.now() : weekStart)
                 .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         return report(REPORT_TYPE_WEEKLY, familyId, start, start.plusDays(6), actorId);
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public NutritionReportResponse familyMonthlyReport(@NotNull Long familyId, LocalDate month, Long actorId) {
         LocalDate start = (month == null ? LocalDate.now() : month).withDayOfMonth(1);
         return report(REPORT_TYPE_MONTHLY, familyId, start, start.withDayOfMonth(start.lengthOfMonth()), actorId);
+    }
+
+    @Transactional
+    public NutritionReportResponse generateFamilyWeeklyReport(@NotNull Long familyId, LocalDate weekStart,
+                                                              Long actorId) {
+        LocalDate start = (weekStart == null ? LocalDate.now() : weekStart)
+                .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        return saveReportSnapshot(familyId, report(
+                REPORT_TYPE_WEEKLY, familyId, start, start.plusDays(6), actorId));
+    }
+
+    @Transactional
+    public NutritionReportResponse generateFamilyMonthlyReport(@NotNull Long familyId, LocalDate month,
+                                                               Long actorId) {
+        LocalDate start = (month == null ? LocalDate.now() : month).withDayOfMonth(1);
+        return saveReportSnapshot(familyId, report(REPORT_TYPE_MONTHLY, familyId, start,
+                start.withDayOfMonth(start.lengthOfMonth()), actorId));
     }
 
     private NutritionReportResponse report(String reportType, Long familyId, LocalDate periodStart,
@@ -306,17 +401,22 @@ public class NutritionRecordService {
         Set<Long> periodMealPlanIds = mealPlans.stream()
                 .map(NutritionMealPlanPo::getId)
                 .collect(Collectors.toSet());
-        NutritionReportResponse responseWithoutId = new NutritionReportResponse(null, reportType,
-                periodStart, periodEnd, totalNutrients(familyId, periodStart, periodEnd),
+        NutritionNutrientsResponse totalNutrients = totalNutrients(familyId, periodStart, periodEnd);
+        return new NutritionReportResponse(null, reportType,
+                periodStart, periodEnd, totalNutrients,
                 riskCounts(familyId, periodStart, periodEnd, periodMealPlanIds), budget.totalAmount(),
                 budget.totalActualAmount(), budget.totalEstimatedAmount(),
-                commonDishes(familyId, periodStart, periodEnd));
+                budget.perPersonCost(), commonDishes(familyId, periodStart, periodEnd),
+                nutrientReminders(familyId, periodStart, periodEnd, totalNutrients),
+                trends(familyId, periodStart, periodEnd));
+    }
 
+    private NutritionReportResponse saveReportSnapshot(Long familyId, NutritionReportResponse responseWithoutId) {
         NutritionReportSnapshotPo snapshot = new NutritionReportSnapshotPo();
         snapshot.setFamilyId(familyId);
-        snapshot.setReportType(reportType);
-        snapshot.setPeriodStart(periodStart);
-        snapshot.setPeriodEnd(periodEnd);
+        snapshot.setReportType(responseWithoutId.periodType());
+        snapshot.setPeriodStart(responseWithoutId.periodStart());
+        snapshot.setPeriodEnd(responseWithoutId.periodEnd());
         snapshot.setGeneratedAt(Instant.now());
         snapshot.setReportSnapshot(toJson(responseWithoutId, "nutrition report snapshot is invalid"));
         snapshot.setStatus(NutritionStatus.ACTIVE);
@@ -325,7 +425,8 @@ public class NutritionRecordService {
         return new NutritionReportResponse(saved.getId(), responseWithoutId.periodType(),
                 responseWithoutId.periodStart(), responseWithoutId.periodEnd(), responseWithoutId.totalNutrients(),
                 responseWithoutId.riskCounts(), responseWithoutId.totalCost(), responseWithoutId.actualCost(),
-                responseWithoutId.estimatedCost(), responseWithoutId.commonDishes());
+                responseWithoutId.estimatedCost(), responseWithoutId.perPersonCost(),
+                responseWithoutId.commonDishes(), responseWithoutId.nutrientReminders(), responseWithoutId.trends());
     }
 
     private NutritionNutrientsResponse totalNutrients(Long familyId, LocalDate periodStart, LocalDate periodEnd) {
@@ -381,6 +482,59 @@ public class NutritionRecordService {
                 .toList();
     }
 
+    private List<NutritionTrendPointResponse> trends(Long familyId, LocalDate periodStart, LocalDate periodEnd) {
+        List<NutritionRecordPo> records = recordRepository
+                .findByFamilyIdAndRecordDateBetweenAndStatusAndDeletedFalseOrderByRecordDateAscIdAsc(
+                        familyId, periodStart, periodEnd, NutritionStatus.ACTIVE);
+        Map<LocalDate, NutritionAccumulator> totalsByDate = new LinkedHashMap<>();
+        effectiveRecords(records).forEach(record -> totalsByDate
+                .computeIfAbsent(record.getRecordDate(), ignored -> new NutritionAccumulator())
+                .add(record));
+        return totalsByDate.entrySet().stream()
+                .map(entry -> new NutritionTrendPointResponse(
+                        entry.getKey(), NutritionNutrientsResponse.from(entry.getValue().toTotals())))
+                .toList();
+    }
+
+    private List<String> nutrientReminders(Long familyId, LocalDate periodStart, LocalDate periodEnd,
+                                           NutritionNutrientsResponse total) {
+        long days = periodEnd.toEpochDay() - periodStart.toEpochDay() + 1;
+        List<NutritionHealthProfilePo> profiles = healthProfileRepository
+                .findActiveMemberHealthProfiles(familyId, NutritionStatus.ACTIVE);
+        int memberCount = Math.max(memberProfileRepository
+                .findByFamilyIdAndStatusAndDeletedFalse(familyId, NutritionStatus.ACTIVE).size(), 1);
+        BigDecimal sodiumLimit = periodLimit(profiles.stream()
+                .map(NutritionHealthProfilePo::getTargetSodium).toList(),
+                new BigDecimal("2000.000"), days, memberCount);
+        BigDecimal sugarLimit = periodLimit(profiles.stream()
+                .map(NutritionHealthProfilePo::getTargetSugar).toList(),
+                new BigDecimal("50.000"), days, memberCount);
+        BigDecimal fatLimit = periodLimit(profiles.stream()
+                .map(NutritionHealthProfilePo::getTargetFat).toList(),
+                new BigDecimal("70.000"), days, memberCount);
+        List<String> reminders = new ArrayList<>();
+        if (total.sodium().compareTo(sodiumLimit) > 0) {
+            reminders.add("HIGH_SODIUM");
+        }
+        if (total.sugar().compareTo(sugarLimit) > 0) {
+            reminders.add("HIGH_SUGAR");
+        }
+        if (total.fat().compareTo(fatLimit) > 0) {
+            reminders.add("HIGH_FAT");
+        }
+        return reminders;
+    }
+
+    private BigDecimal periodLimit(List<BigDecimal> configuredTargets, BigDecimal defaultTarget,
+                                   long days, int memberCount) {
+        BigDecimal configured = configuredTargets.stream().filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal dailyLimit = configured.signum() > 0
+                ? configured
+                : defaultTarget.multiply(BigDecimal.valueOf(memberCount));
+        return dailyLimit.multiply(BigDecimal.valueOf(days));
+    }
+
     private List<NutritionRecordPo> effectiveRecords(List<NutritionRecordPo> records) {
         if (records == null || records.isEmpty()) {
             return List.of();
@@ -432,7 +586,8 @@ public class NutritionRecordService {
         return rightId > leftId ? right : left;
     }
 
-    private NutritionTotals itemTotals(Long familyId, NutritionMealPlanItemPo item) {
+    private NutritionTotals itemTotals(Long familyId, NutritionMealPlanItemPo item,
+                                       BigDecimal confirmedServingCount) {
         if (item.getRecipeId() == null) {
             return NutritionTotals.zero();
         }
@@ -444,7 +599,7 @@ public class NutritionRecordService {
             throw new NutritionException("NUTRITION_RECIPE_NOT_FOUND", "nutrition recipe not found");
         }
         NutritionTotals recipeTotals = calculationService.calculateRecipe(recipe.getId());
-        BigDecimal servingCount = item.getServingCount() == null ? BigDecimal.ONE : item.getServingCount();
+        BigDecimal servingCount = confirmedServingCount == null ? BigDecimal.ZERO : confirmedServingCount;
         BigDecimal recipeServingCount = BigDecimal.valueOf(Math.max(recipe.getServingCount(), 1));
         BigDecimal scale = servingCount.divide(recipeServingCount, 6, RoundingMode.HALF_UP);
         return scale(recipeTotals, scale);
@@ -467,6 +622,44 @@ public class NutritionRecordService {
                 multiply(totals.cholesterol(), scale));
     }
 
+    private NutritionTotals standardFoodTotals(NutritionStandardFoodPo food, BigDecimal grams) {
+        BigDecimal scale = grams.divide(new BigDecimal("100.000"), 6, RoundingMode.HALF_UP);
+        return new NutritionTotals(
+                multiply(food.getCaloriesPer100g(), scale),
+                multiply(food.getProteinPer100g(), scale),
+                multiply(food.getFatPer100g(), scale),
+                multiply(food.getCarbsPer100g(), scale),
+                multiply(food.getSugarPer100g(), scale),
+                multiply(food.getSodiumPer100g(), scale),
+                multiply(food.getFiberPer100g(), scale),
+                multiply(food.getCholesterolPer100g(), scale));
+    }
+
+    private NutritionTotals requestTotals(NutritionNutrientsRequest nutrients) {
+        return new NutritionTotals(nutrients.calories(), nutrients.protein(), nutrients.fat(), nutrients.carbs(),
+                nutrients.sugar(), nutrients.sodium(), nutrients.fiber(), nutrients.cholesterol());
+    }
+
+    private NutritionTotals targetTotals(NutritionHealthProfilePo profile) {
+        if (profile == null) {
+            return NutritionTotals.zero();
+        }
+        return new NutritionTotals(profile.getTargetCalories(), profile.getTargetProtein(), profile.getTargetFat(),
+                profile.getTargetCarbs(), profile.getTargetSugar(), profile.getTargetSodium(), null, null);
+    }
+
+    private NutritionTotals subtract(NutritionTotals target, NutritionTotals actual) {
+        return new NutritionTotals(
+                target.calories().subtract(actual.calories()),
+                target.protein().subtract(actual.protein()),
+                target.fat().subtract(actual.fat()),
+                target.carbs().subtract(actual.carbs()),
+                target.sugar().subtract(actual.sugar()),
+                target.sodium().subtract(actual.sodium()),
+                target.fiber().subtract(actual.fiber()),
+                target.cholesterol().subtract(actual.cholesterol()));
+    }
+
     private BigDecimal multiply(BigDecimal value, BigDecimal scale) {
         return zeroIfNull(value).multiply(scale).setScale(3, RoundingMode.HALF_UP);
     }
@@ -486,12 +679,15 @@ public class NutritionRecordService {
                 .toList();
     }
 
-    private Map<String, Object> calculationSnapshot(NutritionMealPlanItemPo item, NutritionTotals totals) {
+    private Map<String, Object> calculationSnapshot(NutritionMealPlanItemPo item,
+                                                    BigDecimal confirmedServingCount,
+                                                    NutritionTotals totals) {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("mealPlanItemId", item.getId());
         snapshot.put("recipeId", item.getRecipeId());
         snapshot.put("dishName", item.getDishName());
-        snapshot.put("servingCount", item.getServingCount());
+        snapshot.put("plannedServingCount", item.getServingCount());
+        snapshot.put("confirmedServingCount", confirmedServingCount);
         snapshot.put("nutrients", NutritionNutrientsResponse.from(totals));
         return snapshot;
     }
@@ -504,24 +700,47 @@ public class NutritionRecordService {
         return snapshot;
     }
 
-    private boolean selectsMealType(NutritionMealConfirmationPo confirmation, NutritionMealType mealType) {
-        List<NutritionMealType> selectedMealTypes = readMealTypes(confirmation.getSelectedMealTypes());
-        return selectedMealTypes.isEmpty() || selectedMealTypes.contains(mealType);
-    }
-
-    private List<NutritionMealType> readMealTypes(String json) {
-        if (!StringUtils.hasText(json)) {
-            return List.of();
-        }
-        try {
-            return objectMapper.readValue(json, MEAL_TYPE_LIST_TYPE);
-        } catch (JsonProcessingException e) {
-            throw new NutritionException("NUTRITION_JSON_INVALID", "nutrition meal type JSON is invalid");
-        }
-    }
-
     private Long originalRecordId(NutritionRecordPo record) {
         JsonNode value = readMetadataField(record.getMetadataJson(), "originalRecordId");
+        if (value == null || value.isNull()) {
+            return null;
+        }
+        if (value.isIntegralNumber()) {
+            return value.longValue();
+        }
+        if (value.isTextual() && StringUtils.hasText(value.textValue())) {
+            try {
+                return Long.parseLong(value.textValue());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private NutritionRecordPo originalRecord(Long familyId, NutritionRecordPo record) {
+        NutritionRecordPo current = record;
+        Set<Long> visited = new HashSet<>();
+        while (SOURCE_TYPE_ADJUSTMENT.equals(current.getSourceType())) {
+            Long originalId = originalRecordId(current);
+            if (originalId == null || !visited.add(originalId)) {
+                throw new NutritionException(
+                        "NUTRITION_RECORD_INVALID", "nutrition adjustment source is invalid");
+            }
+            current = recordRepository.findByIdAndFamilyIdAndDeletedFalse(originalId, familyId)
+                    .orElseThrow(() -> new NutritionException(
+                            "NUTRITION_RECORD_NOT_FOUND", "nutrition record not found"));
+        }
+        return current;
+    }
+
+    private Long sourceMealPlanItemId(NutritionRecordPo record) {
+        Long sourceId = readLong(record.getMetadataJson(), "sourceMealPlanItemId");
+        return sourceId == null ? readLong(record.getMetadataJson(), "mealPlanItemId") : sourceId;
+    }
+
+    private Long readLong(String metadataJson, String fieldName) {
+        JsonNode value = readMetadataField(metadataJson, fieldName);
         if (value == null || value.isNull()) {
             return null;
         }
@@ -582,7 +801,7 @@ public class NutritionRecordService {
 
     private NutritionRecordResponse toRecordResponse(NutritionRecordPo record) {
         return new NutritionRecordResponse(record.getId(), record.getFamilyId(), record.getMemberProfileId(),
-                record.getMealPlanId(), record.getMealConfirmationId(), record.getRecordDate(),
+                record.getMealPlanId(), record.getMealConfirmationId(), sourceMealPlanItemId(record), record.getRecordDate(),
                 record.getMealType(), record.getSourceType(), NutritionNutrientsResponse.from(record),
                 record.getRiskTags(), record.getCalculationSnapshot(), record.getMetadataJson(),
                 record.getCreatedAt(), record.getUpdatedAt());
@@ -611,8 +830,17 @@ public class NutritionRecordService {
         return actorId;
     }
 
+    private void requireRecordWrite(Long userId, Long familyId, Long memberProfileId) {
+        if (!accessService.canCookFamily(userId, familyId)) {
+            accessService.requireWriteMemberProfile(userId, familyId, memberProfileId);
+        }
+    }
+
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private record RecordSourceKey(Long memberProfileId, Long sourceMealPlanItemId) {
     }
 
     private static final class NutritionAccumulator {
@@ -620,9 +848,13 @@ public class NutritionRecordService {
         private NutritionTotals totals = NutritionTotals.zero();
 
         private void add(NutritionRecordPo record) {
-            totals = totals.plus(new NutritionTotals(record.getCalories(), record.getProtein(), record.getFat(),
+            add(new NutritionTotals(record.getCalories(), record.getProtein(), record.getFat(),
                     record.getCarbs(), record.getSugar(), record.getSodium(), record.getFiber(),
                     record.getCholesterol()));
+        }
+
+        private void add(NutritionTotals values) {
+            totals = totals.plus(values);
         }
 
         private NutritionTotals toTotals() {

@@ -125,12 +125,16 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
     @Override
     @Transactional(readOnly = true)
     public void requireCookFamily(Long userId, Long familyId) {
-        if (!isActiveFamily(familyId)) {
+        if (!canCookFamily(userId, familyId)) {
             throw forbidden();
         }
-        if (!hasFamilyRole(userId, familyId, COOK_FAMILY_ROLES) && !isFamilyOwner(userId, familyId)) {
-            throw forbidden();
-        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean canCookFamily(Long userId, Long familyId) {
+        return isActiveFamily(familyId)
+                && (hasFamilyRole(userId, familyId, COOK_FAMILY_ROLES) || isFamilyOwner(userId, familyId));
     }
 
     @Override
