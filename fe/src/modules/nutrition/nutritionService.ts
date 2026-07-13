@@ -4,8 +4,12 @@ import type {
     NutritionAiRecommendationJobResponse,
     NutritionAiRecommendationResponse,
     NutritionBudgetSummaryResponse,
+    NutritionAssignProfileGuardianRequest,
+    NutritionBindMemberUserRequest,
+    NutritionClanFamilyRelationResponse,
     NutritionClanResponse,
     NutritionCreateClanRequest,
+    NutritionCreateDataGrantRequest,
     NutritionCreateExtraFoodRecordRequest,
     NutritionCreateFamilyRequest,
     NutritionCreateFoodPriceRecordRequest,
@@ -13,11 +17,15 @@ import type {
     NutritionCreateMemberProfileRequest,
     NutritionCreateRecipeRequest,
     NutritionCreateStandardFoodRequest,
+    NutritionCreateScopedRoleBindingRequest,
+    NutritionDataGrantResponse,
     NutritionDailyOverviewResponse,
     NutritionFamilyResponse,
     NutritionFoodPriceRecordResponse,
     NutritionGenerateAiRecommendationRequest,
     NutritionHealthProfileResponse,
+    NutritionHealthTagResponse,
+    NutritionHomeOverviewResponse,
     NutritionImportJobResponse,
     NutritionMealConfirmationRequest,
     NutritionMealConfirmationResponse,
@@ -25,14 +33,22 @@ import type {
     NutritionMealPlanSummaryResponse,
     NutritionMemberProfileResponse,
     NutritionRecipeResponse,
+    NutritionRecipeIngredientResponse,
+    NutritionRecipeValidationResponse,
     NutritionRecordAdjustmentRequest,
     NutritionRecordResponse,
     NutritionReportResponse,
     NutritionShoppingListItemResponse,
     NutritionShoppingListResponse,
     NutritionStandardFoodResponse,
+    NutritionScopedRoleBindingResponse,
+    NutritionUpdateDataGrantRequest,
+    NutritionUpdateFamilySettingsRequest,
     NutritionUpdateHealthProfileRequest,
+    NutritionUpdateMemberProfileRequest,
+    NutritionUpdateRecipeIngredientMappingRequest,
     NutritionUpdateShoppingListItemRequest,
+    NutritionUpsertHealthTagRequest,
 } from './nutritionTypes'
 
 type DateQuery = {
@@ -75,6 +91,83 @@ export function associateNutritionClanFamily(clanId: number, familyId: number) {
     })
 }
 
+export function getNutritionFamilySettings(familyId: number) {
+    return requestJson<NutritionFamilyResponse>(familyPath(familyId, '/settings'))
+}
+
+export function updateNutritionFamilySettings(
+    familyId: number,
+    request: NutritionUpdateFamilySettingsRequest,
+) {
+    return requestJson<NutritionFamilyResponse>(familyPath(familyId, '/settings'), {
+        method: 'PUT',
+        body: request,
+    })
+}
+
+export function listNutritionRoleBindings(familyId: number) {
+    return requestJson<NutritionScopedRoleBindingResponse[]>(familyPath(familyId, '/role-bindings'))
+}
+
+export function createNutritionRoleBinding(
+    familyId: number,
+    request: NutritionCreateScopedRoleBindingRequest,
+) {
+    return requestJson<NutritionScopedRoleBindingResponse>(familyPath(familyId, '/role-bindings'), {
+        method: 'POST',
+        body: request,
+    })
+}
+
+export function updateNutritionRoleBinding(
+    familyId: number,
+    bindingId: number,
+    request: NutritionCreateScopedRoleBindingRequest,
+) {
+    return requestJson<NutritionScopedRoleBindingResponse>(familyPath(familyId, `/role-bindings/${bindingId}`), {
+        method: 'PUT',
+        body: request,
+    })
+}
+
+export function revokeNutritionRoleBinding(familyId: number, bindingId: number) {
+    return requestJson<void>(familyPath(familyId, `/role-bindings/${bindingId}`), {method: 'DELETE'})
+}
+
+export function listNutritionDataGrants(familyId: number) {
+    return requestJson<NutritionDataGrantResponse[]>(familyPath(familyId, '/data-grants'))
+}
+
+export function createNutritionDataGrant(familyId: number, request: NutritionCreateDataGrantRequest) {
+    return requestJson<NutritionDataGrantResponse>(familyPath(familyId, '/data-grants'), {
+        method: 'POST',
+        body: request,
+    })
+}
+
+export function updateNutritionDataGrant(
+    familyId: number,
+    grantId: number,
+    request: NutritionUpdateDataGrantRequest,
+) {
+    return requestJson<NutritionDataGrantResponse>(familyPath(familyId, `/data-grants/${grantId}`), {
+        method: 'PUT',
+        body: request,
+    })
+}
+
+export function revokeNutritionDataGrant(familyId: number, grantId: number) {
+    return requestJson<void>(familyPath(familyId, `/data-grants/${grantId}`), {method: 'DELETE'})
+}
+
+export function listNutritionClanFamilyRelations(familyId: number) {
+    return requestJson<NutritionClanFamilyRelationResponse[]>(familyPath(familyId, '/clan-relations'))
+}
+
+export function removeNutritionClanFamilyRelation(familyId: number, relationId: number) {
+    return requestJson<void>(familyPath(familyId, `/clan-relations/${relationId}`), {method: 'DELETE'})
+}
+
 export function createNutritionMemberProfile(familyId: number, request: NutritionCreateMemberProfileRequest) {
     return requestJson<NutritionMemberProfileResponse>(familyPath(familyId, '/members'), {
         method: 'POST',
@@ -84,6 +177,59 @@ export function createNutritionMemberProfile(familyId: number, request: Nutritio
 
 export function listNutritionMembers(familyId: number) {
     return requestJson<NutritionMemberProfileResponse[]>(familyPath(familyId, '/members'))
+}
+
+export function updateNutritionMemberProfile(
+    familyId: number,
+    memberProfileId: number,
+    request: NutritionUpdateMemberProfileRequest,
+) {
+    return requestJson<NutritionMemberProfileResponse>(familyPath(familyId, `/members/${memberProfileId}`), {
+        method: 'PUT',
+        body: request,
+    })
+}
+
+export function deactivateNutritionMemberProfile(familyId: number, memberProfileId: number) {
+    return requestJson<NutritionMemberProfileResponse>(familyPath(familyId, `/members/${memberProfileId}`), {
+        method: 'DELETE',
+    })
+}
+
+export function bindNutritionMemberUser(
+    familyId: number,
+    memberProfileId: number,
+    request: NutritionBindMemberUserRequest,
+) {
+    return requestJson<NutritionMemberProfileResponse>(
+        familyPath(familyId, `/members/${memberProfileId}/bind-user`),
+        {method: 'POST', body: request},
+    )
+}
+
+export function unbindNutritionMemberUser(familyId: number, memberProfileId: number) {
+    return requestJson<NutritionMemberProfileResponse>(
+        familyPath(familyId, `/members/${memberProfileId}/bind-user`),
+        {method: 'DELETE'},
+    )
+}
+
+export function assignNutritionProfileGuardian(
+    familyId: number,
+    memberProfileId: number,
+    request: NutritionAssignProfileGuardianRequest,
+) {
+    return requestJson<NutritionScopedRoleBindingResponse>(
+        familyPath(familyId, `/members/${memberProfileId}/guardians`),
+        {method: 'POST', body: request},
+    )
+}
+
+export function revokeNutritionProfileGuardian(familyId: number, memberProfileId: number, bindingId: number) {
+    return requestJson<void>(
+        familyPath(familyId, `/members/${memberProfileId}/guardians/${bindingId}`),
+        {method: 'DELETE'},
+    )
 }
 
 export function listNutritionHealthProfiles(familyId: number) {
@@ -104,6 +250,40 @@ export function updateNutritionHealthProfile(
     )
 }
 
+export function listNutritionFamilyHealthTags(familyId: number, tagType?: string) {
+    return requestJson<NutritionHealthTagResponse[]>(withQuery(
+        familyPath(familyId, '/health-tags'),
+        {tagType},
+    ))
+}
+
+export function listNutritionPlatformHealthTags(tagType?: string, activeOnly = false) {
+    return requestJson<NutritionHealthTagResponse[]>(withQuery(
+        '/api/nutrition/platform/health-tags',
+        {tagType, activeOnly},
+    ))
+}
+
+export function createNutritionPlatformHealthTag(request: NutritionUpsertHealthTagRequest) {
+    return requestJson<NutritionHealthTagResponse>('/api/nutrition/platform/health-tags', {
+        method: 'POST',
+        body: request,
+    })
+}
+
+export function updateNutritionPlatformHealthTag(tagId: number, request: NutritionUpsertHealthTagRequest) {
+    return requestJson<NutritionHealthTagResponse>(`/api/nutrition/platform/health-tags/${tagId}`, {
+        method: 'PUT',
+        body: request,
+    })
+}
+
+export function deactivateNutritionPlatformHealthTag(tagId: number) {
+    return requestJson<NutritionHealthTagResponse>(`/api/nutrition/platform/health-tags/${tagId}`, {
+        method: 'DELETE',
+    })
+}
+
 export function listNutritionStandardFoods() {
     return requestJson<NutritionStandardFoodResponse[]>('/api/nutrition/platform/standard-foods')
 }
@@ -112,6 +292,47 @@ export function createNutritionStandardFood(request: NutritionCreateStandardFood
     return requestJson<NutritionStandardFoodResponse>('/api/nutrition/platform/standard-foods', {
         method: 'POST',
         body: request,
+    })
+}
+
+export function updateNutritionStandardFood(foodId: number, request: NutritionCreateStandardFoodRequest) {
+    return requestJson<NutritionStandardFoodResponse>(`/api/nutrition/platform/standard-foods/${foodId}`, {
+        method: 'PUT',
+        body: request,
+    })
+}
+
+export function deactivateNutritionStandardFood(foodId: number) {
+    return requestJson<NutritionStandardFoodResponse>(`/api/nutrition/platform/standard-foods/${foodId}`, {
+        method: 'DELETE',
+    })
+}
+
+export function listNutritionFamilyStandardFoods(familyId: number) {
+    return requestJson<NutritionStandardFoodResponse[]>(familyPath(familyId, '/standard-foods'))
+}
+
+export function listNutritionPlatformRecipes() {
+    return requestJson<NutritionRecipeResponse[]>('/api/nutrition/platform/recipes')
+}
+
+export function createNutritionPlatformRecipe(request: NutritionCreateRecipeRequest) {
+    return requestJson<NutritionRecipeResponse>('/api/nutrition/platform/recipes', {
+        method: 'POST',
+        body: request,
+    })
+}
+
+export function updateNutritionPlatformRecipe(recipeId: number, request: NutritionCreateRecipeRequest) {
+    return requestJson<NutritionRecipeResponse>(`/api/nutrition/platform/recipes/${recipeId}`, {
+        method: 'PUT',
+        body: request,
+    })
+}
+
+export function deactivateNutritionPlatformRecipe(recipeId: number) {
+    return requestJson<NutritionRecipeResponse>(`/api/nutrition/platform/recipes/${recipeId}`, {
+        method: 'DELETE',
     })
 }
 
@@ -124,6 +345,49 @@ export function createNutritionFamilyRecipe(familyId: number, request: Nutrition
         method: 'POST',
         body: request,
     })
+}
+
+export function getNutritionRecipe(familyId: number, recipeId: number) {
+    return requestJson<NutritionRecipeResponse>(familyPath(familyId, `/recipes/${recipeId}`))
+}
+
+export function updateNutritionFamilyRecipe(
+    familyId: number,
+    recipeId: number,
+    request: NutritionCreateRecipeRequest,
+) {
+    return requestJson<NutritionRecipeResponse>(familyPath(familyId, `/recipes/${recipeId}`), {
+        method: 'PUT',
+        body: request,
+    })
+}
+
+export function deactivateNutritionFamilyRecipe(familyId: number, recipeId: number) {
+    return requestJson<NutritionRecipeResponse>(familyPath(familyId, `/recipes/${recipeId}`), {
+        method: 'DELETE',
+    })
+}
+
+export function updateNutritionRecipeIngredientMapping(
+    familyId: number,
+    recipeId: number,
+    ingredientId: number,
+    request: NutritionUpdateRecipeIngredientMappingRequest,
+) {
+    return requestJson<NutritionRecipeIngredientResponse>(
+        familyPath(familyId, `/recipes/${recipeId}/ingredients/${ingredientId}/mapping`),
+        {method: 'PUT', body: request},
+    )
+}
+
+export function validateNutritionRecipe(familyId: number, recipeId: number) {
+    return requestJson<NutritionRecipeValidationResponse>(
+        familyPath(familyId, `/recipes/${recipeId}/validation`),
+    )
+}
+
+export function getNutritionHomeOverview(familyId: number, params: DateQuery = {}) {
+    return requestJson<NutritionHomeOverviewResponse>(withQuery(familyPath(familyId, '/overview'), params))
 }
 
 export function listNutritionMealPlans(familyId: number) {

@@ -37,7 +37,28 @@ export type NutritionShoppingListStatus = 'DRAFT' | 'ACTIVE' | 'PURCHASING' | 'P
 export type NutritionAiJobStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
 export type NutritionAiTriggerType = 'SCHEDULED' | 'MANUAL' | 'REGENERATE'
 export type NutritionRecipeSourceType = 'PLATFORM_PUBLIC' | 'FAMILY_PRIVATE' | 'AI_GENERATED'
+export type NutritionSubjectType = 'USER' | 'ROLE'
+export type NutritionRoleCode =
+    | 'CLAN_ADMIN'
+    | 'CLAN_MEMBER'
+    | 'FAMILY_ADMIN'
+    | 'COOK'
+    | 'MEMBER'
+    | 'GUARDIAN'
+    | 'PROFILE_OWNER'
+    | 'PROFILE_GUARDIAN'
+export type NutritionScopeType = 'CLAN' | 'FAMILY' | 'MEMBER_PROFILE'
+export type NutritionGrantDataScope =
+    | 'FAMILY'
+    | 'MEMBER_PROFILE'
+    | 'HEALTH_PROFILE'
+    | 'MEAL_PLAN'
+    | 'SHOPPING_LIST'
+    | 'BUDGET'
+    | 'NUTRITION_RECORD'
+export type NutritionGrantPermissionLevel = 'READ' | 'WRITE' | 'MANAGE'
 export type NutritionAmount = number | string
+export type NutritionLoadState = 'idle' | 'loading' | 'ready' | 'empty' | 'forbidden' | 'error'
 
 export type NutritionClanResponse = {
     id: number
@@ -54,7 +75,7 @@ export type NutritionFamilyResponse = {
     ownerUserId: number
     region?: string | null
     currency?: string | null
-    defaultMealTypes: string[]
+    defaultMealTypes: NutritionMealType[]
     aiEnabled: boolean
     aiGenerateTime?: string | null
     healthAlertEnabled: boolean
@@ -88,6 +109,63 @@ export type NutritionCreateFamilyRequest = {
     ownerNickname?: string
 }
 
+export type NutritionUpdateFamilySettingsRequest = {
+    region?: string
+    currency?: string
+    defaultMealTypes?: NutritionMealType[]
+    aiEnabled: boolean
+    aiGenerateTime?: string | null
+    healthAlertEnabled: boolean
+    budgetEnabled: boolean
+}
+
+export type NutritionCreateScopedRoleBindingRequest = {
+    subjectType: NutritionSubjectType
+    subjectId: number
+    roleCode: NutritionRoleCode
+    scopeType: NutritionScopeType
+    scopeId: number
+}
+
+export type NutritionScopedRoleBindingResponse = NutritionCreateScopedRoleBindingRequest & {
+    id: number
+    status: NutritionStatus
+    createdAt: string
+    updatedAt: string
+}
+
+export type NutritionCreateDataGrantRequest = {
+    memberProfileId?: number
+    granteeType: 'USER' | 'CLAN'
+    granteeId: number
+    dataScope: NutritionGrantDataScope
+    permissionLevel: NutritionGrantPermissionLevel
+    expiresAt?: string | null
+}
+
+export type NutritionUpdateDataGrantRequest = {
+    permissionLevel: NutritionGrantPermissionLevel
+    expiresAt?: string | null
+}
+
+export type NutritionDataGrantResponse = NutritionCreateDataGrantRequest & {
+    id: number
+    familyId: number
+    status: NutritionStatus
+    createdAt: string
+    updatedAt: string
+}
+
+export type NutritionClanFamilyRelationResponse = {
+    id: number
+    clanId: number
+    familyId: number
+    relationStatus: NutritionStatus
+    joinedAt?: string | null
+    createdAt: string
+    updatedAt: string
+}
+
 export type NutritionCreateMemberProfileRequest = {
     boundUserId?: number
     nickname: string
@@ -117,6 +195,25 @@ export type NutritionMemberProfileResponse = {
     updatedAt: string
 }
 
+export type NutritionUpdateMemberProfileRequest = {
+    nickname: string
+    gender?: string
+    birthDate?: string
+    heightCm?: NutritionAmount
+    weightKg?: NutritionAmount
+    memberType: NutritionMemberType
+    loginEnabled: boolean
+    guardianMemberId?: number
+}
+
+export type NutritionBindMemberUserRequest = {
+    userId: number
+}
+
+export type NutritionAssignProfileGuardianRequest = {
+    userId: number
+}
+
 export type NutritionUpdateHealthProfileRequest = {
     activityLevel?: string
     dietGoals?: string[]
@@ -139,14 +236,47 @@ export type NutritionHealthProfileResponse = NutritionUpdateHealthProfileRequest
     updatedAt: string
 }
 
+export type NutritionHealthTagResponse = {
+    id: number
+    tagType: string
+    tagCode: string
+    name: string
+    description?: string | null
+    sortOrder: number
+    status: NutritionStatus
+    createdAt: string
+    updatedAt: string
+}
+
+export type NutritionUpsertHealthTagRequest = {
+    tagType: string
+    tagCode: string
+    name: string
+    description?: string
+    sortOrder: number
+}
+
 export type NutritionCreateStandardFoodRequest = {
     nameCn: string
     nameEn?: string
+    aliases?: string[]
     category: string
+    externalSource?: string
+    externalFoodId?: string
     caloriesPer100g?: NutritionAmount
     proteinPer100g?: NutritionAmount
     fatPer100g?: NutritionAmount
     carbsPer100g?: NutritionAmount
+    sugarPer100g?: NutritionAmount
+    sodiumPer100g?: NutritionAmount
+    fiberPer100g?: NutritionAmount
+    cholesterolPer100g?: NutritionAmount
+    purineLevel?: string
+    giValue?: NutritionAmount
+    allergenTags?: string[]
+    suitableTags?: string[]
+    dataQuality: string
+    status: NutritionStatus
 }
 
 export type NutritionStandardFoodResponse = NutritionCreateStandardFoodRequest & {
@@ -157,11 +287,19 @@ export type NutritionStandardFoodResponse = NutritionCreateStandardFoodRequest &
 }
 
 export type NutritionRecipeIngredientRequest = {
+    standardFoodId?: number
     foodName: string
     category?: string
     amount: NutritionAmount
     unit: string
+    gramsPerUnit?: NutritionAmount
     optional?: boolean
+}
+
+export type NutritionRecipeStepRequest = {
+    stepNo: number
+    title?: string
+    instruction: string
 }
 
 export type NutritionCreateRecipeRequest = {
@@ -169,7 +307,12 @@ export type NutritionCreateRecipeRequest = {
     category?: string
     description?: string
     servingCount?: number
+    cookingMinutes?: number
+    difficultyLevel?: string
+    suitableTags?: string[]
+    allergenTags?: string[]
     ingredients: NutritionRecipeIngredientRequest[]
+    steps?: NutritionRecipeStepRequest[]
 }
 
 export type NutritionRecipeIngredientResponse = {
@@ -179,22 +322,50 @@ export type NutritionRecipeIngredientResponse = {
     rawFoodName: string
     amount: NutritionAmount
     unit: string
+    gramsPerUnit?: NutritionAmount | null
     mappingStatus: string
     optional: boolean
+    nutritionSnapshot?: NutritionNutrients | null
+}
+
+export type NutritionRecipeStepResponse = {
+    id: number
+    recipeId: number
+    stepNo: number
+    title?: string | null
+    instruction: string
 }
 
 export type NutritionRecipeResponse = {
     id: number
-    familyId: number
+    familyId?: number | null
     sourceType: NutritionRecipeSourceType
     name: string
     category?: string | null
     description?: string | null
     servingCount: number
+    cookingMinutes?: number | null
+    difficultyLevel?: string | null
+    suitableTags: string[]
+    allergenTags: string[]
+    nutritionSnapshot?: NutritionNutrients | null
+    estimatedCost?: NutritionAmount | null
     status: NutritionStatus
     ingredients: NutritionRecipeIngredientResponse[]
+    steps: NutritionRecipeStepResponse[]
     createdAt: string
     updatedAt: string
+}
+
+export type NutritionUpdateRecipeIngredientMappingRequest = {
+    standardFoodId: number
+    gramsPerUnit?: NutritionAmount
+}
+
+export type NutritionRecipeValidationResponse = {
+    publishable: boolean
+    errors: string[]
+    warnings: string[]
 }
 
 export type NutritionMealPlanItemResponse = {
@@ -391,6 +562,7 @@ export type NutritionRecordResponse = {
     memberProfileId: number
     mealPlanId?: number | null
     mealConfirmationId?: number | null
+    sourceMealPlanItemId?: number | null
     recordDate: string
     mealType: NutritionMealType
     sourceType: string
@@ -406,15 +578,19 @@ export type NutritionDailyOverviewResponse = {
     familyId: number
     recordDate: string
     totalNutrients: NutritionNutrients
+    targetNutrients: NutritionNutrients
+    remainingNutrients: NutritionNutrients
     memberSummaries: Array<{
         memberProfileId: number
         totalNutrients: NutritionNutrients
+        targetNutrients: NutritionNutrients
+        remainingNutrients: NutritionNutrients
         records: NutritionRecordResponse[]
     }>
 }
 
 export type NutritionRecordAdjustmentRequest = {
-    nutrients: NutritionNutrients
+    nutrients?: NutritionNutrients
     reason?: string
 }
 
@@ -430,8 +606,13 @@ export type NutritionCreateExtraFoodRecordRequest = {
     note?: string
 }
 
+export type NutritionTrendPointResponse = {
+    date: string
+    nutrients: NutritionNutrients
+}
+
 export type NutritionReportResponse = {
-    snapshotId: number
+    snapshotId?: number | null
     periodType: string
     periodStart: string
     periodEnd: string
@@ -440,10 +621,28 @@ export type NutritionReportResponse = {
     totalCost?: NutritionAmount | null
     actualCost?: NutritionAmount | null
     estimatedCost?: NutritionAmount | null
+    perPersonCost?: NutritionAmount | null
     commonDishes: Array<{
         dishName: string
         count: number
     }>
+    nutrientReminders: string[]
+    trends: NutritionTrendPointResponse[]
+}
+
+export type NutritionHomeOverviewResponse = {
+    familyId: number
+    date: string
+    mealPlans: NutritionMealPlanResponse[]
+    confirmedMemberCount: number
+    awayMemberCount: number
+    unconfirmedMemberCount: number
+    riskCounts: Partial<Record<NutritionRiskLevel, number>>
+    shoppingState?: NutritionShoppingListStatus | null
+    actualCost: NutritionAmount
+    estimatedCost: NutritionAmount
+    budgetUsageRate: NutritionAmount
+    nutritionRecordReady: boolean
 }
 
 export type NutritionCreateImportJobRequest = {

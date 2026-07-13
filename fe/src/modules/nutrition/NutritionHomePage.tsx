@@ -1,71 +1,121 @@
 import {CheckCircleOutlined, DollarOutlined, RobotOutlined} from '@ant-design/icons'
-import {Button, Card, Statistic, Table, Tag} from 'antd'
+import {Card, Statistic, Table, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
+import {useCallback, useEffect, useState} from 'react'
 import {PageToolbar} from '../../components/PageToolbar'
+import {CurrentFamilySelect} from './components/CurrentFamilySelect'
 import {MoneyText} from './components/MoneyText'
-import {RiskTag} from './components/RiskTag'
-import {mealPlans, weeklyBudget} from './nutritionPageData'
+import {NutritionAsyncState, nutritionLoadFailure} from './components/NutritionAsyncState'
+import {getNutritionHomeOverview} from './nutritionService'
+import type {NutritionAmount, NutritionHomeOverviewResponse, NutritionLoadState, NutritionMealPlanResponse} from './nutritionTypes'
 import {NutritionPageGrid, NutritionStack} from './NutritionPageLayout'
-
-type PendingAction = {
-    id: number
-    title: string
-    planDate: string
-    status: string
-    risk: 'LOW' | 'MEDIUM' | 'HIGH'
-    pendingMembers: number
-    estimatedCost: number
-}
-
-const pendingActions: PendingAction[] = mealPlans.map((plan) => ({
-    id: plan.id,
-    title: plan.title,
-    planDate: plan.planDate,
-    status: plan.status,
-    risk: 'MEDIUM',
-    pendingMembers: 2,
-    estimatedCost: Number(plan.estimatedCost ?? 0),
-}))
-
-const columns: ColumnsType<PendingAction> = [
-    {title: '菜单', dataIndex: 'title', width: 180},
-    {title: '日期', dataIndex: 'planDate', width: 120},
-    {title: '状态', dataIndex: 'status', width: 140, render: (_, record) => <Tag color="processing">{record.status}</Tag>},
-    {title: '风险', dataIndex: 'risk', width: 120, render: (_, record) => <RiskTag value={record.risk}/>},
-    {title: '待确认成员', dataIndex: 'pendingMembers', width: 130},
-    {title: '预估成本', dataIndex: 'estimatedCost', width: 130, render: (_, record) => <MoneyText value={record.estimatedCost}/>},
-    {title: '操作', width: 120, render: () => <Button disabled size="small">查看确认</Button>},
-]
+import {useNutritionFamilySelection} from './useNutritionFamilySelection'
 
 function NutritionHomePage() {
+    const familySelection = useNutritionFamilySelection()
+    const [overview, setOverview] = useState<NutritionHomeOverviewResponse>()
+    const [state, setState] = useState<NutritionLoadState>('idle')
+    const [error, setError] = useState<string>()
+
+    const loadOverview = useCallback(async () => {
+        if (!familySelection.currentFamilyId) {
+            setOverview(undefined)
+            return
+        }
+        setState('loading')
+        try {
+            const response = await getNutritionHomeOverview(familySelection.currentFamilyId, {date: localDate()})
+            setOverview(response)
+            setState('ready')
+            setError(undefined)
+        } catch (reason) {
+            const failure = nutritionLoadFailure(reason)
+            setState(failure.state)
+            setError(failure.error)
+        }
+    }, [familySelection.currentFamilyId])
+
+    useEffect(() => {
+        void loadOverview()
+    }, [loadOverview])
+
+    const columns: ColumnsType<NutritionMealPlanResponse> = [
+        {title: '菜单', dataIndex: 'title', width: 180},
+        {title: '日期', dataIndex: 'planDate', width: 120},
+        {title: '状态', dataIndex: 'status', width: 140, render: (value) => <Tag color="processing">{value}</Tag>},
+        {title: '确认人数', dataIndex: 'confirmedMemberCount', width: 110},
+        {title: '预估成本', dataIndex: 'estimatedCost', width: 130, render: (value: NutritionAmount | null | undefined) => <MoneyText value={value}/>},
+    ]
+    const visibleState = familySelection.state === 'ready' ? state : familySelection.state
+    const visibleError = familySelection.state === 'ready' ? error : familySelection.error
+
     return (
         <NutritionStack>
             <PageToolbar
-                actions={<Button disabled icon={<RobotOutlined/>} type="primary">生成今日建议</Button>}
-                description="跟踪家庭菜单、确认进度和预算使用，优先处理 AI 菜单待办。"
+                actions={(
+                    <CurrentFamilySelect
+                        families={familySelection.families}
+                        loading={familySelection.state === 'loading'}
+                        onChange={familySelection.setCurrentFamilyId}
+                        value={familySelection.currentFamilyId}
+                    />
+                )}
+                description="跟踪家庭菜单、确认进度、风险、采购和预算使用。"
                 title="营养首页"
             />
-            <NutritionPageGrid>
-                <Card>
-                    <Statistic prefix={<RobotOutlined/>} title="待处理 AI 菜单" value={pendingActions.length}/>
-                </Card>
-                <Card>
-                    <Statistic suffix="%" prefix={<DollarOutlined/>} title="预算使用率" value={weeklyBudget.usageRate}/>
-                </Card>
-                <Card>
-                    <Statistic prefix={<CheckCircleOutlined/>} title="待确认成员" value={2}/>
-                </Card>
-            </NutritionPageGrid>
-            <Table<PendingAction>
-                columns={columns}
-                dataSource={pendingActions}
-                pagination={false}
-                rowKey="id"
-                scroll={{x: 920}}
-                size="small"
-            />
+            <NutritionAsyncState
+                error={visibleError}
+                onRetry={() => void (familySelection.state === 'ready' ? loadOverview() : familySelection.reload())}
+                state={visibleState}
+            >
+                <NutritionStack>
+                    <NutritionPageGrid>
+                        <Card>
+                            <Statistic
+                                prefix={<RobotOutlined/>}
+                                title="今日菜单"
+                                value={overview?.mealPlans.length ?? 0}
+                            />
+                        </Card>
+                        <Card>
+                            <Statistic
+                                suffix="%"
+                                prefix={<DollarOutlined/>}
+                                title="预算使用率"
+                                value={Number(overview?.budgetUsageRate ?? 0)}
+                            />
+                        </Card>
+                        <Card>
+                            <Statistic
+                                prefix={<CheckCircleOutlined/>}
+                                title="待确认成员"
+                                value={overview?.unconfirmedMemberCount ?? 0}
+                            />
+                        </Card>
+                        <Card title="今日实际成本">
+                            <MoneyText value={overview?.actualCost ?? 0}/>
+                        </Card>
+                    </NutritionPageGrid>
+                    <Table<NutritionMealPlanResponse>
+                        columns={columns}
+                        dataSource={overview?.mealPlans ?? []}
+                        pagination={false}
+                        rowKey="id"
+                        scroll={{x: 760}}
+                        size="small"
+                    />
+                </NutritionStack>
+            </NutritionAsyncState>
         </NutritionStack>
     )
+}
+
+function localDate() {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
 }
 
 export const Component = NutritionHomePage
