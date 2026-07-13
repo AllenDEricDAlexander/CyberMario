@@ -3,6 +3,8 @@ import {buildSearchParams} from '../../services/urlSearch'
 import type {
     NutritionAiRecommendationJobResponse,
     NutritionAiRecommendationResponse,
+    NutritionAcknowledgeMealRisksRequest,
+    NutritionBudgetRuleResponse,
     NutritionBudgetSummaryResponse,
     NutritionAssignProfileGuardianRequest,
     NutritionBindMemberUserRequest,
@@ -42,12 +44,15 @@ import type {
     NutritionShoppingListResponse,
     NutritionStandardFoodResponse,
     NutritionScopedRoleBindingResponse,
+    NutritionTransitionShoppingListRequest,
+    NutritionUpdateMealPlanRequest,
     NutritionUpdateDataGrantRequest,
     NutritionUpdateFamilySettingsRequest,
     NutritionUpdateHealthProfileRequest,
     NutritionUpdateMemberProfileRequest,
     NutritionUpdateRecipeIngredientMappingRequest,
     NutritionUpdateShoppingListItemRequest,
+    NutritionUpsertBudgetRuleRequest,
     NutritionUpsertHealthTagRequest,
 } from './nutritionTypes'
 
@@ -404,8 +409,39 @@ export function publishNutritionMealPlan(familyId: number, mealPlanId: number) {
     })
 }
 
-export function closeNutritionMealPlanConfirmation(familyId: number, mealPlanId: number) {
-    return requestJson<NutritionMealPlanResponse>(mealPlanPath(familyId, `/${mealPlanId}/close-confirmation`), {
+export function updateNutritionMealPlan(
+    familyId: number,
+    mealPlanId: number,
+    request: NutritionUpdateMealPlanRequest,
+) {
+    return requestJson<NutritionMealPlanResponse>(mealPlanPath(familyId, `/${mealPlanId}`), {
+        method: 'PUT',
+        body: request,
+    })
+}
+
+export function acknowledgeNutritionMealRisks(
+    familyId: number,
+    mealPlanId: number,
+    request: NutritionAcknowledgeMealRisksRequest,
+) {
+    return requestJson<NutritionMealPlanResponse>(mealPlanPath(familyId, `/${mealPlanId}/risks/acknowledge`), {
+        method: 'POST',
+        body: request,
+    })
+}
+
+export function regenerateNutritionMealPlan(familyId: number, mealPlanId: number) {
+    return requestJson<NutritionAiRecommendationJobResponse>(mealPlanPath(familyId, `/${mealPlanId}/regenerate`), {
+        method: 'POST',
+    })
+}
+
+export function closeNutritionMealPlanConfirmation(familyId: number, mealPlanId: number, closeEarly = false) {
+    return requestJson<NutritionMealPlanResponse>(withQuery(
+        mealPlanPath(familyId, `/${mealPlanId}/close-confirmation`),
+        {closeEarly},
+    ), {
         method: 'POST',
     })
 }
@@ -442,6 +478,12 @@ export function updateNutritionMealConfirmation(
     })
 }
 
+export function listNutritionMealConfirmations(familyId: number, mealPlanId: number) {
+    return requestJson<NutritionMealConfirmationResponse[]>(
+        mealPlanPath(familyId, `/${mealPlanId}/confirmations`),
+    )
+}
+
 export function generateNutritionAiRecommendation(
     familyId: number,
     request: NutritionGenerateAiRecommendationRequest,
@@ -460,6 +502,25 @@ export function getNutritionAiRecommendation(familyId: number, recommendationId:
     return requestJson<NutritionAiRecommendationResponse>(
         familyPath(familyId, `/ai-recommendations/${recommendationId}`),
     )
+}
+
+export function getNutritionAiRecommendationJob(familyId: number, jobId: number) {
+    return requestJson<NutritionAiRecommendationJobResponse>(
+        familyPath(familyId, `/ai-recommendation-jobs/${jobId}`),
+    )
+}
+
+export function previewNutritionShoppingList(familyId: number, mealPlanId: number) {
+    return requestJson<NutritionShoppingListResponse>(
+        familyPath(familyId, `/meal-plans/${mealPlanId}/shopping-list/preview`),
+    )
+}
+
+export function listNutritionShoppingLists(familyId: number, mealPlanId?: number) {
+    return requestJson<NutritionShoppingListResponse[]>(withQuery(
+        familyPath(familyId, '/shopping-lists'),
+        {mealPlanId},
+    ))
 }
 
 export function generateNutritionShoppingList(familyId: number, mealPlanId: number) {
@@ -488,11 +549,29 @@ export function updateNutritionShoppingListItem(
     )
 }
 
+export function transitionNutritionShoppingList(
+    familyId: number,
+    shoppingListId: number,
+    request: NutritionTransitionShoppingListRequest,
+) {
+    return requestJson<NutritionShoppingListResponse>(
+        familyPath(familyId, `/shopping-lists/${shoppingListId}/transition`),
+        {method: 'POST', body: request},
+    )
+}
+
 export function createNutritionPriceRecord(familyId: number, request: NutritionCreateFoodPriceRecordRequest) {
     return requestJson<NutritionFoodPriceRecordResponse>(familyPath(familyId, '/price-records'), {
         method: 'POST',
         body: request,
     })
+}
+
+export function listNutritionPriceRecords(familyId: number, standardFoodId?: number) {
+    return requestJson<NutritionFoodPriceRecordResponse[]>(withQuery(
+        familyPath(familyId, '/price-records'),
+        {standardFoodId},
+    ))
 }
 
 export function getNutritionWeeklyBudget(familyId: number, params: WeekQuery = {}) {
@@ -501,6 +580,32 @@ export function getNutritionWeeklyBudget(familyId: number, params: WeekQuery = {
 
 export function getNutritionMonthlyBudget(familyId: number, params: MonthQuery = {}) {
     return requestJson<NutritionBudgetSummaryResponse>(withQuery(familyPath(familyId, '/budget/monthly'), params))
+}
+
+export function listNutritionBudgetRules(familyId: number) {
+    return requestJson<NutritionBudgetRuleResponse[]>(familyPath(familyId, '/budget-rules'))
+}
+
+export function createNutritionBudgetRule(familyId: number, request: NutritionUpsertBudgetRuleRequest) {
+    return requestJson<NutritionBudgetRuleResponse>(familyPath(familyId, '/budget-rules'), {
+        method: 'POST',
+        body: request,
+    })
+}
+
+export function updateNutritionBudgetRule(
+    familyId: number,
+    ruleId: number,
+    request: NutritionUpsertBudgetRuleRequest,
+) {
+    return requestJson<NutritionBudgetRuleResponse>(familyPath(familyId, `/budget-rules/${ruleId}`), {
+        method: 'PUT',
+        body: request,
+    })
+}
+
+export function deactivateNutritionBudgetRule(familyId: number, ruleId: number) {
+    return requestJson<void>(familyPath(familyId, `/budget-rules/${ruleId}`), {method: 'DELETE'})
 }
 
 export function getNutritionDailyOverview(familyId: number, params: DateQuery = {}) {
@@ -539,6 +644,20 @@ export function getNutritionFamilyWeeklyReport(familyId: number, params: WeekQue
 export function getNutritionFamilyMonthlyReport(familyId: number, params: MonthQuery = {}) {
     return requestJson<NutritionReportResponse>(
         withQuery(familyPath(familyId, '/nutrition-records/reports/family-monthly'), params),
+    )
+}
+
+export function generateNutritionFamilyWeeklyReport(familyId: number, params: WeekQuery = {}) {
+    return requestJson<NutritionReportResponse>(
+        withQuery(familyPath(familyId, '/nutrition-records/reports/family-weekly/generate'), params),
+        {method: 'POST'},
+    )
+}
+
+export function generateNutritionFamilyMonthlyReport(familyId: number, params: MonthQuery = {}) {
+    return requestJson<NutritionReportResponse>(
+        withQuery(familyPath(familyId, '/nutrition-records/reports/family-monthly/generate'), params),
+        {method: 'POST'},
     )
 }
 

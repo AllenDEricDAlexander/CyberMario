@@ -376,6 +376,23 @@ export type NutritionMealPlanItemResponse = {
     dishName: string
     servingCount: NutritionAmount
     sortOrder: number
+    nutritionSnapshot?: string | null
+    costSnapshot?: string | null
+    version: number
+}
+
+export type NutritionMealRiskResponse = {
+    id: number
+    memberProfileId?: number | null
+    ruleCode?: string | null
+    riskLevel: NutritionRiskLevel
+    riskMessage: string
+    blocking: boolean
+    requiresConfirmation: boolean
+    acknowledged: boolean
+    acknowledgedBy?: number | null
+    acknowledgementNote?: string | null
+    acknowledgedAt?: string | null
 }
 
 export type NutritionMealPlanResponse = {
@@ -384,11 +401,15 @@ export type NutritionMealPlanResponse = {
     aiRecommendationId?: number | null
     planDate: string
     status: NutritionMealPlanStatus
+    version: number
     title: string
     publishedAt?: string | null
     confirmationCutoffAt?: string | null
     confirmedMemberCount: number
     estimatedCost?: NutritionAmount | null
+    nutritionSnapshot?: string | null
+    risks: NutritionMealRiskResponse[]
+    publishable: boolean
     items: NutritionMealPlanItemResponse[]
     createdAt: string
     updatedAt: string
@@ -396,32 +417,70 @@ export type NutritionMealPlanResponse = {
 
 export type NutritionMealPlanSummaryResponse = {
     mealPlanId: number
+    activeMemberCount: number
     confirmedMemberCount: number
+    awayMemberCount: number
+    unconfirmedMemberCount: number
+    riskCounts: Partial<Record<NutritionRiskLevel, number>>
+    remarks: string[]
+    readyForShopping: boolean
     dishes: Array<{
         itemId: number
         dishName: string
         mealType: NutritionMealType
         servingCount: NutritionAmount
+        selectedMemberCount: number
         confirmedServingTotal: NutritionAmount
     }>
 }
 
+export type NutritionUpdateMealPlanRequest = {
+    expectedVersion: number
+    confirmationCutoffAt?: string | null
+    items: Array<{
+        id?: number
+        mealType: NutritionMealType
+        recipeId: number
+        servingCount: NutritionAmount
+        sortOrder: number
+    }>
+}
+
+export type NutritionAcknowledgeMealRisksRequest = {
+    riskIds: number[]
+    note: string
+}
+
+export type NutritionMealConfirmationItemRequest = {
+    mealPlanItemId: number
+    selected: boolean
+    servingCount: NutritionAmount
+    riskAcknowledged: boolean
+    adjustmentNote?: string
+}
+
 export type NutritionMealConfirmationRequest = {
     memberProfileId: number
-    eatAtHome?: boolean
-    selectedMealTypes?: NutritionMealType[]
-    riskConfirmed?: boolean
-    riskConfirmationNote?: string
+    eatAtHome: boolean
+    items: NutritionMealConfirmationItemRequest[]
     remark?: string
 }
 
-export type NutritionMealConfirmationResponse = NutritionMealConfirmationRequest & {
+export type NutritionMealConfirmationItemResponse = NutritionMealConfirmationItemRequest & {
+    id: number
+    confirmationId: number
+    mealType: NutritionMealType
+    version: number
+}
+
+export type NutritionMealConfirmationResponse = Omit<NutritionMealConfirmationRequest, 'items'> & {
     id: number
     familyId: number
     mealPlanId: number
     confirmedByUserId?: number | null
     proxyByUserId?: number | null
     confirmationStatus: NutritionConfirmationStatus
+    items: NutritionMealConfirmationItemResponse[]
     confirmedAt?: string | null
     createdAt: string
     updatedAt: string
@@ -515,6 +574,10 @@ export type NutritionUpdateShoppingListItemRequest = {
     note?: string
 }
 
+export type NutritionTransitionShoppingListRequest = {
+    targetStatus: NutritionShoppingListStatus
+}
+
 export type NutritionCreateFoodPriceRecordRequest = {
     shoppingListItemId?: number
     standardFoodId?: number
@@ -549,11 +612,68 @@ export type NutritionBudgetSummaryResponse = {
     mealCount: number
     confirmedMemberCount: number
     perPersonCost: NutritionAmount
+    budgetLimit: NutritionAmount
     usageRate: NutritionAmount
-    dailySummaries: Array<Record<string, unknown>>
-    dishSummaries: Array<Record<string, unknown>>
-    ingredientSummaries: Array<Record<string, unknown>>
-    channelSummaries: Array<Record<string, unknown>>
+    shoppingCompletionRate: NutritionAmount
+    dailySummaries: NutritionBudgetDailySummaryResponse[]
+    dishSummaries: NutritionBudgetDishSummaryResponse[]
+    ingredientSummaries: NutritionBudgetIngredientSummaryResponse[]
+    channelSummaries: NutritionBudgetChannelSummaryResponse[]
+}
+
+export type NutritionBudgetDailySummaryResponse = {
+    date: string
+    totalAmount: NutritionAmount
+    actualAmount: NutritionAmount
+    estimatedAmount: NutritionAmount
+    mealPlanCount: number
+    mealCount: number
+    confirmedMemberCount: number
+    perPersonCost: NutritionAmount
+}
+
+export type NutritionBudgetDishSummaryResponse = {
+    mealPlanId: number
+    itemId: number
+    planDate: string
+    mealType: NutritionMealType
+    dishName: string
+    servingCount: NutritionAmount
+    confirmedServingCount: NutritionAmount
+    amount: NutritionAmount
+}
+
+export type NutritionBudgetIngredientSummaryResponse = {
+    standardFoodId?: number | null
+    rawFoodName: string
+    unit?: string | null
+    plannedAmount: NutritionAmount
+    purchasedAmount: NutritionAmount
+    totalAmount: NutritionAmount
+}
+
+export type NutritionBudgetChannelSummaryResponse = {
+    channel?: string | null
+    totalAmount: NutritionAmount
+    itemCount: number
+}
+
+export type NutritionUpsertBudgetRuleRequest = {
+    ruleName: string
+    periodType: string
+    amountLimit: NutritionAmount
+    currency?: string
+    warningThreshold?: NutritionAmount
+    enabled: boolean
+}
+
+export type NutritionBudgetRuleResponse = NutritionUpsertBudgetRuleRequest & {
+    id: number
+    familyId: number
+    status: NutritionStatus
+    version: number
+    createdAt: string
+    updatedAt: string
 }
 
 export type NutritionRecordResponse = {
@@ -590,7 +710,7 @@ export type NutritionDailyOverviewResponse = {
 }
 
 export type NutritionRecordAdjustmentRequest = {
-    nutrients?: NutritionNutrients
+    nutrients: NutritionNutrients
     reason?: string
 }
 
