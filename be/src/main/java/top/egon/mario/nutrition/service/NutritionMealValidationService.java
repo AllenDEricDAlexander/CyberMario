@@ -3,6 +3,8 @@ package top.egon.mario.nutrition.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +13,7 @@ import top.egon.mario.nutrition.po.NutritionHealthProfilePo;
 import top.egon.mario.nutrition.po.NutritionMealPlanItemPo;
 import top.egon.mario.nutrition.po.NutritionMealPlanPo;
 import top.egon.mario.nutrition.po.NutritionRecipeIngredientPo;
+import top.egon.mario.nutrition.po.NutritionRiskCheckResultPo;
 import top.egon.mario.nutrition.po.NutritionStandardFoodPo;
 import top.egon.mario.nutrition.po.enums.NutritionRiskLevel;
 import top.egon.mario.nutrition.po.enums.NutritionStatus;
@@ -20,6 +23,7 @@ import top.egon.mario.nutrition.repository.NutritionMealPlanItemRepository;
 import top.egon.mario.nutrition.repository.NutritionMealPlanRepository;
 import top.egon.mario.nutrition.repository.NutritionMemberProfileRepository;
 import top.egon.mario.nutrition.repository.NutritionRecipeIngredientRepository;
+import top.egon.mario.nutrition.repository.NutritionRiskCheckResultRepository;
 import top.egon.mario.nutrition.repository.NutritionStandardFoodRepository;
 import top.egon.mario.nutrition.service.access.NutritionAccessService;
 import top.egon.mario.nutrition.service.calculation.NutritionTotals;
@@ -59,6 +63,7 @@ public class NutritionMealValidationService {
     private final NutritionMemberProfileRepository memberProfileRepository;
     private final NutritionHealthProfileRepository healthProfileRepository;
     private final NutritionBudgetRuleRepository budgetRuleRepository;
+    private final NutritionRiskCheckResultRepository riskCheckResultRepository;
     private final NutritionRuleCheckService ruleCheckService;
     private final NutritionAccessService accessService;
     private final RecipeService recipeService;
@@ -106,19 +111,80 @@ public class NutritionMealValidationService {
         BigDecimal estimatedCost = completeCost ? totalCost.setScale(2, RoundingMode.HALF_UP) : null;
         plan.setNutritionSnapshot(writeJson(planTotals));
         plan.setEstimatedCost(estimatedCost);
-        mealPlanRepository.save(plan);
 
         List<RuleIngredient> ruleIngredients = ruleIngredients(recipeIds);
+        Map<String, String> acknowledgements = activeAcknowledgements(familyId, mealPlanId);
         RuleCheckRequest request = new RuleCheckRequest(
                 familyId, SOURCE_TYPE_MEAL_PLAN, mealPlanId, memberProfiles(familyId), ruleIngredients,
                 planTotals, estimatedCost, budgetContext(familyId), recentRecipeIds(familyId, plan));
         List<RuleCheckResult> risks = ruleCheckService.check(request);
+        preserveAcknowledgements(familyId, mealPlanId, acknowledgements);
         boolean blockingRisk = risks.stream().anyMatch(risk -> risk.blocking()
                 || risk.riskLevel() == NutritionRiskLevel.HIGH
                 || risk.riskLevel() == NutritionRiskLevel.BLOCKING);
+        boolean publishable = !items.isEmpty() && errors.isEmpty() && !blockingRisk;
+        plan.setMetadataJson(validationMetadata(plan.getMetadataJson(), publishable, errors));
+        mealPlanRepository.save(plan);
         return new MealValidationResult(
-                !items.isEmpty() && errors.isEmpty() && !blockingRisk,
+                publishable,
                 planTotals, estimatedCost, risks, List.copyOf(errors));
+    }
+
+    private Map<String, String> activeAcknowledgements(Long familyId, Long mealPlanId) {
+        return riskCheckResultRepository
+                .findByFamilyIdAndSourceTypeAndSourceIdAndStatusAndResolvedFalseAndDeletedFalseOrderByIdAsc(
+                        familyId, SOURCE_TYPE_MEAL_PLAN, mealPlanId, NutritionStatus.ACTIVE).stream()
+                .filter(risk -> acknowledged(risk.getMetadataJson()))
+                .collect(Collectors.toMap(this::riskKey, NutritionRiskCheckResultPo::getMetadataJson,
+                        (left, right) -> left));
+    }
+
+    private void preserveAcknowledgements(Long familyId, Long mealPlanId, Map<String, String> acknowledgements) {
+        if (acknowledgements.isEmpty()) {
+            return;
+        }
+        List<NutritionRiskCheckResultPo> active = riskCheckResultRepository
+                .findByFamilyIdAndSourceTypeAndSourceIdAndStatusAndResolvedFalseAndDeletedFalseOrderByIdAsc(
+                        familyId, SOURCE_TYPE_MEAL_PLAN, mealPlanId, NutritionStatus.ACTIVE);
+        active.forEach(risk -> {
+            String metadata = acknowledgements.get(riskKey(risk));
+            if (metadata != null) {
+                risk.setMetadataJson(metadata);
+            }
+        });
+        riskCheckResultRepository.saveAll(active);
+    }
+
+    private String riskKey(NutritionRiskCheckResultPo risk) {
+        return String.valueOf(risk.getMemberProfileId()) + "|" + risk.getRuleCode();
+    }
+
+    private boolean acknowledged(String metadataJson) {
+        if (metadataJson == null || metadataJson.isBlank()) {
+            return false;
+        }
+        try {
+            return objectMapper.readTree(metadataJson).path("acknowledged").asBoolean(false);
+        } catch (JsonProcessingException ignored) {
+            return false;
+        }
+    }
+
+    private String validationMetadata(String metadataJson, boolean publishable, Set<String> errors) {
+        ObjectNode metadata = objectMapper.createObjectNode();
+        if (metadataJson != null && !metadataJson.isBlank()) {
+            try {
+                JsonNode current = objectMapper.readTree(metadataJson);
+                if (current instanceof ObjectNode objectNode) {
+                    metadata.setAll(objectNode);
+                }
+            } catch (JsonProcessingException ex) {
+                throw new NutritionException("NUTRITION_JSON_INVALID", "nutrition meal metadata is invalid");
+            }
+        }
+        metadata.put("validationPublishable", publishable);
+        metadata.set("validationErrors", objectMapper.valueToTree(errors));
+        return writeJson(metadata);
     }
 
     private List<MemberRuleProfile> memberProfiles(Long familyId) {

@@ -14,6 +14,9 @@ public record MealPlanItemResponse(
         Long recipeId,
         String dishName,
         BigDecimal servingCount,
-        int sortOrder
+        int sortOrder,
+        String nutritionSnapshot,
+        String costSnapshot,
+        Long version
 ) {
 }

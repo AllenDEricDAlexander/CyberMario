@@ -63,7 +63,7 @@ public class MealConfirmationService {
                 .findByMealPlanIdAndMemberProfileIdAndDeletedFalse(mealPlan.getId(), memberProfile.getId())
                 .orElseGet(NutritionMealConfirmationPo::new);
         applyConfirmation(confirmation, familyId, mealPlan, memberProfile, request, userId);
-        mealPlanService.markConfirmingForConfirmation(mealPlan);
+        mealPlanService.markConfirmingForConfirmation(mealPlan, userId);
         NutritionMealConfirmationPo saved = confirmationRepository.saveAndFlush(confirmation);
         mealPlanService.refreshConfirmedMemberCount(mealPlan);
         return toResponse(saved);
@@ -88,7 +88,7 @@ public class MealConfirmationService {
         accessService.requireConfirmMemberProfile(userId, familyId, memberProfile.getId());
         enforceRiskGate(familyId, mealPlan.getId(), memberProfile.getId(), Boolean.TRUE.equals(request.riskConfirmed()));
         applyConfirmation(confirmation, familyId, mealPlan, memberProfile, request, userId);
-        mealPlanService.markConfirmingForConfirmation(mealPlan);
+        mealPlanService.markConfirmingForConfirmation(mealPlan, userId);
         NutritionMealConfirmationPo saved = confirmationRepository.saveAndFlush(confirmation);
         mealPlanService.refreshConfirmedMemberCount(mealPlan);
         return toResponse(saved);
