@@ -249,6 +249,8 @@ class ClocktowerRbacResourceProviderTests {
         assertMatches(rules, "POST", "/api/clocktower/rooms/7/members/4/kick",
                 "api:clocktower:room:governance");
         assertMatches(rules, "GET", "/api/clocktower/games/9/view", "api:clocktower:game:read");
+        assertMatches(rules, "GET", "/api/clocktower/games/9/flow",
+                "api:clocktower:game:read");
         assertMatches(rules, "POST", "/api/clocktower/rooms/7/games/start",
                 "api:clocktower:game:lifecycle");
         assertMatches(rules, "POST", "/api/clocktower/games/9/end", "api:clocktower:game:lifecycle");
@@ -267,6 +269,30 @@ class ClocktowerRbacResourceProviderTests {
                 "api:clocktower:game:mic:storyteller");
         assertMatches(rules, "POST", "/api/clocktower/games/9/mic/close",
                 "api:clocktower:game:mic:storyteller");
+        assertMatches(rules, "POST", "/api/clocktower/games/9/flow/advance",
+                "api:clocktower:game:storyteller");
+        assertMatches(rules, "POST", "/api/clocktower/games/9/flow/force-advance",
+                "api:clocktower:game:storyteller");
+        assertMatches(rules, "GET", "/api/clocktower/games/9/agents",
+                "api:clocktower:game:storyteller");
+        assertMatches(rules, "POST", "/api/clocktower/games/9/agents/81/pause",
+                "api:clocktower:game:storyteller");
+        assertMatches(rules, "GET", "/api/clocktower/games/9/agents/81/memory",
+                "api:clocktower:game:storyteller");
+        assertMatches(rules, "GET", "/api/clocktower/games/9/night-tasks",
+                "api:clocktower:game:storyteller");
+        assertMatches(rules, "POST", "/api/clocktower/games/9/night-tasks/91/resolve",
+                "api:clocktower:game:storyteller");
+        assertMatches(rules, "POST", "/api/clocktower/games/9/night-tasks/91/skip",
+                "api:clocktower:game:storyteller");
+        assertMatches(rules, "POST", "/api/clocktower/games/9/night-tasks/91/random-choice",
+                "api:clocktower:game:storyteller");
+        assertMatches(rules, "POST", "/api/clocktower/games/9/night-tasks/resolve-ready",
+                "api:clocktower:game:storyteller");
+        assertMatches(rules, "POST", "/api/clocktower/games/9/nominations/12/close",
+                "api:clocktower:game:storyteller");
+        assertMatches(rules, "POST", "/api/clocktower/games/9/executions/resolve",
+                "api:clocktower:game:storyteller");
         assertMatches(rules, "GET", "/api/clocktower/rooms/7/grimoire", "api:clocktower:game:storyteller");
         assertMatches(rules, "POST", "/api/clocktower/rooms/7/flow/advance",
                 "api:clocktower:game:storyteller");
