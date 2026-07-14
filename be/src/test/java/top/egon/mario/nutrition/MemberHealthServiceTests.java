@@ -6,25 +6,39 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import top.egon.mario.nutrition.dto.request.CreateFamilyRequest;
 import top.egon.mario.nutrition.dto.request.CreateMemberProfileRequest;
+import top.egon.mario.nutrition.dto.request.AssignProfileGuardianRequest;
+import top.egon.mario.nutrition.dto.request.BindMemberUserRequest;
 import top.egon.mario.nutrition.dto.request.UpdateHealthProfileRequest;
+import top.egon.mario.nutrition.dto.request.UpdateMemberProfileRequest;
+import top.egon.mario.nutrition.dto.request.UpsertHealthTagRequest;
 import top.egon.mario.nutrition.dto.response.HealthProfileResponse;
 import top.egon.mario.nutrition.po.NutritionHealthProfilePo;
+import top.egon.mario.nutrition.po.NutritionHealthTagPo;
 import top.egon.mario.nutrition.po.enums.NutritionMemberType;
+import top.egon.mario.nutrition.po.enums.NutritionRoleCode;
+import top.egon.mario.nutrition.po.enums.NutritionScopeType;
 import top.egon.mario.nutrition.po.enums.NutritionStatus;
+import top.egon.mario.nutrition.po.enums.NutritionSubjectType;
 import top.egon.mario.nutrition.repository.NutritionClanFamilyRepository;
 import top.egon.mario.nutrition.repository.NutritionClanRepository;
 import top.egon.mario.nutrition.repository.NutritionDataGrantRepository;
 import top.egon.mario.nutrition.repository.NutritionFamilyRepository;
 import top.egon.mario.nutrition.repository.NutritionHealthProfileRepository;
+import top.egon.mario.nutrition.repository.NutritionHealthTagRepository;
 import top.egon.mario.nutrition.repository.NutritionMemberProfileRepository;
 import top.egon.mario.nutrition.repository.NutritionScopedRoleBindingRepository;
 import top.egon.mario.nutrition.service.ClanFamilyService;
 import top.egon.mario.nutrition.service.MemberHealthService;
 import top.egon.mario.nutrition.service.NutritionException;
+import top.egon.mario.nutrition.service.HealthTagService;
+import top.egon.mario.rbac.po.UserPo;
+import top.egon.mario.rbac.repository.UserRepository;
+import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -50,9 +64,15 @@ class MemberHealthServiceTests {
     @Autowired
     private NutritionHealthProfileRepository healthProfileRepository;
     @Autowired
+    private NutritionHealthTagRepository healthTagRepository;
+    @Autowired
     private NutritionScopedRoleBindingRepository roleBindingRepository;
     @Autowired
     private NutritionDataGrantRepository dataGrantRepository;
+    @Autowired
+    private UserRepository userRepository;
+    @Autowired
+    private HealthTagService healthTagService;
 
     @BeforeEach
     void setUp() {
@@ -63,12 +83,18 @@ class MemberHealthServiceTests {
         memberProfileRepository.deleteAll();
         familyRepository.deleteAll();
         clanRepository.deleteAll();
+        healthTagRepository.deleteAll();
+        activeTag("DIET_GOAL", "MAINTAIN_WEIGHT");
+        activeTag("DIET_GOAL", "GAIN_MUSCLE");
+        activeTag("ALLERGY_TAG", "PEANUT");
+        activeTag("DISLIKE_TAG", "CELERY");
+        activeTag("HEALTH_TAG", "LOW_SODIUM");
     }
 
     @Test
     void familyMemberCanReadAllFamilyHealthProfiles() {
         Long ownerUserId = 2001L;
-        Long memberUserId = 2002L;
+        Long memberUserId = user("nutrition-luigi-reader").getId();
         var family = clanFamilyService.createFamily(new CreateFamilyRequest(
                 "Mario Family", null, null, List.of(), "Mario"), ownerUserId);
         var luigi = memberHealthService.createMemberProfile(family.id(), new CreateMemberProfileRequest(
@@ -135,13 +161,13 @@ class MemberHealthServiceTests {
         var family = clanFamilyService.createFamily(new CreateFamilyRequest(
                 "Mario Family", null, null, List.of(), "Mario"), ownerUserId);
         var active = memberHealthService.createMemberProfile(family.id(), new CreateMemberProfileRequest(
-                5002L, "Luigi", "MALE", LocalDate.of(1990, 1, 1),
+                null, "Luigi", "MALE", LocalDate.of(1990, 1, 1),
                 null, null, NutritionMemberType.ADULT, true, null), ownerUserId);
         var disabled = memberHealthService.createMemberProfile(family.id(), new CreateMemberProfileRequest(
-                5003L, "Peach", "FEMALE", LocalDate.of(1991, 2, 2),
+                null, "Peach", "FEMALE", LocalDate.of(1991, 2, 2),
                 null, null, NutritionMemberType.ADULT, true, null), ownerUserId);
         var deleted = memberHealthService.createMemberProfile(family.id(), new CreateMemberProfileRequest(
-                5004L, "Toad", "MALE", LocalDate.of(1992, 3, 3),
+                null, "Toad", "MALE", LocalDate.of(1992, 3, 3),
                 null, null, NutritionMemberType.ADULT, true, null), ownerUserId);
         memberHealthService.updateHealthProfile(family.id(), active.id(), basicHealth("ACTIVE"), ownerUserId);
         memberHealthService.updateHealthProfile(family.id(), disabled.id(), basicHealth("LIGHT"), ownerUserId);
@@ -162,8 +188,153 @@ class MemberHealthServiceTests {
                 .containsExactly(active.id());
     }
 
+    @Test
+    void memberProfileCanBeUpdatedAndDeactivatedWithoutDeletingAuditRow() {
+        Long ownerUserId = 6001L;
+        var family = clanFamilyService.createFamily(new CreateFamilyRequest(
+                "Mario Family", null, null, List.of(), "Mario"), ownerUserId);
+        var member = memberHealthService.createMemberProfile(family.id(), new CreateMemberProfileRequest(
+                null, "Luigi", null, null, null, null,
+                NutritionMemberType.ADULT, false, null), ownerUserId);
+
+        var updated = memberHealthService.updateMemberProfile(family.id(), member.id(),
+                new UpdateMemberProfileRequest("Luigi Mario", "MALE", LocalDate.of(1990, 1, 1),
+                        new BigDecimal("178.00"), new BigDecimal("72.50"),
+                        NutritionMemberType.ADULT, true, null), ownerUserId);
+
+        assertThat(updated.nickname()).isEqualTo("Luigi Mario");
+        assertThat(updated.loginEnabled()).isTrue();
+
+        var disabled = memberHealthService.deactivateMemberProfile(family.id(), member.id(), ownerUserId);
+
+        assertThat(disabled.status()).isEqualTo(NutritionStatus.DISABLED);
+        assertThat(memberProfileRepository.findById(member.id()).orElseThrow().isDeleted()).isFalse();
+    }
+
+    @Test
+    void bindingValidatesUserAndUnbindingDeactivatesGeneratedRoles() {
+        Long ownerUserId = 6002L;
+        var family = clanFamilyService.createFamily(new CreateFamilyRequest(
+                "Mario Family", null, null, List.of(), "Mario"), ownerUserId);
+        var member = memberHealthService.createMemberProfile(family.id(), new CreateMemberProfileRequest(
+                null, "Luigi", null, null, null, null,
+                NutritionMemberType.ADULT, false, null), ownerUserId);
+
+        assertThatThrownBy(() -> memberHealthService.bindMemberUser(family.id(), member.id(),
+                new BindMemberUserRequest(Long.MAX_VALUE), ownerUserId))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_USER_NOT_FOUND");
+
+        Long boundUserId = user("nutrition-luigi-bound").getId();
+        var bound = memberHealthService.bindMemberUser(family.id(), member.id(),
+                new BindMemberUserRequest(boundUserId), ownerUserId);
+
+        assertThat(bound.boundUserId()).isEqualTo(boundUserId);
+        assertThat(bound.loginEnabled()).isTrue();
+        assertThat(roleBindingRepository.existsBySubjectTypeAndSubjectIdAndRoleCodeInAndScopeTypeAndScopeIdAndStatusAndDeletedFalse(
+                NutritionSubjectType.USER, boundUserId, List.of(NutritionRoleCode.MEMBER),
+                NutritionScopeType.FAMILY, family.id(), NutritionStatus.ACTIVE)).isTrue();
+        assertThat(roleBindingRepository.existsBySubjectTypeAndSubjectIdAndRoleCodeInAndScopeTypeAndScopeIdAndStatusAndDeletedFalse(
+                NutritionSubjectType.USER, boundUserId, List.of(NutritionRoleCode.PROFILE_OWNER),
+                NutritionScopeType.MEMBER_PROFILE, member.id(), NutritionStatus.ACTIVE)).isTrue();
+
+        var unbound = memberHealthService.unbindMemberUser(family.id(), member.id(), ownerUserId);
+
+        assertThat(unbound.boundUserId()).isNull();
+        assertThat(unbound.loginEnabled()).isFalse();
+        assertThat(roleBindingRepository.existsBySubjectTypeAndSubjectIdAndRoleCodeInAndScopeTypeAndScopeIdAndStatusAndDeletedFalse(
+                NutritionSubjectType.USER, boundUserId, List.of(NutritionRoleCode.PROFILE_OWNER),
+                NutritionScopeType.MEMBER_PROFILE, member.id(), NutritionStatus.ACTIVE)).isFalse();
+    }
+
+    @Test
+    void profileGuardianCanBeAssignedAndRevoked() {
+        Long ownerUserId = 6003L;
+        Long guardianUserId = user("nutrition-profile-guardian").getId();
+        var family = clanFamilyService.createFamily(new CreateFamilyRequest(
+                "Mario Family", null, null, List.of(), "Mario"), ownerUserId);
+        var member = memberHealthService.createMemberProfile(family.id(), new CreateMemberProfileRequest(
+                null, "Toad", null, null, null, null,
+                NutritionMemberType.CHILD, false, null), ownerUserId);
+
+        var guardian = memberHealthService.assignProfileGuardian(family.id(), member.id(),
+                new AssignProfileGuardianRequest(guardianUserId), ownerUserId);
+
+        assertThat(guardian.subjectId()).isEqualTo(guardianUserId);
+        assertThat(guardian.roleCode()).isEqualTo(NutritionRoleCode.PROFILE_GUARDIAN);
+        assertThat(guardian.scopeType()).isEqualTo(NutritionScopeType.MEMBER_PROFILE);
+        assertThat(guardian.scopeId()).isEqualTo(member.id());
+
+        memberHealthService.revokeProfileGuardian(
+                family.id(), member.id(), guardian.id(), ownerUserId);
+
+        assertThat(roleBindingRepository.findById(guardian.id()).orElseThrow().getStatus())
+                .isEqualTo(NutritionStatus.DISABLED);
+    }
+
+    @Test
+    void healthProfileRejectsUnknownOrInactiveDictionaryTags() {
+        Long ownerUserId = 6004L;
+        var family = clanFamilyService.createFamily(new CreateFamilyRequest(
+                "Mario Family", null, null, List.of(), "Mario"), ownerUserId);
+
+        assertThatThrownBy(() -> memberHealthService.updateHealthProfile(
+                family.id(), family.ownerMemberProfileId(), new UpdateHealthProfileRequest(
+                        "LIGHT", List.of("UNKNOWN_GOAL"), List.of(), List.of(), List.of(),
+                        new BigDecimal("2000.00"), null, null, null, null, null), ownerUserId))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_HEALTH_TAG_INVALID");
+
+        var milk = healthTagService.createTag(new UpsertHealthTagRequest(
+                "ALLERGY_TAG", "MILK", "Milk", null, 10), platformAdmin());
+        healthTagService.deactivateTag(milk.id(), platformAdmin());
+
+        assertThatThrownBy(() -> memberHealthService.updateHealthProfile(
+                family.id(), family.ownerMemberProfileId(), new UpdateHealthProfileRequest(
+                        "LIGHT", List.of(), List.of("MILK"), List.of(), List.of(),
+                        new BigDecimal("2000.00"), null, null, null, null, null), ownerUserId))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_HEALTH_TAG_INVALID");
+    }
+
+    @Test
+    void healthTagCodeIsUniqueWithinTagType() {
+        UpsertHealthTagRequest request = new UpsertHealthTagRequest(
+                "ALLERGY_TAG", "SHELLFISH", "Shellfish", null, 20);
+        healthTagService.createTag(request, platformAdmin());
+
+        assertThatThrownBy(() -> healthTagService.createTag(request, platformAdmin()))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_HEALTH_TAG_DUPLICATE");
+    }
+
     private UpdateHealthProfileRequest basicHealth(String activityLevel) {
         return new UpdateHealthProfileRequest(activityLevel, List.of(), List.of(), List.of(), List.of(),
                 new BigDecimal("2000.00"), null, null, null, null, null);
+    }
+
+    private UserPo user(String username) {
+        UserPo user = new UserPo();
+        user.setUsername(username);
+        user.setPasswordHash("{noop}nutrition-test");
+        return userRepository.save(user);
+    }
+
+    private NutritionHealthTagPo activeTag(String tagType, String tagCode) {
+        NutritionHealthTagPo tag = new NutritionHealthTagPo();
+        tag.setTagType(tagType);
+        tag.setTagCode(tagCode);
+        tag.setName(tagCode);
+        tag.setStatus(NutritionStatus.ACTIVE);
+        return healthTagRepository.save(tag);
+    }
+
+    private RbacPrincipal platformAdmin() {
+        return new RbacPrincipal(9001L, "nutrition-admin",
+                Set.of("NUTRITION_PLATFORM_ADMIN"), Set.of(), "v1");
     }
 }

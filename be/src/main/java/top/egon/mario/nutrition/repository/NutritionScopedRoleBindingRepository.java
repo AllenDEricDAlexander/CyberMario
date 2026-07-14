@@ -24,4 +24,15 @@ public interface NutritionScopedRoleBindingRepository extends JpaRepository<Nutr
     Optional<NutritionScopedRoleBindingPo> findBySubjectTypeAndSubjectIdAndRoleCodeAndScopeTypeAndScopeId(
             NutritionSubjectType subjectType, Long subjectId, NutritionRoleCode roleCode,
             NutritionScopeType scopeType, Long scopeId);
+
+    Optional<NutritionScopedRoleBindingPo> findByIdAndDeletedFalse(Long id);
+
+    List<NutritionScopedRoleBindingPo> findByScopeTypeAndScopeIdAndDeletedFalseOrderByIdAsc(
+            NutritionScopeType scopeType, Long scopeId);
+
+    List<NutritionScopedRoleBindingPo> findByScopeTypeAndScopeIdInAndDeletedFalseOrderByIdAsc(
+            NutritionScopeType scopeType, Collection<Long> scopeIds);
+
+    long countByRoleCodeAndScopeTypeAndScopeIdAndStatusAndDeletedFalse(
+            NutritionRoleCode roleCode, NutritionScopeType scopeType, Long scopeId, NutritionStatus status);
 }

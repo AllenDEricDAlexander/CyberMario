@@ -1,9 +1,9 @@
 package top.egon.mario.nutrition.dto.request;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import top.egon.mario.nutrition.po.enums.NutritionMealType;
 
 import java.util.List;
 
@@ -12,10 +12,12 @@ import java.util.List;
  */
 public record MealConfirmationRequest(
         @NotNull @Min(1) Long memberProfileId,
-        Boolean eatAtHome,
-        List<NutritionMealType> selectedMealTypes,
-        Boolean riskConfirmed,
-        @Size(max = 512) String riskConfirmationNote,
+        @NotNull Boolean eatAtHome,
+        List<@Valid MealConfirmationItemRequest> items,
         @Size(max = 512) String remark
 ) {
+
+    public MealConfirmationRequest {
+        items = items == null ? List.of() : List.copyOf(items);
+    }
 }

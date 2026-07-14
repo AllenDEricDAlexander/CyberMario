@@ -46,6 +46,16 @@ public record NutritionTotals(
                 cholesterol.add(other.cholesterol));
     }
 
+    public NutritionTotals multiply(BigDecimal factor) {
+        if (factor == null) {
+            return zero();
+        }
+        return new NutritionTotals(
+                calories.multiply(factor), protein.multiply(factor), fat.multiply(factor),
+                carbs.multiply(factor), sugar.multiply(factor), sodium.multiply(factor),
+                fiber.multiply(factor), cholesterol.multiply(factor));
+    }
+
     private static BigDecimal normalize(BigDecimal value) {
         return value == null ? BigDecimal.ZERO.setScale(SCALE) : value.setScale(SCALE, RoundingMode.HALF_UP);
     }

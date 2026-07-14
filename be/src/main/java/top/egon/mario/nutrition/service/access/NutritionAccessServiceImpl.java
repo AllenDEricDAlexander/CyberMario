@@ -67,6 +67,13 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
             NutritionGrantPermissionLevel.WRITE,
             NutritionGrantPermissionLevel.MANAGE
     ));
+    private static final Set<NutritionGrantPermissionLevel> WRITE_GRANT_LEVELS = Set.copyOf(EnumSet.of(
+            NutritionGrantPermissionLevel.WRITE,
+            NutritionGrantPermissionLevel.MANAGE
+    ));
+    private static final Set<NutritionGrantPermissionLevel> MANAGE_GRANT_LEVELS = Set.of(
+            NutritionGrantPermissionLevel.MANAGE
+    );
 
     private final NutritionFamilyRepository familyRepository;
     private final NutritionScopedRoleBindingRepository roleBindingRepository;
@@ -90,6 +97,14 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
 
     @Override
     @Transactional(readOnly = true)
+    public void requireWriteFamilyScope(Long userId, Long familyId, NutritionGrantDataScope scope) {
+        if (!canWriteFamilyScope(userId, familyId, scope)) {
+            throw forbidden();
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public void requireManageFamily(Long userId, Long familyId) {
         if (!isActiveFamily(familyId)) {
             throw forbidden();
@@ -101,13 +116,25 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
 
     @Override
     @Transactional(readOnly = true)
+    public void requireManageFamilyScope(Long userId, Long familyId, NutritionGrantDataScope scope) {
+        if (!canManageFamilyScope(userId, familyId, scope)) {
+            throw forbidden();
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public void requireCookFamily(Long userId, Long familyId) {
-        if (!isActiveFamily(familyId)) {
+        if (!canCookFamily(userId, familyId)) {
             throw forbidden();
         }
-        if (!hasFamilyRole(userId, familyId, COOK_FAMILY_ROLES) && !isFamilyOwner(userId, familyId)) {
-            throw forbidden();
-        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean canCookFamily(Long userId, Long familyId) {
+        return isActiveFamily(familyId)
+                && (hasFamilyRole(userId, familyId, COOK_FAMILY_ROLES) || isFamilyOwner(userId, familyId));
     }
 
     @Override
@@ -131,6 +158,27 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
 
     @Override
     @Transactional(readOnly = true)
+    public void requireWriteMemberProfile(Long userId, Long familyId, Long memberProfileId) {
+        if (!isActiveFamily(familyId)) {
+            throw forbidden();
+        }
+        NutritionMemberProfilePo memberProfile = memberProfileRepository
+                .findByIdAndFamilyIdAndStatusAndDeletedFalse(memberProfileId, familyId, NutritionStatus.ACTIVE)
+                .orElseThrow(NutritionAccessServiceImpl::forbidden);
+        if (userId != null && userId.equals(memberProfile.getBoundUserId())) {
+            return;
+        }
+        if (hasFamilyAdministrativeRole(userId, familyId)
+                || hasMemberProfileRole(userId, memberProfileId, Set.of(
+                NutritionRoleCode.PROFILE_OWNER, NutritionRoleCode.PROFILE_GUARDIAN))
+                || hasWritableMemberGrant(userId, familyId, memberProfileId)) {
+            return;
+        }
+        throw forbidden();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public boolean canReadFamilyScope(Long userId, Long familyId, NutritionGrantDataScope scope) {
         if (userId == null || familyId == null || scope == null) {
             return false;
@@ -141,12 +189,42 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
         if (hasFamilyRole(userId, familyId, READ_FAMILY_ROLES) || isFamilyOwner(userId, familyId)) {
             return true;
         }
-        if (hasReadableDataGrant(familyId, GRANTEE_TYPE_USER, userId, scope)) {
+        if (hasActiveDataGrant(familyId, GRANTEE_TYPE_USER, userId, scope, READ_GRANT_LEVELS)) {
             return true;
         }
         return clanRoleBindings(userId).stream()
                 .map(NutritionScopedRoleBindingPo::getScopeId)
-                .anyMatch(clanId -> canReadThroughClanGrant(userId, familyId, scope, clanId));
+                .anyMatch(clanId -> hasClanGrant(familyId, scope, clanId, READ_GRANT_LEVELS));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean canWriteFamilyScope(Long userId, Long familyId, NutritionGrantDataScope scope) {
+        if (!validFamilyScopeRequest(userId, familyId, scope)) {
+            return false;
+        }
+        if (hasFamilyAdministrativeRole(userId, familyId)
+                || hasActiveDataGrant(familyId, GRANTEE_TYPE_USER, userId, scope, WRITE_GRANT_LEVELS)) {
+            return true;
+        }
+        return clanRoleBindings(userId).stream()
+                .map(NutritionScopedRoleBindingPo::getScopeId)
+                .anyMatch(clanId -> hasClanGrant(familyId, scope, clanId, WRITE_GRANT_LEVELS));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean canManageFamilyScope(Long userId, Long familyId, NutritionGrantDataScope scope) {
+        if (!validFamilyScopeRequest(userId, familyId, scope)) {
+            return false;
+        }
+        if (hasFamilyAdministrativeRole(userId, familyId)
+                || hasActiveDataGrant(familyId, GRANTEE_TYPE_USER, userId, scope, MANAGE_GRANT_LEVELS)) {
+            return true;
+        }
+        return clanRoleBindings(userId).stream()
+                .map(NutritionScopedRoleBindingPo::getScopeId)
+                .anyMatch(clanId -> hasClanGrant(familyId, scope, clanId, MANAGE_GRANT_LEVELS));
     }
 
     private boolean hasFamilyRole(Long userId, Long familyId, Collection<NutritionRoleCode> roleCodes) {
@@ -180,6 +258,10 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
                 familyId, userId, NutritionStatus.ACTIVE);
     }
 
+    private boolean hasFamilyAdministrativeRole(Long userId, Long familyId) {
+        return hasFamilyRole(userId, familyId, MANAGE_FAMILY_ROLES) || isFamilyOwner(userId, familyId);
+    }
+
     private Collection<NutritionScopedRoleBindingPo> clanRoleBindings(Long userId) {
         if (userId == null) {
             return Set.of();
@@ -188,17 +270,41 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
                 NutritionSubjectType.USER, userId, READ_CLAN_ROLES, NutritionScopeType.CLAN, NutritionStatus.ACTIVE);
     }
 
-    private boolean canReadThroughClanGrant(Long userId, Long familyId, NutritionGrantDataScope scope, Long clanId) {
+    private boolean hasClanGrant(Long familyId, NutritionGrantDataScope scope, Long clanId,
+                                 Collection<NutritionGrantPermissionLevel> permissionLevels) {
         return clanId != null
                 && clanFamilyRepository.existsByClanIdAndFamilyIdAndRelationStatusAndDeletedFalse(
                 clanId, familyId, NutritionStatus.ACTIVE)
-                && hasReadableDataGrant(familyId, GRANTEE_TYPE_CLAN, clanId, scope);
+                && hasActiveDataGrant(familyId, GRANTEE_TYPE_CLAN, clanId, scope, permissionLevels);
     }
 
-    private boolean hasReadableDataGrant(Long familyId, String granteeType, Long granteeId,
-                                         NutritionGrantDataScope scope) {
+    private boolean hasActiveDataGrant(Long familyId, String granteeType, Long granteeId,
+                                       NutritionGrantDataScope scope,
+                                       Collection<NutritionGrantPermissionLevel> permissionLevels) {
         return dataGrantRepository.existsReadableGrant(familyId, granteeType, granteeId, scope,
-                READ_GRANT_LEVELS, NutritionStatus.ACTIVE, Instant.now());
+                permissionLevels, NutritionStatus.ACTIVE, Instant.now());
+    }
+
+    private boolean hasWritableMemberGrant(Long userId, Long familyId, Long memberProfileId) {
+        if (userId == null) {
+            return false;
+        }
+        if (dataGrantRepository.existsMemberGrant(familyId, memberProfileId, GRANTEE_TYPE_USER, userId,
+                NutritionGrantDataScope.MEMBER_PROFILE, WRITE_GRANT_LEVELS, NutritionStatus.ACTIVE, Instant.now())) {
+            return true;
+        }
+        return clanRoleBindings(userId).stream()
+                .map(NutritionScopedRoleBindingPo::getScopeId)
+                .filter(clanId -> clanFamilyRepository.existsByClanIdAndFamilyIdAndRelationStatusAndDeletedFalse(
+                        clanId, familyId, NutritionStatus.ACTIVE))
+                .anyMatch(clanId -> dataGrantRepository.existsMemberGrant(
+                        familyId, memberProfileId, GRANTEE_TYPE_CLAN, clanId,
+                        NutritionGrantDataScope.MEMBER_PROFILE, WRITE_GRANT_LEVELS,
+                        NutritionStatus.ACTIVE, Instant.now()));
+    }
+
+    private boolean validFamilyScopeRequest(Long userId, Long familyId, NutritionGrantDataScope scope) {
+        return userId != null && familyId != null && scope != null && isActiveFamily(familyId);
     }
 
     private static NutritionException forbidden() {

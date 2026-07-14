@@ -16,6 +16,7 @@ import top.egon.mario.nutrition.service.RecipeService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -74,6 +75,12 @@ public class StandardFoodCsvImporter extends NutritionCsvImportTemplate<Standard
         BigDecimal protein = decimalValue(row, issues, "protein_per_100g", false);
         BigDecimal fat = decimalValue(row, issues, "fat_per_100g", false);
         BigDecimal carbs = decimalValue(row, issues, "carbs_per_100g", false);
+        BigDecimal sugar = decimalValue(row, issues, "sugar_per_100g", false);
+        BigDecimal sodium = decimalValue(row, issues, "sodium_per_100g", false);
+        BigDecimal fiber = decimalValue(row, issues, "fiber_per_100g", false);
+        BigDecimal cholesterol = decimalValue(row, issues, "cholesterol_per_100g", false);
+        BigDecimal giValue = decimalValue(row, issues, "gi_value", false);
+        NutritionStatus status = statusValue(row, issues);
         if (issues.hasError()) {
             return null;
         }
@@ -86,7 +93,11 @@ public class StandardFoodCsvImporter extends NutritionCsvImportTemplate<Standard
                 return null;
             }
         }
-        return new StandardFoodRow(name, category, calories, protein, fat, carbs);
+        return new StandardFoodRow(name, trimToNull(value(row, "name_en")), listValue(row, "aliases"), category,
+                trimToNull(value(row, "external_source")), trimToNull(value(row, "external_food_id")),
+                calories, protein, fat, carbs, sugar, sodium, fiber, cholesterol,
+                trimToNull(value(row, "purine_level")), giValue, listValue(row, "allergen_tags"),
+                listValue(row, "suitable_tags"), defaultValue(row, "data_quality", "IMPORTED"), status);
     }
 
     @Override
@@ -94,13 +105,25 @@ public class StandardFoodCsvImporter extends NutritionCsvImportTemplate<Standard
         for (StandardFoodRow row : validRows) {
             NutritionStandardFoodPo food = new NutritionStandardFoodPo();
             food.setNameCn(row.nameCn());
+            food.setNameEn(row.nameEn());
+            food.setAliases(writeList(row.aliases()));
             food.setCategory(row.category());
+            food.setExternalSource(row.externalSource());
+            food.setExternalFoodId(row.externalFoodId());
             food.setCaloriesPer100g(row.caloriesPer100g());
             food.setProteinPer100g(row.proteinPer100g());
             food.setFatPer100g(row.fatPer100g());
             food.setCarbsPer100g(row.carbsPer100g());
-            food.setDataQuality("IMPORTED");
-            food.setStatus(NutritionStatus.ACTIVE);
+            food.setSugarPer100g(row.sugarPer100g());
+            food.setSodiumPer100g(row.sodiumPer100g());
+            food.setFiberPer100g(row.fiberPer100g());
+            food.setCholesterolPer100g(row.cholesterolPer100g());
+            food.setPurineLevel(row.purineLevel());
+            food.setGiValue(row.giValue());
+            food.setAllergenTags(writeList(row.allergenTags()));
+            food.setSuitableTags(writeList(row.suitableTags()));
+            food.setDataQuality(row.dataQuality());
+            food.setStatus(row.status());
             standardFoodRepository.save(food);
         }
     }
@@ -109,13 +132,65 @@ public class StandardFoodCsvImporter extends NutritionCsvImportTemplate<Standard
         return row.value("name_cn") != null ? "name_cn" : "name";
     }
 
+    private NutritionStatus statusValue(CsvRow row, IssueCollector issues) {
+        String raw = value(row, "status");
+        if (!StringUtils.hasText(raw)) {
+            return NutritionStatus.ACTIVE;
+        }
+        try {
+            return NutritionStatus.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            issues.error("status", "INVALID_STATUS", "status must be ACTIVE, DISABLED or ARCHIVED");
+            return null;
+        }
+    }
+
+    private List<String> listValue(CsvRow row, String columnName) {
+        String raw = value(row, columnName);
+        if (!StringUtils.hasText(raw)) {
+            return List.of();
+        }
+        return Arrays.stream(raw.split("[|;]"))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+    }
+
+    private String defaultValue(CsvRow row, String columnName, String defaultValue) {
+        String raw = trimToNull(value(row, columnName));
+        return raw == null ? defaultValue : raw;
+    }
+
+    private String writeList(List<String> values) {
+        try {
+            return objectMapper().writeValueAsString(values);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+            throw new IllegalStateException("Failed to serialize standard food tags", ex);
+        }
+    }
+
     public record StandardFoodRow(
             String nameCn,
+            String nameEn,
+            List<String> aliases,
             String category,
+            String externalSource,
+            String externalFoodId,
             BigDecimal caloriesPer100g,
             BigDecimal proteinPer100g,
             BigDecimal fatPer100g,
-            BigDecimal carbsPer100g
+            BigDecimal carbsPer100g,
+            BigDecimal sugarPer100g,
+            BigDecimal sodiumPer100g,
+            BigDecimal fiberPer100g,
+            BigDecimal cholesterolPer100g,
+            String purineLevel,
+            BigDecimal giValue,
+            List<String> allergenTags,
+            List<String> suitableTags,
+            String dataQuality,
+            NutritionStatus status
     ) {
     }
 }

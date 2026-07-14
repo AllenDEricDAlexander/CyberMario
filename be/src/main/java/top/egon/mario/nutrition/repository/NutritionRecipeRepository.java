@@ -3,6 +3,7 @@ package top.egon.mario.nutrition.repository;
 import org.springframework.data.jpa.repository.JpaRepository;
 import top.egon.mario.nutrition.po.NutritionRecipePo;
 import top.egon.mario.nutrition.po.enums.NutritionStatus;
+import top.egon.mario.nutrition.po.enums.NutritionRecipeSourceType;
 
 import java.util.Collection;
 import java.util.List;
@@ -12,6 +13,12 @@ public interface NutritionRecipeRepository extends JpaRepository<NutritionRecipe
 
     List<NutritionRecipePo> findByFamilyIdAndStatusAndDeletedFalseOrderByIdDesc(
             Long familyId, NutritionStatus status);
+
+    List<NutritionRecipePo> findByFamilyIdIsNullAndSourceTypeAndStatusAndDeletedFalseOrderByIdDesc(
+            NutritionRecipeSourceType sourceType, NutritionStatus status);
+
+    Optional<NutritionRecipePo> findByIdAndFamilyIdIsNullAndSourceTypeAndDeletedFalse(
+            Long id, NutritionRecipeSourceType sourceType);
 
     Optional<NutritionRecipePo> findByIdAndStatusAndDeletedFalse(Long id, NutritionStatus status);
 

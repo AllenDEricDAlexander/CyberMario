@@ -1,7 +1,6 @@
 package top.egon.mario.nutrition.dto.response;
 
 import top.egon.mario.nutrition.po.enums.NutritionConfirmationStatus;
-import top.egon.mario.nutrition.po.enums.NutritionMealType;
 
 import java.time.Instant;
 import java.util.List;
@@ -18,9 +17,7 @@ public record MealConfirmationResponse(
         Long proxyByUserId,
         NutritionConfirmationStatus confirmationStatus,
         boolean eatAtHome,
-        List<NutritionMealType> selectedMealTypes,
-        boolean riskConfirmed,
-        String riskConfirmationNote,
+        List<MealConfirmationItemResponse> items,
         String remark,
         Instant confirmedAt,
         Instant createdAt,

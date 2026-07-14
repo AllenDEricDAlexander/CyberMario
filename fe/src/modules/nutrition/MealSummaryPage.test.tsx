@@ -1,15 +1,82 @@
-import {renderToStaticMarkup} from 'react-dom/server'
-import {describe, expect, test} from 'vitest'
+import {screen} from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import {beforeEach, describe, expect, test, vi} from 'vitest'
+import {
+    closeNutritionMealPlanConfirmation,
+    getNutritionMealPlanSummary,
+    listNutritionFamilies,
+    listTodayNutritionMealPlans,
+} from './nutritionService'
+import {family} from './test/nutritionTestData'
+import {renderNutritionPage} from './test/renderNutritionPage'
 import {Component as MealSummaryPage} from './MealSummaryPage'
 
-describe('MealSummaryPage', () => {
-    test('meal summary page renders serving totals and shopping list action', () => {
-        const markup = renderToStaticMarkup(<MealSummaryPage/>)
+const authAccess = vi.hoisted(() => ({canMutate: true}))
+vi.mock('../auth/authStore', () => ({
+    useAuth: () => ({roleCodes: [], hasAnyButton: () => authAccess.canMutate, hasPermission: () => authAccess.canMutate}),
+    canUseRbacButton: () => authAccess.canMutate,
+}))
+vi.mock('./nutritionService', () => ({
+    listNutritionFamilies: vi.fn(),
+    listTodayNutritionMealPlans: vi.fn(),
+    getNutritionMealPlanSummary: vi.fn(),
+    closeNutritionMealPlanConfirmation: vi.fn(),
+}))
 
-        expect(markup).toContain('餐食汇总')
-        expect(markup).toContain('菜品份数汇总')
-        expect(markup).toContain('确认份数')
-        expect(markup).toContain('生成采购清单')
-        expect(markup).toMatch(/<button[^>]*disabled[^>]*>[\s\S]*生成采购清单/)
+const plan = {
+    id: 81,
+    familyId: family.id,
+    planDate: '2026-07-14',
+    status: 'CONFIRMING' as const,
+    version: 3,
+    title: 'Tuesday dinner',
+    confirmedMemberCount: 2,
+    risks: [],
+    publishable: true,
+    items: [],
+    createdAt: '2026-07-01T00:00:00Z',
+    updatedAt: '2026-07-01T00:00:00Z',
+}
+const summary = {
+    mealPlanId: plan.id,
+    activeMemberCount: 4,
+    confirmedMemberCount: 2,
+    awayMemberCount: 1,
+    unconfirmedMemberCount: 1,
+    riskCounts: {MEDIUM: 1},
+    remarks: ['Mario 少盐'],
+    readyForShopping: false,
+    dishes: [{itemId: 101, dishName: '番茄意面', mealType: 'DINNER' as const, servingCount: '2', selectedMemberCount: 2, confirmedServingTotal: '2.5'}],
+}
+
+describe('MealSummaryPage', () => {
+    beforeEach(() => {
+        authAccess.canMutate = true
+        vi.clearAllMocks()
+        vi.mocked(listNutritionFamilies).mockResolvedValue([family])
+        vi.mocked(listTodayNutritionMealPlans).mockResolvedValue([plan])
+        vi.mocked(getNutritionMealPlanSummary).mockResolvedValue(summary)
+        vi.mocked(closeNutritionMealPlanConfirmation).mockResolvedValue({...plan, status: 'CONFIRM_CLOSED'})
+    })
+
+    test('shows exact participation counts and lets a cook close confirmation', async () => {
+        const user = userEvent.setup()
+        renderNutritionPage(<MealSummaryPage/>)
+
+        await screen.findByText('番茄意面')
+        expect(screen.getByText('已确认 2')).toBeTruthy()
+        expect(screen.getByText('不在家 1')).toBeTruthy()
+        expect(screen.getByText('未确认 1')).toBeTruthy()
+        expect(screen.getByText('2.5')).toBeTruthy()
+        await user.click(screen.getByRole('button', {name: /提前关闭确认/}))
+
+        expect(closeNutritionMealPlanConfirmation).toHaveBeenCalledWith(family.id, plan.id, true)
+    })
+
+    test('disables close confirmation without cook permission', async () => {
+        authAccess.canMutate = false
+        renderNutritionPage(<MealSummaryPage/>)
+        await screen.findByText('番茄意面')
+        expect(screen.getByRole('button', {name: /提前关闭确认/}).hasAttribute('disabled')).toBe(true)
     })
 })

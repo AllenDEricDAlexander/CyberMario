@@ -1,5 +1,7 @@
 package top.egon.mario.nutrition.dto.response;
 
+import top.egon.mario.nutrition.service.calculation.NutritionTotals;
+
 import java.math.BigDecimal;
 
 /**
@@ -12,7 +14,9 @@ public record RecipeIngredientResponse(
         String rawFoodName,
         BigDecimal amount,
         String unit,
+        BigDecimal gramsPerUnit,
         String mappingStatus,
-        boolean optional
+        boolean optional,
+        NutritionTotals nutritionSnapshot
 ) {
 }

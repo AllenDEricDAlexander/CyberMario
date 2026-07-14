@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 import top.egon.mario.nutrition.po.enums.NutritionRiskLevel;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -26,8 +27,7 @@ public class DislikeRuleChecker implements NutritionRuleChecker {
                     results.add(new RuleCheckResult(memberProfile.memberProfileId(), RULE_CODE,
                             NutritionRiskLevel.MEDIUM,
                             "Dislike tag %s matched recipe ingredient".formatted(matched.tag()),
-                            false, true,
-                            Map.of("matchedTag", matched.tag(), "matchedIngredient", matched.ingredientName()))));
+                            false, true, evidence(matched))));
         }
         return results;
     }
@@ -36,13 +36,23 @@ public class DislikeRuleChecker implements NutritionRuleChecker {
         for (String tag : tags) {
             for (RuleIngredient ingredient : ingredients) {
                 if (ingredient.matches(tag)) {
-                    return Optional.of(new IngredientMatch(tag, ingredient.rawFoodName()));
+                    return Optional.of(new IngredientMatch(tag, ingredient.rawFoodName(), ingredient.recipeId()));
                 }
             }
         }
         return Optional.empty();
     }
 
-    private record IngredientMatch(String tag, String ingredientName) {
+    private Map<String, Object> evidence(IngredientMatch matched) {
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("matchedTag", matched.tag());
+        evidence.put("matchedIngredient", matched.ingredientName());
+        if (matched.recipeId() != null) {
+            evidence.put("recipeId", matched.recipeId());
+        }
+        return evidence;
+    }
+
+    private record IngredientMatch(String tag, String ingredientName, Long recipeId) {
     }
 }

@@ -11,16 +11,20 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.nutrition.dto.request.CreateFoodPriceRecordRequest;
+import top.egon.mario.nutrition.dto.request.TransitionShoppingListRequest;
 import top.egon.mario.nutrition.dto.request.UpdateShoppingListItemRequest;
 import top.egon.mario.nutrition.dto.response.FoodPriceRecordResponse;
 import top.egon.mario.nutrition.dto.response.ShoppingListItemResponse;
 import top.egon.mario.nutrition.dto.response.ShoppingListResponse;
 import top.egon.mario.nutrition.service.ShoppingListService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
+
+import java.util.List;
 
 /**
  * Shopping list and food price endpoints for the nutrition MVP.
@@ -38,7 +42,25 @@ public class ShoppingListController extends ReactiveNutritionSupport {
             @PathVariable @Min(1) Long familyId,
             @PathVariable @Min(1) Long mealPlanId,
             @AuthenticationPrincipal RbacPrincipal principal) {
-        return blocking(() -> shoppingListService.generateShoppingList(
+        return blocking(() -> shoppingListService.generateFinalShoppingList(
+                familyId, mealPlanId, actorId(principal)));
+    }
+
+    @GetMapping("/meal-plans/{mealPlanId}/shopping-list/preview")
+    public Mono<ApiResponse<ShoppingListResponse>> previewShoppingList(
+            @PathVariable @Min(1) Long familyId,
+            @PathVariable @Min(1) Long mealPlanId,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> shoppingListService.previewShoppingList(
+                familyId, mealPlanId, actorId(principal)));
+    }
+
+    @GetMapping("/shopping-lists")
+    public Mono<ApiResponse<List<ShoppingListResponse>>> shoppingLists(
+            @PathVariable @Min(1) Long familyId,
+            @RequestParam(required = false) @Min(1) Long mealPlanId,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> shoppingListService.listShoppingLists(
                 familyId, mealPlanId, actorId(principal)));
     }
 
@@ -62,6 +84,16 @@ public class ShoppingListController extends ReactiveNutritionSupport {
                 familyId, shoppingListId, itemId, request, actorId(principal)));
     }
 
+    @PostMapping("/shopping-lists/{shoppingListId}/transition")
+    public Mono<ApiResponse<ShoppingListResponse>> transitionShoppingList(
+            @PathVariable @Min(1) Long familyId,
+            @PathVariable @Min(1) Long shoppingListId,
+            @Valid @RequestBody TransitionShoppingListRequest request,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> shoppingListService.transitionShoppingList(
+                familyId, shoppingListId, request, actorId(principal)));
+    }
+
     @PostMapping("/price-records")
     public Mono<ApiResponse<FoodPriceRecordResponse>> createPriceRecord(
             @PathVariable @Min(1) Long familyId,
@@ -69,5 +101,14 @@ public class ShoppingListController extends ReactiveNutritionSupport {
             @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> shoppingListService.createPriceRecord(
                 familyId, request, actorId(principal)));
+    }
+
+    @GetMapping("/price-records")
+    public Mono<ApiResponse<List<FoodPriceRecordResponse>>> priceRecords(
+            @PathVariable @Min(1) Long familyId,
+            @RequestParam(required = false) @Min(1) Long standardFoodId,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> shoppingListService.listPriceRecords(
+                familyId, standardFoodId, actorId(principal)));
     }
 }

@@ -10,12 +10,16 @@ public record NutritionDailyOverviewResponse(
         Long familyId,
         LocalDate recordDate,
         NutritionNutrientsResponse totalNutrients,
+        NutritionNutrientsResponse targetNutrients,
+        NutritionNutrientsResponse remainingNutrients,
         List<MemberSummary> memberSummaries
 ) {
 
     public record MemberSummary(
             Long memberProfileId,
             NutritionNutrientsResponse totalNutrients,
+            NutritionNutrientsResponse targetNutrients,
+            NutritionNutrientsResponse remainingNutrients,
             List<NutritionRecordResponse> records
     ) {
     }

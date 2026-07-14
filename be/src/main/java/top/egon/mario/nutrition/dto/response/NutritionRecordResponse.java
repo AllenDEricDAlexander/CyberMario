@@ -14,6 +14,7 @@ public record NutritionRecordResponse(
         Long memberProfileId,
         Long mealPlanId,
         Long mealConfirmationId,
+        Long sourceMealPlanItemId,
         LocalDate recordDate,
         NutritionMealType mealType,
         String sourceType,

@@ -5,11 +5,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import top.egon.mario.nutrition.dto.request.CreateFoodPriceRecordRequest;
+import top.egon.mario.nutrition.dto.request.TransitionShoppingListRequest;
 import top.egon.mario.nutrition.dto.response.FoodPriceRecordResponse;
 import top.egon.mario.nutrition.dto.response.ShoppingListResponse;
 import top.egon.mario.nutrition.po.NutritionFamilyPo;
 import top.egon.mario.nutrition.po.NutritionFoodPriceRecordPo;
 import top.egon.mario.nutrition.po.NutritionMealConfirmationPo;
+import top.egon.mario.nutrition.po.NutritionMealConfirmationItemPo;
 import top.egon.mario.nutrition.po.NutritionMealPlanItemPo;
 import top.egon.mario.nutrition.po.NutritionMealPlanPo;
 import top.egon.mario.nutrition.po.NutritionRecipeIngredientPo;
@@ -34,6 +36,7 @@ import top.egon.mario.nutrition.repository.NutritionFamilyRepository;
 import top.egon.mario.nutrition.repository.NutritionFoodPriceRecordRepository;
 import top.egon.mario.nutrition.repository.NutritionHealthProfileRepository;
 import top.egon.mario.nutrition.repository.NutritionMealConfirmationRepository;
+import top.egon.mario.nutrition.repository.NutritionMealConfirmationItemRepository;
 import top.egon.mario.nutrition.repository.NutritionMealPlanItemRepository;
 import top.egon.mario.nutrition.repository.NutritionMealPlanRepository;
 import top.egon.mario.nutrition.repository.NutritionMemberProfileRepository;
@@ -89,6 +92,8 @@ class ShoppingListServiceTests {
     @Autowired
     private NutritionMealConfirmationRepository confirmationRepository;
     @Autowired
+    private NutritionMealConfirmationItemRepository confirmationItemRepository;
+    @Autowired
     private NutritionShoppingListRepository shoppingListRepository;
     @Autowired
     private NutritionShoppingListItemRepository shoppingListItemRepository;
@@ -100,6 +105,7 @@ class ShoppingListServiceTests {
         priceRecordRepository.deleteAll();
         shoppingListItemRepository.deleteAll();
         shoppingListRepository.deleteAll();
+        confirmationItemRepository.deleteAll();
         confirmationRepository.deleteAll();
         mealPlanItemRepository.deleteAll();
         mealPlanRepository.deleteAll();
@@ -125,14 +131,17 @@ class ShoppingListServiceTests {
         NutritionRecipePo soup = recipe(family.getId(), "Tomato Soup", 1);
         recipeIngredient(family.getId(), soup.getId(), tomato.getId(), "Tomatoes", new BigDecimal("50.000"), "g");
         NutritionMealPlanPo mealPlan = mealPlan(family.getId(), NutritionMealPlanStatus.CONFIRM_CLOSED);
-        mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.DINNER, pasta.getId(),
+        NutritionMealPlanItemPo pastaItem = mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.DINNER, pasta.getId(),
                 "Tomato Pasta", new BigDecimal("2.000"), 0);
-        mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.LUNCH, soup.getId(),
+        NutritionMealPlanItemPo soupItem = mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.LUNCH, soup.getId(),
                 "Tomato Soup", new BigDecimal("1.000"), 1);
-        confirmation(family.getId(), mealPlan.getId(), 101L, "[]");
-        confirmation(family.getId(), mealPlan.getId(), 102L, "[\"DINNER\"]");
+        NutritionMealConfirmationPo first = confirmation(family.getId(), mealPlan.getId(), 101L, "[]");
+        NutritionMealConfirmationPo second = confirmation(family.getId(), mealPlan.getId(), 102L, "[\"DINNER\"]");
+        confirmationItem(family.getId(), first.getId(), pastaItem, true, "2.000");
+        confirmationItem(family.getId(), first.getId(), soupItem, true, "1.000");
+        confirmationItem(family.getId(), second.getId(), pastaItem, true, "2.000");
 
-        ShoppingListResponse response = shoppingListService.generateShoppingList(
+        ShoppingListResponse response = shoppingListService.generateFinalShoppingList(
                 family.getId(), mealPlan.getId(), COOK_USER_ID);
 
         assertThat(response.familyId()).isEqualTo(family.getId());
@@ -159,13 +168,16 @@ class ShoppingListServiceTests {
         NutritionRecipePo stew = recipe(family.getId(), "Potato Stew", 2);
         recipeIngredient(family.getId(), stew.getId(), potato.getId(), "Potato", new BigDecimal("75.000"), "g");
         NutritionMealPlanPo mealPlan = mealPlan(family.getId(), NutritionMealPlanStatus.CONFIRM_CLOSED);
-        mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.DINNER, stew.getId(),
+        NutritionMealPlanItemPo stewItem = mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.DINNER, stew.getId(),
                 "Potato Stew", new BigDecimal("2.000"), 0);
-        confirmation(family.getId(), mealPlan.getId(), 101L, "[]");
-        confirmation(family.getId(), mealPlan.getId(), 102L, "[\"DINNER\"]");
-        confirmation(family.getId(), mealPlan.getId(), 103L, "[\"LUNCH\"]");
+        NutritionMealConfirmationPo first = confirmation(family.getId(), mealPlan.getId(), 101L, "[]");
+        NutritionMealConfirmationPo second = confirmation(family.getId(), mealPlan.getId(), 102L, "[\"DINNER\"]");
+        NutritionMealConfirmationPo third = confirmation(family.getId(), mealPlan.getId(), 103L, "[\"LUNCH\"]");
+        confirmationItem(family.getId(), first.getId(), stewItem, true, "2.000");
+        confirmationItem(family.getId(), second.getId(), stewItem, true, "2.000");
+        confirmationItem(family.getId(), third.getId(), stewItem, false, "2.000");
 
-        ShoppingListResponse response = shoppingListService.generateShoppingList(
+        ShoppingListResponse response = shoppingListService.generateFinalShoppingList(
                 family.getId(), mealPlan.getId(), COOK_USER_ID);
 
         assertThat(response.items()).singleElement().satisfies(item -> {
@@ -182,18 +194,25 @@ class ShoppingListServiceTests {
         NutritionRecipePo soup = recipe(family.getId(), "Carrot Soup", 1);
         recipeIngredient(family.getId(), soup.getId(), carrot.getId(), "Carrot", new BigDecimal("120.000"), "g");
         NutritionMealPlanPo mealPlan = mealPlan(family.getId(), NutritionMealPlanStatus.CONFIRM_CLOSED);
-        mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.LUNCH, soup.getId(),
+        NutritionMealPlanItemPo soupItem = mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.LUNCH, soup.getId(),
                 "Carrot Soup", new BigDecimal("1.000"), 0);
+        NutritionMealConfirmationPo confirmation = confirmation(family.getId(), mealPlan.getId(), 101L, "[]");
+        confirmationItem(family.getId(), confirmation.getId(), soupItem, true, "1.000");
 
-        ShoppingListResponse first = shoppingListService.generateShoppingList(
+        ShoppingListResponse first = shoppingListService.generateFinalShoppingList(
                 family.getId(), mealPlan.getId(), COOK_USER_ID);
-        ShoppingListResponse second = shoppingListService.generateShoppingList(
+        ShoppingListResponse second = shoppingListService.generateFinalShoppingList(
                 family.getId(), mealPlan.getId(), COOK_USER_ID);
 
         assertThat(second.id()).isEqualTo(first.id());
+        assertThat(second.status()).isEqualTo(NutritionShoppingListStatus.DRAFT);
+        assertThat(second.generatedSnapshot()).contains("mealPlanVersion", "confirmations");
         assertThat(second.items()).hasSize(1);
         assertThat(shoppingListRepository.findAll()).hasSize(1);
         assertThat(shoppingListItemRepository.findAll()).hasSize(1);
+        assertThat(shoppingListService.listShoppingLists(
+                family.getId(), mealPlan.getId(), COOK_USER_ID)).singleElement()
+                .extracting(ShoppingListResponse::id).isEqualTo(first.id());
     }
 
     @Test
@@ -206,10 +225,12 @@ class ShoppingListServiceTests {
         recipeIngredient(otherFamily.getId(), otherRecipe.getId(), peach.getId(), "Peach",
                 new BigDecimal("100.000"), "g");
         NutritionMealPlanPo mealPlan = mealPlan(family.getId(), NutritionMealPlanStatus.CONFIRM_CLOSED);
-        mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.DINNER, otherRecipe.getId(),
+        NutritionMealPlanItemPo item = mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.DINNER, otherRecipe.getId(),
                 "Peach Dessert", new BigDecimal("1.000"), 0);
+        NutritionMealConfirmationPo confirmation = confirmation(family.getId(), mealPlan.getId(), 101L, "[]");
+        confirmationItem(family.getId(), confirmation.getId(), item, true, "1.000");
 
-        assertThatThrownBy(() -> shoppingListService.generateShoppingList(
+        assertThatThrownBy(() -> shoppingListService.generateFinalShoppingList(
                 family.getId(), mealPlan.getId(), COOK_USER_ID))
                 .isInstanceOf(NutritionException.class)
                 .extracting("code")
@@ -226,16 +247,18 @@ class ShoppingListServiceTests {
         NutritionRecipePo publicRecipe = platformRecipe("Rice Bowl", 1);
         recipeIngredient(null, publicRecipe.getId(), rice.getId(), "Rice", new BigDecimal("150.000"), "g");
         NutritionMealPlanPo mealPlan = mealPlan(family.getId(), NutritionMealPlanStatus.CONFIRM_CLOSED);
-        mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.LUNCH, publicRecipe.getId(),
+        NutritionMealPlanItemPo item = mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.LUNCH, publicRecipe.getId(),
                 "Rice Bowl", new BigDecimal("1.000"), 0);
+        NutritionMealConfirmationPo confirmation = confirmation(family.getId(), mealPlan.getId(), 101L, "[]");
+        confirmationItem(family.getId(), confirmation.getId(), item, true, "1.000");
 
-        ShoppingListResponse response = shoppingListService.generateShoppingList(
+        ShoppingListResponse response = shoppingListService.generateFinalShoppingList(
                 family.getId(), mealPlan.getId(), COOK_USER_ID);
 
-        assertThat(response.items()).singleElement().satisfies(item -> {
-            assertThat(item.standardFoodId()).isEqualTo(rice.getId());
-            assertThat(item.plannedAmount()).isEqualByComparingTo("150.000");
-            assertThat(item.plannedUnit()).isEqualTo("g");
+        assertThat(response.items()).singleElement().satisfies(shoppingItem -> {
+            assertThat(shoppingItem.standardFoodId()).isEqualTo(rice.getId());
+            assertThat(shoppingItem.plannedAmount()).isEqualByComparingTo("150.000");
+            assertThat(shoppingItem.plannedUnit()).isEqualTo("g");
         });
     }
 
@@ -245,7 +268,7 @@ class ShoppingListServiceTests {
         roleBinding(COOK_USER_ID, NutritionRoleCode.COOK, NutritionScopeType.FAMILY, family.getId());
         NutritionMealPlanPo mealPlan = mealPlan(family.getId(), NutritionMealPlanStatus.PENDING_REVIEW);
 
-        assertThatThrownBy(() -> shoppingListService.generateShoppingList(
+        assertThatThrownBy(() -> shoppingListService.generateFinalShoppingList(
                 family.getId(), mealPlan.getId(), COOK_USER_ID))
                 .isInstanceOf(NutritionException.class)
                 .extracting("code")
@@ -283,6 +306,59 @@ class ShoppingListServiceTests {
         });
         assertThat(shoppingListRepository.findById(shoppingList.getId()).orElseThrow().getActualTotalPrice())
                 .isEqualByComparingTo("20.00");
+        assertThat(shoppingListService.listPriceRecords(family.getId(), null, COOK_USER_ID))
+                .singleElement().extracting(FoodPriceRecordResponse::brand).isEqualTo("Mario Farm");
+    }
+
+    @Test
+    void previewBeforeCloseDoesNotPersistAndFinalGenerationRequiresClosedConfirmation() {
+        NutritionFamilyPo family = family("Mario Family", COOK_USER_ID);
+        roleBinding(COOK_USER_ID, NutritionRoleCode.COOK, NutritionScopeType.FAMILY, family.getId());
+        NutritionStandardFoodPo tomato = standardFood("Tomato", "VEGETABLE");
+        NutritionRecipePo recipe = recipe(family.getId(), "Tomato Soup", 2);
+        recipeIngredient(family.getId(), recipe.getId(), tomato.getId(), "Tomato",
+                new BigDecimal("300.000"), "g");
+        NutritionMealPlanPo plan = mealPlan(family.getId(), NutritionMealPlanStatus.CONFIRMING);
+        NutritionMealPlanItemPo item = mealPlanItem(family.getId(), plan.getId(), NutritionMealType.DINNER,
+                recipe.getId(), "Tomato Soup", new BigDecimal("2.000"), 0);
+        NutritionMealConfirmationPo confirmation = confirmation(family.getId(), plan.getId(), 101L, "[]");
+        confirmationItem(family.getId(), confirmation.getId(), item, true, "3.000");
+
+        ShoppingListResponse preview = shoppingListService.previewShoppingList(
+                family.getId(), plan.getId(), COOK_USER_ID);
+
+        assertThat(preview.id()).isNull();
+        assertThat(preview.items()).singleElement()
+                .satisfies(shoppingItem -> assertThat(shoppingItem.plannedAmount())
+                        .isEqualByComparingTo("450.000"));
+        assertThat(shoppingListRepository.findAll()).isEmpty();
+        assertThatThrownBy(() -> shoppingListService.generateFinalShoppingList(
+                family.getId(), plan.getId(), COOK_USER_ID))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_MEAL_PLAN_STATUS_INVALID");
+    }
+
+    @Test
+    void shoppingListTransitionsFollowPurchasingLifecycle() {
+        NutritionFamilyPo family = family("Mario Family", COOK_USER_ID);
+        roleBinding(COOK_USER_ID, NutritionRoleCode.COOK, NutritionScopeType.FAMILY, family.getId());
+        NutritionShoppingListPo list = shoppingList(family.getId(), null, LocalDate.of(2026, 7, 6));
+        list.setStatus(NutritionShoppingListStatus.DRAFT);
+        shoppingListRepository.saveAndFlush(list);
+
+        ShoppingListResponse active = shoppingListService.transitionShoppingList(family.getId(), list.getId(),
+                new TransitionShoppingListRequest(NutritionShoppingListStatus.ACTIVE), COOK_USER_ID);
+        ShoppingListResponse purchasing = shoppingListService.transitionShoppingList(family.getId(), list.getId(),
+                new TransitionShoppingListRequest(NutritionShoppingListStatus.PURCHASING), COOK_USER_ID);
+
+        assertThat(active.status()).isEqualTo(NutritionShoppingListStatus.ACTIVE);
+        assertThat(purchasing.status()).isEqualTo(NutritionShoppingListStatus.PURCHASING);
+        assertThatThrownBy(() -> shoppingListService.transitionShoppingList(family.getId(), list.getId(),
+                new TransitionShoppingListRequest(NutritionShoppingListStatus.CLOSED), COOK_USER_ID))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_SHOPPING_LIST_STATUS_INVALID");
     }
 
     private NutritionFamilyPo family(String name, Long ownerUserId) {
@@ -374,6 +450,19 @@ class ShoppingListServiceTests {
         confirmation.setEatAtHome(true);
         confirmation.setSelectedMealTypes(selectedMealTypes);
         return confirmationRepository.saveAndFlush(confirmation);
+    }
+
+    private NutritionMealConfirmationItemPo confirmationItem(Long familyId, Long confirmationId,
+                                                              NutritionMealPlanItemPo mealItem,
+                                                              boolean selected, String servingCount) {
+        NutritionMealConfirmationItemPo item = new NutritionMealConfirmationItemPo();
+        item.setFamilyId(familyId);
+        item.setConfirmationId(confirmationId);
+        item.setMealPlanItemId(mealItem.getId());
+        item.setMealType(mealItem.getMealType());
+        item.setSelected(selected);
+        item.setServingCount(new BigDecimal(servingCount));
+        return confirmationItemRepository.saveAndFlush(item);
     }
 
     private NutritionShoppingListPo shoppingList(Long familyId, Long mealPlanId, LocalDate listDate) {

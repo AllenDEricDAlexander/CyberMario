@@ -76,4 +76,22 @@ public class NutritionRecordController extends ReactiveNutritionSupport {
             @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> recordService.familyMonthlyReport(familyId, month, actorId(principal)));
     }
+
+    @PostMapping("/reports/family-weekly/generate")
+    public Mono<ApiResponse<NutritionReportResponse>> generateFamilyWeeklyReport(
+            @PathVariable @Min(1) Long familyId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> recordService.generateFamilyWeeklyReport(
+                familyId, weekStart, actorId(principal)));
+    }
+
+    @PostMapping("/reports/family-monthly/generate")
+    public Mono<ApiResponse<NutritionReportResponse>> generateFamilyMonthlyReport(
+            @PathVariable @Min(1) Long familyId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate month,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> recordService.generateFamilyMonthlyReport(
+                familyId, month, actorId(principal)));
+    }
 }

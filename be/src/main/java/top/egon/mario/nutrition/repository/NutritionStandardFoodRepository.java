@@ -10,6 +10,8 @@ import java.util.Optional;
 
 public interface NutritionStandardFoodRepository extends JpaRepository<NutritionStandardFoodPo, Long> {
 
+    Optional<NutritionStandardFoodPo> findByIdAndDeletedFalse(Long id);
+
     List<NutritionStandardFoodPo> findByStatusAndDeletedFalseOrderByIdDesc(NutritionStatus status);
 
     Optional<NutritionStandardFoodPo> findFirstByNameCnIgnoreCaseAndCategoryIgnoreCaseAndStatusAndDeletedFalseOrderByIdAsc(

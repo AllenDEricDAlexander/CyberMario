@@ -306,19 +306,23 @@
 
 ## 13. 营养管理（Nutrition Management）
 
-- 已实现家庭 AI 营养 MVP 的后端领域、RBAC 资源、前端路由和页面切片。
+- 已实现家庭 AI 营养管理的后端领域、RBAC 资源、真实 API 前端页面和纵向验收测试。
 - 支持 clan、family、clan-family 关系和 family-scoped member profile 模型。
 - family 是菜单、确认、购物清单、预算、食谱和营养记录的业务隔离边界。
 - 营养权限分为平台 RBAC 菜单/API 入口和 nutrition-scoped role binding / data grant 显式授权。
-- 支持 member health profile、健康标签、饮食目标、过敏/忌口/限制配置和同家庭可见的健康档案。
-- 支持平台 standard food 数据和 family recipe 数据，并记录食谱食材与营养素。
-- 支持标准食物和家庭食谱 CSV import job，包含导入确认和错误记录。
-- 支持按家庭生成 AI 菜单建议，生成待 cook review 的 meal plan，并保留 AI 原始输出、推荐理由和复核所需数据；当前 AI 推荐/发布路径不自动调用 `NutritionRuleCheckService` 做规则筛查。
-- 支持 meal plan 发布、成员或代理 meal confirmation、确认截止、meal completion 和 meal summary。
-- 支持由 meal plan 生成 shopping list、更新采购项和记录 food price record。
-- 支持 weekly/monthly budget statistics 和预算快照。
-- 支持 meal completion 后生成 nutrition record、手工调整/加餐记录、daily overview 和 family weekly/monthly basic reports。
-- 前端营养路由包括家庭营养、成员健康、食谱库、AI 菜单、用餐确认、用餐汇总、购物清单、预算、营养记录和平台配置页面。
+- 家庭管理员可维护家庭设置、成员、角色绑定、clan 关系和显式 data grant；cook 权限不会跨 family 泄漏。
+- 支持 member health profile、健康标签、饮食目标、过敏/忌口/限制配置，以及按授权范围读取健康档案。
+- 支持平台 standard food、家庭 standard food 和 family recipe；食谱包含食材映射、步骤、营养计算、校验和停用流程。
+- 支持标准食物和家庭食谱 CSV import job，包含上传、预检、错误记录、确认导入和导入结果。
+- AI 推荐任务持久化成员健康、可用食谱、预算规则、近期价格和近期用餐上下文；模型输出会物化为 AI recipe 和待 cook review 的 meal plan，不会直接发布。
+- cook 可按版本编辑、增删和排序 meal plan 菜品；编辑会重新计算营养快照、执行风险校验并写入 before/after 操作审计。
+- 高风险过敏会阻止 meal plan 发布，中风险偏好冲突需要 cook 记录确认说明后才能发布。
+- 成员或代理可按菜品确认是否在家用餐和精确份数；meal summary 汇总成员状态及每道菜的确认份数。
+- 确认关单后按食谱基准份数和成员确认份数生成 shopping list，并保存 meal plan/confirmation 版本快照；支持采购项状态、实际采购信息和 food price record。
+- 支持家庭预算规则、weekly/monthly budget statistics 和预算快照；预算使用率与购物完成率是两个独立指标。
+- meal completion 会幂等生成成员 nutrition record；手工调整以追加 correction 的方式保留原始记录，并支持加餐、daily overview、weekly/monthly report、目标对比和报告快照。
+- 家庭营养首页从 meal plan、confirmation、risk、shopping、budget 和 nutrition record 的同一套持久化数据生成工作流概览。
+- 前端营养路由包括家庭营养、成员健康、食谱库、AI 菜单、用餐确认、用餐汇总、购物清单、预算、营养记录和平台配置页面；页面通过 nutrition service 调用真实后端接口，并处理加载、空数据和失败状态，不依赖静态业务 fixture。
 
 ## Clocktower Phase 1
 
@@ -384,6 +388,7 @@
 - `V25__add_agent_soulmd.sql`：Agent SoulMD。
 - `V26__create_room_im_clocktower_refactor_schema.sql`：Room / IM / Clocktower game refactor schema。
 - `V27__retire_old_clocktower_rbac_resources.sql`：一次性退休旧钟楼 RBAC 权限；这是本次重构接受的迁移偏差。
+- `V31__create_nutrition_mvp_schema.sql`：营养管理持久化基线；恢复实现未修改该历史迁移。
 
 ## 16. 已有测试覆盖线索
 
@@ -394,6 +399,9 @@
 - 前端有 MCP service 和 MCP Server 编辑抽屉测试。
 - 前端有 RAG service 测试。
 - 后端已有 nutrition slice 测试，覆盖 schema migration、RBAC resource provider、access service、CSV import、rule check、AI service、meal plan/confirmation、shopping、budget、nutrition record 和 controller smoke 路径。
+- `NutritionVerticalFlowTests` 包含 10 条持久化纵向验收，覆盖家庭与 clan 授权、AI 草案、风险复核、菜单编辑、精确份数确认、关单采购、预算指标、完成幂等、记录修正和首页投影。
+- controller smoke 测试会实际调用设置/授权、食谱校验、AI 入队、菜单编辑/发布、菜品确认、购物清单生成、预算规则和营养记录 Controller 方法；路径反射仅作为补充。
+- 前端 nutrition 测试覆盖 service 请求契约、家庭切换和核心页面的加载/失败/提交刷新行为；当前仓库没有声明浏览器或人工验收结果。
 
 ## 17. 目前需要注意的实现细节
 

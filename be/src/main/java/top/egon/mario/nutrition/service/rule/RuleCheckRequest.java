@@ -13,12 +13,22 @@ public record RuleCheckRequest(
         List<RuleIngredient> ingredients,
         NutritionTotals nutritionTotals,
         BigDecimal estimatedCost,
-        BudgetContext budgetContext
+        BudgetContext budgetContext,
+        List<Long> recentRecipeIds
 ) {
 
     public RuleCheckRequest {
         memberProfiles = memberProfiles == null ? List.of() : List.copyOf(memberProfiles);
         ingredients = ingredients == null ? List.of() : List.copyOf(ingredients);
         nutritionTotals = nutritionTotals == null ? NutritionTotals.zero() : nutritionTotals;
+        recentRecipeIds = recentRecipeIds == null ? List.of() : List.copyOf(recentRecipeIds);
+    }
+
+    public RuleCheckRequest(Long familyId, String sourceType, Long sourceId,
+                            List<MemberRuleProfile> memberProfiles, List<RuleIngredient> ingredients,
+                            NutritionTotals nutritionTotals, BigDecimal estimatedCost,
+                            BudgetContext budgetContext) {
+        this(familyId, sourceType, sourceId, memberProfiles, ingredients,
+                nutritionTotals, estimatedCost, budgetContext, List.of());
     }
 }

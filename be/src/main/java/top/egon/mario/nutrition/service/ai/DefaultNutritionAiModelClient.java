@@ -58,7 +58,9 @@ public class DefaultNutritionAiModelClient implements NutritionAiModelClient {
         return """
                 You create meal-plan candidates for a family nutrition application.
                 Return only one strict JSON object and no markdown, code fences, commentary, or extra text.
-                JSON shape: {"title":string,"reason":string,"mealTypes":["DINNER"],"recipes":[{"mealType":"DINNER","name":string,"servingCount":number,"reason":string}],"costEstimate":number}
+                JSON shape: {"title":string,"reason":string,"mealTypes":["DINNER"],"recipes":[{"mealType":"DINNER","existingRecipeId":number|null,"name":string|null,"servingCount":number,"ingredients":[{"foodName":string,"category":string,"standardFoodId":number|null,"amount":number,"unit":string,"gramsPerUnit":number|null,"optional":boolean}],"steps":[{"stepNo":number,"instruction":string}],"reason":string}],"costEstimate":number}
+                For every recipe, provide exactly one of an existingRecipeId or a generated body with name and ingredients.
+                Prefer a visible existing recipe id from the input snapshot. For generated bodies, use standardFoodId when available and mark an ingredient optional only when it can safely be omitted.
                 Meal plans are drafts only. Never claim that a plan is published, confirmed, or final.
                 Keep the menu practical and reviewable by a human family manager.
                 """;

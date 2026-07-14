@@ -11,9 +11,16 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import top.egon.mario.nutrition.dto.request.CreateClanRequest;
+import top.egon.mario.nutrition.dto.request.CreateDataGrantRequest;
 import top.egon.mario.nutrition.dto.request.CreateFamilyRequest;
+import top.egon.mario.nutrition.dto.request.CreateScopedRoleBindingRequest;
+import top.egon.mario.nutrition.dto.request.UpdateDataGrantRequest;
+import top.egon.mario.nutrition.dto.request.UpdateFamilySettingsRequest;
 import top.egon.mario.nutrition.dto.response.ClanResponse;
+import top.egon.mario.nutrition.dto.response.ClanFamilyRelationResponse;
+import top.egon.mario.nutrition.dto.response.DataGrantResponse;
 import top.egon.mario.nutrition.dto.response.FamilyResponse;
+import top.egon.mario.nutrition.dto.response.ScopedRoleBindingResponse;
 import top.egon.mario.nutrition.po.NutritionClanFamilyPo;
 import top.egon.mario.nutrition.po.NutritionClanPo;
 import top.egon.mario.nutrition.po.NutritionDataGrantPo;
@@ -40,6 +47,7 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -147,6 +155,173 @@ public class ClanFamilyService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public FamilyResponse getFamilySettings(@NotNull Long familyId, Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireReadFamily(userId, familyId);
+        return toFamilyResponse(getActiveFamily(familyId));
+    }
+
+    @Transactional
+    public FamilyResponse updateFamilySettings(@NotNull Long familyId,
+                                               @Valid @NotNull UpdateFamilySettingsRequest request,
+                                               Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireManageFamily(userId, familyId);
+        NutritionFamilyPo family = getLockedActiveFamily(familyId);
+        family.setRegion(trimToNull(request.region()));
+        family.setCurrency(request.currency() == null
+                ? "CNY"
+                : request.currency().trim().toUpperCase(Locale.ROOT));
+        family.setDefaultMealTypes(writeStringList(request.defaultMealTypes() == null
+                ? List.of()
+                : request.defaultMealTypes().stream().map(Enum::name).toList()));
+        family.setAiEnabled(Boolean.TRUE.equals(request.aiEnabled()));
+        family.setAiGenerateTime(request.aiGenerateTime());
+        family.setHealthAlertEnabled(Boolean.TRUE.equals(request.healthAlertEnabled()));
+        family.setBudgetEnabled(Boolean.TRUE.equals(request.budgetEnabled()));
+        return toFamilyResponse(familyRepository.save(family));
+    }
+
+    @Transactional(readOnly = true)
+    public List<ScopedRoleBindingResponse> listRoleBindings(@NotNull Long familyId, Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireManageFamily(userId, familyId);
+        getActiveFamily(familyId);
+        List<NutritionScopedRoleBindingPo> familyBindings = roleBindingRepository
+                .findByScopeTypeAndScopeIdAndDeletedFalseOrderByIdAsc(NutritionScopeType.FAMILY, familyId);
+        List<Long> memberProfileIds = memberProfileRepository.findByFamilyIdAndDeletedFalseOrderByIdAsc(familyId)
+                .stream()
+                .map(NutritionMemberProfilePo::getId)
+                .toList();
+        List<NutritionScopedRoleBindingPo> memberBindings = memberProfileIds.isEmpty()
+                ? List.of()
+                : roleBindingRepository.findByScopeTypeAndScopeIdInAndDeletedFalseOrderByIdAsc(
+                NutritionScopeType.MEMBER_PROFILE, memberProfileIds);
+        return Stream.concat(familyBindings.stream(), memberBindings.stream())
+                .sorted(Comparator.comparing(NutritionScopedRoleBindingPo::getId))
+                .map(this::toScopedRoleBindingResponse)
+                .toList();
+    }
+
+    @Transactional
+    public ScopedRoleBindingResponse createRoleBinding(@NotNull Long familyId,
+                                                       @Valid @NotNull CreateScopedRoleBindingRequest request,
+                                                       Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireManageFamily(userId, familyId);
+        getLockedActiveFamily(familyId);
+        validateRoleBinding(familyId, request);
+        return toScopedRoleBindingResponse(upsertRoleBinding(request.subjectType(), request.subjectId(),
+                request.roleCode(), request.scopeType(), request.scopeId()));
+    }
+
+    @Transactional
+    public ScopedRoleBindingResponse updateRoleBinding(@NotNull Long familyId, @NotNull Long bindingId,
+                                                       @Valid @NotNull CreateScopedRoleBindingRequest request,
+                                                       Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireManageFamily(userId, familyId);
+        getLockedActiveFamily(familyId);
+        NutritionScopedRoleBindingPo binding = getFamilyRoleBinding(familyId, bindingId);
+        validateRoleBinding(familyId, request);
+        protectLastFamilyAdmin(binding, request.roleCode(), request.scopeType(), request.scopeId());
+        binding.setSubjectType(request.subjectType());
+        binding.setSubjectId(request.subjectId());
+        binding.setRoleCode(request.roleCode());
+        binding.setScopeType(request.scopeType());
+        binding.setScopeId(request.scopeId());
+        binding.setStatus(NutritionStatus.ACTIVE);
+        binding.setDeleted(false);
+        return toScopedRoleBindingResponse(roleBindingRepository.save(binding));
+    }
+
+    @Transactional
+    public void revokeRoleBinding(@NotNull Long familyId, @NotNull Long bindingId, Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireManageFamily(userId, familyId);
+        getLockedActiveFamily(familyId);
+        NutritionScopedRoleBindingPo binding = getFamilyRoleBinding(familyId, bindingId);
+        protectLastFamilyAdmin(binding, null, null, null);
+        binding.setStatus(NutritionStatus.DISABLED);
+        roleBindingRepository.save(binding);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DataGrantResponse> listDataGrants(@NotNull Long familyId, Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireManageFamily(userId, familyId);
+        getActiveFamily(familyId);
+        return dataGrantRepository.findByFamilyIdAndDeletedFalseOrderByIdAsc(familyId).stream()
+                .map(this::toDataGrantResponse)
+                .toList();
+    }
+
+    @Transactional
+    public DataGrantResponse createDataGrant(@NotNull Long familyId,
+                                             @Valid @NotNull CreateDataGrantRequest request,
+                                             Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireManageFamily(userId, familyId);
+        getActiveFamily(familyId);
+        validateDataGrant(familyId, request.memberProfileId(), request.granteeType(), request.granteeId());
+        NutritionDataGrantPo grant = new NutritionDataGrantPo();
+        grant.setFamilyId(familyId);
+        grant.setMemberProfileId(request.memberProfileId());
+        grant.setGranteeType(request.granteeType());
+        grant.setGranteeId(request.granteeId());
+        grant.setDataScope(request.dataScope());
+        grant.setPermissionLevel(request.permissionLevel());
+        grant.setExpiresAt(request.expiresAt());
+        grant.setStatus(NutritionStatus.ACTIVE);
+        return toDataGrantResponse(dataGrantRepository.save(grant));
+    }
+
+    @Transactional
+    public DataGrantResponse updateDataGrant(@NotNull Long familyId, @NotNull Long grantId,
+                                             @Valid @NotNull UpdateDataGrantRequest request,
+                                             Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireManageFamily(userId, familyId);
+        getActiveFamily(familyId);
+        NutritionDataGrantPo grant = getActiveDataGrant(familyId, grantId);
+        grant.setPermissionLevel(request.permissionLevel());
+        grant.setExpiresAt(request.expiresAt());
+        return toDataGrantResponse(dataGrantRepository.save(grant));
+    }
+
+    @Transactional
+    public void revokeDataGrant(@NotNull Long familyId, @NotNull Long grantId, Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireManageFamily(userId, familyId);
+        getActiveFamily(familyId);
+        NutritionDataGrantPo grant = getActiveDataGrant(familyId, grantId);
+        grant.setStatus(NutritionStatus.DISABLED);
+        dataGrantRepository.save(grant);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ClanFamilyRelationResponse> listClanFamilyRelations(@NotNull Long familyId, Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireManageFamily(userId, familyId);
+        getActiveFamily(familyId);
+        return clanFamilyRepository.findByFamilyIdAndDeletedFalseOrderByIdAsc(familyId).stream()
+                .map(this::toClanFamilyRelationResponse)
+                .toList();
+    }
+
+    @Transactional
+    public void removeClanFamilyRelation(@NotNull Long familyId, @NotNull Long relationId, Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireManageFamily(userId, familyId);
+        getActiveFamily(familyId);
+        NutritionClanFamilyPo relation = clanFamilyRepository.findByIdAndFamilyIdAndDeletedFalse(relationId, familyId)
+                .orElseThrow(() -> new NutritionException(
+                        "NUTRITION_CLAN_RELATION_NOT_FOUND", "nutrition clan family relation not found"));
+        relation.setRelationStatus(NutritionStatus.DISABLED);
+        clanFamilyRepository.save(relation);
+    }
+
     @Transactional
     public FamilyResponse associateClanFamily(@NotNull Long clanId, @NotNull Long familyId, Long actorId) {
         Long userId = requireActor(actorId);
@@ -188,20 +363,26 @@ public class ClanFamilyService {
         upsertDataGrant(familyId, null, GRANTEE_TYPE_CLAN, clanId, dataScope, permissionLevel);
     }
 
-    private void upsertRoleBinding(Long userId, NutritionRoleCode roleCode, NutritionScopeType scopeType,
-                                   Long scopeId) {
+    private NutritionScopedRoleBindingPo upsertRoleBinding(Long userId, NutritionRoleCode roleCode,
+                                                           NutritionScopeType scopeType, Long scopeId) {
+        return upsertRoleBinding(NutritionSubjectType.USER, userId, roleCode, scopeType, scopeId);
+    }
+
+    private NutritionScopedRoleBindingPo upsertRoleBinding(NutritionSubjectType subjectType, Long subjectId,
+                                                           NutritionRoleCode roleCode,
+                                                           NutritionScopeType scopeType, Long scopeId) {
         NutritionScopedRoleBindingPo binding = roleBindingRepository
                 .findBySubjectTypeAndSubjectIdAndRoleCodeAndScopeTypeAndScopeId(
-                        NutritionSubjectType.USER, userId, roleCode, scopeType, scopeId)
+                        subjectType, subjectId, roleCode, scopeType, scopeId)
                 .orElseGet(NutritionScopedRoleBindingPo::new);
-        binding.setSubjectType(NutritionSubjectType.USER);
-        binding.setSubjectId(userId);
+        binding.setSubjectType(subjectType);
+        binding.setSubjectId(subjectId);
         binding.setRoleCode(roleCode);
         binding.setScopeType(scopeType);
         binding.setScopeId(scopeId);
         binding.setStatus(NutritionStatus.ACTIVE);
         binding.setDeleted(false);
-        roleBindingRepository.save(binding);
+        return roleBindingRepository.save(binding);
     }
 
     private void upsertDataGrant(Long familyId, Long memberProfileId, String granteeType, Long granteeId,
@@ -247,6 +428,97 @@ public class ClanFamilyService {
                 .orElseThrow(() -> new NutritionException("NUTRITION_FAMILY_NOT_FOUND", "nutrition family not found"));
     }
 
+    private NutritionFamilyPo getLockedActiveFamily(Long familyId) {
+        return familyRepository.findLockedByIdAndDeletedFalse(familyId)
+                .filter(family -> NutritionStatus.ACTIVE == family.getStatus())
+                .orElseThrow(() -> new NutritionException("NUTRITION_FAMILY_NOT_FOUND", "nutrition family not found"));
+    }
+
+    private NutritionScopedRoleBindingPo getFamilyRoleBinding(Long familyId, Long bindingId) {
+        NutritionScopedRoleBindingPo binding = roleBindingRepository.findByIdAndDeletedFalse(bindingId)
+                .orElseThrow(() -> new NutritionException(
+                        "NUTRITION_ROLE_BINDING_NOT_FOUND", "nutrition role binding not found"));
+        if (NutritionScopeType.FAMILY == binding.getScopeType() && familyId.equals(binding.getScopeId())) {
+            return binding;
+        }
+        if (NutritionScopeType.MEMBER_PROFILE == binding.getScopeType()
+                && memberProfileRepository.findByIdAndFamilyIdAndDeletedFalse(binding.getScopeId(), familyId)
+                .isPresent()) {
+            return binding;
+        }
+        throw new NutritionException("NUTRITION_ROLE_BINDING_NOT_FOUND", "nutrition role binding not found");
+    }
+
+    private NutritionDataGrantPo getActiveDataGrant(Long familyId, Long grantId) {
+        return dataGrantRepository.findByIdAndFamilyIdAndDeletedFalse(grantId, familyId)
+                .filter(grant -> NutritionStatus.ACTIVE == grant.getStatus())
+                .orElseThrow(() -> new NutritionException(
+                        "NUTRITION_DATA_GRANT_NOT_FOUND", "nutrition data grant not found"));
+    }
+
+    private void validateRoleBinding(Long familyId, CreateScopedRoleBindingRequest request) {
+        if (NutritionSubjectType.USER != request.subjectType()) {
+            throw roleScopeInvalid();
+        }
+        boolean familyRole = Set.of(NutritionRoleCode.FAMILY_ADMIN, NutritionRoleCode.COOK,
+                        NutritionRoleCode.MEMBER, NutritionRoleCode.GUARDIAN)
+                .contains(request.roleCode());
+        if (familyRole && NutritionScopeType.FAMILY == request.scopeType()
+                && familyId.equals(request.scopeId())) {
+            return;
+        }
+        boolean profileRole = Set.of(NutritionRoleCode.PROFILE_OWNER, NutritionRoleCode.PROFILE_GUARDIAN)
+                .contains(request.roleCode());
+        if (profileRole && NutritionScopeType.MEMBER_PROFILE == request.scopeType()
+                && memberProfileRepository.findByIdAndFamilyIdAndStatusAndDeletedFalse(
+                request.scopeId(), familyId, NutritionStatus.ACTIVE).isPresent()) {
+            return;
+        }
+        throw roleScopeInvalid();
+    }
+
+    private void protectLastFamilyAdmin(NutritionScopedRoleBindingPo binding,
+                                        NutritionRoleCode replacementRole,
+                                        NutritionScopeType replacementScope,
+                                        Long replacementScopeId) {
+        boolean removesFamilyAdmin = NutritionRoleCode.FAMILY_ADMIN == binding.getRoleCode()
+                && NutritionScopeType.FAMILY == binding.getScopeType()
+                && NutritionStatus.ACTIVE == binding.getStatus()
+                && !(NutritionRoleCode.FAMILY_ADMIN == replacementRole
+                && NutritionScopeType.FAMILY == replacementScope
+                && binding.getScopeId().equals(replacementScopeId));
+        if (removesFamilyAdmin && roleBindingRepository
+                .countByRoleCodeAndScopeTypeAndScopeIdAndStatusAndDeletedFalse(
+                        NutritionRoleCode.FAMILY_ADMIN, NutritionScopeType.FAMILY,
+                        binding.getScopeId(), NutritionStatus.ACTIVE) <= 1) {
+            throw new NutritionException(
+                    "NUTRITION_LAST_FAMILY_ADMIN", "the last family administrator cannot be removed");
+        }
+    }
+
+    private void validateDataGrant(Long familyId, Long memberProfileId, String granteeType, Long granteeId) {
+        if (memberProfileId != null) {
+            memberProfileRepository.findByIdAndFamilyIdAndStatusAndDeletedFalse(
+                            memberProfileId, familyId, NutritionStatus.ACTIVE)
+                    .orElseThrow(() -> new NutritionException(
+                            "NUTRITION_MEMBER_PROFILE_NOT_FOUND", "nutrition member profile not found"));
+        }
+        if (GRANTEE_TYPE_USER.equals(granteeType)) {
+            return;
+        }
+        if (GRANTEE_TYPE_CLAN.equals(granteeType)
+                && clanRepository.existsByIdAndStatusAndDeletedFalse(granteeId, NutritionStatus.ACTIVE)
+                && clanFamilyRepository.existsByClanIdAndFamilyIdAndRelationStatusAndDeletedFalse(
+                granteeId, familyId, NutritionStatus.ACTIVE)) {
+            return;
+        }
+        throw new NutritionException("NUTRITION_GRANTEE_INVALID", "nutrition data grant grantee is invalid");
+    }
+
+    private NutritionException roleScopeInvalid() {
+        return new NutritionException("NUTRITION_ROLE_SCOPE_INVALID", "nutrition role scope is invalid");
+    }
+
     private ClanResponse toClanResponse(NutritionClanPo clan) {
         return new ClanResponse(clan.getId(), clan.getName(), clan.getOwnerUserId(), clan.getStatus(),
                 clan.getCreatedAt(), clan.getUpdatedAt());
@@ -266,6 +538,23 @@ public class ClanFamilyService {
                 family.getCurrency(), readStringList(family.getDefaultMealTypes()), family.isAiEnabled(),
                 family.getAiGenerateTime(), family.isHealthAlertEnabled(), family.isBudgetEnabled(),
                 family.getStatus(), ownerMemberProfileId, family.getCreatedAt(), family.getUpdatedAt());
+    }
+
+    private ScopedRoleBindingResponse toScopedRoleBindingResponse(NutritionScopedRoleBindingPo binding) {
+        return new ScopedRoleBindingResponse(binding.getId(), binding.getSubjectType(), binding.getSubjectId(),
+                binding.getRoleCode(), binding.getScopeType(), binding.getScopeId(), binding.getStatus(),
+                binding.getCreatedAt(), binding.getUpdatedAt());
+    }
+
+    private DataGrantResponse toDataGrantResponse(NutritionDataGrantPo grant) {
+        return new DataGrantResponse(grant.getId(), grant.getFamilyId(), grant.getMemberProfileId(),
+                grant.getGranteeType(), grant.getGranteeId(), grant.getDataScope(), grant.getPermissionLevel(),
+                grant.getExpiresAt(), grant.getStatus(), grant.getCreatedAt(), grant.getUpdatedAt());
+    }
+
+    private ClanFamilyRelationResponse toClanFamilyRelationResponse(NutritionClanFamilyPo relation) {
+        return new ClanFamilyRelationResponse(relation.getId(), relation.getClanId(), relation.getFamilyId(),
+                relation.getRelationStatus(), relation.getJoinedAt(), relation.getCreatedAt(), relation.getUpdatedAt());
     }
 
     private String writeStringList(List<String> values) {

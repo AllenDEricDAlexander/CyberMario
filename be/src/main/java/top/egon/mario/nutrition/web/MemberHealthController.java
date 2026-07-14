@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,9 +16,13 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.nutrition.dto.request.CreateMemberProfileRequest;
+import top.egon.mario.nutrition.dto.request.AssignProfileGuardianRequest;
+import top.egon.mario.nutrition.dto.request.BindMemberUserRequest;
 import top.egon.mario.nutrition.dto.request.UpdateHealthProfileRequest;
+import top.egon.mario.nutrition.dto.request.UpdateMemberProfileRequest;
 import top.egon.mario.nutrition.dto.response.HealthProfileResponse;
 import top.egon.mario.nutrition.dto.response.MemberProfileResponse;
+import top.egon.mario.nutrition.dto.response.ScopedRoleBindingResponse;
 import top.egon.mario.nutrition.service.MemberHealthService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
@@ -45,6 +50,64 @@ public class MemberHealthController extends ReactiveNutritionSupport {
     public Mono<ApiResponse<List<MemberProfileResponse>>> members(@PathVariable @Min(1) Long familyId,
                                                                   @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> memberHealthService.listMemberProfiles(familyId, actorId(principal)));
+    }
+
+    @PutMapping("/members/{memberProfileId}")
+    public Mono<ApiResponse<MemberProfileResponse>> updateMemberProfile(
+            @PathVariable @Min(1) Long familyId,
+            @PathVariable @Min(1) Long memberProfileId,
+            @Valid @RequestBody UpdateMemberProfileRequest request,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> memberHealthService.updateMemberProfile(
+                familyId, memberProfileId, request, actorId(principal)));
+    }
+
+    @DeleteMapping("/members/{memberProfileId}")
+    public Mono<ApiResponse<MemberProfileResponse>> deactivateMemberProfile(
+            @PathVariable @Min(1) Long familyId,
+            @PathVariable @Min(1) Long memberProfileId,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> memberHealthService.deactivateMemberProfile(
+                familyId, memberProfileId, actorId(principal)));
+    }
+
+    @PostMapping("/members/{memberProfileId}/bind-user")
+    public Mono<ApiResponse<MemberProfileResponse>> bindMemberUser(
+            @PathVariable @Min(1) Long familyId,
+            @PathVariable @Min(1) Long memberProfileId,
+            @Valid @RequestBody BindMemberUserRequest request,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> memberHealthService.bindMemberUser(
+                familyId, memberProfileId, request, actorId(principal)));
+    }
+
+    @DeleteMapping("/members/{memberProfileId}/bind-user")
+    public Mono<ApiResponse<MemberProfileResponse>> unbindMemberUser(
+            @PathVariable @Min(1) Long familyId,
+            @PathVariable @Min(1) Long memberProfileId,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> memberHealthService.unbindMemberUser(
+                familyId, memberProfileId, actorId(principal)));
+    }
+
+    @PostMapping("/members/{memberProfileId}/guardians")
+    public Mono<ApiResponse<ScopedRoleBindingResponse>> assignProfileGuardian(
+            @PathVariable @Min(1) Long familyId,
+            @PathVariable @Min(1) Long memberProfileId,
+            @Valid @RequestBody AssignProfileGuardianRequest request,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> memberHealthService.assignProfileGuardian(
+                familyId, memberProfileId, request, actorId(principal)));
+    }
+
+    @DeleteMapping("/members/{memberProfileId}/guardians/{bindingId}")
+    public Mono<ApiResponse<Void>> revokeProfileGuardian(
+            @PathVariable @Min(1) Long familyId,
+            @PathVariable @Min(1) Long memberProfileId,
+            @PathVariable @Min(1) Long bindingId,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blockingVoid(() -> memberHealthService.revokeProfileGuardian(
+                familyId, memberProfileId, bindingId, actorId(principal)));
     }
 
     @GetMapping("/health-profiles")
