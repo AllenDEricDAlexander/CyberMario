@@ -43,7 +43,7 @@ class NutritionRbacResourceProviderTests {
                 .satisfies(seed -> {
                     assertThat(seed.type()).isEqualTo(PermissionType.MENU);
                     assertThat(seed.parentCode()).isEqualTo("menu:nutrition");
-                    assertThat(seed.menu().routePath()).isEqualTo("/nutrition/families");
+                    assertThat(seed.menu().routePath()).isEqualTo("/nutrition/home");
                 });
         assertThat(provider.resources())
                 .filteredOn(seed -> "api:nutrition:family:*".equals(seed.code()))
@@ -69,7 +69,8 @@ class NutritionRbacResourceProviderTests {
 
         assertThat(provider.rolePresets())
                 .extracting("roleCode")
-                .contains("NUTRITION_USER", "NUTRITION_PLATFORM_ADMIN");
+                .contains("NUTRITION_USER", "NUTRITION_PLATFORM_ADMIN")
+                .doesNotContain("SUPER_ADMIN");
         assertThat(provider.rolePresets())
                 .filteredOn(seed -> "NUTRITION_USER".equals(seed.roleCode()))
                 .singleElement()
