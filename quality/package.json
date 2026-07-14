@@ -1,0 +1,26 @@
+{
+  "name": "@cybermario/quality",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "bun@1.3.14",
+  "type": "module",
+  "scripts": {
+    "test": "bun test support scripts models",
+    "typecheck": "bun run --bun tsc --noEmit",
+    "test:auth": "bun run scripts/run-quality.ts auth",
+    "test:auth:headed": "bun run scripts/run-quality.ts auth --headed",
+    "test:auth:ui": "bun run scripts/run-quality.ts auth --ui",
+    "test:auth:debug": "bun run scripts/run-quality.ts auth --debug",
+    "report": "bunx playwright show-report playwright-report"
+  },
+  "dependencies": {
+    "pg": "8.22.0",
+    "redis": "6.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "@types/bun": "1.3.14",
+    "@types/pg": "8.20.0",
+    "typescript": "~6.0.2"
+  }
+}
