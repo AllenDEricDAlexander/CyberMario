@@ -1,7 +1,7 @@
 # Playwright Auto Quality Gate Design
 
 Date: 2026-07-14
-Status: Approved design, pending written spec review
+Status: Approved
 Author: design session
 
 ## 1. Decision Summary
