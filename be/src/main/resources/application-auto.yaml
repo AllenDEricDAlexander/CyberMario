@@ -1,0 +1,66 @@
+spring:
+  config:
+    activate:
+      on-profile: auto
+  datasource:
+    url: ${AUTO_DB_URL:jdbc:postgresql://localhost:5432/cyber_mario_auto}
+    username: ${AUTO_DB_USERNAME:postgres}
+    password: ${AUTO_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: CyberMarioAutoHikariPool
+      maximum-pool-size: ${AUTO_DB_POOL_MAX_SIZE:8}
+      minimum-idle: ${AUTO_DB_POOL_MIN_IDLE:1}
+      connection-init-sql: SET search_path TO ${AUTO_DB_SCHEMA:auto_local}, public
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: ${AUTO_DB_SCHEMA:auto_local}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration,classpath:db/postgresql
+    default-schema: ${AUTO_DB_SCHEMA:auto_local}
+    schemas: ${AUTO_DB_SCHEMA:auto_local}
+    create-schemas: true
+    validate-on-migrate: true
+    clean-disabled: true
+  data:
+    redis:
+      host: ${AUTO_REDIS_HOST:localhost}
+      port: ${AUTO_REDIS_PORT:6379}
+      password: ${AUTO_REDIS_PASSWORD:}
+      database: ${AUTO_REDIS_DATABASE:15}
+      timeout: ${AUTO_REDIS_TIMEOUT:3s}
+
+server:
+  port: ${AUTO_BACKEND_PORT:28081}
+
+management:
+  health:
+    redis:
+      enabled: true
+
+mario:
+  security:
+    jwt:
+      issuer: CyberMarioAuto
+      secret: ${AUTO_JWT_SECRET}
+      access-token-ttl: PT30M
+      refresh-token-ttl: PT2H
+    browser-cookie:
+      enabled: true
+      secure: false
+  rbac:
+    resource-sync:
+      enabled: true
+    bootstrap:
+      admin:
+        enabled: true
+        password: ${AUTO_ADMIN_PASSWORD}
+        require-password-change: false
+  agent:
+    memory:
+      checkpointer:
+        enabled: false
