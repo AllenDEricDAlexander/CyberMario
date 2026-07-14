@@ -350,19 +350,52 @@ describe('admin menu authorization', () => {
             .toBe(true)
     })
 
-    test('shows nutrition menu paths when nutrition permissions are present', () => {
-        const nutritionMenuTree: MenuTreeResponse[] = [
+    test('authorizes every family nutrition path through the family home menu', () => {
+        const familyMenuTree: MenuTreeResponse[] = [
             ...menuTree,
             {
                 permissionId: 30,
                 permCode: 'menu:nutrition:families',
                 permName: '家庭营养',
-                routePath: '/nutrition/families',
+                routePath: '/nutrition/home',
                 hidden: false,
                 cacheable: true,
                 sortNo: 30,
                 children: [],
             },
+        ]
+        const familyPaths = [
+            '/nutrition/home',
+            '/nutrition/families',
+            '/nutrition/members',
+            '/nutrition/recipes',
+            '/nutrition/ai-menus',
+            '/nutrition/confirmations',
+            '/nutrition/meal-summary',
+            '/nutrition/shopping',
+            '/nutrition/budget',
+            '/nutrition/records',
+        ]
+
+        const keys = flattenMenuKeys(buildAuthorizedAdminMenuItems(familyMenuTree, false, ['NUTRITION_USER']))
+
+        expect(keys).toContain('/nutrition/home')
+        expect(keys).not.toContain('/nutrition/platform')
+        familyPaths.forEach((path) => {
+            expect(canAccessAdminPath(path, familyMenuTree, false, ['NUTRITION_USER'])).toBe(true)
+        })
+        expect(canAccessAdminPath('/nutrition/recipes/7', familyMenuTree, false, ['NUTRITION_USER']))
+            .toBe(true)
+        expect(canAccessAdminPath('/nutrition/platform', familyMenuTree, false, ['NUTRITION_USER']))
+            .toBe(false)
+        expect(canAccessAdminPath('/nutrition/unknown', familyMenuTree, false, ['NUTRITION_USER']))
+            .toBe(false)
+        expect(selectedAdminMenuKey('/nutrition/records', keys)).toBe('/nutrition/home')
+    })
+
+    test('keeps nutrition platform separate from the family workspace permission', () => {
+        const platformMenuTree: MenuTreeResponse[] = [
+            ...menuTree,
             {
                 permissionId: 31,
                 permCode: 'menu:nutrition:platform',
@@ -375,15 +408,26 @@ describe('admin menu authorization', () => {
             },
         ]
 
-        const keys = flattenMenuKeys(buildAuthorizedAdminMenuItems(nutritionMenuTree, false, ['NUTRITION_USER']))
+        const keys = flattenMenuKeys(buildAuthorizedAdminMenuItems(
+            platformMenuTree,
+            false,
+            ['NUTRITION_PLATFORM_ADMIN'],
+        ))
 
-        expect(keys).toContain('/nutrition/families')
         expect(keys).toContain('/nutrition/platform')
-        expect(canAccessAdminPath('/nutrition/families', nutritionMenuTree, false, ['NUTRITION_USER']))
+        expect(keys).not.toContain('/nutrition/home')
+        expect(canAccessAdminPath('/nutrition/platform', platformMenuTree, false, ['NUTRITION_PLATFORM_ADMIN']))
             .toBe(true)
-        expect(canAccessAdminPath('/nutrition/families/7', nutritionMenuTree, false, ['NUTRITION_USER']))
-            .toBe(true)
-        expect(canAccessAdminPath('/nutrition/platform', nutritionMenuTree, false, ['NUTRITION_USER']))
-            .toBe(true)
+        expect(canAccessAdminPath('/nutrition/members', platformMenuTree, false, ['NUTRITION_PLATFORM_ADMIN']))
+            .toBe(false)
+    })
+
+    test('keeps both nutrition entries in the super admin bypass menu', () => {
+        const keys = flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, true, ['SUPER_ADMIN']))
+
+        expect(keys).toContain('/nutrition/home')
+        expect(keys).toContain('/nutrition/platform')
+        expect(canAccessAdminPath('/nutrition/budget', menuTree, true, ['SUPER_ADMIN'])).toBe(true)
+        expect(canAccessAdminPath('/nutrition/platform', menuTree, true, ['SUPER_ADMIN'])).toBe(true)
     })
 })

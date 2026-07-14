@@ -52,7 +52,7 @@ const menuPathByKey: Record<string, string> = {
     '/clocktower/rules': '/clocktower/rules',
     '/clocktower/replays': '/clocktower/replays',
     '/clocktower/admin/audit': '/clocktower/admin/audit',
-    '/nutrition/families': '/nutrition/families',
+    '/nutrition/home': '/nutrition/home',
     '/nutrition/platform': '/nutrition/platform',
     '/rbac/users': '/rbac/users',
     '/rbac/roles': '/rbac/roles',
@@ -65,15 +65,6 @@ const menuPathByKey: Record<string, string> = {
 const compatibilityMenuPathAliases: Record<string, string> = {
     '/clocktower/rule': '/clocktower/rules',
     '/clocktower/replay': '/clocktower/replays',
-    '/nutrition/home': '/nutrition/families',
-    '/nutrition/members': '/nutrition/families',
-    '/nutrition/recipes': '/nutrition/families',
-    '/nutrition/ai-menus': '/nutrition/families',
-    '/nutrition/confirmations': '/nutrition/families',
-    '/nutrition/meal-summary': '/nutrition/families',
-    '/nutrition/shopping': '/nutrition/families',
-    '/nutrition/budget': '/nutrition/families',
-    '/nutrition/records': '/nutrition/families',
 }
 
 export const adminMenuItems: AdminMenuItem[] = [
@@ -209,7 +200,7 @@ export const adminMenuItems: AdminMenuItem[] = [
         label: '营养管理',
         children: [
             {
-                key: '/nutrition/families',
+                key: '/nutrition/home',
                 icon: <TeamOutlined/>,
                 label: '家庭营养',
             },
@@ -328,6 +319,7 @@ function canonicalNutritionPath(pathname: string) {
     }
     const familyMenuPaths = [
         '/nutrition/home',
+        '/nutrition/families',
         '/nutrition/members',
         '/nutrition/recipes',
         '/nutrition/ai-menus',
@@ -338,7 +330,7 @@ function canonicalNutritionPath(pathname: string) {
         '/nutrition/records',
     ]
     return familyMenuPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`))
-        ? '/nutrition/families'
+        ? '/nutrition/home'
         : undefined
 }
 

@@ -17,7 +17,7 @@ public class NutritionPermissionCatalog {
         return List.of(
                 new MenuPermissionSeed("menu:nutrition", "营养管理", null, null, "nutrition", 70),
                 new MenuPermissionSeed("menu:nutrition:families", "家庭营养", "menu:nutrition",
-                        "/nutrition/families", "nutrition-families", 71),
+                        "/nutrition/home", "nutrition-families", 71),
                 new MenuPermissionSeed("menu:nutrition:platform", "营养平台", "menu:nutrition",
                         "/nutrition/platform", "nutrition-platform", 72)
         );

@@ -7,6 +7,7 @@ import {hasAdminPermissionBypass, useAuth} from '../modules/auth/authStore'
 import {LoginPage} from '../modules/auth/pages/LoginPage'
 import {RegisterPage} from '../modules/auth/pages/RegisterPage'
 import {ChatPage} from '../modules/chat/pages/ChatPage'
+import {NutritionWorkspaceLayout} from '../modules/nutrition/NutritionWorkspaceLayout'
 
 export const router = createBrowserRouter([
     {
@@ -66,16 +67,21 @@ export const router = createBrowserRouter([
                     {path: 'clocktower/replays/:roomId', element: <Navigate replace to="/clocktower/replays"/>},
                     {path: 'clocktower/games/:gameId/replay', lazy: () => import('../modules/clocktower/ReplayPage')},
                     {path: 'clocktower/admin/audit', lazy: () => import('../modules/clocktower/ClocktowerAdminAuditPage')},
-                    {path: 'nutrition/home', lazy: () => import('../modules/nutrition/NutritionHomePage')},
-                    {path: 'nutrition/families', lazy: () => import('../modules/nutrition/ClanFamilyPage')},
-                    {path: 'nutrition/members', lazy: () => import('../modules/nutrition/MemberHealthPage')},
-                    {path: 'nutrition/recipes', lazy: () => import('../modules/nutrition/RecipeLibraryPage')},
-                    {path: 'nutrition/ai-menus', lazy: () => import('../modules/nutrition/AiMenuPage')},
-                    {path: 'nutrition/confirmations', lazy: () => import('../modules/nutrition/MealConfirmationPage')},
-                    {path: 'nutrition/meal-summary', lazy: () => import('../modules/nutrition/MealSummaryPage')},
-                    {path: 'nutrition/shopping', lazy: () => import('../modules/nutrition/ShoppingListPage')},
-                    {path: 'nutrition/budget', lazy: () => import('../modules/nutrition/BudgetPage')},
-                    {path: 'nutrition/records', lazy: () => import('../modules/nutrition/NutritionRecordPage')},
+                    {
+                        element: <NutritionWorkspaceLayout/>,
+                        children: [
+                            {path: 'nutrition/home', lazy: () => import('../modules/nutrition/NutritionHomePage')},
+                            {path: 'nutrition/families', lazy: () => import('../modules/nutrition/ClanFamilyPage')},
+                            {path: 'nutrition/members', lazy: () => import('../modules/nutrition/MemberHealthPage')},
+                            {path: 'nutrition/recipes', lazy: () => import('../modules/nutrition/RecipeLibraryPage')},
+                            {path: 'nutrition/ai-menus', lazy: () => import('../modules/nutrition/AiMenuPage')},
+                            {path: 'nutrition/confirmations', lazy: () => import('../modules/nutrition/MealConfirmationPage')},
+                            {path: 'nutrition/meal-summary', lazy: () => import('../modules/nutrition/MealSummaryPage')},
+                            {path: 'nutrition/shopping', lazy: () => import('../modules/nutrition/ShoppingListPage')},
+                            {path: 'nutrition/budget', lazy: () => import('../modules/nutrition/BudgetPage')},
+                            {path: 'nutrition/records', lazy: () => import('../modules/nutrition/NutritionRecordPage')},
+                        ],
+                    },
                     {path: 'nutrition/platform', lazy: () => import('../modules/nutrition/PlatformNutritionConfigPage')},
                     {path: 'rbac/users', lazy: () => import('../modules/rbac/users/UserListPage')},
                     {path: 'rbac/roles', lazy: () => import('../modules/rbac/roles/RoleListPage')},
