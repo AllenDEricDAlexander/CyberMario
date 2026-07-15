@@ -42,6 +42,7 @@ feature inventory and implementation notes, see [FEATURE_CHECKLIST.md](FEATURE_C
 .
 |-- be/                  # Spring Boot backend
 |-- fe/                  # React + Vite frontend
+|-- quality/             # Playwright browser quality gate
 |-- docs/                # Design and implementation notes
 |-- ops/                 # Local start/stop helper scripts
 |-- FEATURE_CHECKLIST.md # Detailed implemented feature inventory
@@ -133,6 +134,15 @@ The repository also includes background helper scripts:
 ```
 
 Do not run these scripts unless you explicitly want to start local processes.
+
+## Browser Quality Gate
+
+The root `quality/` project runs real Playwright registration and login
+regression tests against the Spring `auto` profile and pre-provisioned
+PostgreSQL/Redis Auto resources.
+
+See [quality/README.md](quality/README.md) for environment safety requirements,
+local headed/debug commands, CI usage, diagnostics, and cleanup behavior.
 
 ## Validation
 
