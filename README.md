@@ -18,6 +18,8 @@ feature inventory and implementation notes, see [FEATURE_CHECKLIST.md](FEATURE_C
 - arXiv search tooling with protected background import into the RAG document pipeline.
 - Family AI nutrition workflow with scoped administration, health profiles, catalog imports, calculated recipes,
   persisted AI menu review, dish-level confirmation, shopping, budgets, nutrition records, and reports.
+- Investment workspace for cryptocurrency USDT perpetual-futures research, reproducible Java backtests, paper accounts,
+  risk-controlled simulated trading, and audited Agent analysis/paper-trade decisions.
 - Clocktower Phase 1 game support with script data, board validation, room lifecycle, grimoire, player actions, event
   stream, and basic replay.
 - RBAC user, role, permission, menu, button, API-rule, role-inheritance, and permission-version management.
@@ -135,6 +137,30 @@ The repository also includes background helper scripts:
 
 Do not run these scripts unless you explicitly want to start local processes.
 
+## Investment Module
+
+Investment is a web-only, paper-trading module for cryptocurrency USDT perpetual futures. It covers shared market-data
+storage and revision history, K-line and indicator analysis, six research-report types, immutable dataset snapshots,
+fixed Java strategies and reproducible backtests, private workspaces/watchlists/accounts/positions, mandatory risk
+checks, margin-ledger accounting, and audited Agent analysis or automatic simulated trading. It has no spot support,
+exchange private client, credential storage, live-order endpoint, or real-trading path.
+
+The production market-data provider, subscription, and strategy registries are intentionally empty. Until code supplies
+all three, Investment pages expose empty/unavailable states and no ingestion jobs are scheduled. Bitget is not connected
+by this delivery. Add integrations through these code-only seams:
+
+- implement the required `MarketDataProvider` capability interfaces and register the adapter as a Spring bean;
+- provide selected symbols, capabilities, intervals, price types, schedules, and retention through an
+  `InvestmentMarketSubscriptionProvider` bean;
+- implement `InvestmentStrategy` as a Spring bean; its declared capabilities and intervals must already be covered by
+  the subscription registry;
+- change the fixed Investment Agent preset and tool allowlist in code, never through a browser-supplied strategy or
+  prompt definition.
+
+The same paper-order facade and risk rules are used for manual, strategy, and Agent-originated intents. Agent trade
+decisions do not require per-order user confirmation, but cannot bypass ownership, freshness, position, leverage,
+exposure, loss, drawdown, frequency, cooldown, or slippage checks.
+
 ## Browser Quality Gate
 
 The root `quality/` project runs real Playwright registration and login
@@ -171,6 +197,24 @@ IM_POSTGRES_TEST_PASSWORD=postgres \
 ./mvnw -Dmaven.build.cache.enabled=false -Dtest=ImPostgresContractIT,ImPostgresBehaviorIT test
 ```
 
+Investment backend and disposable PostgreSQL gates:
+
+```bash
+cd be
+./mvnw -Dmaven.build.cache.enabled=false test
+
+INVESTMENT_POSTGRES_TEST_URL=jdbc:postgresql://localhost:5432/cyber_mario_investment_test \
+INVESTMENT_POSTGRES_TEST_USERNAME=postgres \
+INVESTMENT_POSTGRES_TEST_PASSWORD=postgres \
+./mvnw -Dmaven.build.cache.enabled=false \
+  -Dtest=InvestmentPostgresContractIT,InvestmentPostgresPersistenceIT test
+```
+
+The PostgreSQL database must be disposable: the tests create and drop an isolated schema and run the full Flyway
+chain. H2 validates the fast suite but does not replace PostgreSQL evidence for JSONB, locking, lease fencing, MVCC,
+idempotency, and concurrent financial updates. Frontend Investment checks use the standard commands below; bundle
+analysis should keep `lightweight-charts` in the lazy Instrument-page chunk.
+
 Frontend:
 
 ```bash
@@ -206,6 +250,10 @@ git diff --check
 - [FEATURE_CHECKLIST.md](FEATURE_CHECKLIST.md): current feature inventory and implementation notes.
 - [fe/README.md](fe/README.md): frontend scripts, proxy behavior, response contracts, and validation commands.
 - [docs/im-core-contract.md](docs/im-core-contract.md): IM core facade, realtime, Clocktower adapter, and validation contract.
+- [docs/superpowers/specs/2026-07-16-investment-module-design.md](docs/superpowers/specs/2026-07-16-investment-module-design.md):
+  Investment architecture, schema, security, paper-trading, quant, and Agent contracts.
+- [docs/superpowers/plans/2026-07-16-investment-module.md](docs/superpowers/plans/2026-07-16-investment-module.md): Investment
+  implementation and verification plan.
 - [docs/rbac-resource-sync-design.md](docs/rbac-resource-sync-design.md): RBAC resource synchronization design.
 - [docs/superpowers/specs/2026-06-16-agent-memory-design.md](docs/superpowers/specs/2026-06-16-agent-memory-design.md):
   Agent Memory design.
