@@ -1,6 +1,7 @@
 package top.egon.mario.investment;
 
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -57,6 +58,7 @@ class InvestmentFoundationSchemaMigrationTests {
         Flyway flyway = Flyway.configure()
                 .dataSource(dataSource)
                 .locations("classpath:db/migration")
+                .target(MigrationVersion.fromVersion("40"))
                 .load();
         flyway.migrate();
         flyway.validate();
