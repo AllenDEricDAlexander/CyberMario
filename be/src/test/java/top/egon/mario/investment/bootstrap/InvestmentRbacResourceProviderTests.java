@@ -30,18 +30,18 @@ class InvestmentRbacResourceProviderTests {
                         "api:investment:workspace:*",
                         "api:investment:private-detail:*",
                         "api:investment:platform:*",
-                        "button:investment:workspace:create",
-                        "button:investment:watchlist:manage",
-                        "button:investment:paper:trade",
-                        "button:investment:agent:run",
-                        "button:investment:platform:retry-job");
+                        "btn:investment:workspace:create",
+                        "btn:investment:watchlist:manage",
+                        "btn:investment:paper:trade",
+                        "btn:investment:agent:run",
+                        "btn:investment:platform:retry-job");
         assertThat(resources)
                 .filteredOn(seed -> seed.type() == PermissionType.MENU)
                 .extracting(RbacResourceSeed::code)
                 .containsExactly("menu:investment", "menu:investment:workspace", "menu:investment:platform");
 
         assertThat(resources)
-                .filteredOn(seed -> "button:investment:watchlist:manage".equals(seed.code()))
+                .filteredOn(seed -> "btn:investment:watchlist:manage".equals(seed.code()))
                 .singleElement()
                 .satisfies(seed -> {
                     assertThat(seed.type()).isEqualTo(PermissionType.BUTTON);

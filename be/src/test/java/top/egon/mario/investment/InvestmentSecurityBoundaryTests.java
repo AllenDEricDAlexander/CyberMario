@@ -47,7 +47,7 @@ class InvestmentSecurityBoundaryTests {
                 .satisfies(role -> assertThat(role.permissionCodes())
                         .contains("api:investment:platform:*", "api:investment:market:*")
                         .doesNotContain("api:investment:workspace:*", "api:investment:private-detail:*",
-                                "button:investment:paper:trade", "button:investment:agent:run"));
+                                "btn:investment:paper:trade", "btn:investment:agent:run"));
     }
 
     @Test

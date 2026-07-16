@@ -29,7 +29,7 @@ describe('InvestmentWorkspaceLayout', () => {
             workspace: 'menu:investment:workspace',
             platform: 'menu:investment:platform',
         })
-        expect(investmentButtonCodes.workspaceCreate).toBe('button:investment:workspace:create')
+        expect(investmentButtonCodes.workspaceCreate).toBe('btn:investment:workspace:create')
         expect(investmentApiCodes).toEqual({
             market: 'api:investment:market:*',
             strategyRead: 'api:investment:strategy:read',

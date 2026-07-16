@@ -52,9 +52,9 @@ public class InvestmentRbacResourceProvider implements RbacResourceProvider {
                                 "menu:investment", "menu:investment:workspace",
                                 "api:investment:market:*", "api:investment:strategy:read",
                                 "api:investment:workspace:*", "api:investment:private-detail:*",
-                                "button:investment:workspace:create", "button:investment:watchlist:manage",
-                                "button:investment:report:create", "button:investment:backtest:create",
-                                "button:investment:paper:trade", "button:investment:agent:run",
+                                "btn:investment:workspace:create", "btn:investment:watchlist:manage",
+                                "btn:investment:report:create", "btn:investment:backtest:create",
+                                "btn:investment:paper:trade", "btn:investment:agent:run",
                                 AUTH_SELF_API_PERMISSION_CODE, ME_SELF_API_PERMISSION_CODE
                         ),
                         RbacResourceSource.PROVIDER
@@ -68,8 +68,8 @@ public class InvestmentRbacResourceProvider implements RbacResourceProvider {
                         List.of(
                                 "menu:investment", "menu:investment:platform",
                                 "api:investment:market:*", "api:investment:platform:*",
-                                "button:investment:platform:retry-job",
-                                "button:investment:platform:resolve-quality",
+                                "btn:investment:platform:retry-job",
+                                "btn:investment:platform:resolve-quality",
                                 AUTH_SELF_API_PERMISSION_CODE, ME_SELF_API_PERMISSION_CODE
                         ),
                         RbacResourceSource.PROVIDER

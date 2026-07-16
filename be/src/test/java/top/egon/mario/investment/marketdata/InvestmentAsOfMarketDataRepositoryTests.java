@@ -271,7 +271,9 @@ class InvestmentAsOfMarketDataRepositoryTests {
     }
 
     private void clearMarketData() {
-        for (String table : List.of("investment_data_quality_issue", "investment_market_bar_intraday",
+        for (String table : List.of("investment_backtest_trade", "investment_backtest_run",
+                "investment_dataset_snapshot_item", "investment_dataset_snapshot",
+                "investment_data_quality_issue", "investment_market_bar_intraday",
                 "investment_market_bar_daily", "investment_funding_rate", "investment_contract_quote_latest",
                 "investment_ingest_cursor", "investment_job", "investment_instrument_source",
                 "investment_contract_spec", "investment_position_tier", "investment_instrument",

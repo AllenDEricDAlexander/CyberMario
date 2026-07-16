@@ -5,14 +5,14 @@ export const investmentMenuCodes = {
 }
 
 export const investmentButtonCodes = {
-    workspaceCreate: 'button:investment:workspace:create',
-    watchlistManage: 'button:investment:watchlist:manage',
-    reportCreate: 'button:investment:report:create',
-    backtestCreate: 'button:investment:backtest:create',
-    paperTrade: 'button:investment:paper:trade',
-    agentRun: 'button:investment:agent:run',
-    platformRetryJob: 'button:investment:platform:retry-job',
-    platformResolveQuality: 'button:investment:platform:resolve-quality',
+    workspaceCreate: 'btn:investment:workspace:create',
+    watchlistManage: 'btn:investment:watchlist:manage',
+    reportCreate: 'btn:investment:report:create',
+    backtestCreate: 'btn:investment:backtest:create',
+    paperTrade: 'btn:investment:paper:trade',
+    agentRun: 'btn:investment:agent:run',
+    platformRetryJob: 'btn:investment:platform:retry-job',
+    platformResolveQuality: 'btn:investment:platform:resolve-quality',
 }
 
 export const investmentApiCodes = {
