@@ -15,6 +15,8 @@ public interface InvestmentAgentDecisionRepository extends JpaRepository<Investm
 
     List<InvestmentAgentDecisionPo> findByRunIdOrderByIdAsc(Long runId);
 
+    List<InvestmentAgentDecisionPo> findByRunIdInOrderByRunIdAscIdAsc(List<Long> runIds);
+
     Optional<InvestmentAgentDecisionPo> findFirstByRunIdOrderByIdAsc(Long runId);
 
     List<InvestmentAgentDecisionPo> findByExecutionStatusAndIntentIdIsNullOrderByIdAsc(

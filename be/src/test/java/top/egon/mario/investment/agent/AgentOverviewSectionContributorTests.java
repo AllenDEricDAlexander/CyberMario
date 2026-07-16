@@ -15,10 +15,10 @@ import top.egon.mario.investment.overview.InvestmentOverviewSectionContributor;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -38,6 +38,7 @@ class AgentOverviewSectionContributorTests {
         run.setFinishedAt(cutoff.minusSeconds(1));
         InvestmentAgentDecisionPo decision = new InvestmentAgentDecisionPo();
         decision.setId(51L);
+        decision.setRunId(41L);
         decision.setInstrumentId(11L);
         decision.setAction(InvestmentAgentAction.OPEN_LONG);
         decision.setConfidence(new BigDecimal("0.75"));
@@ -46,7 +47,8 @@ class AgentOverviewSectionContributorTests {
         when(runRepository
                 .findTop5ByWorkspaceIdAndStatusAndFinishedAtLessThanEqualAndDeletedFalseOrderByFinishedAtDescIdDesc(
                         7L, InvestmentRunStatus.SUCCEEDED, cutoff)).thenReturn(List.of(run));
-        when(decisionRepository.findFirstByRunIdOrderByIdAsc(41L)).thenReturn(Optional.of(decision));
+        when(decisionRepository.findByRunIdInOrderByRunIdAscIdAsc(List.of(41L)))
+                .thenReturn(List.of(decision));
 
         var section = new AgentOverviewSectionContributor(runRepository, decisionRepository).contribute(
                 new InvestmentOverviewSectionContributor.OverviewContext(5L, 7L, cutoff));
@@ -58,5 +60,7 @@ class AgentOverviewSectionContributorTests {
         verify(runRepository)
                 .findTop5ByWorkspaceIdAndStatusAndFinishedAtLessThanEqualAndDeletedFalseOrderByFinishedAtDescIdDesc(
                         7L, InvestmentRunStatus.SUCCEEDED, cutoff);
+        verify(decisionRepository).findByRunIdInOrderByRunIdAscIdAsc(List.of(41L));
+        verify(decisionRepository, never()).findFirstByRunIdOrderByIdAsc(41L);
     }
 }
