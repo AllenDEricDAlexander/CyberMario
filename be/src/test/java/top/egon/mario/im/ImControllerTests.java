@@ -17,6 +17,7 @@ import top.egon.mario.im.facade.GovFacade;
 import top.egon.mario.im.facade.ImFacade;
 import top.egon.mario.im.facade.RoomFacade;
 import top.egon.mario.im.facade.dto.command.MintWsTicketCommand;
+import top.egon.mario.im.facade.dto.command.OpenDmCommand;
 import top.egon.mario.im.facade.dto.command.SendMessageCommand;
 import top.egon.mario.im.facade.dto.query.ListConversationsQuery;
 import top.egon.mario.im.facade.dto.view.ConversationView;
@@ -26,6 +27,7 @@ import top.egon.mario.im.facade.dto.view.SurfaceMemberView;
 import top.egon.mario.im.facade.dto.view.WsTicketView;
 import top.egon.mario.im.policy.ImPrincipal;
 import top.egon.mario.im.platform.PlatformRoomFacade;
+import top.egon.mario.im.platform.PlatformImFacade;
 import top.egon.mario.im.service.ImException;
 import top.egon.mario.im.web.ImController;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
@@ -53,6 +55,7 @@ class ImControllerTests {
             "im-controller-test"
     );
     private final ImFacade imFacade = mock(ImFacade.class);
+    private final PlatformImFacade platformImFacade = mock(PlatformImFacade.class);
     private final RoomFacade roomFacade = mock(RoomFacade.class);
     private final PlatformRoomFacade platformRoomFacade = mock(PlatformRoomFacade.class);
     private final DmFacade dmFacade = mock(DmFacade.class);
@@ -99,7 +102,7 @@ class ImControllerTests {
         MessageView message = new MessageView(
                 8801L, 7701L, 12001L, 4L, "client-abc", "TEXT", "hello", "{}",
                 "VISIBLE", Instant.parse("2026-06-28T01:01:00Z"), null, null, "{}");
-        when(imFacade.send(argThat(command -> command != null && "client-abc".equals(command.clientMsgId()))))
+        when(platformImFacade.send(argThat(command -> command != null && "client-abc".equals(command.clientMsgId()))))
                 .thenReturn(message);
 
         StepVerifier.create(controller.sendMessage(principal(), new ImController.SendMessageRequest(
@@ -110,7 +113,7 @@ class ImControllerTests {
                     assertThat(body.data().clientMsgId()).isEqualTo("client-abc");
                 })
                 .verifyComplete();
-        verify(imFacade).send(argThat((SendMessageCommand command) ->
+        verify(platformImFacade).send(argThat((SendMessageCommand command) ->
                 command.conversationId().equals(7701L)
                         && command.clientMsgId().equals("client-abc")
                         && command.messageType().equals("TEXT")
@@ -137,6 +140,22 @@ class ImControllerTests {
                         && query.page() == 0
                         && query.size() == 20
                         && isBoundaryPrincipal(query.principal())));
+    }
+
+    @Test
+    void openDmDelegatesToPlatformFriendshipGate() {
+        ConversationView conversation = new ConversationView(
+                7702L, "DM", "DM_PAIR", 3302L, "PLATFORM", null, 0L,
+                null, null, null, Instant.parse("2026-07-16T01:00:00Z"), "ACTIVE", 0L);
+        when(platformImFacade.openDm(argThat(command -> command != null
+                && Long.valueOf(12002L).equals(command.targetUserId()))))
+                .thenReturn(conversation);
+
+        StepVerifier.create(controller.openDm(principal(), new ImController.OpenDmRequest(12002L)))
+                .assertNext(body -> assertThat(body.data()).isSameAs(conversation))
+                .verifyComplete();
+        verify(platformImFacade).openDm(argThat((OpenDmCommand command) ->
+                command.targetUserId().equals(12002L) && isBoundaryPrincipal(command.principal())));
     }
 
     @Test
@@ -210,7 +229,7 @@ class ImControllerTests {
                         .extracting("code")
                         .isEqualTo("IM_PRINCIPAL_REQUIRED"))
                 .verify();
-        verifyNoInteractions(imFacade, roomFacade, platformRoomFacade, dmFacade, govFacade);
+        verifyNoInteractions(imFacade, platformImFacade, roomFacade, platformRoomFacade, dmFacade, govFacade);
     }
 
     @Test
@@ -223,7 +242,8 @@ class ImControllerTests {
     }
 
     private ImController controller() {
-        ImController controller = new ImController(imFacade, roomFacade, platformRoomFacade, dmFacade, govFacade);
+        ImController controller = new ImController(
+                imFacade, platformImFacade, roomFacade, platformRoomFacade, dmFacade, govFacade);
         ReflectionTestUtils.invokeMethod(controller, "setBlockingScheduler", scheduler);
         return controller;
     }

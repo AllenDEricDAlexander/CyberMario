@@ -37,6 +37,7 @@ import top.egon.mario.im.facade.dto.view.WsTicketView;
 import top.egon.mario.im.po.ImWsTicketPo;
 import top.egon.mario.im.po.enums.ImWsTicketStatus;
 import top.egon.mario.im.policy.ImPrincipal;
+import top.egon.mario.im.platform.PlatformImFacade;
 import top.egon.mario.im.realtime.ImConnectionRegistry;
 import top.egon.mario.im.realtime.ImFrame;
 import top.egon.mario.im.repository.ImWsTicketRepository;
@@ -192,6 +193,7 @@ class ImWebSocketGatewayTests {
     void websocketHandlesPingSendMessageMarkReadAndSubscribeFrames() throws Exception {
         ImTicketService tickets = mock(ImTicketService.class);
         ImFacade facade = mock(ImFacade.class);
+        PlatformImFacade platformFacade = mock(PlatformImFacade.class);
         ImConnectionRegistry registry = new ImConnectionRegistry();
         ImPrincipal principal = principal(12001L);
         MessageView message = new MessageView(
@@ -199,12 +201,12 @@ class ImWebSocketGatewayTests {
                 "VISIBLE", Instant.parse("2026-06-28T01:00:00Z"), null, null, "{}");
         UnreadView unread = new UnreadView(7701L, 12001L, 1L, 0L);
         when(tickets.consume("valid-ticket")).thenReturn(principal);
-        when(facade.send(argThat(command -> command != null && command.conversationId().equals(7701L))))
+        when(platformFacade.send(argThat(command -> command != null && command.conversationId().equals(7701L))))
                 .thenReturn(message);
         when(facade.markRead(argThat(command -> command != null && command.conversationId().equals(7701L))))
                 .thenReturn(unread);
         ImWebSocketHandler handler = new ImWebSocketHandler(
-                tickets, facade, registry, objectMapper, Schedulers.immediate());
+                tickets, facade, platformFacade, registry, objectMapper, Schedulers.immediate());
         TestWebSocketSession session = TestWebSocketSession.withMessages(
                 "ws://localhost/ws/im?ticket=valid-ticket",
                 frame("PING", "r-ping", Map.of()),
@@ -229,7 +231,7 @@ class ImWebSocketGatewayTests {
         assertThat(frames.get(1).get("payload").get("message").get("id").asLong()).isEqualTo(8801L);
         assertThat(frames.get(2).get("payload").get("unread").get("lastReadSeq").asLong()).isEqualTo(1L);
         assertThat(session.subscriptions()).containsExactly(7701L);
-        verify(facade).send(argThat((SendMessageCommand command) ->
+        verify(platformFacade).send(argThat((SendMessageCommand command) ->
                 command.principal().equals(principal)
                         && command.conversationId().equals(7701L)
                         && command.clientMsgId().equals("client-1")
@@ -244,10 +246,11 @@ class ImWebSocketGatewayTests {
     void websocketRejectsInvalidTicketBeforeRegisteringConnection() {
         ImTicketService tickets = mock(ImTicketService.class);
         ImFacade facade = mock(ImFacade.class);
+        PlatformImFacade platformFacade = mock(PlatformImFacade.class);
         ImConnectionRegistry registry = new ImConnectionRegistry();
         when(tickets.consume("bad-ticket")).thenThrow(new ImException("IM_WS_TICKET_INVALID"));
         ImWebSocketHandler handler = new ImWebSocketHandler(
-                tickets, facade, registry, objectMapper, Schedulers.immediate());
+                tickets, facade, platformFacade, registry, objectMapper, Schedulers.immediate());
         TestWebSocketSession session = TestWebSocketSession.withMessages("ws://localhost/ws/im?ticket=bad-ticket");
 
         handler.handle(session).block(Duration.ofSeconds(3));
@@ -260,10 +263,11 @@ class ImWebSocketGatewayTests {
     void websocketSerializesLocalRealtimePushesAsServerFrames() throws Exception {
         ImTicketService tickets = mock(ImTicketService.class);
         ImFacade facade = mock(ImFacade.class);
+        PlatformImFacade platformFacade = mock(PlatformImFacade.class);
         ImConnectionRegistry registry = new ImConnectionRegistry();
         when(tickets.consume("push-ticket")).thenReturn(principal(12002L));
         ImWebSocketHandler handler = new ImWebSocketHandler(
-                tickets, facade, registry, objectMapper, Schedulers.immediate());
+                tickets, facade, platformFacade, registry, objectMapper, Schedulers.immediate());
         TestWebSocketSession session = TestWebSocketSession.streaming("ws://localhost/ws/im?ticket=push-ticket");
 
         Disposable subscription = handler.handle(session).subscribe();
@@ -348,10 +352,11 @@ class ImWebSocketGatewayTests {
     void malformedAuthenticatedFrameReturnsResyncWithoutServerErrorClose() {
         ImTicketService tickets = mock(ImTicketService.class);
         ImFacade facade = mock(ImFacade.class);
+        PlatformImFacade platformFacade = mock(PlatformImFacade.class);
         ImConnectionRegistry registry = new ImConnectionRegistry();
         when(tickets.consume("malformed-ticket")).thenReturn(principal(12005L));
         ImWebSocketHandler handler = new ImWebSocketHandler(
-                tickets, facade, registry, objectMapper, Schedulers.immediate());
+                tickets, facade, platformFacade, registry, objectMapper, Schedulers.immediate());
         TestWebSocketSession session = TestWebSocketSession.withMessages(
                 "ws://localhost/ws/im?ticket=malformed-ticket",
                 "{not-json"
@@ -369,10 +374,11 @@ class ImWebSocketGatewayTests {
     void nullAuthenticatedFrameReturnsResyncWithoutServerErrorClose() {
         ImTicketService tickets = mock(ImTicketService.class);
         ImFacade facade = mock(ImFacade.class);
+        PlatformImFacade platformFacade = mock(PlatformImFacade.class);
         ImConnectionRegistry registry = new ImConnectionRegistry();
         when(tickets.consume("null-frame-ticket")).thenReturn(principal(12007L));
         ImWebSocketHandler handler = new ImWebSocketHandler(
-                tickets, facade, registry, objectMapper, Schedulers.immediate());
+                tickets, facade, platformFacade, registry, objectMapper, Schedulers.immediate());
         TestWebSocketSession session = TestWebSocketSession.withMessages(
                 "ws://localhost/ws/im?ticket=null-frame-ticket",
                 "null"
@@ -390,12 +396,13 @@ class ImWebSocketGatewayTests {
     void facadeValidationErrorReturnsResyncWithoutServerErrorClose() throws Exception {
         ImTicketService tickets = mock(ImTicketService.class);
         ImFacade facade = mock(ImFacade.class);
+        PlatformImFacade platformFacade = mock(PlatformImFacade.class);
         ImConnectionRegistry registry = new ImConnectionRegistry();
         when(tickets.consume("validation-ticket")).thenReturn(principal(12006L));
-        when(facade.send(argThat(command -> command != null && command.conversationId().equals(7706L))))
+        when(platformFacade.send(argThat(command -> command != null && command.conversationId().equals(7706L))))
                 .thenThrow(new ImException("IM_MESSAGE_CONVERSATION_DENIED"));
         ImWebSocketHandler handler = new ImWebSocketHandler(
-                tickets, facade, registry, objectMapper, Schedulers.immediate());
+                tickets, facade, platformFacade, registry, objectMapper, Schedulers.immediate());
         TestWebSocketSession session = TestWebSocketSession.withMessages(
                 "ws://localhost/ws/im?ticket=validation-ticket",
                 frame("SEND_MESSAGE", "r-validation", Map.of(
@@ -435,16 +442,18 @@ class ImWebSocketGatewayTests {
     private ImWebSocketHandler websocketHandler(ImTicketService ticketService, ImFacade facade,
                                                 ImConnectionRegistry registry, int outboundCapacity)
             throws ReflectiveOperationException {
+        PlatformImFacade platformFacade = mock(PlatformImFacade.class);
         Constructor<ImWebSocketHandler> constructor = ImWebSocketHandler.class.getDeclaredConstructor(
                 ImTicketService.class,
                 ImFacade.class,
+                PlatformImFacade.class,
                 ImConnectionRegistry.class,
                 ObjectMapper.class,
                 reactor.core.scheduler.Scheduler.class,
                 int.class
         );
         constructor.setAccessible(true);
-        return constructor.newInstance(ticketService, facade, registry, objectMapper,
+        return constructor.newInstance(ticketService, facade, platformFacade, registry, objectMapper,
                 Schedulers.immediate(), outboundCapacity);
     }
 

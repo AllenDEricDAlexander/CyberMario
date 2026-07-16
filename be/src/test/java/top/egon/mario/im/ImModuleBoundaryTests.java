@@ -3,6 +3,9 @@ package top.egon.mario.im;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -95,6 +98,34 @@ class ImModuleBoundaryTests {
 
         assertThat(violations)
                 .describedAs("IM module must not depend on Clocktower")
+                .isEmpty();
+    }
+
+    @Test
+    void clocktowerDoesNotDependOnPlatformImAdapter() throws IOException {
+        List<String> violations = javaSources(MAIN_SOURCE_ROOT.resolve("clocktower"))
+                .flatMap(path -> linesContaining(path, "PlatformImFacade").stream())
+                .toList();
+
+        assertThat(violations)
+                .describedAs("Clocktower must continue to depend only on generic IM facades")
+                .isEmpty();
+    }
+
+    @Test
+    void platformImAdapterPublicContractDoesNotExposePersistenceTypes() throws ClassNotFoundException {
+        Class<?> adapterType = Class.forName("top.egon.mario.im.platform.PlatformImFacade");
+        List<String> violations = Stream.of(adapterType.getDeclaredMethods())
+                .filter(method -> Modifier.isPublic(method.getModifiers()) && !method.isSynthetic())
+                .flatMap(method -> Stream.concat(
+                        Stream.of(new MethodType(method, method.getGenericReturnType())),
+                        Stream.of(method.getGenericParameterTypes()).map(type -> new MethodType(method, type))))
+                .filter(methodType -> forbiddenPersistenceType(methodType.type()))
+                .map(MethodType::format)
+                .toList();
+
+        assertThat(violations)
+                .describedAs("Platform IM adapter methods must expose DTOs rather than persistence types")
                 .isEmpty();
     }
 
@@ -212,6 +243,12 @@ class ImModuleBoundaryTests {
         return false;
     }
 
+    private static boolean forbiddenPersistenceType(Type type) {
+        String typeName = type.getTypeName();
+        return typeName.contains("top.egon.mario.im.po.")
+                || typeName.contains("top.egon.mario.im.repository.");
+    }
+
     private static int version(Path path) {
         Matcher matcher = VERSIONED_MIGRATION.matcher(path.getFileName().toString());
         return matcher.matches() ? Integer.parseInt(matcher.group(1)) : -1;
@@ -228,6 +265,13 @@ class ImModuleBoundaryTests {
 
         String format() {
             return ImModuleBoundaryTests.format(path, lineNo, "import " + importName + ";");
+        }
+    }
+
+    private record MethodType(Method method, Type type) {
+
+        String format() {
+            return method.getName() + ": " + type.getTypeName();
         }
     }
 }

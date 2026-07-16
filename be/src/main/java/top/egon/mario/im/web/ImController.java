@@ -50,6 +50,7 @@ import top.egon.mario.im.facade.dto.view.UnreadView;
 import top.egon.mario.im.facade.dto.view.WsTicketView;
 import top.egon.mario.im.facade.dto.view.SurfaceMemberView;
 import top.egon.mario.im.platform.PlatformRoomFacade;
+import top.egon.mario.im.platform.PlatformImFacade;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.time.Instant;
@@ -61,6 +62,7 @@ import java.util.List;
 public class ImController extends ReactiveImSupport {
 
     private final ImFacade imFacade;
+    private final PlatformImFacade platformImFacade;
     private final RoomFacade roomFacade;
     private final PlatformRoomFacade platformRoomFacade;
     private final DmFacade dmFacade;
@@ -78,7 +80,7 @@ public class ImController extends ReactiveImSupport {
     @PostMapping("/messages")
     public Mono<ApiResponse<MessageView>> sendMessage(@AuthenticationPrincipal RbacPrincipal principal,
                                                       @RequestBody SendMessageRequest request) {
-        return blocking(() -> imFacade.send(new SendMessageCommand(
+        return blocking(() -> platformImFacade.send(new SendMessageCommand(
                 imPrincipal(principal),
                 request == null ? null : request.conversationId(),
                 request == null ? null : request.clientMsgId(),
@@ -245,7 +247,7 @@ public class ImController extends ReactiveImSupport {
     @PostMapping("/dms")
     public Mono<ApiResponse<ConversationView>> openDm(@AuthenticationPrincipal RbacPrincipal principal,
                                                       @RequestBody OpenDmRequest request) {
-        return blocking(() -> dmFacade.openDm(new OpenDmCommand(
+        return blocking(() -> platformImFacade.openDm(new OpenDmCommand(
                 imPrincipal(principal), request == null ? null : request.targetUserId())));
     }
 

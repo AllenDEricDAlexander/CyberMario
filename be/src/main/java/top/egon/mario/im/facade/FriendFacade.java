@@ -17,6 +17,8 @@ import top.egon.mario.im.service.ImException;
 import top.egon.mario.rbac.application.RbacUserDirectoryFacade;
 import top.egon.mario.rbac.dto.response.UserDirectoryItemResponse;
 
+import java.util.Set;
+
 @Component
 public class FriendFacade {
 
@@ -69,5 +71,13 @@ public class FriendFacade {
 
     public boolean areActiveFriends(Long firstUserId, Long secondUserId) {
         return friendshipService.areActiveFriends(firstUserId, secondUserId);
+    }
+
+    public long countIncomingRequests(ImPrincipal principal) {
+        return friendshipService.countIncomingRequests(principal);
+    }
+
+    public Set<Long> findActiveFriendUserIds(ImPrincipal principal) {
+        return friendshipService.findActiveFriendUserIds(principal);
     }
 }

@@ -20,6 +20,7 @@ import top.egon.mario.im.facade.dto.command.SendMessageCommand;
 import top.egon.mario.im.facade.dto.view.MessageView;
 import top.egon.mario.im.facade.dto.view.UnreadView;
 import top.egon.mario.im.policy.ImPrincipal;
+import top.egon.mario.im.platform.PlatformImFacade;
 import top.egon.mario.im.realtime.ImConnectionRegistry;
 import top.egon.mario.im.realtime.ImFrame;
 import top.egon.mario.im.service.ImTicketService;
@@ -44,6 +45,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
 
     private final ImTicketService ticketService;
     private final ImFacade imFacade;
+    private final PlatformImFacade platformImFacade;
     private final ImConnectionRegistry connectionRegistry;
     private final ObjectMapper objectMapper;
     private final Scheduler blockingScheduler;
@@ -51,16 +53,19 @@ public class ImWebSocketHandler implements WebSocketHandler {
 
     @Autowired
     public ImWebSocketHandler(ImTicketService ticketService, ImFacade imFacade,
+                              PlatformImFacade platformImFacade,
                               ImConnectionRegistry connectionRegistry, ObjectMapper objectMapper,
                               Scheduler blockingScheduler) {
-        this(ticketService, imFacade, connectionRegistry, objectMapper, blockingScheduler, DEFAULT_OUTBOUND_CAPACITY);
+        this(ticketService, imFacade, platformImFacade, connectionRegistry, objectMapper,
+                blockingScheduler, DEFAULT_OUTBOUND_CAPACITY);
     }
 
-    ImWebSocketHandler(ImTicketService ticketService, ImFacade imFacade,
+    ImWebSocketHandler(ImTicketService ticketService, ImFacade imFacade, PlatformImFacade platformImFacade,
                        ImConnectionRegistry connectionRegistry, ObjectMapper objectMapper,
                        Scheduler blockingScheduler, int outboundCapacity) {
         this.ticketService = ticketService;
         this.imFacade = imFacade;
+        this.platformImFacade = platformImFacade;
         this.connectionRegistry = connectionRegistry;
         this.objectMapper = objectMapper;
         this.blockingScheduler = blockingScheduler;
@@ -150,7 +155,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
                                    BlockingQueue<ImFrame> outboundQueue,
                                    AtomicReference<Map<String, Object>> resyncHint, ImFrame frame) {
         SendMessagePayload payload = payload(frame, SendMessagePayload.class);
-        return Mono.fromCallable(() -> imFacade.send(new SendMessageCommand(
+        return Mono.fromCallable(() -> platformImFacade.send(new SendMessageCommand(
                         principal,
                         payload.conversationId(),
                         payload.clientMsgId(),

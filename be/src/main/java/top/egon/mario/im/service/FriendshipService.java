@@ -36,6 +36,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 @Service
@@ -232,6 +233,21 @@ public class FriendshipService {
         return friendshipRepository.findByUserLoIdAndUserHiIdAndDeletedFalse(users.userLoId(), users.userHiId())
                 .filter(friendship -> ImFriendshipStatus.ACTIVE.equals(friendship.getStatus()))
                 .isPresent();
+    }
+
+    @Transactional(readOnly = true)
+    public long countIncomingRequests(ImPrincipal principal) {
+        return friendshipRepository.countIncomingPending(requirePrincipal(principal).userId());
+    }
+
+    @Transactional(readOnly = true)
+    public Set<Long> findActiveFriendUserIds(ImPrincipal principal) {
+        Long userId = requirePrincipal(principal).userId();
+        return friendshipRepository.findActiveByUserId(userId).stream()
+                .map(friendship -> userId.equals(friendship.getUserLoId())
+                        ? friendship.getUserHiId()
+                        : friendship.getUserLoId())
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
     private FriendRequestView requestInTransaction(Long requesterUserId, Long targetUserId,

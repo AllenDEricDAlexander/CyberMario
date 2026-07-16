@@ -1,14 +1,15 @@
 package top.egon.mario.im.repository;
 
 import jakarta.persistence.LockModeType;
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import top.egon.mario.im.po.ImFriendshipPo;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface ImFriendshipRepository extends JpaRepository<ImFriendshipPo, Long> {
@@ -53,4 +54,21 @@ public interface ImFriendshipRepository extends JpaRepository<ImFriendshipPo, Lo
             order by friendship.requestedAt desc, friendship.id desc
             """)
     Page<ImFriendshipPo> findIncomingPending(@Param("userId") Long userId, Pageable pageable);
+
+    @Query("""
+            select count(friendship) from ImFriendshipPo friendship
+            where friendship.deleted = false
+              and friendship.status = top.egon.mario.im.po.enums.ImFriendshipStatus.PENDING
+              and friendship.requesterUserId <> :userId
+              and (friendship.userLoId = :userId or friendship.userHiId = :userId)
+            """)
+    long countIncomingPending(@Param("userId") Long userId);
+
+    @Query("""
+            select friendship from ImFriendshipPo friendship
+            where friendship.deleted = false
+              and friendship.status = top.egon.mario.im.po.enums.ImFriendshipStatus.ACTIVE
+              and (friendship.userLoId = :userId or friendship.userHiId = :userId)
+            """)
+    List<ImFriendshipPo> findActiveByUserId(@Param("userId") Long userId);
 }

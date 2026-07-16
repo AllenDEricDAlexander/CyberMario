@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 import top.egon.mario.im.facade.RoomFacade;
 import top.egon.mario.im.facade.dto.command.CreateChannelCommand;
 import top.egon.mario.im.facade.dto.command.CreateGroupCommand;
+import top.egon.mario.im.facade.dto.query.ListChannelsQuery;
 import top.egon.mario.im.facade.dto.query.ListGroupsQuery;
 import top.egon.mario.im.facade.dto.view.ChannelView;
 import top.egon.mario.im.facade.dto.view.GroupView;
@@ -36,6 +37,10 @@ public class PlatformRoomFacade {
 
     public List<GroupView> listGroups(ImPrincipal principal) {
         return roomFacade.listGroups(new ListGroupsQuery(principal, null, PLATFORM_CONTEXT_TYPE, null));
+    }
+
+    public List<ChannelView> listChannels(ImPrincipal principal) {
+        return roomFacade.listChannels(new ListChannelsQuery(principal, PLATFORM_CONTEXT_TYPE, null));
     }
 
     public ChannelView createGeneralChannel(ImPrincipal principal, String channelKey, String channelName) {
