@@ -27,12 +27,14 @@ import top.egon.mario.nutrition.po.enums.NutritionStatus;
 import top.egon.mario.nutrition.po.enums.NutritionSubjectType;
 import top.egon.mario.nutrition.repository.NutritionHealthProfileRepository;
 import top.egon.mario.nutrition.repository.NutritionHealthTagRepository;
+import top.egon.mario.nutrition.repository.NutritionFamilyRepository;
 import top.egon.mario.nutrition.repository.NutritionMemberProfileRepository;
 import top.egon.mario.nutrition.repository.NutritionScopedRoleBindingRepository;
 import top.egon.mario.nutrition.service.access.NutritionAccessService;
 import top.egon.mario.rbac.repository.UserRepository;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Application service for family members and health profiles.
@@ -46,6 +48,7 @@ public class MemberHealthService {
     };
 
     private final NutritionMemberProfileRepository memberProfileRepository;
+    private final NutritionFamilyRepository familyRepository;
     private final NutritionHealthProfileRepository healthProfileRepository;
     private final NutritionHealthTagRepository healthTagRepository;
     private final NutritionScopedRoleBindingRepository roleBindingRepository;
@@ -94,6 +97,7 @@ public class MemberHealthService {
         Long userId = requireActor(actorId);
         accessService.requireManageFamily(userId, familyId);
         NutritionMemberProfilePo memberProfile = getActiveMemberProfile(familyId, memberProfileId);
+        boolean ownerProfile = isOwnerProfile(familyId, memberProfile);
         if (request.guardianMemberId() != null) {
             getActiveMemberProfile(familyId, request.guardianMemberId());
             if (memberProfileId.equals(request.guardianMemberId())) {
@@ -101,13 +105,13 @@ public class MemberHealthService {
                         "NUTRITION_GUARDIAN_INVALID", "member profile cannot guard itself");
             }
         }
-        memberProfile.setNickname(request.nickname().trim());
+        memberProfile.setNickname(ownerProfile ? ownerUsername(familyId) : request.nickname().trim());
         memberProfile.setGender(trimToNull(request.gender()));
         memberProfile.setBirthDate(request.birthDate());
         memberProfile.setHeightCm(request.heightCm());
         memberProfile.setWeightKg(request.weightKg());
         memberProfile.setMemberType(request.memberType());
-        memberProfile.setLoginEnabled(Boolean.TRUE.equals(request.loginEnabled()));
+        memberProfile.setLoginEnabled(ownerProfile || Boolean.TRUE.equals(request.loginEnabled()));
         memberProfile.setGuardianMemberId(request.guardianMemberId());
         return toMemberProfileResponse(memberProfileRepository.save(memberProfile));
     }
@@ -118,6 +122,7 @@ public class MemberHealthService {
         Long userId = requireActor(actorId);
         accessService.requireManageFamily(userId, familyId);
         NutritionMemberProfilePo memberProfile = getActiveMemberProfile(familyId, memberProfileId);
+        requireMutableBinding(familyId, memberProfile);
         deactivateBoundUserRoles(memberProfile);
         roleBindingRepository.findByScopeTypeAndScopeIdAndDeletedFalseOrderByIdAsc(
                         NutritionScopeType.MEMBER_PROFILE, memberProfileId)
@@ -136,6 +141,7 @@ public class MemberHealthService {
         Long actorUserId = requireActor(actorId);
         accessService.requireManageFamily(actorUserId, familyId);
         NutritionMemberProfilePo memberProfile = getActiveMemberProfile(familyId, memberProfileId);
+        requireMutableBinding(familyId, memberProfile);
         requireExistingUser(request.userId());
         if (memberProfileRepository.existsByFamilyIdAndBoundUserIdAndIdNotAndStatusAndDeletedFalse(
                 familyId, request.userId(), memberProfileId, NutritionStatus.ACTIVE)) {
@@ -160,6 +166,7 @@ public class MemberHealthService {
         Long userId = requireActor(actorId);
         accessService.requireManageFamily(userId, familyId);
         NutritionMemberProfilePo memberProfile = getActiveMemberProfile(familyId, memberProfileId);
+        requireMutableBinding(familyId, memberProfile);
         deactivateBoundUserRoles(memberProfile);
         memberProfile.setBoundUserId(null);
         memberProfile.setLoginEnabled(false);
@@ -319,8 +326,15 @@ public class MemberHealthService {
     }
 
     private MemberProfileResponse toMemberProfileResponse(NutritionMemberProfilePo memberProfile) {
+        String boundUsername = memberProfile.getBoundUserId() == null
+                ? null
+                : userRepository.findByIdAndDeletedFalse(memberProfile.getBoundUserId())
+                .map(user -> user.getUsername())
+                .orElse(null);
         return new MemberProfileResponse(memberProfile.getId(), memberProfile.getFamilyId(),
-                memberProfile.getBoundUserId(), memberProfile.getNickname(), memberProfile.getGender(),
+                memberProfile.getBoundUserId(), boundUsername,
+                isOwnerProfile(memberProfile.getFamilyId(), memberProfile),
+                memberProfile.getNickname(), memberProfile.getGender(),
                 memberProfile.getBirthDate(), memberProfile.getHeightCm(), memberProfile.getWeightKg(),
                 memberProfile.getMemberType(), memberProfile.isLoginEnabled(), memberProfile.getGuardianMemberId(),
                 memberProfile.getStatus(), memberProfile.getCreatedAt(), memberProfile.getUpdatedAt());
@@ -374,6 +388,33 @@ public class MemberHealthService {
 
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private boolean isOwnerProfile(Long familyId, NutritionMemberProfilePo memberProfile) {
+        return familyRepository.findByIdAndDeletedFalse(familyId)
+                .map(family -> Objects.equals(family.getOwnerMemberProfileId(), memberProfile.getId())
+                        || family.getOwnerMemberProfileId() == null
+                        && Objects.equals(family.getOwnerUserId(), memberProfile.getBoundUserId()))
+                .orElse(false);
+    }
+
+    private void requireMutableBinding(Long familyId, NutritionMemberProfilePo memberProfile) {
+        if (isOwnerProfile(familyId, memberProfile)) {
+            throw new NutritionException(
+                    "NUTRITION_OWNER_PROFILE_PROTECTED", "nutrition family owner profile binding is protected");
+        }
+    }
+
+    private String ownerUsername(Long familyId) {
+        Long ownerUserId = familyRepository.findByIdAndDeletedFalse(familyId)
+                .map(family -> family.getOwnerUserId())
+                .orElseThrow(() -> new NutritionException(
+                        "NUTRITION_FAMILY_NOT_FOUND", "nutrition family not found"));
+        return userRepository.findByIdAndDeletedFalse(ownerUserId)
+                .map(user -> user.getUsername())
+                .filter(StringUtils::hasText)
+                .orElseThrow(() -> new NutritionException(
+                        "NUTRITION_USER_NOT_FOUND", "nutrition family owner user not found"));
     }
 
     private static NutritionException forbidden() {

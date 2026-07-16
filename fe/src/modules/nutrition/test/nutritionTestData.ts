@@ -29,6 +29,8 @@ export const member: NutritionMemberProfileResponse = {
     id: 11,
     familyId: family.id,
     boundUserId: 1,
+    boundUsername: 'mario',
+    ownerProfile: true,
     nickname: 'Mario',
     memberType: 'ADULT',
     loginEnabled: true,

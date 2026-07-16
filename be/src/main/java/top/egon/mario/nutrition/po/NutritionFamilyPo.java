@@ -29,6 +29,9 @@ public class NutritionFamilyPo extends BaseAuditablePo {
     @Column(name = "owner_user_id", nullable = false)
     private Long ownerUserId;
 
+    @Column(name = "owner_member_profile_id")
+    private Long ownerMemberProfileId;
+
     @Column(name = "region", length = 128)
     private String region;
 

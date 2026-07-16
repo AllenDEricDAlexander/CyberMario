@@ -56,7 +56,8 @@ public class ClanFamilyController extends ReactiveNutritionSupport {
     @PostMapping("/families")
     public Mono<ApiResponse<FamilyResponse>> createFamily(@Valid @RequestBody CreateFamilyRequest request,
                                                           @AuthenticationPrincipal RbacPrincipal principal) {
-        return blocking(() -> clanFamilyService.createFamily(request, actorId(principal)));
+        return blocking(() -> clanFamilyService.createFamily(
+                request, actorId(principal), actorUsername(principal)));
     }
 
     @GetMapping("/families")

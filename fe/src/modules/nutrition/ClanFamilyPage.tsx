@@ -40,7 +40,6 @@ type AdministrationActionFormValues = {
     name?: string
     region?: string
     currency?: string
-    ownerNickname?: string
     clanId?: number
     familyId?: number
     subjectId?: number
@@ -131,7 +130,6 @@ function ClanFamilyPage() {
                     name: String(values.name),
                     region: stringValue(values.region),
                     currency: stringValue(values.currency),
-                    ownerNickname: stringValue(values.ownerNickname),
                 })
                 await familySelection.reload()
             } else if (action === 'association') {
@@ -341,7 +339,6 @@ function ClanFamilyPage() {
                         <Form.Item label="家庭名称" name="name" rules={[{required: true}]}><Input/></Form.Item>
                         <Form.Item label="地区" name="region"><Input/></Form.Item>
                         <Form.Item label="币种" name="currency" initialValue="CNY"><Input/></Form.Item>
-                        <Form.Item label="家庭所有者昵称" name="ownerNickname"><Input/></Form.Item>
                     </>}
                     {action === 'association' && <>
                         <Form.Item label="Clan" name="clanId" rules={[{required: true}]}>

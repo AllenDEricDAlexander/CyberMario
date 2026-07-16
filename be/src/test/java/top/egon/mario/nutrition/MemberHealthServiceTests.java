@@ -249,6 +249,38 @@ class MemberHealthServiceTests {
     }
 
     @Test
+    void familyOwnerProfileKeepsSystemUsernameAndCannotBeUnboundReboundOrDeactivated() {
+        UserPo owner = user("nutrition-family-owner");
+        var family = clanFamilyService.createFamily(new CreateFamilyRequest(
+                "Owner Family", null, null, List.of(), "ignored"),
+                owner.getId(), owner.getUsername());
+
+        var updated = memberHealthService.updateMemberProfile(family.id(), family.ownerMemberProfileId(),
+                new UpdateMemberProfileRequest("renamed", null, null, null, null,
+                        NutritionMemberType.ADULT, false, null), owner.getId());
+
+        assertThat(updated.nickname()).isEqualTo(owner.getUsername());
+        assertThat(updated.boundUsername()).isEqualTo(owner.getUsername());
+        assertThat(updated.ownerProfile()).isTrue();
+        assertThat(updated.loginEnabled()).isTrue();
+        assertThatThrownBy(() -> memberHealthService.unbindMemberUser(
+                family.id(), family.ownerMemberProfileId(), owner.getId()))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_OWNER_PROFILE_PROTECTED");
+        assertThatThrownBy(() -> memberHealthService.bindMemberUser(
+                family.id(), family.ownerMemberProfileId(), new BindMemberUserRequest(owner.getId()), owner.getId()))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_OWNER_PROFILE_PROTECTED");
+        assertThatThrownBy(() -> memberHealthService.deactivateMemberProfile(
+                family.id(), family.ownerMemberProfileId(), owner.getId()))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_OWNER_PROFILE_PROTECTED");
+    }
+
+    @Test
     void profileGuardianCanBeAssignedAndRevoked() {
         Long ownerUserId = 6003L;
         Long guardianUserId = user("nutrition-profile-guardian").getId();

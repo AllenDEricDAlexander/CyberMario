@@ -19,6 +19,8 @@ class NutritionSchemaMigrationTests {
 
     private static final Path MIGRATION = Path.of(
             "src/main/resources/db/migration/V31__create_nutrition_mvp_schema.sql");
+    private static final Path OWNER_PROFILE_MIGRATION = Path.of(
+            "src/main/resources/db/migration/V40__protect_nutrition_family_owner_profile.sql");
 
     private static final List<String> NUTRITION_TABLES = List.of(
             "nutrition_clan",
@@ -127,6 +129,16 @@ class NutritionSchemaMigrationTests {
         assertThat(sql).contains("CREATE INDEX idx_nutrition_shopping_list_family_date");
         assertThat(sql).contains("CREATE INDEX idx_nutrition_food_price_record_family_date");
         assertThat(sql).contains("CREATE INDEX idx_nutrition_record_member_date");
+    }
+
+    @Test
+    void ownerProfileMigrationPersistsAndRepairsTheFamilyOwnerMember() throws IOException {
+        String sql = Files.readString(OWNER_PROFILE_MIGRATION);
+
+        assertThat(sql).contains("ADD COLUMN owner_member_profile_id BIGINT");
+        assertThat(sql).contains("SET bound_user_id = (");
+        assertThat(sql).contains("owner_user.username");
+        assertThat(sql).contains("role_code = 'PROFILE_OWNER'");
     }
 
     @Test

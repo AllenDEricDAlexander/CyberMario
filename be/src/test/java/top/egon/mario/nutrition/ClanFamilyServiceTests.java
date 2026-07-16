@@ -78,7 +78,8 @@ class ClanFamilyServiceTests {
         Long ownerUserId = 1001L;
 
         FamilyResponse family = clanFamilyService.createFamily(new CreateFamilyRequest(
-                "Mario Family", "Shanghai", "CNY", List.of("BREAKFAST", "DINNER"), "Mario"), ownerUserId);
+                "Mario Family", "Shanghai", "CNY", List.of("BREAKFAST", "DINNER"), "ignored"),
+                ownerUserId, "mario-login");
 
         assertThat(roleBindingRepository.existsBySubjectTypeAndSubjectIdAndRoleCodeInAndScopeTypeAndScopeIdAndStatusAndDeletedFalse(
                 NutritionSubjectType.USER, ownerUserId, List.of(NutritionRoleCode.FAMILY_ADMIN),
@@ -88,6 +89,10 @@ class ClanFamilyServiceTests {
                 .filter(member -> ownerUserId.equals(member.getBoundUserId()))
                 .findFirst();
         assertThat(ownerMember).isPresent();
+        assertThat(ownerMember.orElseThrow().getNickname()).isEqualTo("mario-login");
+        assertThat(family.ownerMemberProfileId()).isEqualTo(ownerMember.orElseThrow().getId());
+        assertThat(familyRepository.findById(family.id()).orElseThrow().getOwnerMemberProfileId())
+                .isEqualTo(ownerMember.orElseThrow().getId());
         assertThat(roleBindingRepository.existsBySubjectTypeAndSubjectIdAndRoleCodeInAndScopeTypeAndScopeIdAndStatusAndDeletedFalse(
                 NutritionSubjectType.USER, ownerUserId, List.of(NutritionRoleCode.PROFILE_OWNER),
                 NutritionScopeType.MEMBER_PROFILE, ownerMember.orElseThrow().getId(), NutritionStatus.ACTIVE)).isTrue();

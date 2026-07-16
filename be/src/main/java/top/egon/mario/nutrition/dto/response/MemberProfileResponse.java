@@ -14,6 +14,8 @@ public record MemberProfileResponse(
         Long id,
         Long familyId,
         Long boundUserId,
+        String boundUsername,
+        boolean ownerProfile,
         String nickname,
         String gender,
         LocalDate birthDate,

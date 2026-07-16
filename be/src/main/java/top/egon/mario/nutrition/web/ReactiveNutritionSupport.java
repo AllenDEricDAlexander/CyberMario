@@ -49,4 +49,8 @@ abstract class ReactiveNutritionSupport {
     protected Long actorId(RbacPrincipal principal) {
         return principal == null ? 0L : principal.userId();
     }
+
+    protected String actorUsername(RbacPrincipal principal) {
+        return principal == null ? null : principal.username();
+    }
 }

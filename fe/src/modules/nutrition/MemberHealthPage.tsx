@@ -157,25 +157,39 @@ function MemberHealthPage() {
     }
 
     const memberColumns: ColumnsType<NutritionMemberProfileResponse> = [
-        {title: '成员', dataIndex: 'nickname'},
+        {
+            title: '成员',
+            dataIndex: 'nickname',
+            render: (value: string, record) => (
+                <Space size="small">
+                    <span>{value}</span>
+                    {record.ownerProfile && <Tag color="blue">家庭所有者</Tag>}
+                </Space>
+            ),
+        },
         {title: '类型', dataIndex: 'memberType', width: 110, render: (value) => <Tag>{value}</Tag>},
-        {title: '绑定用户', dataIndex: 'boundUserId', width: 110, render: (value: number | null | undefined) => value ?? '-'},
+        {
+            title: '绑定用户',
+            dataIndex: 'boundUsername',
+            width: 150,
+            render: (value: string | null | undefined, record) => value ?? (record.boundUserId ? `#${record.boundUserId}` : '-'),
+        },
         {title: '监护成员', dataIndex: 'guardianMemberId', width: 110, render: (value: number | null | undefined) => value ?? '-'},
         {
             title: '操作', width: 430, render: (_, record) => (
                 <Space wrap size="small">
                     <Button aria-label={`健康档案 ${record.nickname}`} icon={<EditOutlined/>} onClick={() => openHealth(record)} size="small">健康档案</Button>
                     <Button aria-label={`编辑成员 ${record.nickname}`} disabled={!canManage} onClick={() => openAction('member', record)} size="small">编辑</Button>
-                    <Button aria-label={`绑定用户 ${record.nickname}`} disabled={!canManage} onClick={() => openAction('bind', record)} size="small">绑定用户</Button>
+                    {!record.ownerProfile && <Button aria-label={`绑定用户 ${record.nickname}`} disabled={!canManage} onClick={() => openAction('bind', record)} size="small">绑定用户</Button>}
                     <Button aria-label={`添加监护人 ${record.nickname}`} disabled={!canManage} onClick={() => openAction('guardian', record)} size="small">添加监护人</Button>
-                    {record.boundUserId && <Button disabled={!canManage} onClick={() => void mutate(async () => {
+                    {!record.ownerProfile && record.boundUserId && <Button disabled={!canManage} onClick={() => void mutate(async () => {
                         if (!familySelection.currentFamilyId) return
                         await unbindNutritionMemberUser(familySelection.currentFamilyId, record.id)
                     }, '登录用户已解绑')} size="small">解绑</Button>}
-                    <Button danger disabled={!canManage} onClick={() => void mutate(async () => {
+                    {!record.ownerProfile && <Button danger disabled={!canManage} onClick={() => void mutate(async () => {
                         if (!familySelection.currentFamilyId) return
                         await deactivateNutritionMemberProfile(familySelection.currentFamilyId, record.id)
-                    }, '成员已停用')} size="small">停用</Button>
+                    }, '成员已停用')} size="small">停用</Button>}
                 </Space>
             ),
         },
@@ -241,7 +255,9 @@ function MemberHealthPage() {
             </Drawer>
             <Drawer destroyOnHidden onClose={() => setDrawerMode(undefined)} open={drawerMode === 'member'} size={500} title={selectedMember ? '编辑成员' : '新建成员'}>
                 <Form form={memberForm} initialValues={{memberType: 'ADULT', loginEnabled: false}} layout="vertical" onFinish={(values) => void saveMember(values)}>
-                    <Form.Item label="成员昵称" name="nickname" rules={[{required: true}]}><Input/></Form.Item>
+                    <Form.Item label="成员昵称" name="nickname" rules={[{required: true}]}>
+                        <Input disabled={selectedMember?.ownerProfile}/>
+                    </Form.Item>
                     <Form.Item label="性别" name="gender"><Input/></Form.Item>
                     <Form.Item label="出生日期" name="birthDate"><Input placeholder="YYYY-MM-DD"/></Form.Item>
                     <Form.Item label="身高 cm" name="heightCm"><InputNumber min={0} style={{width: '100%'}}/></Form.Item>

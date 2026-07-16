@@ -11,6 +11,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 import top.egon.mario.nutrition.dto.request.AssignProfileGuardianRequest;
+import top.egon.mario.nutrition.dto.request.CreateFamilyRequest;
 import top.egon.mario.nutrition.dto.request.UpdateFamilySettingsRequest;
 import top.egon.mario.nutrition.dto.response.FamilyResponse;
 import top.egon.mario.nutrition.dto.response.ScopedRoleBindingResponse;
@@ -80,6 +81,22 @@ class NutritionAdministrationControllerTests {
 
         verify(service).updateFamilySettings(42L, request, 7001L);
         verify(service).revokeRoleBinding(42L, 81L, 7001L);
+    }
+
+    @Test
+    void familyCreationDelegatesAuthenticatedUsername() {
+        ClanFamilyService service = mock(ClanFamilyService.class);
+        ClanFamilyController controller = clanFamilyController(service);
+        CreateFamilyRequest request = new CreateFamilyRequest(
+                "Mario Family", "Shanghai", "CNY", List.of("DINNER"), "ignored");
+        FamilyResponse response = family(42L);
+        when(service.createFamily(request, 7001L, "user-7001")).thenReturn(response);
+
+        StepVerifier.create(controller.createFamily(request, principal(7001L)))
+                .assertNext(apiResponse -> assertThat(apiResponse.data()).isEqualTo(response))
+                .verifyComplete();
+
+        verify(service).createFamily(request, 7001L, "user-7001");
     }
 
     @Test

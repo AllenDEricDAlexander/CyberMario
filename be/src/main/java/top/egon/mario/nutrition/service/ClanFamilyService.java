@@ -41,6 +41,8 @@ import top.egon.mario.nutrition.repository.NutritionFamilyRepository;
 import top.egon.mario.nutrition.repository.NutritionMemberProfileRepository;
 import top.egon.mario.nutrition.repository.NutritionScopedRoleBindingRepository;
 import top.egon.mario.nutrition.service.access.NutritionAccessService;
+import top.egon.mario.rbac.po.UserPo;
+import top.egon.mario.rbac.repository.UserRepository;
 
 import java.time.Instant;
 import java.util.Comparator;
@@ -76,6 +78,7 @@ public class ClanFamilyService {
     private final NutritionScopedRoleBindingRepository roleBindingRepository;
     private final NutritionDataGrantRepository dataGrantRepository;
     private final NutritionAccessService accessService;
+    private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
 
     @Transactional
@@ -117,6 +120,12 @@ public class ClanFamilyService {
 
     @Transactional
     public FamilyResponse createFamily(@Valid @NotNull CreateFamilyRequest request, Long actorId) {
+        return createFamily(request, actorId, null);
+    }
+
+    @Transactional
+    public FamilyResponse createFamily(@Valid @NotNull CreateFamilyRequest request, Long actorId,
+                                       String actorUsername) {
         Long userId = requireActor(actorId);
         NutritionFamilyPo family = new NutritionFamilyPo();
         family.setName(request.name().trim());
@@ -131,13 +140,13 @@ public class ClanFamilyService {
         NutritionMemberProfilePo ownerProfile = new NutritionMemberProfilePo();
         ownerProfile.setFamilyId(savedFamily.getId());
         ownerProfile.setBoundUserId(userId);
-        ownerProfile.setNickname(StringUtils.hasText(request.ownerNickname())
-                ? request.ownerNickname().trim()
-                : savedFamily.getName());
+        ownerProfile.setNickname(resolveOwnerUsername(userId, actorUsername, request));
         ownerProfile.setMemberType(NutritionMemberType.ADULT);
         ownerProfile.setLoginEnabled(true);
         ownerProfile.setStatus(NutritionStatus.ACTIVE);
         NutritionMemberProfilePo savedOwnerProfile = memberProfileRepository.save(ownerProfile);
+        savedFamily.setOwnerMemberProfileId(savedOwnerProfile.getId());
+        familyRepository.save(savedFamily);
         upsertRoleBinding(userId, NutritionRoleCode.PROFILE_OWNER, NutritionScopeType.MEMBER_PROFILE,
                 savedOwnerProfile.getId());
         return toFamilyResponse(savedFamily, savedOwnerProfile.getId());
@@ -525,11 +534,14 @@ public class ClanFamilyService {
     }
 
     private FamilyResponse toFamilyResponse(NutritionFamilyPo family) {
-        Long ownerMemberProfileId = memberProfileRepository
-                .findByFamilyIdAndBoundUserIdAndStatusAndDeletedFalse(
-                        family.getId(), family.getOwnerUserId(), NutritionStatus.ACTIVE)
-                .map(NutritionMemberProfilePo::getId)
-                .orElse(null);
+        Long ownerMemberProfileId = family.getOwnerMemberProfileId();
+        if (ownerMemberProfileId == null) {
+            ownerMemberProfileId = memberProfileRepository
+                    .findByFamilyIdAndBoundUserIdAndStatusAndDeletedFalse(
+                            family.getId(), family.getOwnerUserId(), NutritionStatus.ACTIVE)
+                    .map(NutritionMemberProfilePo::getId)
+                    .orElse(null);
+        }
         return toFamilyResponse(family, ownerMemberProfileId);
     }
 
@@ -589,6 +601,19 @@ public class ClanFamilyService {
 
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String resolveOwnerUsername(Long userId, String actorUsername, CreateFamilyRequest request) {
+        if (StringUtils.hasText(actorUsername)) {
+            return actorUsername.trim();
+        }
+        return userRepository.findByIdAndDeletedFalse(userId)
+                .map(UserPo::getUsername)
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .orElseGet(() -> StringUtils.hasText(request.ownerNickname())
+                        ? request.ownerNickname().trim()
+                        : request.name().trim());
     }
 
     private static NutritionException forbidden() {

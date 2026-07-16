@@ -63,30 +63,51 @@ describe('MemberHealthPage', () => {
 
     test('binds a login user and assigns a guardian', async () => {
         const user = userEvent.setup()
-        vi.mocked(bindNutritionMemberUser).mockResolvedValue(member)
+        const regularMember = {
+            ...member,
+            id: 12,
+            boundUserId: null,
+            boundUsername: null,
+            ownerProfile: false,
+            nickname: 'Luigi',
+            loginEnabled: false,
+        }
+        vi.mocked(listNutritionMembers).mockResolvedValue([regularMember])
+        vi.mocked(bindNutritionMemberUser).mockResolvedValue(regularMember)
         vi.mocked(assignNutritionProfileGuardian).mockResolvedValue({
             id: 120,
             subjectType: 'USER',
             subjectId: 9,
             roleCode: 'PROFILE_GUARDIAN',
             scopeType: 'MEMBER_PROFILE',
-            scopeId: member.id,
+            scopeId: regularMember.id,
             status: 'ACTIVE',
             createdAt: family.createdAt,
             updatedAt: family.updatedAt,
         })
         renderNutritionPage(<MemberHealthPage/>)
-        await screen.findAllByText('Mario')
+        await screen.findAllByText('Luigi')
 
-        await user.click(screen.getByRole('button', {name: '绑定用户 Mario'}))
+        await user.click(screen.getByRole('button', {name: '绑定用户 Luigi'}))
         await user.type(screen.getByLabelText('用户 ID'), '8')
         await user.click(screen.getByRole('button', {name: /确\s*认绑定/}))
-        expect(bindNutritionMemberUser).toHaveBeenCalledWith(family.id, member.id, {userId: 8})
+        expect(bindNutritionMemberUser).toHaveBeenCalledWith(family.id, regularMember.id, {userId: 8})
 
-        await user.click(screen.getByRole('button', {name: '添加监护人 Mario'}))
+        await user.click(screen.getByRole('button', {name: '添加监护人 Luigi'}))
         await user.type(screen.getByLabelText('监护用户 ID'), '9')
         await user.click(screen.getByRole('button', {name: /确\s*认添加/}))
-        expect(assignNutritionProfileGuardian).toHaveBeenCalledWith(family.id, member.id, {userId: 9})
+        expect(assignNutritionProfileGuardian).toHaveBeenCalledWith(family.id, regularMember.id, {userId: 9})
+    })
+
+    test('shows the family owner username without account binding actions', async () => {
+        renderNutritionPage(<MemberHealthPage/>)
+
+        await screen.findByText('家庭所有者')
+
+        expect(screen.getByText('mario')).toBeTruthy()
+        expect(screen.queryByRole('button', {name: '绑定用户 Mario'})).toBeNull()
+        expect(screen.queryByRole('button', {name: '解绑'})).toBeNull()
+        expect(screen.queryByRole('button', {name: '停用'})).toBeNull()
     })
 
     test('shows backend tag validation failures without closing the health editor', async () => {

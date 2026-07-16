@@ -106,7 +106,6 @@ export type NutritionCreateFamilyRequest = {
     region?: string
     currency?: string
     defaultMealTypes?: string[]
-    ownerNickname?: string
 }
 
 export type NutritionUpdateFamilySettingsRequest = {
@@ -182,6 +181,8 @@ export type NutritionMemberProfileResponse = {
     id: number
     familyId: number
     boundUserId?: number | null
+    boundUsername?: string | null
+    ownerProfile: boolean
     nickname: string
     gender?: string | null
     birthDate?: string | null

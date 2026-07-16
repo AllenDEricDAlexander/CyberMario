@@ -287,7 +287,7 @@ class NutritionControllerSmokeTests {
     }
 
     private static MemberProfileResponse memberProfile(Long id, Long familyId, Long userId) {
-        return new MemberProfileResponse(id, familyId, userId, "Luigi", "MALE",
+        return new MemberProfileResponse(id, familyId, userId, "luigi", false, "Luigi", "MALE",
                 LocalDate.parse("1990-01-01"), BigDecimal.valueOf(180), BigDecimal.valueOf(72),
                 NutritionMemberType.ADULT, true, null, NutritionStatus.ACTIVE,
                 Instant.parse("2026-06-30T00:00:00Z"), Instant.parse("2026-06-30T00:00:00Z"));
