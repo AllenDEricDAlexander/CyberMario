@@ -20,6 +20,8 @@ class ImCoreSchemaMigrationTests {
 
     private static final Path IM_CORE_MIGRATION = Path.of(
             "src/main/resources/db/migration/V30__create_im_core_schema.sql");
+    private static final Path IM_PLATFORM_FRIENDSHIP_MIGRATION = Path.of(
+            "src/main/resources/db/migration/V41__create_im_platform_friendship_schema.sql");
     private static final Path IM_POSTGRESQL_INDEX_MIGRATION = Path.of(
             "src/main/resources/db/postgresql/R__create_im_core_postgresql_indexes.sql");
 
@@ -47,6 +49,11 @@ class ImCoreSchemaMigrationTests {
             "im_dm_block",
             "im_ban",
             "im_ws_ticket"
+    );
+
+    private static final List<String> PLATFORM_TABLES = List.of(
+            "im_friendship",
+            "im_contact"
     );
 
     private static final List<String> AUDIT_COLUMNS = List.of(
@@ -195,6 +202,35 @@ class ImCoreSchemaMigrationTests {
     }
 
     @Test
+    void platformMigrationAddsFriendshipAndDirectedContactWithoutRewritingCoreTables() throws IOException {
+        String sql = readPlatformFriendshipMigration();
+
+        assertThat(sql).doesNotContain("DROP TABLE");
+        assertThat(tableDefinition(sql, "im_friendship"))
+                .containsPattern("\\n\\s+user_lo_id\\s+BIGINT NOT NULL")
+                .containsPattern("\\n\\s+user_hi_id\\s+BIGINT NOT NULL")
+                .containsPattern("\\n\\s+requester_user_id\\s+BIGINT NOT NULL")
+                .containsPattern("\\n\\s+status\\s+VARCHAR\\(32\\) NOT NULL")
+                .contains("CONSTRAINT uk_im_friendship_users UNIQUE (user_lo_id, user_hi_id)")
+                .contains("CONSTRAINT chk_im_friendship_ordered CHECK (user_lo_id < user_hi_id)");
+        assertThat(tableDefinition(sql, "im_contact"))
+                .containsPattern("\\n\\s+friendship_id\\s+BIGINT NOT NULL")
+                .containsPattern("\\n\\s+owner_user_id\\s+BIGINT NOT NULL")
+                .containsPattern("\\n\\s+contact_user_id\\s+BIGINT NOT NULL")
+                .contains("CONSTRAINT uk_im_contact_owner_user UNIQUE (owner_user_id, contact_user_id)")
+                .contains("CONSTRAINT chk_im_contact_not_self CHECK (owner_user_id <> contact_user_id)");
+        for (String table : PLATFORM_TABLES) {
+            String definition = tableDefinition(sql, table);
+            for (String column : AUDIT_COLUMNS) {
+                assertThat(definition).as(table + "." + column).containsPattern("\\n\\s+" + column + "\\s");
+            }
+        }
+        assertThat(sql).contains("CREATE INDEX idx_im_friendship_lo_status");
+        assertThat(sql).contains("CREATE INDEX idx_im_friendship_hi_status");
+        assertThat(sql).contains("CREATE INDEX idx_im_contact_owner_status");
+    }
+
+    @Test
     void migrationClasspathRunsOnH2AndCreatesReplacementTables() {
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setDriverClassName("org.h2.Driver");
@@ -219,6 +255,15 @@ class ImCoreSchemaMigrationTests {
                     """, Integer.class, table);
             assertThat(tableCount).as(table + " exists after Flyway migration").isEqualTo(1);
         }
+        for (String table : PLATFORM_TABLES) {
+            Integer tableCount = jdbcTemplate.queryForObject("""
+                    select count(*)
+                    from information_schema.tables
+                    where table_schema = 'public'
+                      and table_name = ?
+                    """, Integer.class, table);
+            assertThat(tableCount).as(table + " exists after Flyway migration").isEqualTo(1);
+        }
     }
 
     private static String readMigration() throws IOException {
@@ -229,6 +274,11 @@ class ImCoreSchemaMigrationTests {
     private static String readPostgresqlIndexMigration() throws IOException {
         assertThat(Files.exists(IM_POSTGRESQL_INDEX_MIGRATION)).isTrue();
         return Files.readString(IM_POSTGRESQL_INDEX_MIGRATION);
+    }
+
+    private static String readPlatformFriendshipMigration() throws IOException {
+        assertThat(Files.exists(IM_PLATFORM_FRIENDSHIP_MIGRATION)).isTrue();
+        return Files.readString(IM_PLATFORM_FRIENDSHIP_MIGRATION);
     }
 
     private static String tableDefinition(String sql, String table) {

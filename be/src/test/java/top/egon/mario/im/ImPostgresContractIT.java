@@ -39,6 +39,8 @@ class ImPostgresContractIT {
 
     private static final Path IM_CORE_MIGRATION = Path.of(
             "src/main/resources/db/migration/V30__create_im_core_schema.sql");
+    private static final Path IM_PLATFORM_FRIENDSHIP_MIGRATION = Path.of(
+            "src/main/resources/db/migration/V41__create_im_platform_friendship_schema.sql");
     private static final Path IM_POSTGRESQL_INDEX_MIGRATION = Path.of(
             "src/main/resources/db/postgresql/R__create_im_core_postgresql_indexes.sql");
 
@@ -46,6 +48,8 @@ class ImPostgresContractIT {
             "im_channel",
             "im_group",
             "im_dm_pair",
+            "im_friendship",
+            "im_contact",
             "im_membership",
             "im_join_request",
             "im_conversation",
@@ -79,6 +83,11 @@ class ImPostgresContractIT {
                     "join_policy", "status", "announcement", "conversation_id", "member_count", "last_active_at")),
             Map.entry("im_dm_pair", List.of(
                     "id", "user_lo_id", "user_hi_id", "conversation_id", "frozen")),
+            Map.entry("im_friendship", List.of(
+                    "id", "user_lo_id", "user_hi_id", "requester_user_id", "status", "request_message",
+                    "decided_by", "decided_at", "decision_reason", "requested_at", "activated_at", "removed_at")),
+            Map.entry("im_contact", List.of(
+                    "id", "friendship_id", "owner_user_id", "contact_user_id", "remark", "status")),
             Map.entry("im_membership", List.of(
                     "id", "surface_type", "surface_id", "user_id", "member_role", "status", "muted_until",
                     "joined_at")),
@@ -114,6 +123,8 @@ class ImPostgresContractIT {
             Map.entry("im_channel", List.of("metadata_json")),
             Map.entry("im_group", List.of("metadata_json")),
             Map.entry("im_dm_pair", List.of("metadata_json")),
+            Map.entry("im_friendship", List.of("metadata_json")),
+            Map.entry("im_contact", List.of("metadata_json")),
             Map.entry("im_membership", List.of("metadata_json")),
             Map.entry("im_join_request", List.of("metadata_json")),
             Map.entry("im_conversation", List.of("metadata_json")),
@@ -132,6 +143,8 @@ class ImPostgresContractIT {
             "im_outbox",
             "im_message",
             "im_conversation_member",
+            "im_contact",
+            "im_friendship",
             "im_dm_pair",
             "im_join_request",
             "im_membership",
@@ -159,7 +172,7 @@ class ImPostgresContractIT {
     }
 
     @Test
-    void migrateSchemaCreatesV30ImTablesAndRequiredColumns() {
+    void migrateSchemaCreatesImTablesAndRequiredColumns() {
         Integer v30Count = jdbcTemplate.queryForObject("""
                 select count(*)
                 from %s.flyway_schema_history
@@ -167,6 +180,14 @@ class ImPostgresContractIT {
                   and script = 'V30__create_im_core_schema.sql'
                 """.formatted(schemaName), Integer.class);
         assertThat(v30Count).as("V30 IM schema migration must be applied").isEqualTo(1);
+
+        Integer v41Count = jdbcTemplate.queryForObject("""
+                select count(*)
+                from %s.flyway_schema_history
+                where version = '41'
+                  and script = 'V41__create_im_platform_friendship_schema.sql'
+                """.formatted(schemaName), Integer.class);
+        assertThat(v41Count).as("V41 platform friendship migration must be applied").isEqualTo(1);
 
         Integer repeatableCount = jdbcTemplate.queryForObject("""
                 select count(*)
@@ -247,6 +268,18 @@ class ImPostgresContractIT {
                 .unique()
                 .columns("blocker_user_id", "blocked_user_id")
                 .predicateContains("status", "active", "deleted", "false");
+        assertIndex("im_friendship", "uk_im_friendship_users")
+                .unique()
+                .columns("user_lo_id", "user_hi_id");
+        assertIndex("im_friendship", "idx_im_friendship_lo_status")
+                .columns("user_lo_id", "status");
+        assertIndex("im_friendship", "idx_im_friendship_hi_status")
+                .columns("user_hi_id", "status");
+        assertIndex("im_contact", "uk_im_contact_owner_user")
+                .unique()
+                .columns("owner_user_id", "contact_user_id");
+        assertIndex("im_contact", "idx_im_contact_owner_status")
+                .columns("owner_user_id", "status");
     }
 
     @Test
@@ -409,10 +442,15 @@ class ImPostgresContractIT {
 
     private static String createImOnlyFlywayLocation() throws IOException {
         assertThat(Files.exists(IM_CORE_MIGRATION)).as("V30 IM core migration exists").isTrue();
+        assertThat(Files.exists(IM_PLATFORM_FRIENDSHIP_MIGRATION))
+                .as("V41 platform friendship migration exists")
+                .isTrue();
         assertThat(Files.exists(IM_POSTGRESQL_INDEX_MIGRATION)).as("IM PostgreSQL index migration exists").isTrue();
 
         Path location = Files.createTempDirectory("im-postgres-contract-flyway-");
         Files.copy(IM_CORE_MIGRATION, location.resolve(IM_CORE_MIGRATION.getFileName()));
+        Files.copy(IM_PLATFORM_FRIENDSHIP_MIGRATION,
+                location.resolve(IM_PLATFORM_FRIENDSHIP_MIGRATION.getFileName()));
         Files.copy(IM_POSTGRESQL_INDEX_MIGRATION, location.resolve(IM_POSTGRESQL_INDEX_MIGRATION.getFileName()));
         return "filesystem:" + location.toAbsolutePath();
     }

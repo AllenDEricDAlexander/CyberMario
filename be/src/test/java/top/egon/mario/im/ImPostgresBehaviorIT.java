@@ -73,6 +73,8 @@ class ImPostgresBehaviorIT {
             "im_outbox",
             "im_message",
             "im_conversation_member",
+            "im_contact",
+            "im_friendship",
             "im_dm_pair",
             "im_join_request",
             "im_membership",

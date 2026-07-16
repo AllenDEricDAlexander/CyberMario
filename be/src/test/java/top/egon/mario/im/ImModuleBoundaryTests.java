@@ -23,6 +23,10 @@ class ImModuleBoundaryTests {
     private static final Pattern IM_IMPORT = Pattern.compile("^import\\s+(top\\.egon\\.mario\\.im\\.[\\w.]+);");
     private static final Pattern IM_TABLE_REFERENCE = Pattern.compile("\\bim_[a-z0-9_]+\\b");
     private static final Pattern VERSIONED_MIGRATION = Pattern.compile("V(\\d+)__.*\\.sql");
+    private static final Set<String> ALLOWED_IM_MIGRATIONS = Set.of(
+            "V30__create_im_core_schema.sql",
+            "V41__create_im_platform_friendship_schema.sql"
+    );
     private static final Path GLOBAL_EXCEPTION_HANDLER = Path.of("config/GlobalExceptionHandler.java");
     private static final String SERVICE_EXCEPTION = "top.egon.mario.im.service.ImException";
 
@@ -103,15 +107,15 @@ class ImModuleBoundaryTests {
     }
 
     @Test
-    void onlyV30VersionedMigrationsModifyImSchemaAfterV26() throws IOException {
+    void onlyApprovedVersionedMigrationsModifyImSchemaAfterV26() throws IOException {
         List<String> violations = sqlSources(MIGRATION_ROOT)
                 .filter(path -> version(path) > 26)
-                .filter(path -> version(path) != 30)
+                .filter(path -> !ALLOWED_IM_MIGRATIONS.contains(path.getFileName().toString()))
                 .flatMap(path -> linesMatching(path, IM_TABLE_REFERENCE).stream())
                 .toList();
 
         assertThat(violations)
-                .describedAs("After V26, only V30 may contain IM schema/table references in versioned migrations")
+                .describedAs("Only approved immutable IM migrations may reference IM tables after V26")
                 .isEmpty();
     }
 

@@ -9,10 +9,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import top.egon.mario.im.po.ImBanPo;
 import top.egon.mario.im.po.ImChannelPo;
+import top.egon.mario.im.po.ImContactPo;
 import top.egon.mario.im.po.ImConversationMemberPo;
 import top.egon.mario.im.po.ImConversationPo;
 import top.egon.mario.im.po.ImDmBlockPo;
 import top.egon.mario.im.po.ImDmPairPo;
+import top.egon.mario.im.po.ImFriendshipPo;
 import top.egon.mario.im.po.ImGlobalMutePo;
 import top.egon.mario.im.po.ImGroupPo;
 import top.egon.mario.im.po.ImInboxPo;
@@ -22,11 +24,13 @@ import top.egon.mario.im.po.ImMessagePo;
 import top.egon.mario.im.po.ImOutboxPo;
 import top.egon.mario.im.po.ImWsTicketPo;
 import top.egon.mario.im.po.enums.ImChannelVisibility;
+import top.egon.mario.im.po.enums.ImContactStatus;
 import top.egon.mario.im.po.enums.ImConversationStatus;
 import top.egon.mario.im.po.enums.ImConversationType;
 import top.egon.mario.im.po.enums.ImDeliveryMode;
 import top.egon.mario.im.po.enums.ImGlobalMuteScopeType;
 import top.egon.mario.im.po.enums.ImGovernanceStatus;
+import top.egon.mario.im.po.enums.ImFriendshipStatus;
 import top.egon.mario.im.po.enums.ImJoinPolicy;
 import top.egon.mario.im.po.enums.ImJoinRequestStatus;
 import top.egon.mario.im.po.enums.ImMembershipRole;
@@ -40,10 +44,12 @@ import top.egon.mario.im.po.enums.ImSurfaceType;
 import top.egon.mario.im.po.enums.ImWsTicketStatus;
 import top.egon.mario.im.repository.ImBanRepository;
 import top.egon.mario.im.repository.ImChannelRepository;
+import top.egon.mario.im.repository.ImContactRepository;
 import top.egon.mario.im.repository.ImConversationMemberRepository;
 import top.egon.mario.im.repository.ImConversationRepository;
 import top.egon.mario.im.repository.ImDmBlockRepository;
 import top.egon.mario.im.repository.ImDmPairRepository;
+import top.egon.mario.im.repository.ImFriendshipRepository;
 import top.egon.mario.im.repository.ImGlobalMuteRepository;
 import top.egon.mario.im.repository.ImGroupRepository;
 import top.egon.mario.im.repository.ImInboxRepository;
@@ -76,6 +82,12 @@ class ImPersistenceMappingTests {
 
     @Autowired
     private ImDmPairRepository dmPairRepository;
+
+    @Autowired
+    private ImFriendshipRepository friendshipRepository;
+
+    @Autowired
+    private ImContactRepository contactRepository;
 
     @Autowired
     private ImMembershipRepository membershipRepository;
@@ -122,6 +134,10 @@ class ImPersistenceMappingTests {
         channelRepository.saveAndFlush(channel);
 
         ImDmPairPo dmPair = dmPairRepository.saveAndFlush(dmPair(2001L, 2002L, conversation.getId()));
+        ImFriendshipPo friendship = friendshipRepository.saveAndFlush(friendship(
+                2001L, 2002L, 2001L, ImFriendshipStatus.ACTIVE, now));
+        ImContactPo contact = contactRepository.saveAndFlush(contact(
+                friendship.getId(), 2001L, 2002L, ImContactStatus.ACTIVE, "Friend"));
         ImMembershipPo membership = membershipRepository.saveAndFlush(membership(
                 ImSurfaceType.CHANNEL, channel.getId(), 3001L, ImMembershipRole.OWNER, ImMembershipStatus.ACTIVE, now));
         ImJoinRequestPo joinRequest = joinRequestRepository.saveAndFlush(joinRequest(
@@ -165,6 +181,18 @@ class ImPersistenceMappingTests {
                 .satisfies(reloaded -> {
                     assertThat(reloaded.getConversationId()).isEqualTo(conversation.getId());
                     assertThat(reloaded.getFrozen()).isFalse();
+                });
+        assertThat(friendshipRepository.findByUserLoIdAndUserHiIdAndDeletedFalse(2001L, 2002L)).get()
+                .satisfies(reloaded -> {
+                    assertThat(reloaded.getRequesterUserId()).isEqualTo(2001L);
+                    assertThat(reloaded.getStatus()).isEqualTo(ImFriendshipStatus.ACTIVE);
+                    assertThat(reloaded.getActivatedAt()).isEqualTo(now);
+                });
+        assertThat(contactRepository.findByOwnerUserIdAndContactUserIdAndDeletedFalse(2001L, 2002L)).get()
+                .satisfies(reloaded -> {
+                    assertThat(reloaded.getFriendshipId()).isEqualTo(friendship.getId());
+                    assertThat(reloaded.getStatus()).isEqualTo(ImContactStatus.ACTIVE);
+                    assertThat(reloaded.getRemark()).isEqualTo("Friend");
                 });
         assertThat(membershipRepository.findByIdAndDeletedFalse(membership.getId())).get()
                 .satisfies(reloaded -> {
@@ -229,6 +257,10 @@ class ImPersistenceMappingTests {
                 ImSurfaceType.GROUP, group.getId(), 9003L, ImJoinRequestStatus.REJECTED));
         ImConversationMemberPo member = conversationMemberRepository.saveAndFlush(conversationMember(
                 conversation.getId(), 9002L, ImDeliveryMode.CURSOR, ImMembershipStatus.LEFT));
+        ImFriendshipPo friendship = friendshipRepository.saveAndFlush(friendship(
+                9010L, 9011L, 9010L, ImFriendshipStatus.REJECTED, now));
+        ImContactPo contact = contactRepository.saveAndFlush(contact(
+                friendship.getId(), 9010L, 9011L, ImContactStatus.REMOVED, ""));
         ImMessagePo message = messageRepository.saveAndFlush(message(
                 conversation.getId(), 9002L, 2L, "client-2", ImMessageType.SYSTEM, ImMessageStatus.EDITED, now));
         ImOutboxPo outbox = outboxRepository.saveAndFlush(outbox(
@@ -253,6 +285,8 @@ class ImPersistenceMappingTests {
         assertColumn(membership.getId(), "im_membership", "status", "PENDING");
         assertColumn(joinRequest.getId(), "im_join_request", "status", "REJECTED");
         assertColumn(member.getId(), "im_conversation_member", "delivery_mode", "CURSOR");
+        assertColumn(friendship.getId(), "im_friendship", "status", "REJECTED");
+        assertColumn(contact.getId(), "im_contact", "status", "REMOVED");
         assertColumn(message.getId(), "im_message", "message_type", "SYSTEM");
         assertColumn(message.getId(), "im_message", "status", "EDITED");
         assertColumn(outbox.getId(), "im_outbox", "event_type", "READ_UPDATED");
@@ -382,6 +416,32 @@ class ImPersistenceMappingTests {
         dmPair.setFrozen(false);
         dmPair.setMetadataJson("{}");
         return dmPair;
+    }
+
+    private ImFriendshipPo friendship(Long userLoId, Long userHiId, Long requesterUserId,
+                                      ImFriendshipStatus status, Instant now) {
+        ImFriendshipPo friendship = new ImFriendshipPo();
+        friendship.setUserLoId(userLoId);
+        friendship.setUserHiId(userHiId);
+        friendship.setRequesterUserId(requesterUserId);
+        friendship.setStatus(status);
+        friendship.setRequestMessage("");
+        friendship.setRequestedAt(now);
+        friendship.setActivatedAt(ImFriendshipStatus.ACTIVE.equals(status) ? now : null);
+        friendship.setMetadataJson("{}");
+        return friendship;
+    }
+
+    private ImContactPo contact(Long friendshipId, Long ownerUserId, Long contactUserId,
+                                ImContactStatus status, String remark) {
+        ImContactPo contact = new ImContactPo();
+        contact.setFriendshipId(friendshipId);
+        contact.setOwnerUserId(ownerUserId);
+        contact.setContactUserId(contactUserId);
+        contact.setStatus(status);
+        contact.setRemark(remark);
+        contact.setMetadataJson("{}");
+        return contact;
     }
 
     private ImMembershipPo membership(ImSurfaceType surfaceType, Long surfaceId, Long userId,
