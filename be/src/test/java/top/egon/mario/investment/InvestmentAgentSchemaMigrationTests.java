@@ -102,6 +102,39 @@ class InvestmentAgentSchemaMigrationTests {
     }
 
     @Test
+    void analysisRecommendationCanRemainNonExecutableWhileHoldCanNeverExecute() {
+        String insertRun = """
+                insert into investment_agent_run (
+                    workspace_id, agent_preset_code, generic_agent_run_audit_id, run_type, status,
+                    data_as_of, started_at, finished_at, idempotency_key, created_at, updated_at,
+                    version, deleted)
+                values (?, 'INVESTMENT_ANALYST_V1', ?, 'INSTRUMENT_ANALYSIS', 'SUCCEEDED',
+                    current_timestamp, current_timestamp, current_timestamp, ?, current_timestamp,
+                    current_timestamp, 0, false)
+                """;
+        long workspaceId = insertWorkspace();
+        long auditId = insertGenericAudit();
+        long instrumentId = insertInstrument();
+        jdbcTemplate.update(insertRun, workspaceId, auditId, "analysis-only-" + UUID.randomUUID());
+        Long runId = jdbcTemplate.queryForObject(
+                "select max(id) from investment_agent_run", Long.class);
+
+        jdbcTemplate.update("""
+                insert into investment_agent_decision (
+                    run_id, instrument_id, action, confidence, horizon, thesis, risks_json, invalidation_json,
+                    requested_quantity, requested_notional, requested_leverage, order_type,
+                    execution_status, data_as_of, status, created_at)
+                values (?, ?, 'OPEN_LONG', 0.75, 'INTRADAY', 'analysis only', '[]', '[]',
+                    1, 100, 2, 'MARKET', 'NOT_APPLICABLE', current_timestamp, 'VALIDATED',
+                    current_timestamp)
+                """, runId, instrumentId);
+
+        assertThat(jdbcTemplate.queryForObject("""
+                select execution_status from investment_agent_decision where run_id = ?
+                """, String.class, runId)).isEqualTo("NOT_APPLICABLE");
+    }
+
+    @Test
     void plannerIndexesMatchOwnerTimelineAndRecoveryQueries() {
         assertIndexColumns("idx_investment_agent_run_workspace_created",
                 "workspace_id:ASC", "created_at:DESC");
@@ -247,6 +280,46 @@ class InvestmentAgentSchemaMigrationTests {
                 """, String.class, constraintName);
         assertThat(clauses).as(constraintName + " exists").hasSize(1);
         assertThat(clauses.getFirst().toLowerCase(Locale.ROOT)).contains(fragments);
+    }
+
+    private static long insertWorkspace() {
+        jdbcTemplate.update("""
+                insert into investment_workspace (
+                    owner_user_id, name, base_currency, timezone, status, settings_json,
+                    created_at, updated_at, version, deleted)
+                values (1, ?, 'USDT', 'UTC', 'ACTIVE', '{}', current_timestamp,
+                    current_timestamp, 0, false)
+                """, "agent-schema-" + UUID.randomUUID());
+        return jdbcTemplate.queryForObject("select max(id) from investment_workspace", Long.class);
+    }
+
+    private static long insertGenericAudit() {
+        jdbcTemplate.update("""
+                insert into agent_run_audit (
+                    thread_id, status, model_call_count, tool_call_count, mcp_tool_call_count,
+                    started_at, created_at)
+                values (?, 'SUCCESS', 0, 0, 0, current_timestamp, current_timestamp)
+                """, "investment-schema-" + UUID.randomUUID());
+        return jdbcTemplate.queryForObject("select max(id) from agent_run_audit", Long.class);
+    }
+
+    private static long insertInstrument() {
+        jdbcTemplate.update("""
+                insert into investment_venue (
+                    code, name, status, created_at, updated_at, version, deleted)
+                values (?, 'Schema venue', 'ACTIVE', current_timestamp,
+                    current_timestamp, 0, false)
+                """, "SCHEMA_" + UUID.randomUUID().toString().replace("-", ""));
+        Long venueId = jdbcTemplate.queryForObject("select max(id) from investment_venue", Long.class);
+        jdbcTemplate.update("""
+                insert into investment_instrument (
+                    venue_id, market_type, product_type, contract_type, symbol, base_asset,
+                    quote_asset, settlement_asset, margin_asset, status, created_at, updated_at,
+                    version, deleted)
+                values (?, 'FUTURES', 'USDT_FUTURES', 'PERPETUAL', ?, 'BTC', 'USDT',
+                    'USDT', 'USDT', 'ACTIVE', current_timestamp, current_timestamp, 0, false)
+                """, venueId, "BTCUSDT_" + UUID.randomUUID().toString().replace("-", ""));
+        return jdbcTemplate.queryForObject("select max(id) from investment_instrument", Long.class);
     }
 
     private record ColumnMetadata(int jdbcType, String typeName, int precision, int scale, boolean nullable) {
