@@ -29,10 +29,10 @@ describe('useInvestmentWorkspace', () => {
 
         await userEvent.click(screen.getByRole('button', {name: '刷新'}))
         await waitFor(() => expect(service.list).toHaveBeenCalledTimes(2))
-        await act(async () => second.resolve(page([workspaceTwo])))
+        act(() => second.resolve(page([workspaceTwo])))
         expect(await screen.findByText('研究二号')).toBeTruthy()
 
-        await act(async () => first.resolve(page([workspaceOne])))
+        act(() => first.resolve(page([workspaceOne])))
         expect(screen.queryByText('研究一号')).toBeNull()
         expect(screen.getByText('研究二号')).toBeTruthy()
     })

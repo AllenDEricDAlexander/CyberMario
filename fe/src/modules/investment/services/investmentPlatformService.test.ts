@@ -62,7 +62,9 @@ describe('investmentPlatformService', () => {
             '/api/investment/platform/data-quality-issues/9/resolve',
             {method: 'POST'},
         )
-        expect(vi.mocked(requestJson).mock.calls.flat().join(' ')).not.toContain('/workspaces')
-        expect(vi.mocked(requestJson).mock.calls.flat().join(' ')).not.toContain('/paper-accounts')
+        for (const [url] of vi.mocked(requestJson).mock.calls) {
+            expect(url).not.toContain('/workspaces')
+            expect(url).not.toContain('/paper-accounts')
+        }
     })
 })

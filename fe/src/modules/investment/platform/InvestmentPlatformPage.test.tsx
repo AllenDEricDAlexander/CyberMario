@@ -71,7 +71,7 @@ describe('InvestmentPlatformPage', () => {
         await waitFor(() => expect(mocks.retry).toHaveBeenCalledTimes(1))
         expect(screen.getByRole('button', {name: /重\s*试/}).hasAttribute('disabled')).toBe(true)
 
-        await act(async () => pending.resolve())
+        act(() => pending.resolve())
         await waitFor(() => expect(mocks.jobs).toHaveBeenCalledTimes(2))
         expect(mocks.retry).toHaveBeenCalledTimes(1)
     })

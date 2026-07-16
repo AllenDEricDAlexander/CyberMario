@@ -101,7 +101,7 @@ describe('InvestmentAgentPage', () => {
         expect(await screen.findByText('暂无代码接入的可分析合约')).toBeTruthy()
         await choose(user, 'Agent 运行类型', '组合复盘')
 
-        expect((screen.getByRole('button', {name: '发起固定预设运行'}) as HTMLButtonElement).disabled).toBe(false)
+        expect(screen.getByRole('button', {name: '发起固定预设运行'}).hasAttribute('disabled')).toBe(false)
     })
 })
 

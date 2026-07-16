@@ -31,17 +31,23 @@ export function investmentMarketColumns({
         {
             title: '最新价',
             dataIndex: 'lastPrice',
-            render: (value) => <InvestmentDecimalText value={value}/>,
+            render: (value: InvestmentInstrumentSummaryResponse['lastPrice']) => (
+                <InvestmentDecimalText value={value}/>
+            ),
         },
         {
             title: '标记价',
             dataIndex: 'markPrice',
-            render: (value) => <InvestmentDecimalText value={value}/>,
+            render: (value: InvestmentInstrumentSummaryResponse['markPrice']) => (
+                <InvestmentDecimalText value={value}/>
+            ),
         },
         {
             title: '24h 涨跌',
             dataIndex: 'change24h',
-            render: (value) => <InvestmentDecimalText suffix="%" value={value}/>,
+            render: (value: InvestmentInstrumentSummaryResponse['change24h']) => (
+                <InvestmentDecimalText suffix="%" value={value}/>
+            ),
         },
         {
             title: '新鲜度',

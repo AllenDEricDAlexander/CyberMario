@@ -198,7 +198,9 @@ export default function InvestmentPlatformPage() {
                 <Popconfirm
                     description="仅失败的平台任务可以重试。"
                     disabled={!canRetry || job.status !== 'FAILED'}
-                    onConfirm={() => retryJob(job.id)}
+                    onConfirm={() => {
+                        void retryJob(job.id)
+                    }}
                     title="确认重试此任务？"
                 >
                     <Button
@@ -226,7 +228,9 @@ export default function InvestmentPlatformPage() {
                 <Popconfirm
                     description="解决操作会记录当前管理员。"
                     disabled={!canResolve || issue.resolutionStatus !== 'OPEN'}
-                    onConfirm={() => resolveIssue(issue.id)}
+                    onConfirm={() => {
+                        void resolveIssue(issue.id)
+                    }}
                     title="确认将此问题标记为已解决？"
                 >
                     <Button

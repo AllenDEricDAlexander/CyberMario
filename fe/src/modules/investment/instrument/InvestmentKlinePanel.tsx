@@ -141,9 +141,10 @@ export function InvestmentKlinePanel({
     )
     const latestIndicator = indicators?.points.at(-1)
     const currentActivityScope = tradeActivityScope(accountId, instrumentId, priceType, interval, range)
-    const visibleTradeActivity = tradeActivityState?.scope === currentActivityScope
-        ? tradeActivityState.records
-        : []
+    const visibleTradeActivity = useMemo(
+        () => tradeActivityState?.scope === currentActivityScope ? tradeActivityState.records : [],
+        [currentActivityScope, tradeActivityState],
+    )
     const tradeActivityError = tradeActivityState?.scope === currentActivityScope
         ? tradeActivityState.error
         : undefined

@@ -51,9 +51,10 @@ describe('InvestmentOverviewPage', () => {
         await user.click(screen.getByRole('button', {name: '进入模拟盘'}))
         await user.click(screen.getByRole('button', {name: '进入量化回测'}))
         await user.click(screen.getByRole('button', {name: '进入 Agent 交易'}))
-        expect(mocks.navigate.mock.calls.map(([path]) => path)).toEqual([
-            '/investment/market', '/investment/portfolio', '/investment/quant', '/investment/agent',
-        ])
+        expect(mocks.navigate).toHaveBeenNthCalledWith(1, '/investment/market')
+        expect(mocks.navigate).toHaveBeenNthCalledWith(2, '/investment/portfolio')
+        expect(mocks.navigate).toHaveBeenNthCalledWith(3, '/investment/quant')
+        expect(mocks.navigate).toHaveBeenNthCalledWith(4, '/investment/agent')
     })
 
     test('keeps available summaries when other sections are error or unavailable', async () => {
