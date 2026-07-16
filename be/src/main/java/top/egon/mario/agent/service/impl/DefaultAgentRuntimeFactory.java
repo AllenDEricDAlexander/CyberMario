@@ -25,6 +25,7 @@ import top.egon.mario.agent.observability.service.model.AgentRunAuditContext;
 import top.egon.mario.agent.service.AgentRuntimeFactory;
 import top.egon.mario.agent.service.model.AgentOptions;
 import top.egon.mario.agent.service.model.AgentRuntimeSpec;
+import top.egon.mario.agent.service.model.ScopedAgentToolSet;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -98,12 +99,24 @@ public class DefaultAgentRuntimeFactory implements AgentRuntimeFactory {
 
     @Override
     public ReactAgent get(AgentRuntimeSpec spec, ModelCallContext context) {
-        return runtime(spec, context).agent();
+        return runtime(spec, context, ScopedAgentToolSet.empty()).agent();
+    }
+
+    @Override
+    public ReactAgent get(AgentRuntimeSpec spec, ModelCallContext context, ScopedAgentToolSet scopedTools) {
+        return runtime(spec, context, scopedTools).agent();
     }
 
     @Override
     public AgentRuntime runtime(AgentRuntimeSpec spec, ModelCallContext context) {
-        List<ToolCallback> enabledTools = enabledTools(spec);
+        return runtime(spec, context, ScopedAgentToolSet.empty());
+    }
+
+    @Override
+    public AgentRuntime runtime(AgentRuntimeSpec spec, ModelCallContext context, ScopedAgentToolSet scopedTools) {
+        List<ToolCallback> currentTools = currentToolCallbacks();
+        List<ToolCallback> enabledTools = enabledTools(spec, currentTools);
+        List<ToolCallback> runtimeTools = withScopedTools(currentTools, enabledTools, scopedTools);
         ModelResolveResult model = marioModelFactory.resolve(new ModelRequest(
                 spec.modelConfig().provider(),
                 spec.modelConfig().model(),
@@ -115,18 +128,19 @@ public class DefaultAgentRuntimeFactory implements AgentRuntimeFactory {
                 model.chatModel(),
                 model.chatOptions(),
                 spec.systemPrompt(),
-                enabledTools,
+                runtimeTools,
                 agentInterceptors(),
                 agentHooks(),
                 checkpointSaver(),
                 normalizeAgentOptions(spec.agentOptions())
         ));
-        return new AgentRuntime(agent, toolDescriptors(enabledTools));
+        return new AgentRuntime(agent, toolDescriptors(runtimeTools));
     }
 
     @Override
     public Map<String, AgentRunAuditContext.ToolDescriptor> toolDescriptors(AgentRuntimeSpec spec) {
-        return toolDescriptors(enabledTools(spec));
+        List<ToolCallback> currentTools = currentToolCallbacks();
+        return toolDescriptors(enabledTools(spec, currentTools));
     }
 
     private Map<String, AgentRunAuditContext.ToolDescriptor> toolDescriptors(List<ToolCallback> callbacks) {
@@ -160,15 +174,35 @@ public class DefaultAgentRuntimeFactory implements AgentRuntimeFactory {
         return checkpointerProvider == null ? new MemorySaver() : checkpointerProvider.saver();
     }
 
-    private List<ToolCallback> enabledTools(AgentRuntimeSpec spec) {
+    private List<ToolCallback> enabledTools(AgentRuntimeSpec spec, List<ToolCallback> currentTools) {
         if (spec.toolConfig() == null || spec.toolConfig().enabledToolNames() == null
                 || spec.toolConfig().enabledToolNames().isEmpty()) {
             return List.of();
         }
-        return currentToolCallbacks().stream()
+        return currentTools.stream()
                 .filter(toolCallback -> spec.toolConfig().enabledToolNames()
                         .contains(toolCallback.getToolDefinition().name()))
                 .toList();
+    }
+
+    private List<ToolCallback> withScopedTools(List<ToolCallback> currentTools, List<ToolCallback> enabledTools,
+                                               ScopedAgentToolSet scopedTools) {
+        ScopedAgentToolSet tools = scopedTools == null ? ScopedAgentToolSet.empty() : scopedTools;
+        if (tools.isEmpty()) {
+            return enabledTools;
+        }
+        Set<String> names = currentTools.stream()
+                .map(toolCallback -> toolCallback.getToolDefinition().name())
+                .collect(LinkedHashSet::new, LinkedHashSet::add, LinkedHashSet::addAll);
+        for (ToolCallback callback : tools.callbacks()) {
+            String name = callback.getToolDefinition().name();
+            if (!names.add(name)) {
+                throw new IllegalArgumentException("scoped callback name conflicts with a default tool: " + name);
+            }
+        }
+        List<ToolCallback> callbacks = new ArrayList<>(enabledTools);
+        callbacks.addAll(tools.callbacks());
+        return List.copyOf(callbacks);
     }
 
     private List<ToolCallback> currentToolCallbacks() {

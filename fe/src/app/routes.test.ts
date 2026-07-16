@@ -43,4 +43,35 @@ describe('admin routes', () => {
         expect(routesSource).toContain("lazy: () => import('../modules/nutrition/PlatformNutritionConfigPage')")
         expect(routesSource).not.toContain("import('../modules/nutrition/pages/NutritionPlaceholderPage')")
     })
+
+    test('registers lazy Investment workspace routes and keeps the platform route independent', () => {
+        const workspaceRoutes = {
+            'investment/overview': 'overview/InvestmentOverviewPage',
+            'investment/market': 'market/InvestmentMarketPage',
+            'investment/instruments/:instrumentId': 'instrument/InvestmentInstrumentPage',
+            'investment/research': 'research/InvestmentResearchPage',
+            'investment/quant': 'quant/InvestmentQuantPage',
+            'investment/portfolio': 'portfolio/InvestmentPortfolioPage',
+            'investment/agent': 'agent/InvestmentAgentPage',
+        }
+
+        expect(routesSource).toContain(
+            "import {InvestmentWorkspaceLayout} from '../modules/investment/InvestmentWorkspaceLayout'",
+        )
+        const layoutStart = routesSource.indexOf('element: <InvestmentWorkspaceLayout/>')
+        const platformStart = routesSource.indexOf("path: 'investment/platform'")
+        expect(layoutStart).toBeGreaterThan(-1)
+        expect(platformStart).toBeGreaterThan(layoutStart)
+        const workspaceLayoutSource = routesSource.slice(layoutStart, platformStart)
+        Object.entries(workspaceRoutes).forEach(([path, modulePath]) => {
+            expect(workspaceLayoutSource).toContain(`path: '${path}'`)
+            expect(workspaceLayoutSource).toContain(
+                `lazy: () => import('../modules/investment/${modulePath}')`,
+            )
+        })
+        expect(workspaceLayoutSource).not.toContain('InvestmentPlatformPage')
+        expect(routesSource).toContain(
+            "lazy: () => import('../modules/investment/platform/InvestmentPlatformPage')",
+        )
+    })
 })

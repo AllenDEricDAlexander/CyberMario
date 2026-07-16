@@ -450,4 +450,75 @@ describe('admin menu authorization', () => {
         expect(canAccessAdminPath('/nutrition/budget', menuTree, true, ['SUPER_ADMIN'])).toBe(true)
         expect(canAccessAdminPath('/nutrition/platform', menuTree, true, ['SUPER_ADMIN'])).toBe(true)
     })
+
+    test('authorizes every Investment workspace child through the single workspace menu entry', () => {
+        const workspaceMenuTree: MenuTreeResponse[] = [
+            ...menuTree,
+            {
+                permissionId: 40,
+                permCode: 'menu:investment:workspace',
+                permName: '投资工作台',
+                routePath: '/investment/overview',
+                hidden: false,
+                cacheable: true,
+                sortNo: 40,
+                children: [],
+            },
+        ]
+        const keys = flattenMenuKeys(buildAuthorizedAdminMenuItems(
+            workspaceMenuTree, false, ['INVESTMENT_USER'],
+        ))
+
+        expect(keys).toContain('/investment/overview')
+        expect(keys).not.toContain('/investment/platform')
+        for (const path of [
+            '/investment/overview',
+            '/investment/market',
+            '/investment/instruments/11',
+            '/investment/research',
+            '/investment/quant',
+            '/investment/portfolio',
+            '/investment/agent',
+        ]) {
+            expect(canAccessAdminPath(path, workspaceMenuTree, false, ['INVESTMENT_USER'])).toBe(true)
+            expect(selectedAdminMenuKey(path, keys)).toBe('/investment/overview')
+        }
+        expect(canAccessAdminPath('/investment/platform', workspaceMenuTree, false, ['INVESTMENT_USER']))
+            .toBe(false)
+        expect(canAccessAdminPath('/investment/unknown', workspaceMenuTree, false, ['INVESTMENT_USER']))
+            .toBe(false)
+    })
+
+    test('keeps Investment platform independent and exposes only two sidebar destinations', () => {
+        const platformMenuTree: MenuTreeResponse[] = [
+            ...menuTree,
+            {
+                permissionId: 41,
+                permCode: 'menu:investment:platform',
+                permName: '投资平台',
+                routePath: '/investment/platform',
+                hidden: false,
+                cacheable: true,
+                sortNo: 41,
+                children: [],
+            },
+        ]
+        const platformKeys = flattenMenuKeys(buildAuthorizedAdminMenuItems(
+            platformMenuTree, false, ['INVESTMENT_PLATFORM_ADMIN'],
+        ))
+
+        expect(platformKeys).toContain('/investment/platform')
+        expect(platformKeys).not.toContain('/investment/overview')
+        expect(canAccessAdminPath(
+            '/investment/platform', platformMenuTree, false, ['INVESTMENT_PLATFORM_ADMIN'],
+        )).toBe(true)
+        expect(canAccessAdminPath(
+            '/investment/market', platformMenuTree, false, ['INVESTMENT_PLATFORM_ADMIN'],
+        )).toBe(false)
+
+        const bypassInvestmentKeys = flattenMenuKeys(
+            buildAuthorizedAdminMenuItems(menuTree, true, ['SUPER_ADMIN']),
+        ).filter((key) => key.startsWith('/investment/'))
+        expect(bypassInvestmentKeys).toEqual(['/investment/overview', '/investment/platform'])
+    })
 })

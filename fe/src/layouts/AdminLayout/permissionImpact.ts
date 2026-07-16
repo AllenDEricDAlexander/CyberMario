@@ -1,4 +1,5 @@
 import {mcpButtonCodes} from '../../modules/agent/mcp/mcpPermissionCodes'
+import {investmentButtonCodes} from '../../modules/investment/investmentPermissionCodes'
 import {ragButtonCodes} from '../../modules/rag/ragPermissionCodes'
 import {rbacButtonCodes} from '../../modules/rbac/rbacPermissionCodes'
 
@@ -8,6 +9,32 @@ type RouteButtonPermission = {
 }
 
 const routeButtonPermissions: RouteButtonPermission[] = [
+    {path: '/investment/overview', buttonCodes: [investmentButtonCodes.workspaceCreate]},
+    {
+        path: '/investment/market',
+        buttonCodes: [investmentButtonCodes.workspaceCreate, investmentButtonCodes.watchlistManage],
+    },
+    {path: '/investment/instruments', buttonCodes: [investmentButtonCodes.workspaceCreate]},
+    {
+        path: '/investment/research',
+        buttonCodes: [investmentButtonCodes.workspaceCreate, investmentButtonCodes.reportCreate],
+    },
+    {
+        path: '/investment/quant',
+        buttonCodes: [investmentButtonCodes.workspaceCreate, investmentButtonCodes.backtestCreate],
+    },
+    {
+        path: '/investment/portfolio',
+        buttonCodes: [investmentButtonCodes.workspaceCreate, investmentButtonCodes.paperTrade],
+    },
+    {
+        path: '/investment/agent',
+        buttonCodes: [investmentButtonCodes.workspaceCreate, investmentButtonCodes.agentRun],
+    },
+    {
+        path: '/investment/platform',
+        buttonCodes: [investmentButtonCodes.platformRetryJob, investmentButtonCodes.platformResolveQuality],
+    },
     {path: '/rag/knowledge-bases', buttonCodes: Object.values(ragButtonCodes.kb)},
     {
         path: '/rag/documents',

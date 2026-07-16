@@ -194,11 +194,19 @@ public class AgentObservabilityModelInterceptor extends ModelInterceptor {
     private void safeRecord(AgentRunAuditContext context, AgentRunEventRecord event) {
         try {
             auditService.record(context, event);
-            LogUtil.debug(log).log("agent model audit payload, runId={}, eventType={}, prompt={}, messages={}, response={}",
-                    context.runId(), event.eventType(), event.promptText(), event.requestMessagesJson(),
-                    event.responseText());
+            LogUtil.debug(log).log("agent model audit recorded, runId={}, eventType={}, modelName={}, status={}, "
+                            + "durationMs={}, promptLength={}, messagesLength={}, optionsLength={}, "
+                            + "availableToolsLength={}, responseLength={}, metadataLength={}",
+                    context.runId(), event.eventType(), event.modelName(), event.status(), event.durationMs(),
+                    length(event.promptText()), length(event.requestMessagesJson()), length(event.requestOptionsJson()),
+                    length(event.availableToolsJson()), length(event.responseText()), length(event.metadataJson()));
         } catch (RuntimeException e) {
-            LogUtil.error(log).log("agent model audit write failed, runId={}", context.runId(), e);
+            LogUtil.error(log).log("agent model audit write failed, runId={}, modelName={}, errorType={}",
+                    context.runId(), event.modelName(), e.getClass().getName());
         }
+    }
+
+    private int length(String value) {
+        return value == null ? 0 : value.length();
     }
 }

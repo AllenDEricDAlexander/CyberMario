@@ -3,6 +3,7 @@ package top.egon.mario.config;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -16,6 +17,8 @@ import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.im.service.ImException;
+import top.egon.mario.investment.common.InvestmentErrorCode;
+import top.egon.mario.investment.common.InvestmentException;
 import top.egon.mario.nutrition.service.NutritionException;
 import top.egon.mario.rag.service.RagException;
 import top.egon.mario.rbac.service.RbacException;
@@ -114,6 +117,18 @@ public class GlobalExceptionHandler {
         });
     }
 
+    @ExceptionHandler(InvestmentException.class)
+    public Mono<ResponseEntity<ApiResponse<Void>>> handleInvestmentException(InvestmentException ex) {
+        return Mono.deferContextual(contextView -> {
+            String traceId = TraceContext.traceId(contextView);
+            return Mono.just(TraceContext.withMdc(traceId, () -> {
+                LogUtil.warn(log).log("investment request rejected, code={}", ex.getCode());
+                return ResponseEntity.status(investmentStatus(ex.getErrorCode()))
+                        .body(ApiResponse.fail(ex.getCode(), ex.getMessage(), traceId));
+            }));
+        });
+    }
+
     @ExceptionHandler(AgentException.class)
     public Mono<ResponseEntity<ApiResponse<Void>>> handleAgentException(AgentException ex) {
         return Mono.deferContextual(contextView -> {
@@ -139,6 +154,16 @@ public class GlobalExceptionHandler {
     private ResponseEntity<ApiResponse<Void>> validationResponse(String message, String traceId) {
         String responseMessage = message == null || message.isBlank() ? "request validation failed" : message;
         return ResponseEntity.badRequest().body(ApiResponse.fail(VALIDATION_ERROR, responseMessage, traceId));
+    }
+
+    private HttpStatus investmentStatus(InvestmentErrorCode errorCode) {
+        return switch (errorCode) {
+            case NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case FORBIDDEN -> HttpStatus.FORBIDDEN;
+            case CONFLICT -> HttpStatus.CONFLICT;
+            case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
+            default -> HttpStatus.BAD_REQUEST;
+        };
     }
 
     private String formatFieldError(FieldError error) {

@@ -11,6 +11,7 @@ import {
     ExperimentOutlined,
     FileSearchOutlined,
     FileTextOutlined,
+    FundOutlined,
     HeartOutlined,
     InboxOutlined,
     MenuOutlined,
@@ -55,6 +56,8 @@ const menuPathByKey: Record<string, string> = {
     '/clocktower/admin/audit': '/clocktower/admin/audit',
     '/nutrition/home': '/nutrition/home',
     '/nutrition/platform': '/nutrition/platform',
+    '/investment/overview': '/investment/overview',
+    '/investment/platform': '/investment/platform',
     '/rbac/users': '/rbac/users',
     '/rbac/roles': '/rbac/roles',
     '/rbac/permissions': '/rbac/permissions',
@@ -218,6 +221,23 @@ export const adminMenuItems: AdminMenuItem[] = [
         ],
     },
     {
+        key: 'investment',
+        icon: <FundOutlined/>,
+        label: '理财投资',
+        children: [
+            {
+                key: '/investment/overview',
+                icon: <FundOutlined/>,
+                label: '投资工作台',
+            },
+            {
+                key: '/investment/platform',
+                icon: <DatabaseOutlined/>,
+                label: '投资平台',
+            },
+        ],
+    },
+    {
         key: 'rbac',
         icon: <SafetyCertificateOutlined/>,
         label: 'RBAC 管理',
@@ -316,7 +336,29 @@ function canonicalAdminPath(pathname: string) {
     if (nutritionPath) {
         return nutritionPath
     }
+    const investmentPath = canonicalInvestmentPath(pathname)
+    if (investmentPath) {
+        return investmentPath
+    }
     return compatibilityMenuPathAliases[pathname] ?? pathname
+}
+
+function canonicalInvestmentPath(pathname: string) {
+    if (pathname === '/investment/platform' || pathname.startsWith('/investment/platform/')) {
+        return '/investment/platform'
+    }
+    const workspacePaths = [
+        '/investment/overview',
+        '/investment/market',
+        '/investment/instruments',
+        '/investment/research',
+        '/investment/quant',
+        '/investment/portfolio',
+        '/investment/agent',
+    ]
+    return workspacePaths.some((path) => pathname === path || pathname.startsWith(`${path}/`))
+        ? '/investment/overview'
+        : undefined
 }
 
 function canonicalNutritionPath(pathname: string) {

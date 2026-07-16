@@ -182,6 +182,19 @@ agent:
         broadcast-topic: ${AGENT_MCP_RUNTIME_REFRESH_BROADCAST_TOPIC:agent:mcp:runtime:refresh}
 
 mario:
+  investment:
+    # 生产订阅代码尚未配置时 planner 保持关闭；任务 runner 只消费已持久化的幂等任务。
+    market-data-planner-enabled: ${INVESTMENT_MARKET_DATA_PLANNER_ENABLED:false}
+    job:
+      batch-size: ${INVESTMENT_JOB_BATCH_SIZE:10}
+      lease-duration: ${INVESTMENT_JOB_LEASE_DURATION:PT30S}
+      heartbeat-interval: ${INVESTMENT_JOB_HEARTBEAT_INTERVAL:PT10S}
+      retry-base-delay: ${INVESTMENT_JOB_RETRY_BASE_DELAY:PT1S}
+      retry-max-delay: ${INVESTMENT_JOB_RETRY_MAX_DELAY:PT5M}
+      runner:
+        enabled: ${INVESTMENT_JOB_RUNNER_ENABLED:true}
+        initial-delay: ${INVESTMENT_JOB_RUNNER_INITIAL_DELAY:PT1S}
+        poll-interval: ${INVESTMENT_JOB_RUNNER_POLL_INTERVAL:PT1S}
   security:
     jwt:
       issuer: ${JWT_ISSUER:CyberMario}

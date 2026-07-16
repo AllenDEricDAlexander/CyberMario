@@ -70,6 +70,8 @@
 | 钟楼 / 钟楼回放 | `/clocktower/replays` | 游戏回放列表 |
 | 钟楼 / 游戏回放 | `/clocktower/games/:gameId/replay` | 单局事件回放 |
 | 钟楼 / 钟楼审计 | `/clocktower/admin/audit` | 房间、游戏、会话审计查询 |
+| 理财投资 / 投资工作台 | `/investment/overview` | 合约分析、量化研究、模拟盘与 Agent 工作区 |
+| 理财投资 / 投资平台 | `/investment/platform` | 管理员共享行情数据与任务运维 |
 | RBAC 管理 / 用户管理 | `/rbac/users` | 用户、角色授权、有效权限 |
 | RBAC 管理 / 角色管理 | `/rbac/roles` | 角色、权限、继承 |
 | RBAC 管理 / 权限管理 | `/rbac/permissions` | 通用权限 |
@@ -77,6 +79,16 @@
 | RBAC 管理 / 按钮管理 | `/rbac/buttons` | 菜单按钮和关联 API |
 | RBAC 管理 / API 权限 | `/rbac/apis` | 动态 API 规则 |
 | 个人设置 | `/account/settings` | 资料、密码、SoulMD |
+
+## Investment
+
+Investment 当前仅支持加密货币合约的分析、量化回测和模拟盘，不包含实盘下单或交易所凭证管理。
+
+- `/investment/overview`、`/investment/market`、`/investment/instruments/:instrumentId`、`/investment/research`、`/investment/quant`、`/investment/portfolio` 和 `/investment/agent` 共用私人工作区外壳；行情页可在未选择工作区时读取平台公共数据。
+- `/investment/platform` 是独立的管理员入口，不属于私人工作区 Tabs，也不能读取用户的私有报告、策略使用、账户或仓位。
+- 合约订阅、数据能力、量化策略和 Agent 预设均由后端 Java 代码声明；前端不提供订阅、策略参数、Prompt 或工具编辑器。
+- K 线使用 Lightweight Charts，并提供文本表格回退；报告、回测、模拟盘和 Agent 页面显示服务端固定的 `dataAsOf`，不在浏览器内重算金融事实。
+- 生产环境在尚未提交代码级订阅和私人策略时会显示受支持的空状态，这不代表 Bitget 或真实模型已经接入。
 
 ## Dashboard
 

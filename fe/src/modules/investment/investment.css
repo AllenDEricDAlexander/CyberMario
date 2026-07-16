@@ -1,0 +1,28 @@
+.investment-workspace-shell {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.investment-workspace-header {
+    align-items: flex-end;
+    display: flex;
+    gap: 24px;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.investment-workspace-header .ant-typography {
+    margin-bottom: 0;
+}
+
+.investment-create-error {
+    margin-bottom: 16px;
+}
+
+@media (max-width: 768px) {
+    .investment-workspace-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}

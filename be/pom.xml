@@ -162,6 +162,11 @@
             <artifactId>guava</artifactId>
             <version>${guava.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.ta4j</groupId>
+            <artifactId>ta4j-core</artifactId>
+            <version>0.22.6</version>
+        </dependency>
 
         <dependency>
             <groupId>com.alibaba.cloud.ai</groupId>

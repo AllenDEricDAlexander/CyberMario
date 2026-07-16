@@ -7,6 +7,7 @@ import {hasAdminPermissionBypass, useAuth} from '../modules/auth/authStore'
 import {LoginPage} from '../modules/auth/pages/LoginPage'
 import {RegisterPage} from '../modules/auth/pages/RegisterPage'
 import {ChatPage} from '../modules/chat/pages/ChatPage'
+import {InvestmentWorkspaceLayout} from '../modules/investment/InvestmentWorkspaceLayout'
 import {NutritionWorkspaceLayout} from '../modules/nutrition/NutritionWorkspaceLayout'
 
 export const router = createBrowserRouter([
@@ -84,6 +85,19 @@ export const router = createBrowserRouter([
                         ],
                     },
                     {path: 'nutrition/platform', lazy: () => import('../modules/nutrition/PlatformNutritionConfigPage')},
+                    {
+                        element: <InvestmentWorkspaceLayout/>,
+                        children: [
+                            {path: 'investment/overview', lazy: () => import('../modules/investment/overview/InvestmentOverviewPage')},
+                            {path: 'investment/market', lazy: () => import('../modules/investment/market/InvestmentMarketPage')},
+                            {path: 'investment/instruments/:instrumentId', lazy: () => import('../modules/investment/instrument/InvestmentInstrumentPage')},
+                            {path: 'investment/research', lazy: () => import('../modules/investment/research/InvestmentResearchPage')},
+                            {path: 'investment/quant', lazy: () => import('../modules/investment/quant/InvestmentQuantPage')},
+                            {path: 'investment/portfolio', lazy: () => import('../modules/investment/portfolio/InvestmentPortfolioPage')},
+                            {path: 'investment/agent', lazy: () => import('../modules/investment/agent/InvestmentAgentPage')},
+                        ],
+                    },
+                    {path: 'investment/platform', lazy: () => import('../modules/investment/platform/InvestmentPlatformPage')},
                     {path: 'rbac/users', lazy: () => import('../modules/rbac/users/UserListPage')},
                     {path: 'rbac/roles', lazy: () => import('../modules/rbac/roles/RoleListPage')},
                     {path: 'rbac/permissions', lazy: () => import('../modules/rbac/permissions/PermissionListPage')},
