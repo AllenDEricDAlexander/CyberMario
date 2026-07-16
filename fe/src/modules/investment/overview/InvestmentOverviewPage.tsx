@@ -230,3 +230,5 @@ function section(response: InvestmentOverviewResponse, code: InvestmentOverviewS
         errorCode: null,
     }
 }
+
+export const Component = InvestmentOverviewPage

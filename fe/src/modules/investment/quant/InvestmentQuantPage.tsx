@@ -337,3 +337,5 @@ function statusColor(status: string) {
 function errorMessage(reason: unknown, fallback: string) {
     return reason instanceof Error ? reason.message : fallback
 }
+
+export const Component = InvestmentQuantPage

@@ -307,3 +307,5 @@ function statusColor(status: string) {
     if (status === 'RUNNING') return 'processing'
     return 'default'
 }
+
+export const Component = InvestmentAgentPage

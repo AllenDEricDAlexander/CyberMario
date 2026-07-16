@@ -533,3 +533,5 @@ function recentWindow() {
     const from = new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000)
     return {from: from.toISOString(), to: to.toISOString()}
 }
+
+export const Component = InvestmentPortfolioPage

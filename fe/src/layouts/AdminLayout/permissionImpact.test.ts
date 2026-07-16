@@ -1,5 +1,6 @@
 import {describe, expect, test} from 'vitest'
 import {mcpButtonCodes} from '../../modules/agent/mcp/mcpPermissionCodes'
+import {investmentButtonCodes} from '../../modules/investment/investmentPermissionCodes'
 import {ragButtonCodes} from '../../modules/rag/ragPermissionCodes'
 import {rbacButtonCodes} from '../../modules/rbac/rbacPermissionCodes'
 import {isCurrentPathAffectedByLostButtons} from './permissionImpact'
@@ -12,6 +13,15 @@ describe('isCurrentPathAffectedByLostButtons', () => {
         expect(isCurrentPathAffectedByLostButtons('/agent/mcp/servers', [mcpButtonCodes.tool.editPolicy])).toBe(true)
         expect(isCurrentPathAffectedByLostButtons('/agent/mcp/servers', [mcpButtonCodes.tool.toggle])).toBe(true)
         expect(isCurrentPathAffectedByLostButtons('/agent/mcp/logs', [mcpButtonCodes.log.view])).toBe(true)
+        expect(isCurrentPathAffectedByLostButtons(
+            '/investment/instruments/11', [investmentButtonCodes.workspaceCreate],
+        )).toBe(true)
+        expect(isCurrentPathAffectedByLostButtons(
+            '/investment/portfolio', [investmentButtonCodes.paperTrade],
+        )).toBe(true)
+        expect(isCurrentPathAffectedByLostButtons(
+            '/investment/platform', [investmentButtonCodes.platformRetryJob],
+        )).toBe(true)
     })
 
     test('ignores unrelated routes and empty permission changes', () => {
@@ -20,5 +30,8 @@ describe('isCurrentPathAffectedByLostButtons', () => {
         expect(isCurrentPathAffectedByLostButtons('/agent/mcp/logs', [mcpButtonCodes.tool.toggle])).toBe(false)
         expect(isCurrentPathAffectedByLostButtons('/chat', [rbacButtonCodes.user.edit])).toBe(false)
         expect(isCurrentPathAffectedByLostButtons('/rbac/users', [])).toBe(false)
+        expect(isCurrentPathAffectedByLostButtons(
+            '/investment/agent', [investmentButtonCodes.platformRetryJob],
+        )).toBe(false)
     })
 })
