@@ -20,7 +20,7 @@ class NutritionSchemaMigrationTests {
     private static final Path MIGRATION = Path.of(
             "src/main/resources/db/migration/V31__create_nutrition_mvp_schema.sql");
     private static final Path OWNER_PROFILE_MIGRATION = Path.of(
-            "src/main/resources/db/migration/V40__protect_nutrition_family_owner_profile.sql");
+            "src/main/resources/db/migration/V45__protect_nutrition_family_owner_profile.sql");
 
     private static final List<String> NUTRITION_TABLES = List.of(
             "nutrition_clan",

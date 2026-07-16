@@ -21,7 +21,7 @@ class ImCoreSchemaMigrationTests {
     private static final Path IM_CORE_MIGRATION = Path.of(
             "src/main/resources/db/migration/V30__create_im_core_schema.sql");
     private static final Path IM_PLATFORM_FRIENDSHIP_MIGRATION = Path.of(
-            "src/main/resources/db/migration/V41__create_im_platform_friendship_schema.sql");
+            "src/main/resources/db/migration/V46__create_im_platform_friendship_schema.sql");
     private static final Path IM_POSTGRESQL_INDEX_MIGRATION = Path.of(
             "src/main/resources/db/postgresql/R__create_im_core_postgresql_indexes.sql");
 

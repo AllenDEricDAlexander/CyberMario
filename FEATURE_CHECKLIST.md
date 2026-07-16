@@ -315,15 +315,19 @@
 - 支持 member health profile、健康标签、饮食目标、过敏/忌口/限制配置，以及按授权范围读取健康档案。
 - 支持平台 standard food、家庭 standard food 和 family recipe；食谱包含食材映射、步骤、营养计算、校验和停用流程。
 - 支持标准食物和家庭食谱 CSV import job，包含上传、预检、错误记录、确认导入和导入结果。
-- AI 推荐任务持久化成员健康、可用食谱、预算规则、近期价格和近期用餐上下文；模型输出会物化为 AI recipe 和待 cook review 的 meal plan，不会直接发布。
+- AI 推荐任务持久化成员健康、可用食谱、预算规则、近期价格和近期用餐上下文；模型输出会物化为 AI recipe 和待 cook review 的
+  meal plan，不会直接发布。
 - cook 可按版本编辑、增删和排序 meal plan 菜品；编辑会重新计算营养快照、执行风险校验并写入 before/after 操作审计。
 - 高风险过敏会阻止 meal plan 发布，中风险偏好冲突需要 cook 记录确认说明后才能发布。
 - 成员或代理可按菜品确认是否在家用餐和精确份数；meal summary 汇总成员状态及每道菜的确认份数。
-- 确认关单后按食谱基准份数和成员确认份数生成 shopping list，并保存 meal plan/confirmation 版本快照；支持采购项状态、实际采购信息和 food price record。
+- 确认关单后按食谱基准份数和成员确认份数生成 shopping list，并保存 meal plan/confirmation 版本快照；支持采购项状态、实际采购信息和
+  food price record。
 - 支持家庭预算规则、weekly/monthly budget statistics 和预算快照；预算使用率与购物完成率是两个独立指标。
-- meal completion 会幂等生成成员 nutrition record；手工调整以追加 correction 的方式保留原始记录，并支持加餐、daily overview、weekly/monthly report、目标对比和报告快照。
+- meal completion 会幂等生成成员 nutrition record；手工调整以追加 correction 的方式保留原始记录，并支持加餐、daily
+  overview、weekly/monthly report、目标对比和报告快照。
 - 家庭营养首页从 meal plan、confirmation、risk、shopping、budget 和 nutrition record 的同一套持久化数据生成工作流概览。
-- 前端营养路由包括家庭营养、成员健康、食谱库、AI 菜单、用餐确认、用餐汇总、购物清单、预算、营养记录和平台配置页面；页面通过 nutrition service 调用真实后端接口，并处理加载、空数据和失败状态，不依赖静态业务 fixture。
+- 前端营养路由包括家庭营养、成员健康、食谱库、AI 菜单、用餐确认、用餐汇总、购物清单、预算、营养记录和平台配置页面；页面通过
+  nutrition service 调用真实后端接口，并处理加载、空数据和失败状态，不依赖静态业务 fixture。
 
 ## 14. 平台 Web 即时通讯（IM）
 
@@ -337,8 +341,10 @@
 - 消息统一使用 conversation + sequence 模型，支持精确未读、单调已读游标、稳定 `clientMsgId` 幂等、乐观发送状态和失败重试。
 - 单节点实时链路使用现有 WebSocket、事务 Outbox dispatcher 和本地路由；断线或 `RESYNC` 后按 REST 历史与消息序号恢复。
 - V1 消息类型为 `TEXT` / `SYSTEM`，支持普通 Unicode emoji 输入；不包含上传、图片、搜索、reaction、thread、typing、presence 或回执。
-- RBAC 新增 `menu:im`、`IM_USER`、`IM_ADMIN`。新注册用户获得 `IM_USER`；可配置回填仅为现有启用且未删除用户幂等授予 `IM_USER`，不会自动授予 `IM_ADMIN`。
-- 好友关系通过 `im_friendship` 的规范化用户对和 `im_contact` 的双向联系人记录持久化；本次数据库变更仅新增 `V41__create_im_platform_friendship_schema.sql`。
+- RBAC 新增 `menu:im`、`IM_USER`、`IM_ADMIN`。新注册用户获得 `IM_USER`；可配置回填仅为现有启用且未删除用户幂等授予 `IM_USER`
+  ，不会自动授予 `IM_ADMIN`。
+- 好友关系通过 `im_friendship` 的规范化用户对和 `im_contact` 的双向联系人记录持久化；本次数据库变更仅新增
+  `V46__create_im_platform_friendship_schema.sql`。
 - Clocktower 仍只依赖通用 `ImFacade` / `RoomFacade` 和自身策略适配器，不依赖平台好友门禁或平台展示模型。
 
 ## Clocktower Phase 1
@@ -353,15 +359,20 @@
 
 ## Clocktower room / IM / game refactor
 
-- [x] Room is modeled as a long-lived generic `room_space` with room members, invitations, bans, and Clocktower-specific room profile/seats.
+- [x] Room is modeled as a long-lived generic `room_space` with room members, invitations, bans, and Clocktower-specific
+  room profile/seats.
 - [x] Game is modeled as a per-round `clocktower_game` snapshot with game seats and game-scoped events.
 - [x] Generic IM core is reusable internally through `ImFacade`, while current HTTP APIs remain Clocktower-scoped.
-- [x] Clocktower chat endpoints stay under `/api/clocktower/**`; management audit chat endpoints stay under `/api/admin/clocktower/**`.
-- [x] 本次 Room / IM / game 重构当时未暴露平台 `/api/im/**`；后续平台 Web IM 已以独立 composition facade 和 `api:im:*` 权限补齐，不改变 Clocktower 端点与策略边界。
-- [x] `CLOCKTOWER_PLAYER` covers both room spectators and seated players; no separate `CLOCKTOWER_SPECTATOR` RBAC role is added.
+- [x] Clocktower chat endpoints stay under `/api/clocktower/**`; management audit chat endpoints stay under
+  `/api/admin/clocktower/**`.
+- [x] 本次 Room / IM / game 重构当时未暴露平台 `/api/im/**`；后续平台 Web IM 已以独立 composition facade 和 `api:im:*`
+  权限补齐，不改变 Clocktower 端点与策略边界。
+- [x] `CLOCKTOWER_PLAYER` covers both room spectators and seated players; no separate `CLOCKTOWER_SPECTATOR` RBAC role
+  is added.
 - [x] Room lobby supports spectator entry, seat claim/request, invitation/member governance, and start-game gating.
 - [x] `/clocktower/rooms/{roomId}/play` resolves lobby/player/storyteller/spectator surfaces instead of assuming a seat.
-- [x] Game replay is queried by `gameId`; `/clocktower/games/{gameId}/replay` is authorized through the Clocktower replay menu.
+- [x] Game replay is queried by `gameId`; `/clocktower/games/{gameId}/replay` is authorized through the Clocktower
+  replay menu.
 - [x] Management audit supports room, game, chat, invitation, member, and ban projections through Clocktower admin APIs.
 
 ## 15. 数据权限与边界
@@ -375,7 +386,8 @@
 - RBAC 管理权限不会授予普通注册用户。
 - 预置角色与资源同步采用追加缺失授权，不主动删除人工授权。
 - 已有迁移清理普通用户不应拥有的 dashboard global 授权。
-- 本次钟楼重构接受一个 RBAC 迁移偏差：`V27__retire_old_clocktower_rbac_resources.sql` 一次性退休旧钟楼权限；后续类似能力应优先进入 RBAC 资源同步器的 stale-resource retirement 机制。
+- 本次钟楼重构接受一个 RBAC 迁移偏差：`V27__retire_old_clocktower_rbac_resources.sql` 一次性退休旧钟楼权限；后续类似能力应优先进入
+  RBAC 资源同步器的 stale-resource retirement 机制。
 
 ## 16. 数据库迁移现状
 
@@ -407,7 +419,7 @@
 - `V27__retire_old_clocktower_rbac_resources.sql`：一次性退休旧钟楼 RBAC 权限；这是本次重构接受的迁移偏差。
 - `V30__create_im_core_schema.sql`：统一 Channel、Group、DM、Conversation、Message、Inbox、Outbox 与治理基础 schema。
 - `V31__create_nutrition_mvp_schema.sql`：营养管理持久化基线；恢复实现未修改该历史迁移。
-- `V41__create_im_platform_friendship_schema.sql`：平台好友关系和双向联系人 schema；未修改任何历史迁移。
+- `V46__create_im_platform_friendship_schema.sql`：平台好友关系和双向联系人 schema；未修改任何历史迁移。
 
 ## 17. 已有测试覆盖线索
 
@@ -417,12 +429,17 @@
 - 前端有 Agent 预设权限、默认预设和 agent service 测试。
 - 前端有 MCP service 和 MCP Server 编辑抽屉测试。
 - 前端有 RAG service 测试。
-- 后端已有 nutrition slice 测试，覆盖 schema migration、RBAC resource provider、access service、CSV import、rule check、AI service、meal plan/confirmation、shopping、budget、nutrition record 和 controller smoke 路径。
-- `NutritionVerticalFlowTests` 包含 10 条持久化纵向验收，覆盖家庭与 clan 授权、AI 草案、风险复核、菜单编辑、精确份数确认、关单采购、预算指标、完成幂等、记录修正和首页投影。
-- controller smoke 测试会实际调用设置/授权、食谱校验、AI 入队、菜单编辑/发布、菜品确认、购物清单生成、预算规则和营养记录 Controller 方法；路径反射仅作为补充。
+- 后端已有 nutrition slice 测试，覆盖 schema migration、RBAC resource provider、access service、CSV import、rule check、AI
+  service、meal plan/confirmation、shopping、budget、nutrition record 和 controller smoke 路径。
+- `NutritionVerticalFlowTests` 包含 10 条持久化纵向验收，覆盖家庭与 clan 授权、AI
+  草案、风险复核、菜单编辑、精确份数确认、关单采购、预算指标、完成幂等、记录修正和首页投影。
+- controller smoke 测试会实际调用设置/授权、食谱校验、AI 入队、菜单编辑/发布、菜品确认、购物清单生成、预算规则和营养记录
+  Controller 方法；路径反射仅作为补充。
 - 前端 nutrition 测试覆盖 service 请求契约、家庭切换和核心页面的加载/失败/提交刷新行为；当前仓库没有声明浏览器或人工验收结果。
-- 后端 IM 测试覆盖迁移/映射、好友状态机、群组与入群审核、公共频道 bootstrap、好友门禁私聊、精确未读、Outbox/WebSocket 恢复、RBAC 资源和 Clocktower 边界。
-- 前端 IM 测试覆盖 service 请求契约、workspace reducer、乐观发送与同 `clientMsgId` 重试、未读合并、实时恢复、路由/菜单和消息/联系人/群组 UI 状态。
+- 后端 IM 测试覆盖迁移/映射、好友状态机、群组与入群审核、公共频道 bootstrap、好友门禁私聊、精确未读、Outbox/WebSocket 恢复、RBAC
+  资源和 Clocktower 边界。
+- 前端 IM 测试覆盖 service 请求契约、workspace reducer、乐观发送与同 `clientMsgId` 重试、未读合并、实时恢复、路由/菜单和消息/联系人/群组
+  UI 状态。
 - PostgreSQL 锁、并发序号和 filtered-index 语义必须使用显式 `IM_POSTGRES_TEST_*` 一次性测试库验证；H2 测试不能替代该门禁。
 
 ## 18. 目前需要注意的实现细节
