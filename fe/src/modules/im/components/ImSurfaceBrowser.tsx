@@ -140,8 +140,6 @@ function joinPolicyLabel(joinPolicy: ImJoinPolicy) {
             return 'Open'
         case 'APPROVAL':
             return 'Approval'
-        case 'INVITE_ONLY':
-            return 'Invite only'
         default:
             return joinPolicy
     }

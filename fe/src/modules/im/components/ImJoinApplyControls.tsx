@@ -66,7 +66,7 @@ export function deriveImJoinApplyState(input: {
     if (status === 'ACTIVE' && input.memberRole !== 'OWNER') {
         return state(input, status, 'leave', 'Leave', 'Joined', reviewActions)
     }
-    if (applyCapableStatuses.includes(status) && input.joinPolicy !== 'INVITE_ONLY') {
+    if (applyCapableStatuses.includes(status)) {
         return state(input, status, 'apply', input.joinPolicy === 'OPEN' ? 'Join' : 'Apply to join', policyText(input.joinPolicy), reviewActions)
     }
     return state(input, status, 'none', '', statusText(status), reviewActions)
@@ -257,8 +257,6 @@ function policyText(joinPolicy: ImJoinPolicy) {
             return 'Open'
         case 'APPROVAL':
             return 'Approval'
-        case 'INVITE_ONLY':
-            return 'Invite only'
         default:
             return joinPolicy
     }

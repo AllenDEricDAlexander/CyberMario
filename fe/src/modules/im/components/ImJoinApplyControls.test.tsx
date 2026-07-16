@@ -95,14 +95,6 @@ describe('deriveImJoinApplyState', () => {
             primaryText: 'Apply to join',
             statusText: 'Approval',
         })
-        expect(deriveImJoinApplyState({
-            joinPolicy: 'INVITE_ONLY',
-            membershipStatus: 'LEFT',
-            memberRole: null,
-        })).toMatchObject({
-            primaryAction: 'none',
-            statusText: 'Left',
-        })
     })
 
     test('keeps banned memberships non-actionable', () => {

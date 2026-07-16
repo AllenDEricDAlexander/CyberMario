@@ -1,7 +1,7 @@
 import type {PageResult} from '../../types/api'
 
 export type ImSurfaceType = 'CHANNEL' | 'GROUP'
-export type ImJoinPolicy = 'OPEN' | 'APPROVAL' | 'INVITE_ONLY'
+export type ImJoinPolicy = 'OPEN' | 'APPROVAL'
 export type ImMembershipStatus = 'ACTIVE' | 'PENDING' | 'LEFT' | 'BANNED'
 export type ImJoinRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
 export type ImJoinResultStatus = 'PENDING' | 'ACTIVE' | 'REJECTED' | 'CANCELLED'

@@ -64,7 +64,7 @@ const imTypeContract: {
     listChannelContextTypeRequired: IsOptional<ListChannelsParams, 'contextType'> extends false ? true : false
     listChannelContextTypeIsString: IsExact<ListChannelsParams['contextType'], string>
     surfaceTypes: IsExact<ImSurfaceType, 'CHANNEL' | 'GROUP'>
-    joinPolicies: IsExact<ImJoinPolicy, 'OPEN' | 'APPROVAL' | 'INVITE_ONLY'>
+    joinPolicies: IsExact<ImJoinPolicy, 'OPEN' | 'APPROVAL'>
     membershipStatuses: IsExact<ImMembershipStatus, 'ACTIVE' | 'PENDING' | 'LEFT' | 'BANNED'>
     joinRequestStatuses: IsExact<ImJoinRequestStatus, 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'>
     joinResultStatuses: IsExact<ImJoinResultStatus, 'PENDING' | 'ACTIVE' | 'REJECTED' | 'CANCELLED'>
