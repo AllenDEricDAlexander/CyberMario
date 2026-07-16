@@ -11,7 +11,7 @@ export type InvestmentFreshnessResponse = {
 }
 
 export type InvestmentInstrumentSummaryResponse = {
-    id: number
+    instrumentId: number
     venueCode: string
     symbol: string
     baseAsset: string
@@ -22,19 +22,19 @@ export type InvestmentInstrumentSummaryResponse = {
     change24h: InvestmentDecimal | null
     dataAsOf: string
     freshness: InvestmentFreshnessResponse
-    capabilities: string[]
+    availableCapabilities: string[]
 }
 
 export type InvestmentCandleResponse = {
     openTime: string
     closeTime: string
-    openPrice: InvestmentDecimal
-    highPrice: InvestmentDecimal
-    lowPrice: InvestmentDecimal
-    closePrice: InvestmentDecimal
+    open: InvestmentDecimal
+    high: InvestmentDecimal
+    low: InvestmentDecimal
+    close: InvestmentDecimal
     baseVolume: InvestmentDecimal
     quoteVolume: InvestmentDecimal
-    closed: boolean
+    isClosed: boolean
     revision: number
     dataAsOf: string
 }
