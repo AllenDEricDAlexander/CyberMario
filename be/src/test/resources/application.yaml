@@ -104,6 +104,11 @@ agent:
       enabled: false
 
 mario:
+  investment:
+    market-data-planner-enabled: false
+    job:
+      runner:
+        enabled: false
   rag:
     storage:
       local-root: ${java.io.tmpdir}/cyber-mario-rag-test
