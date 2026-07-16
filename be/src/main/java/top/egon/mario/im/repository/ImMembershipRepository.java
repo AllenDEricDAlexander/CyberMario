@@ -1,6 +1,8 @@
 package top.egon.mario.im.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import top.egon.mario.im.po.ImMembershipPo;
 import top.egon.mario.im.po.enums.ImMembershipStatus;
 import top.egon.mario.im.po.enums.ImSurfaceType;
@@ -26,4 +28,7 @@ public interface ImMembershipRepository extends JpaRepository<ImMembershipPo, Lo
             ImSurfaceType surfaceType, Collection<Long> surfaceIds, Long userId);
 
     List<ImMembershipPo> findByUserIdAndStatusAndDeletedFalse(Long userId, ImMembershipStatus status);
+
+    Page<ImMembershipPo> findBySurfaceTypeAndSurfaceIdAndStatusAndDeletedFalse(
+            ImSurfaceType surfaceType, Long surfaceId, ImMembershipStatus status, Pageable pageable);
 }

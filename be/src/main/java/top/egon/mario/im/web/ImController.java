@@ -2,6 +2,7 @@ package top.egon.mario.im.web;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,18 +32,24 @@ import top.egon.mario.im.facade.dto.command.MintWsTicketCommand;
 import top.egon.mario.im.facade.dto.command.MuteUserCommand;
 import top.egon.mario.im.facade.dto.command.OpenDmCommand;
 import top.egon.mario.im.facade.dto.command.RejectJoinCommand;
+import top.egon.mario.im.facade.dto.command.RemoveMemberCommand;
 import top.egon.mario.im.facade.dto.command.SendMessageCommand;
 import top.egon.mario.im.facade.dto.query.HistoryQuery;
+import top.egon.mario.im.facade.dto.query.ListJoinRequestsQuery;
 import top.egon.mario.im.facade.dto.query.ListChannelsQuery;
 import top.egon.mario.im.facade.dto.query.ListConversationsQuery;
 import top.egon.mario.im.facade.dto.query.ListGroupsQuery;
+import top.egon.mario.im.facade.dto.query.ListSurfaceMembersQuery;
 import top.egon.mario.im.facade.dto.view.ChannelView;
 import top.egon.mario.im.facade.dto.view.ConversationView;
 import top.egon.mario.im.facade.dto.view.GroupView;
 import top.egon.mario.im.facade.dto.view.JoinResultView;
+import top.egon.mario.im.facade.dto.view.JoinRequestView;
 import top.egon.mario.im.facade.dto.view.MessageView;
 import top.egon.mario.im.facade.dto.view.UnreadView;
 import top.egon.mario.im.facade.dto.view.WsTicketView;
+import top.egon.mario.im.facade.dto.view.SurfaceMemberView;
+import top.egon.mario.im.platform.PlatformRoomFacade;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.time.Instant;
@@ -55,6 +62,7 @@ public class ImController extends ReactiveImSupport {
 
     private final ImFacade imFacade;
     private final RoomFacade roomFacade;
+    private final PlatformRoomFacade platformRoomFacade;
     private final DmFacade dmFacade;
     private final GovFacade govFacade;
 
@@ -146,6 +154,24 @@ public class ImController extends ReactiveImSupport {
                 imPrincipal(principal), channelId, contextType, contextId)));
     }
 
+    @PostMapping("/platform/groups")
+    public Mono<ApiResponse<GroupView>> createPlatformGroup(
+            @AuthenticationPrincipal RbacPrincipal principal,
+            @RequestBody PlatformGroupRequest request) {
+        return blocking(() -> platformRoomFacade.createGroup(
+                imPrincipal(principal),
+                request == null ? null : request.groupKey(),
+                request == null ? null : request.name(),
+                request == null ? null : request.joinPolicy(),
+                request == null ? null : request.metadataJson()));
+    }
+
+    @GetMapping("/platform/groups")
+    public Mono<ApiResponse<List<GroupView>>> listPlatformGroups(
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> platformRoomFacade.listGroups(imPrincipal(principal)));
+    }
+
     @PostMapping("/join-requests")
     public Mono<ApiResponse<JoinResultView>> applyJoin(@AuthenticationPrincipal RbacPrincipal principal,
                                                        @RequestBody JoinRequest request) {
@@ -182,6 +208,38 @@ public class ImController extends ReactiveImSupport {
                                          @PathVariable String surfaceType,
                                          @PathVariable Long surfaceId) {
         return blockingVoid(() -> roomFacade.leave(new LeaveCommand(imPrincipal(principal), surfaceType, surfaceId)));
+    }
+
+    @GetMapping("/surfaces/{surfaceType}/{surfaceId}/members")
+    public Mono<ApiResponse<PageResult<SurfaceMemberView>>> listSurfaceMembers(
+            @AuthenticationPrincipal RbacPrincipal principal,
+            @PathVariable String surfaceType,
+            @PathVariable Long surfaceId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        return blocking(() -> pageResult(roomFacade.listMembers(new ListSurfaceMembersQuery(
+                imPrincipal(principal), surfaceType, surfaceId, Math.max(page - 1, 0), size))));
+    }
+
+    @GetMapping("/surfaces/{surfaceType}/{surfaceId}/join-requests")
+    public Mono<ApiResponse<PageResult<JoinRequestView>>> listSurfaceJoinRequests(
+            @AuthenticationPrincipal RbacPrincipal principal,
+            @PathVariable String surfaceType,
+            @PathVariable Long surfaceId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        return blocking(() -> pageResult(roomFacade.listJoinRequests(new ListJoinRequestsQuery(
+                imPrincipal(principal), surfaceType, surfaceId, Math.max(page - 1, 0), size))));
+    }
+
+    @DeleteMapping("/surfaces/{surfaceType}/{surfaceId}/members/{userId}")
+    public Mono<ApiResponse<Void>> removeSurfaceMember(
+            @AuthenticationPrincipal RbacPrincipal principal,
+            @PathVariable String surfaceType,
+            @PathVariable Long surfaceId,
+            @PathVariable Long userId) {
+        return blockingVoid(() -> roomFacade.removeMember(new RemoveMemberCommand(
+                imPrincipal(principal), surfaceType, surfaceId, userId)));
     }
 
     @PostMapping("/dms")
@@ -294,6 +352,13 @@ public class ImController extends ReactiveImSupport {
             Long channelId,
             String contextType,
             Long contextId,
+            String groupKey,
+            String name,
+            String joinPolicy,
+            String metadataJson) {
+    }
+
+    public record PlatformGroupRequest(
             String groupKey,
             String name,
             String joinPolicy,

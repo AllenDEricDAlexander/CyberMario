@@ -129,6 +129,10 @@ mario:
       enabled: false
     cache:
       enabled: false
+  im:
+    platform:
+      bootstrap:
+        enabled: false
   security:
     jwt:
       issuer: CyberMarioTest
