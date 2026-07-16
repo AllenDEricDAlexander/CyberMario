@@ -45,7 +45,10 @@ import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-@SpringBootTest(properties = "spring.ai.dashscope.api-key=test-api-key")
+@SpringBootTest(properties = {
+        "spring.ai.dashscope.api-key=test-api-key",
+        "spring.datasource.url=jdbc:h2:mem:platform_im_facade_tests;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH"
+})
 @Transactional
 class PlatformImFacadeTests {
 

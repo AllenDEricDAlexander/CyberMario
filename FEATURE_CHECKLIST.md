@@ -27,6 +27,7 @@
     - `RAG_USER`
     - `AGENT_DASHBOARD_USER`
     - `AGENT_MCP_USER`
+    - `IM_USER`
 - 新注册用户默认不授予 RBAC 管理权限。
 - 内置超级管理员 bootstrap 可配置开关、账号、初始密码和是否要求改密。
 - 当前用户支持修改个人资料。
@@ -324,6 +325,22 @@
 - 家庭营养首页从 meal plan、confirmation、risk、shopping、budget 和 nutrition record 的同一套持久化数据生成工作流概览。
 - 前端营养路由包括家庭营养、成员健康、食谱库、AI 菜单、用餐确认、用餐汇总、购物清单、预算、营养记录和平台配置页面；页面通过 nutrition service 调用真实后端接口，并处理加载、空数据和失败状态，不依赖静态业务 fixture。
 
+## 14. 平台 Web 即时通讯（IM）
+
+- 已在现有 Web 管理端提供 `/im` 工作区，不再依赖原桌面客户端，也没有拆分新的 IM 项目或服务。
+- 工作区包含消息、联系人、群组和公共频道入口，并复用现有登录态、`AdminLayout`、菜单树与 RBAC。
+- 支持安全用户搜索、好友申请、接受、拒绝、取消、双向删除和调用方私有好友备注。
+- 平台私聊只允许 ACTIVE 好友；REST 私聊打开/发送和 WebSocket 发送使用同一好友门禁。
+- 删除好友后不会删除历史私聊：双方仍可读取并标记已读，但会显示为只读且不能继续发送。
+- 支持用户创建独立群组，入群策略仅有 `OPEN` 和 `APPROVAL`；群主可审核入群申请、查看成员并移除普通成员。
+- 启动时幂等初始化 `PLATFORM/general` 公共频道。非成员可读取历史；加入后才可发送、累计未读并接收实时推送。
+- 消息统一使用 conversation + sequence 模型，支持精确未读、单调已读游标、稳定 `clientMsgId` 幂等、乐观发送状态和失败重试。
+- 单节点实时链路使用现有 WebSocket、事务 Outbox dispatcher 和本地路由；断线或 `RESYNC` 后按 REST 历史与消息序号恢复。
+- V1 消息类型为 `TEXT` / `SYSTEM`，支持普通 Unicode emoji 输入；不包含上传、图片、搜索、reaction、thread、typing、presence 或回执。
+- RBAC 新增 `menu:im`、`IM_USER`、`IM_ADMIN`。新注册用户获得 `IM_USER`；可配置回填仅为现有启用且未删除用户幂等授予 `IM_USER`，不会自动授予 `IM_ADMIN`。
+- 好友关系通过 `im_friendship` 的规范化用户对和 `im_contact` 的双向联系人记录持久化；本次数据库变更仅新增 `V41__create_im_platform_friendship_schema.sql`。
+- Clocktower 仍只依赖通用 `ImFacade` / `RoomFacade` 和自身策略适配器，不依赖平台好友门禁或平台展示模型。
+
 ## Clocktower Phase 1
 
 - [x] Script, role, night-order, term, and jinx query APIs.
@@ -340,14 +357,14 @@
 - [x] Game is modeled as a per-round `clocktower_game` snapshot with game seats and game-scoped events.
 - [x] Generic IM core is reusable internally through `ImFacade`, while current HTTP APIs remain Clocktower-scoped.
 - [x] Clocktower chat endpoints stay under `/api/clocktower/**`; management audit chat endpoints stay under `/api/admin/clocktower/**`.
-- [x] No platform-level `/api/im/**` routes or `api:im:*` permissions are exposed in this refactor.
+- [x] 本次 Room / IM / game 重构当时未暴露平台 `/api/im/**`；后续平台 Web IM 已以独立 composition facade 和 `api:im:*` 权限补齐，不改变 Clocktower 端点与策略边界。
 - [x] `CLOCKTOWER_PLAYER` covers both room spectators and seated players; no separate `CLOCKTOWER_SPECTATOR` RBAC role is added.
 - [x] Room lobby supports spectator entry, seat claim/request, invitation/member governance, and start-game gating.
 - [x] `/clocktower/rooms/{roomId}/play` resolves lobby/player/storyteller/spectator surfaces instead of assuming a seat.
 - [x] Game replay is queried by `gameId`; `/clocktower/games/{gameId}/replay` is authorized through the Clocktower replay menu.
 - [x] Management audit supports room, game, chat, invitation, member, and ban projections through Clocktower admin APIs.
 
-## 14. 数据权限与边界
+## 15. 数据权限与边界
 
 - RBAC API 权限控制“能不能调用接口”。
 - RAG 知识库用户授权控制“能看到哪些知识库和文档”。
@@ -360,7 +377,7 @@
 - 已有迁移清理普通用户不应拥有的 dashboard global 授权。
 - 本次钟楼重构接受一个 RBAC 迁移偏差：`V27__retire_old_clocktower_rbac_resources.sql` 一次性退休旧钟楼权限；后续类似能力应优先进入 RBAC 资源同步器的 stale-resource retirement 机制。
 
-## 15. 数据库迁移现状
+## 16. 数据库迁移现状
 
 - `V1__create_rbac_schema.sql`：RBAC 基础 schema。
 - `V2__convert_rbac_enums_to_integer.sql`：RBAC 枚举持久化调整。
@@ -388,9 +405,11 @@
 - `V25__add_agent_soulmd.sql`：Agent SoulMD。
 - `V26__create_room_im_clocktower_refactor_schema.sql`：Room / IM / Clocktower game refactor schema。
 - `V27__retire_old_clocktower_rbac_resources.sql`：一次性退休旧钟楼 RBAC 权限；这是本次重构接受的迁移偏差。
+- `V30__create_im_core_schema.sql`：统一 Channel、Group、DM、Conversation、Message、Inbox、Outbox 与治理基础 schema。
 - `V31__create_nutrition_mvp_schema.sql`：营养管理持久化基线；恢复实现未修改该历史迁移。
+- `V41__create_im_platform_friendship_schema.sql`：平台好友关系和双向联系人 schema；未修改任何历史迁移。
 
-## 16. 已有测试覆盖线索
+## 17. 已有测试覆盖线索
 
 - 前端有 request、tokenStorage、urlSearch、async、enum、pageDataState 等基础工具测试。
 - 前端有 AdminLayout 菜单、权限影响和样式相关测试。
@@ -402,8 +421,11 @@
 - `NutritionVerticalFlowTests` 包含 10 条持久化纵向验收，覆盖家庭与 clan 授权、AI 草案、风险复核、菜单编辑、精确份数确认、关单采购、预算指标、完成幂等、记录修正和首页投影。
 - controller smoke 测试会实际调用设置/授权、食谱校验、AI 入队、菜单编辑/发布、菜品确认、购物清单生成、预算规则和营养记录 Controller 方法；路径反射仅作为补充。
 - 前端 nutrition 测试覆盖 service 请求契约、家庭切换和核心页面的加载/失败/提交刷新行为；当前仓库没有声明浏览器或人工验收结果。
+- 后端 IM 测试覆盖迁移/映射、好友状态机、群组与入群审核、公共频道 bootstrap、好友门禁私聊、精确未读、Outbox/WebSocket 恢复、RBAC 资源和 Clocktower 边界。
+- 前端 IM 测试覆盖 service 请求契约、workspace reducer、乐观发送与同 `clientMsgId` 重试、未读合并、实时恢复、路由/菜单和消息/联系人/群组 UI 状态。
+- PostgreSQL 锁、并发序号和 filtered-index 语义必须使用显式 `IM_POSTGRES_TEST_*` 一次性测试库验证；H2 测试不能替代该门禁。
 
-## 17. 目前需要注意的实现细节
+## 18. 目前需要注意的实现细节
 
 - `fe/node_modules` 和 `fe/dist` 当前存在于工作区，但它们是生成/依赖产物，不应作为功能来源。
 - `README.md` 作为高层项目入口维护紧凑 feature list；完整功能细节仍以本文件和对应模块源码为准。

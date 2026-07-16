@@ -33,7 +33,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@SpringBootTest(properties = "spring.ai.dashscope.api-key=test-api-key")
+@SpringBootTest(properties = {
+        "spring.ai.dashscope.api-key=test-api-key",
+        "spring.datasource.url=jdbc:h2:mem:im_friendship_service_tests;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH"
+})
 class ImFriendshipServiceTests {
 
     private static final AtomicLong UNIQUE = new AtomicLong(System.currentTimeMillis());

@@ -19,10 +19,54 @@ facade, service, policy, and realtime code.
 |---|---|
 | Channel | Public, discoverable surface with one `CHANNEL_MAIN` conversation. Anyone can read an active channel conversation; active channel members can post. |
 | Group | Discoverable surface under a channel or standalone. Active group members can read and post its `GROUP` conversation. |
-| DM | Implicit ordered user pair (`userLoId`, `userHiId`) with one `DM` conversation. The pair is created on first open/block. |
+| DM | Implicit ordered user pair (`userLoId`, `userHiId`) with one `DM` conversation. The pair is created on first open/block; Platform Web entry points additionally require an active friendship. |
 | Conversation | Unified message stream for `CHANNEL_MAIN`, `GROUP`, and `DM`; sequence, unread, outbox, inbox, and realtime dispatch operate on `conversationId`. |
 
-### Channel Rules
+## Platform Web Product
+
+The first-party Web workspace is mounted at `/im` inside the authenticated
+`AdminLayout`. Its browser-facing composition layer is
+`top.egon.mario.im.platform.PlatformImFacade`; it forces `contextType =
+PLATFORM` instead of accepting a caller-supplied product context.
+
+- `GET /api/im/platform/bootstrap` returns the current safe user projection,
+  display-ready conversations, the initialized public channel, total unread,
+  and pending friend-request count.
+- `GET /api/im/platform/conversations` returns `PUBLIC_CHANNEL`, `GROUP`, and
+  `DM` summaries with title/avatar, surface or peer identity, membership state,
+  exact unread count, and `canRead`/`canPost` capabilities.
+- `GET /api/im/platform/users?keyword=...` searches enabled users through the
+  RBAC user-directory facade and never exposes account credentials, contact
+  data, roles, lock state, or audit fields.
+- `POST/GET /api/im/platform/groups` creates and discovers standalone
+  `PLATFORM` groups. The supported join policies are `OPEN` and `APPROVAL`.
+- The configured `PLATFORM/general` channel is created idempotently at startup.
+  It is public-readable, but posting, unread tracking, and realtime fanout
+  begin only after active membership.
+
+The Web page presents messages, contacts, groups, and owner review flows. V1
+renders `TEXT` and `SYSTEM` messages and permits ordinary Unicode emoji input;
+it intentionally has no upload, image, search, reaction, typing, presence, or
+receipt controls.
+
+## Friendship Contract
+
+`im_friendship` stores one normalized durable pair, while `im_contact` stores
+the two caller-owned directed contact rows and remarks.
+
+- A request may be created, accepted/rejected by its receiver, or cancelled by
+  its requester. Duplicate pending requests are idempotent and crossed pending
+  requests are rejected.
+- Accepting activates both directed contacts in the same transaction. Removing
+  a friend removes both active contacts; either side can later reopen the same
+  normalized pair with a new pending request.
+- Remarks belong only to the caller's directed contact.
+- Self requests, unavailable users, and pairs with an active DM block are
+  rejected.
+- Friend list, incoming/outgoing request list, and identity projection use
+  bounded queries and batched safe user lookup.
+
+## Channel Rules
 
 - `RoomFacade.createChannel` creates or reuses an active channel by
   `(contextType, contextId, channelKey)`.
@@ -33,7 +77,7 @@ facade, service, policy, and realtime code.
 - Default send policy requires an authenticated active member who is not muted,
   banned, or globally muted.
 
-### Group Rules
+## Group Rules
 
 - `RoomFacade.createGroup` creates or reuses a group by `groupKey`.
 - A group can be attached to a channel through `channelId`; without `channelId`
@@ -43,7 +87,7 @@ facade, service, policy, and realtime code.
 - `RoomFacade.listGroups` lists active groups by channel or standalone context.
 - Default visibility and send policy both require active group membership.
 
-### Join Requests
+## Join Requests
 
 Supported join policies are `OPEN` and `APPROVAL`.
 
@@ -68,6 +112,16 @@ Supported join policies are `OPEN` and `APPROVAL`.
   when no active block remains between the two users.
 - Default DM send policy requires the caller to be a pair participant and the
   pair not to be frozen. Default DM read policy requires pair participation.
+- Platform REST DM open/send and WebSocket `SEND_MESSAGE` route through
+  `PlatformImFacade`, which requires an active friendship before delegating to
+  the generic facade. Trusted in-process integrations retain the generic
+  `DmFacade`/`ImFacade` contract.
+- Removing a friend does not delete DM history. Existing pair participants may
+  continue to read and mark the historical conversation, while the platform
+  summary reports `canPost = false` and new open/send attempts fail with
+  `IM_DM_FRIENDSHIP_REQUIRED`.
+- Friendship is necessary but not sufficient: an active directed DM block still
+  freezes the pair and is enforced by the existing send policy.
 
 ## Conversation Sequence And Unread
 
@@ -99,6 +153,10 @@ Supported join policies are `OPEN` and `APPROVAL`.
   `FAILED`.
 - `LocalRealtimeRouter` is single-node: it delivers only to in-memory
   connections registered in this JVM.
+- Normal configuration enables the dispatcher and its runner by default
+  (`IM_REALTIME_DISPATCHER_ENABLED` and
+  `IM_REALTIME_DISPATCHER_RUNNER_ENABLED`); test configuration disables both
+  background runners.
 
 ## WebSocket Frames
 
@@ -153,6 +211,13 @@ thin over the facade.
 ## RBAC Boundary
 
 - Platform RBAC is coarse: it protects APIs and product entry points.
+- The managed `menu:im` resource exposes `/im`. `IM_USER` contains the menu,
+  normal read/write APIs, and owner-scoped instance-management entry points;
+  `IM_ADMIN` adds platform-wide administration.
+- New registrations receive `IM_USER`. An idempotent, configurable startup
+  backfill grants only `IM_USER` to existing enabled, non-deleted users and
+  publishes permission invalidation only when assignments changed. `IM_ADMIN`
+  is never assigned automatically.
 - IM instance access is enforced by IM membership, bans, mutes, global mutes,
   DM block state, and context-specific policy.
 - IM audit history currently allows principals with `SUPER_ADMIN` or
@@ -222,9 +287,13 @@ when possible.
   sequence increments once per unique client message.
 - Mark read past the current sequence and verify the cursor clamps to the
   conversation sequence without decreasing on a later lower request.
-- Connect `/ws/im`, subscribe to a conversation, send a message, mark read, and
+- Connect `/ws/im`, send a message, mark read, and
   confirm `SEND_ACK`, `MESSAGE_PUSH`, and `READ_UPDATED` behavior or REST
   resync after `RESYNC`.
+- With two browser users, accept a friend request, open a DM, remove the friend,
+  and verify retained history becomes read-only. Reconnect one browser and
+  verify recovery reconciles REST history by sequence without duplicate
+  optimistic messages.
 - In Clocktower, start from room chat, game public chat, private chat,
   spectator chat, and system/audit views; confirm the adapter resolves
   `contextType = "CLOCKTOWER_ROOM"` and exposes private peer display as
@@ -242,6 +311,8 @@ when possible.
 - No multi-node realtime router implementation; `LocalRealtimeRouter` is
   in-memory and single-node.
 - No message search, reactions, threads, or media transcoding.
+- No upload/image flow, presence, typing indicators, delivery receipts,
+  peer-read receipts, or multi-device cursor semantics.
 - No guarantee that outbox payloads include full message bodies; clients must
   be able to reload from REST.
 
@@ -253,5 +324,12 @@ when possible.
   channel read does not automatically create unread tracking.
 - Missing realtime updates: verify `im.realtime.dispatcher.enabled=true`, then
   reload by history after the last known sequence.
+- Missing the public channel at startup: verify
+  `IM_PLATFORM_BOOTSTRAP_ENABLED` and
+  `IM_PLATFORM_BOOTSTRAP_OWNER_ACCOUNT_NO`; when the owner override is blank,
+  the configured RBAC bootstrap administrator account is used.
+- Existing users cannot enter `/im`: verify resource synchronization completed
+  and `IM_PLATFORM_USER_ROLE_BACKFILL_ENABLED=true`, then inspect the managed
+  `IM_USER` assignment.
 - Clocktower access mismatch: check whether the caller is using
   `CLOCKTOWER_ROOM`; current code registers policies for that context type.

@@ -24,7 +24,10 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@SpringBootTest(properties = "spring.ai.dashscope.api-key=test-api-key")
+@SpringBootTest(properties = {
+        "spring.ai.dashscope.api-key=test-api-key",
+        "spring.datasource.url=jdbc:h2:mem:im_user_role_backfill_tests;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH"
+})
 @RecordApplicationEvents
 @Transactional
 class ImUserRoleBackfillTests {
