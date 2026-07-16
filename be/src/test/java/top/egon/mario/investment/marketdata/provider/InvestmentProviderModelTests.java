@@ -50,6 +50,52 @@ class InvestmentProviderModelTests {
     }
 
     @Test
+    void contractTickerRetainsMissingOptionalValuesWithoutSentinels() {
+        ExternalContractTicker ticker = ticker(null, null, null, null, null);
+
+        assertThat(ticker.lastPrice()).isEqualByComparingTo("100.00");
+        assertThat(ticker.markPrice()).isNull();
+        assertThat(ticker.indexPrice()).isNull();
+        assertThat(ticker.bidPrice()).isNull();
+        assertThat(ticker.askPrice()).isNull();
+        assertThat(ticker.openInterest()).isNull();
+        assertThat(ticker.observedAt()).isEqualTo(END);
+    }
+
+    @Test
+    void contractTickerAllowsOneSidedBookPrices() {
+        ExternalContractTicker bidOnly = ticker(null, null, new BigDecimal("99.90"), null, BigDecimal.ZERO);
+        ExternalContractTicker askOnly = ticker(null, null, null, new BigDecimal("100.10"), null);
+
+        assertThat(bidOnly.bidPrice()).isEqualByComparingTo("99.90");
+        assertThat(bidOnly.askPrice()).isNull();
+        assertThat(bidOnly.openInterest()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(askOnly.bidPrice()).isNull();
+        assertThat(askOnly.askPrice()).isEqualByComparingTo("100.10");
+    }
+
+    @Test
+    void contractTickerRejectsInvalidPresentOptionalValues() {
+        assertThatThrownBy(() -> ticker(BigDecimal.ZERO, null, null, null, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> ticker(null, new BigDecimal("-0.01"), null, null, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> ticker(null, null, BigDecimal.ZERO, null, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> ticker(null, null, null, new BigDecimal("-0.01"), null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> ticker(null, null, null, null, new BigDecimal("-0.01")))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void contractTickerRejectsCrossedBookWhenBothSidesArePresent() {
+        assertThatThrownBy(() -> ticker(null, null, new BigDecimal("100.10"), new BigDecimal("99.90"), null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("bidPrice must not exceed askPrice");
+    }
+
+    @Test
     void queryModelsRejectSentinelsAndInvalidTimeWindows() {
         assertThatThrownBy(() -> new CandleQuery(ProductType.USDT_FUTURES, "BTCUSDT", PriceType.NONE,
                 BarInterval.M1, START, END, 100)).isInstanceOf(IllegalArgumentException.class);
@@ -67,5 +113,14 @@ class InvestmentProviderModelTests {
                 new BigDecimal("0.0001"), END, END)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new ExternalFundingRate("TEST", ProductType.USDT_FUTURES, "BTCUSDT",
                 null, END, END)).isInstanceOf(NullPointerException.class);
+    }
+
+    private static ExternalContractTicker ticker(BigDecimal markPrice,
+                                                   BigDecimal indexPrice,
+                                                   BigDecimal bidPrice,
+                                                   BigDecimal askPrice,
+                                                   BigDecimal openInterest) {
+        return new ExternalContractTicker("TEST", ProductType.USDT_FUTURES, "BTCUSDT",
+                new BigDecimal("100.00"), markPrice, indexPrice, bidPrice, askPrice, openInterest, END);
     }
 }

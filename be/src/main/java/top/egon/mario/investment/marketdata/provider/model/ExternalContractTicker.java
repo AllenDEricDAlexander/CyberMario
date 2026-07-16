@@ -26,12 +26,22 @@ public record ExternalContractTicker(
         Objects.requireNonNull(productType, "productType");
         symbol = ProviderModelValidation.symbol(symbol);
         ProviderModelValidation.positive(lastPrice, "lastPrice");
-        ProviderModelValidation.positive(markPrice, "markPrice");
-        ProviderModelValidation.positive(indexPrice, "indexPrice");
-        ProviderModelValidation.positive(bidPrice, "bidPrice");
-        ProviderModelValidation.positive(askPrice, "askPrice");
-        ProviderModelValidation.nonNegative(openInterest, "openInterest");
-        if (bidPrice.compareTo(askPrice) > 0) {
+        if (markPrice != null) {
+            ProviderModelValidation.positive(markPrice, "markPrice");
+        }
+        if (indexPrice != null) {
+            ProviderModelValidation.positive(indexPrice, "indexPrice");
+        }
+        if (bidPrice != null) {
+            ProviderModelValidation.positive(bidPrice, "bidPrice");
+        }
+        if (askPrice != null) {
+            ProviderModelValidation.positive(askPrice, "askPrice");
+        }
+        if (openInterest != null) {
+            ProviderModelValidation.nonNegative(openInterest, "openInterest");
+        }
+        if (bidPrice != null && askPrice != null && bidPrice.compareTo(askPrice) > 0) {
             throw new IllegalArgumentException("bidPrice must not exceed askPrice");
         }
         ProviderModelValidation.instant(observedAt, "observedAt");
