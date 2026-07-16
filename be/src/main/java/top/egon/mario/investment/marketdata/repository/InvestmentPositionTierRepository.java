@@ -5,6 +5,7 @@ import top.egon.mario.investment.marketdata.po.InvestmentPositionTierPo;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Persistence for immutable provider position-tier snapshots.
@@ -12,5 +13,8 @@ import java.util.List;
 public interface InvestmentPositionTierRepository extends JpaRepository<InvestmentPositionTierPo, Long> {
 
     List<InvestmentPositionTierPo> findBySourceIdAndInstrumentIdAndObservedAtOrderByTierLevel(
+            Long sourceId, Long instrumentId, Instant observedAt);
+
+    Optional<InvestmentPositionTierPo> findFirstBySourceIdAndInstrumentIdAndObservedAtLessThanEqualOrderByObservedAtDesc(
             Long sourceId, Long instrumentId, Instant observedAt);
 }

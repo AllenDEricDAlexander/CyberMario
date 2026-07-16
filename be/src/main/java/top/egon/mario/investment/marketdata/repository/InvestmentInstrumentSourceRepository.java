@@ -12,4 +12,7 @@ public interface InvestmentInstrumentSourceRepository extends JpaRepository<Inve
 
     Optional<InvestmentInstrumentSourcePo> findByInstrumentIdAndSourceIdAndDeletedFalse(
             Long instrumentId, Long sourceId);
+
+    Optional<InvestmentInstrumentSourcePo> findBySourceIdAndExternalProductTypeAndExternalSymbolAndDeletedFalse(
+            Long sourceId, String externalProductType, String externalSymbol);
 }

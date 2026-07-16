@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
 class InvestmentMarketDataRetentionCandidateTests {
 
     @Test
-    void computesTwoYearIntradayCandidatesWithoutPhysicalDeletion() {
+    void computesTwoYearIntradayCandidatesForSnapshotProtectedDeletion() {
         InvestmentMarketSubscriptionRegistry registry = mock(InvestmentMarketSubscriptionRegistry.class);
         MarketSubscription subscription = new MarketSubscription("TEST", ProductType.USDT_FUTURES, "BTCUSDT",
                 Set.of(BarInterval.M1, BarInterval.D1), Set.of(PriceType.MARKET),
@@ -42,6 +42,6 @@ class InvestmentMarketDataRetentionCandidateTests {
         assertThat(candidates).hasSize(1);
         assertThat(candidates.getFirst().interval()).isEqualTo(BarInterval.M1);
         assertThat(candidates.getFirst().toExclusive()).isEqualTo(now.minus(Duration.ofDays(730)));
-        assertThat(candidates.getFirst().physicalDeletionEnabled()).isFalse();
+        assertThat(candidates.getFirst().physicalDeletionEnabled()).isTrue();
     }
 }

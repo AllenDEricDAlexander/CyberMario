@@ -13,7 +13,7 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Computes retention candidates only. Physical deletion is intentionally disabled in Phase 1.
+ * Computes code-owned retention ranges eligible for snapshot-protected bounded deletion.
  */
 @Service
 public class MarketDataRetentionCandidateService {
@@ -36,7 +36,7 @@ public class MarketDataRetentionCandidateService {
                     for (PriceType priceType : subscription.priceTypes()) {
                         candidates.add(new RetentionCandidate(subscription.sourceCode(),
                                 subscription.productType().name(), subscription.symbol(), priceType, interval,
-                                Instant.EPOCH, now.minus(retainedFor), false));
+                                Instant.EPOCH, now.minus(retainedFor), true));
                     }
                 }
             });
