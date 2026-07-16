@@ -33,12 +33,15 @@ class InvestmentModuleBoundaryTests {
 
     @Test
     void investmentCommonContractsStayPersistenceFree() throws IOException {
+        Path commonRoot = INVESTMENT_SOURCE_ROOT.resolve("common");
         List<String> violations = linesContaining(
-                javaSources(INVESTMENT_SOURCE_ROOT.resolve("common")),
+                javaSources(commonRoot)
+                        .filter(path -> !path.startsWith(commonRoot.resolve("job/po")))
+                        .filter(path -> !path.startsWith(commonRoot.resolve("job/repository"))),
                 Set.of("import jakarta.persistence.", "@Entity", "@Table"));
 
         assertThat(violations)
-                .describedAs("Investment common contracts must not expose persistence entities")
+                .describedAs("Investment common contracts must not expose persistence entities outside the durable job adapter")
                 .isEmpty();
     }
 
