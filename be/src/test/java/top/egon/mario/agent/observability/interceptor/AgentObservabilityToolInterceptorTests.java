@@ -1,9 +1,13 @@
 package top.egon.mario.agent.observability.interceptor;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ToolCallRequest;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ToolCallResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import top.egon.mario.agent.observability.po.enums.AgentRunEventStatus;
 import top.egon.mario.agent.observability.po.enums.AgentRunEventType;
 import top.egon.mario.agent.observability.po.enums.AgentRunToolType;
@@ -103,5 +107,52 @@ class AgentObservabilityToolInterceptorTests {
                 .containsExactly(AgentRunEventType.TOOL_REQUEST, AgentRunEventType.TOOL_RESPONSE);
         assertThat(auditService.events.get(1).status()).isEqualTo(AgentRunEventStatus.FAILED);
         assertThat(auditService.events.get(1).errorCode()).isEqualTo(IllegalArgumentException.class.getName());
+    }
+
+    @Test
+    void applicationLogContainsPayloadLengthsButNotRawToolData() {
+        String sensitiveArguments = "{\"accountSnapshot\":\"private-position-791\"}";
+        String sensitiveResult = "private-portfolio-result-583";
+        CapturingRunAuditService auditService = new CapturingRunAuditService();
+        AgentObservabilityToolInterceptor interceptor = new AgentObservabilityToolInterceptor(auditService,
+                new ObjectMapper());
+        AgentRunAuditContext context = new AgentRunAuditContext(7L, "request-1", "trace-1", 8L, "luigi",
+                "thread-1", 9L, "fingerprint-1", new AtomicInteger(-1), new AtomicInteger(1), Map.of());
+        ToolCallRequest request = ToolCallRequest.builder()
+                .toolName("get_investment_portfolio")
+                .toolCallId("call-1")
+                .arguments(sensitiveArguments)
+                .context(context.metadata())
+                .build();
+
+        ch.qos.logback.classic.Logger logger = logger(AgentObservabilityToolInterceptor.class);
+        Level previousLevel = logger.getLevel();
+        boolean previousAdditive = logger.isAdditive();
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        logger.setLevel(Level.DEBUG);
+        logger.setAdditive(false);
+        try {
+            interceptor.interceptToolCall(request,
+                    ignored -> ToolCallResponse.of("call-1", "get_investment_portfolio", sensitiveResult));
+        } finally {
+            logger.detachAppender(appender);
+            logger.setLevel(previousLevel);
+            logger.setAdditive(previousAdditive);
+            appender.stop();
+        }
+
+        assertThat(appender.list).extracting(ILoggingEvent::getFormattedMessage)
+                .allSatisfy(message -> assertThat(message)
+                        .doesNotContain(sensitiveArguments, sensitiveResult, "private-position-791"))
+                .anySatisfy(message -> assertThat(message)
+                        .contains("toolName=get_investment_portfolio")
+                        .contains("argumentLength=")
+                        .contains("resultLength="));
+    }
+
+    private ch.qos.logback.classic.Logger logger(Class<?> type) {
+        return (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(type);
     }
 }

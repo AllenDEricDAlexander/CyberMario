@@ -126,11 +126,17 @@ public class AgentObservabilityToolInterceptor extends ToolInterceptor {
     private void safeRecord(AgentRunAuditContext context, AgentRunEventRecord event) {
         try {
             auditService.record(context, event);
-            LogUtil.debug(log).log("agent tool audit payload, runId={}, eventType={}, toolName={}, input={}, output={}",
-                    context.runId(), event.eventType(), event.toolName(), event.toolArguments(), event.toolResult());
+            LogUtil.debug(log).log("agent tool audit recorded, runId={}, eventType={}, toolName={}, status={}, "
+                            + "durationMs={}, argumentLength={}, resultLength={}",
+                    context.runId(), event.eventType(), event.toolName(), event.status(), event.durationMs(),
+                    length(event.toolArguments()), length(event.toolResult()));
         } catch (RuntimeException e) {
-            LogUtil.error(log).log("agent tool audit write failed, runId={}, toolName={}",
-                    context.runId(), event.toolName(), e);
+            LogUtil.error(log).log("agent tool audit write failed, runId={}, toolName={}, errorType={}",
+                    context.runId(), event.toolName(), e.getClass().getName());
         }
+    }
+
+    private int length(String value) {
+        return value == null ? 0 : value.length();
     }
 }

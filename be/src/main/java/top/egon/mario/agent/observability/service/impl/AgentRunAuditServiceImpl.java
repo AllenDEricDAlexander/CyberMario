@@ -1,6 +1,5 @@
 package top.egon.mario.agent.observability.service.impl;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.criteria.Subquery;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +32,6 @@ import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -50,6 +48,7 @@ public class AgentRunAuditServiceImpl implements AgentRunAuditService {
 
     private final AgentRunAuditRepository runRepository;
     private final AgentRunEventAuditRepository eventRepository;
+    @SuppressWarnings("unused")
     private final ObjectMapper objectMapper;
 
     @Override
@@ -357,45 +356,19 @@ public class AgentRunAuditServiceImpl implements AgentRunAuditService {
     private void logAuditEvent(AgentRunAuditContext context, AgentRunEventRecord event, AgentRunEventAuditPo po) {
         LogUtil.info(log).log("agent run audit event saved, runId={}, eventType={}, seqNo={}, status={}, durationMs={}",
                 context.runId(), event.eventType(), po.getSeqNo(), po.getStatus(), po.getDurationMs());
-        LogUtil.debug(log).log("agent run audit event payload, runId={}, eventType={}, payload={}",
-                context.runId(), event.eventType(), toJson(payload(event)));
+        LogUtil.debug(log).log("agent run audit event summary, runId={}, eventType={}, toolName={}, modelName={}, "
+                        + "status={}, durationMs={}, promptLength={}, messagesLength={}, optionsLength={}, "
+                        + "availableToolsLength={}, responseLength={}, argumentLength={}, resultLength={}, "
+                        + "metadataLength={}, errorCode={}",
+                context.runId(), event.eventType(), event.toolName(), event.modelName(), po.getStatus(),
+                po.getDurationMs(), length(event.promptText()), length(event.requestMessagesJson()),
+                length(event.requestOptionsJson()), length(event.availableToolsJson()), length(event.responseText()),
+                length(event.toolArguments()), length(event.toolResult()), length(event.metadataJson()),
+                event.errorCode());
     }
 
-    private String toJson(Map<String, Object> value) {
-        Map<String, Object> safe = new LinkedHashMap<>();
-        value.forEach((key, item) -> {
-            if (item != null) {
-                safe.put(key, item);
-            }
-        });
-        try {
-            return objectMapper.writeValueAsString(safe);
-        } catch (JsonProcessingException e) {
-            return String.valueOf(safe);
-        }
-    }
-
-    private Map<String, Object> payload(AgentRunEventRecord event) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("reactRound", event.reactRound());
-        payload.put("toolCallId", event.toolCallId());
-        payload.put("toolName", event.toolName());
-        payload.put("toolType", event.toolType());
-        payload.put("mcpServerCode", event.mcpServerCode());
-        payload.put("status", event.status());
-        payload.put("modelProvider", event.modelProvider());
-        payload.put("modelName", event.modelName());
-        payload.put("promptText", event.promptText());
-        payload.put("requestMessagesJson", event.requestMessagesJson());
-        payload.put("requestOptionsJson", event.requestOptionsJson());
-        payload.put("availableToolsJson", event.availableToolsJson());
-        payload.put("responseText", event.responseText());
-        payload.put("toolArguments", event.toolArguments());
-        payload.put("toolResult", event.toolResult());
-        payload.put("metadataJson", event.metadataJson());
-        payload.put("errorCode", event.errorCode());
-        payload.put("errorMessage", event.errorMessage());
-        return payload;
+    private int length(String value) {
+        return value == null ? 0 : value.length();
     }
 
     private void requireSuperAdmin(RbacPrincipal principal) {

@@ -232,7 +232,7 @@ class AgentRunAuditServiceImplTests {
     }
 
     @Test
-    void debugLogIncludesCompleteEventPayload() {
+    void debugLogContainsOnlyEventSummaryAndPayloadLengths() {
         AgentRunAuditRepository runRepository = mock(AgentRunAuditRepository.class);
         AgentRunEventAuditRepository eventRepository = mock(AgentRunEventAuditRepository.class);
         when(eventRepository.save(any(AgentRunEventAuditPo.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -252,16 +252,18 @@ class AgentRunAuditServiceImplTests {
         logger.setAdditive(false);
         try {
             service.record(context, AgentRunEventRecord.builder(AgentRunEventType.MODEL_RESPONSE)
-                    .promptText("prompt")
-                    .requestMessagesJson("[{\"role\":\"user\"}]")
-                    .requestOptionsJson("{\"temperature\":0.7}")
-                    .availableToolsJson("[{\"name\":\"docs_search\"}]")
-                    .responseText("model output")
-                    .toolArguments("{\"query\":\"raw\"}")
-                    .toolResult("tool output")
-                    .metadataJson("{\"meta\":\"value\"}")
+                    .modelName("qwen-plus")
+                    .toolName("get_investment_portfolio")
+                    .promptText("private-prompt-193")
+                    .requestMessagesJson("[{\"role\":\"private-message-271\"}]")
+                    .requestOptionsJson("{\"secretOption\":\"private-option-387\"}")
+                    .availableToolsJson("[{\"description\":\"private-tool-description-419\"}]")
+                    .responseText("private-response-547")
+                    .toolArguments("{\"account\":\"private-account-613\"}")
+                    .toolResult("private-tool-result-751")
+                    .metadataJson("{\"meta\":\"private-metadata-823\"}")
                     .errorCode("MODEL_ERROR")
-                    .errorMessage("model failed")
+                    .errorMessage("private-error-message-929")
                     .build());
         } finally {
             logger.detachAppender(appender);
@@ -272,17 +274,18 @@ class AgentRunAuditServiceImplTests {
 
         assertThat(appender.list)
                 .extracting(ILoggingEvent::getFormattedMessage)
+                .allSatisfy(message -> assertThat(message)
+                        .doesNotContain("private-prompt-193", "private-message-271", "private-option-387",
+                                "private-tool-description-419", "private-response-547", "private-account-613",
+                                "private-tool-result-751", "private-metadata-823", "private-error-message-929"))
                 .anySatisfy(message -> assertThat(message)
-                        .contains("promptText")
-                        .contains("requestMessagesJson")
-                        .contains("requestOptionsJson")
-                        .contains("availableToolsJson")
-                        .contains("responseText")
-                        .contains("toolArguments")
-                        .contains("toolResult")
-                        .contains("metadataJson")
-                        .contains("errorCode")
-                        .contains("errorMessage"));
+                        .contains("toolName=get_investment_portfolio")
+                        .contains("modelName=qwen-plus")
+                        .contains("promptLength=")
+                        .contains("responseLength=")
+                        .contains("argumentLength=")
+                        .contains("resultLength=")
+                        .contains("errorCode=MODEL_ERROR"));
     }
 
     private AgentRunAuditPo runPo() {

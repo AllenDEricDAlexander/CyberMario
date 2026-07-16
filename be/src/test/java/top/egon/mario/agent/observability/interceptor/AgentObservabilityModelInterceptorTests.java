@@ -1,9 +1,13 @@
 package top.egon.mario.agent.observability.interceptor;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ModelRequest;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ModelResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -75,8 +79,55 @@ class AgentObservabilityModelInterceptorTests {
         assertThat(response.getMessage()).isInstanceOf(AssistantMessage.class);
     }
 
+    @Test
+    void applicationLogContainsPayloadLengthsButNotPromptOrModelResponse() {
+        String sensitivePrompt = "private-portfolio-prompt-719";
+        String sensitiveResponse = "private-agent-response-431";
+        CapturingRunAuditService auditService = new CapturingRunAuditService();
+        AgentObservabilityModelInterceptor interceptor = new AgentObservabilityModelInterceptor(auditService,
+                new ObjectMapper());
+        ModelRequest request = ModelRequest.builder()
+                .systemMessage(new SystemMessage("investment system prompt"))
+                .messages(List.of(new UserMessage(sensitivePrompt)))
+                .tools(List.of("get_investment_portfolio"))
+                .toolDescriptions(Map.of("get_investment_portfolio", "private report reader"))
+                .options(ToolCallingChatOptions.builder().model("qwen-plus").build())
+                .context(Map.of(AgentRunAuditContext.METADATA_KEY, context()))
+                .build();
+
+        ch.qos.logback.classic.Logger logger = logger();
+        Level previousLevel = logger.getLevel();
+        boolean previousAdditive = logger.isAdditive();
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        logger.setLevel(Level.DEBUG);
+        logger.setAdditive(false);
+        try {
+            interceptor.interceptModel(request,
+                    ignored -> ModelResponse.of(new AssistantMessage(sensitiveResponse)));
+        } finally {
+            logger.detachAppender(appender);
+            logger.setLevel(previousLevel);
+            logger.setAdditive(previousAdditive);
+            appender.stop();
+        }
+
+        assertThat(appender.list).extracting(ILoggingEvent::getFormattedMessage)
+                .allSatisfy(message -> assertThat(message)
+                        .doesNotContain(sensitivePrompt, sensitiveResponse, "private report reader"))
+                .anySatisfy(message -> assertThat(message)
+                        .contains("modelName=qwen-plus")
+                        .contains("promptLength=")
+                        .contains("responseLength="));
+    }
+
     private AgentRunAuditContext context() {
         return new AgentRunAuditContext(7L, "request-1", "trace-1", 8L, "luigi", "thread-1", 9L,
                 "fingerprint-1", new AtomicInteger(-1), new AtomicInteger(0), Map.of());
+    }
+
+    private ch.qos.logback.classic.Logger logger() {
+        return (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(AgentObservabilityModelInterceptor.class);
     }
 }

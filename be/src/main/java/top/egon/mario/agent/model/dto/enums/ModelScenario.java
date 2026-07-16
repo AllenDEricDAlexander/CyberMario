@@ -10,6 +10,7 @@ public enum ModelScenario {
     RAG_CHAT,
     RAG_SUMMARY,
     AGENT_SOUL_EVOLUTION,
-    BACKGROUND_TASK
+    BACKGROUND_TASK,
+    INVESTMENT_AGENT
 
 }
