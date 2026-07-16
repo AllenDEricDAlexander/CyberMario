@@ -19,6 +19,8 @@ import top.egon.mario.investment.marketdata.repository.jdbc.model.MarketBarIntra
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -81,6 +83,18 @@ class InvestmentPersistenceMappingTests {
         assertThat(scalar.invoke(null, new Object[]{null})).isNull();
         assertThat(collection.invoke(null, List.of(first, second)))
                 .isEqualTo(List.of(first.atOffset(ZoneOffset.UTC), second.atOffset(ZoneOffset.UTC)));
+    }
+
+    @Test
+    void postgresRevisionFenceUsesVolatileDatabaseTimeOnlyAfterTheCursorLock() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/top/egon/mario/investment/marketdata/"
+                + "repository/jdbc/MarketRevisionTransactionSupport.java"));
+
+        assertThat(source).contains("select clock_timestamp()")
+                .doesNotContain("statement_timestamp()")
+                .doesNotContain("select current_timestamp");
+        assertThat(source.indexOf(".findDimensionForUpdate"))
+                .isLessThan(source.indexOf("authoritativeTimeAfterLock()"));
     }
 
     private void assertColumn(Class<?> owner, String fieldName, String columnName, boolean nullable)

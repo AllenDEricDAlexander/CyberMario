@@ -17,6 +17,9 @@ import top.egon.mario.investment.marketdata.repository.jdbc.model.MarketDataWrit
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -86,6 +89,57 @@ class InvestmentMarketDataJdbcRepositoryTests {
                     assertThat(row.revision()).isEqualTo(1);
                     assertThat(row.closePrice()).isEqualByComparingTo("105");
                 });
+    }
+
+    @Test
+    void staleEffectiveAtStillRevisesAndCursorProgressNeverMovesBackwardOrClears() {
+        seedCursor("BAR_INTRADAY", "MARK", "H1");
+        Instant openTime = T1;
+        Instant furthestNextStart = T1.plusSeconds(300);
+        MarketDataWriteContext firstContext = new MarketDataWriteContext(
+                jobId, Instant.EPOCH, furthestNextStart);
+        MarketDataWriteContext staleBackfillContext = new MarketDataWriteContext(
+                jobId, Instant.EPOCH, T1.plusSeconds(100));
+        MarketDataWriteContext nullCursorContext = new MarketDataWriteContext(
+                jobId, Instant.EPOCH, null);
+
+        barRepository.writeIntradayRevision(firstContext, intraday(openTime, "stale-v1", "101"));
+        Instant futureValidFrom = Instant.parse("2099-01-01T00:00:00Z");
+        jdbcTemplate.update("""
+                update investment_market_bar_intraday set valid_from = ?
+                where source_id = ? and instrument_id = ? and revision_slot = 0
+                """, futureValidFrom.atOffset(ZoneOffset.UTC), sourceId, instrumentId);
+        var revised = barRepository.writeIntradayRevision(
+                staleBackfillContext, intraday(openTime, "stale-v2", "102"));
+        var noOp = barRepository.writeIntradayRevision(
+                nullCursorContext, intraday(openTime, "stale-v2", "102"));
+
+        assertThat(revised.revised()).isEqualTo(1);
+        assertThat(noOp.unchanged()).isEqualTo(1);
+        assertThat(barRepository.findCurrentIntraday(sourceId, instrumentId, PriceType.MARK, BarInterval.H1,
+                T1.minusSeconds(1), T1.plusSeconds(3600), 0, 10))
+                .singleElement().satisfies(row -> {
+                    assertThat(row.revision()).isEqualTo(2);
+                    assertThat(row.validFrom()).isEqualTo(futureValidFrom.plus(1, ChronoUnit.MICROS));
+                });
+        assertThat(jdbcTemplate.queryForObject("""
+                select next_start_time from investment_ingest_cursor
+                where source_id = ? and instrument_id = ? and data_type = 'BAR_INTRADAY'
+                """, OffsetDateTime.class, sourceId, instrumentId).toInstant())
+                .isEqualTo(furthestNextStart);
+        OffsetDateTime lastSuccessTime = jdbcTemplate.queryForObject("""
+                select last_success_time from investment_ingest_cursor
+                where source_id = ? and instrument_id = ? and data_type = 'BAR_INTRADAY'
+                """, OffsetDateTime.class, sourceId, instrumentId);
+        OffsetDateTime updatedAt = jdbcTemplate.queryForObject("""
+                select updated_at from investment_ingest_cursor
+                where source_id = ? and instrument_id = ? and data_type = 'BAR_INTRADAY'
+                """, OffsetDateTime.class, sourceId, instrumentId);
+        assertThat(lastSuccessTime.toInstant()).isBefore(futureValidFrom);
+        assertThat(updatedAt).isEqualTo(lastSuccessTime);
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from investment_data_quality_issue where issue_code = 'UNEXPECTED_REVISION'",
+                Integer.class)).isEqualTo(1);
     }
 
     @Test

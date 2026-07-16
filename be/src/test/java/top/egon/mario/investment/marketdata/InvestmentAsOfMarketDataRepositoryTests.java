@@ -16,6 +16,8 @@ import top.egon.mario.investment.marketdata.repository.jdbc.model.MarketDataWrit
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -55,18 +57,23 @@ class InvestmentAsOfMarketDataRepositoryTests {
 
         var inserted = barRepository.writeIntradayRevision(context(FIRST_VALID_FROM), original);
         var revised = barRepository.writeIntradayRevision(context(SECOND_VALID_FROM), corrected);
+        MarketBarIntradayRow current = barRepository.findCurrentIntraday(
+                sourceId, instrumentId, PriceType.MARK, BarInterval.H1,
+                BASE, BASE.plusSeconds(7200), 0, 10).getFirst();
+        Instant revisionBoundary = current.validFrom();
 
         assertThat(inserted.inserted()).isEqualTo(1);
         assertThat(revised.revised()).isEqualTo(1);
         assertThat(barRepository.findIntradayAsOf(sourceId, instrumentId, PriceType.MARK, BarInterval.H1,
-                BASE, BASE.plusSeconds(7200), FIRST_VALID_FROM.plusSeconds(1), 0, 10))
+                BASE, BASE.plusSeconds(7200), revisionBoundary.minus(1, ChronoUnit.MICROS), 0, 10))
                 .singleElement().satisfies(row -> {
                     assertThat(row.revision()).isEqualTo(1);
                     assertThat(row.closePrice()).isEqualByComparingTo("105");
-                    assertThat(row.validTo()).isEqualTo(SECOND_VALID_FROM);
+                    assertThat(row.validTo()).isEqualTo(revisionBoundary);
+                    assertThat(row.validFrom()).isBefore(revisionBoundary);
                 });
         assertThat(barRepository.findIntradayAsOf(sourceId, instrumentId, PriceType.MARK, BarInterval.H1,
-                BASE, BASE.plusSeconds(7200), SECOND_VALID_FROM, 0, 10))
+                BASE, BASE.plusSeconds(7200), revisionBoundary, 0, 10))
                 .singleElement().satisfies(row -> {
                     assertThat(row.revision()).isEqualTo(2);
                     assertThat(row.closePrice()).isEqualByComparingTo("108");
@@ -149,16 +156,27 @@ class InvestmentAsOfMarketDataRepositoryTests {
                 decimal("0.0002"), SECOND_VALID_FROM, "funding-v2");
 
         fundingRepository.writeRevision(context(FIRST_VALID_FROM), original);
+        Instant futureValidFrom = Instant.parse("2099-02-03T00:00:00Z");
+        jdbcTemplate.update("""
+                update investment_funding_rate set valid_from = ?
+                where source_id = ? and instrument_id = ? and revision_slot = 0
+                """, futureValidFrom.atOffset(ZoneOffset.UTC), sourceId, instrumentId);
         fundingRepository.writeRevision(context(SECOND_VALID_FROM), corrected);
+        Instant revisionBoundary = fundingRepository.findCurrent(
+                sourceId, instrumentId, BASE, BASE.plusSeconds(30000), 0, 10)
+                .getFirst().validFrom();
+        assertThat(revisionBoundary).isEqualTo(futureValidFrom.plus(1, ChronoUnit.MICROS));
 
         assertThat(fundingRepository.findAsOf(sourceId, instrumentId, BASE, BASE.plusSeconds(30000),
-                SECOND_VALID_FROM.minusNanos(1), 0, 10))
+                revisionBoundary.minus(1, ChronoUnit.MICROS), 0, 10))
                 .singleElement().satisfies(row -> {
                     assertThat(row.revision()).isEqualTo(1);
                     assertThat(row.fundingRate()).isEqualByComparingTo("0.0001");
+                    assertThat(row.validTo()).isEqualTo(revisionBoundary);
+                    assertThat(row.validFrom()).isBefore(revisionBoundary);
                 });
         assertThat(fundingRepository.findAsOf(sourceId, instrumentId, BASE, BASE.plusSeconds(30000),
-                SECOND_VALID_FROM, 0, 10))
+                revisionBoundary, 0, 10))
                 .singleElement().satisfies(row -> {
                     assertThat(row.revision()).isEqualTo(2);
                     assertThat(row.fundingRate()).isEqualByComparingTo("0.0002");

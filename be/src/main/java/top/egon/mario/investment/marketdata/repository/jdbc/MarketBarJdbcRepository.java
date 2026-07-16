@@ -7,7 +7,6 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import top.egon.mario.investment.common.model.BarInterval;
 import top.egon.mario.investment.common.model.PriceType;
-import top.egon.mario.investment.marketdata.po.InvestmentIngestCursorPo;
 import top.egon.mario.investment.marketdata.repository.jdbc.model.MarketBarDailyRow;
 import top.egon.mario.investment.marketdata.repository.jdbc.model.MarketBarDailyWrite;
 import top.egon.mario.investment.marketdata.repository.jdbc.model.MarketBarIntradayRow;
@@ -71,7 +70,7 @@ public class MarketBarJdbcRepository {
         Objects.requireNonNull(context, "context");
         List<MarketBarIntradayWrite> ordered = validateIntradayBatch(values);
         MarketBarIntradayWrite dimension = ordered.getFirst();
-        InvestmentIngestCursorPo cursor = revisionSupport.lockCursor(
+        MarketRevisionTransactionSupport.RevisionFence fence = revisionSupport.lockCursor(
                 dimension.sourceId(), dimension.instrumentId(), MarketRevisionTransactionSupport.INTRADAY_BAR,
                 dimension.priceType(), dimension.interval());
 
@@ -79,6 +78,11 @@ public class MarketBarJdbcRepository {
         List<SqlParameterSource> inserts = new ArrayList<>();
         List<RevisionQuality> qualityIssues = new ArrayList<>();
         Map<Instant, CurrentRevision> currentRevisions = currentIntraday(ordered);
+        Instant revisionEffectiveAt = revisionSupport.revisionEffectiveAt(fence, ordered.stream()
+                .filter(value -> currentRevisions.containsKey(value.openTime()))
+                .filter(value -> !value.checksum().equals(currentRevisions.get(value.openTime()).checksum()))
+                .map(value -> currentRevisions.get(value.openTime()).validFrom())
+                .toList());
         int inserted = 0;
         int revised = 0;
         int unchanged = 0;
@@ -93,11 +97,10 @@ public class MarketBarJdbcRepository {
             long nextRevision = current.map(CurrentRevision::revision).orElse(0L) + 1L;
             if (current.isPresent()) {
                 CurrentRevision old = current.orElseThrow();
-                requireLaterEffectiveTime(context.effectiveAt(), old.validFrom());
                 closes.add(intradayKey(value)
                         .addValue("revision", old.revision())
                         .addValue("checksum", old.checksum())
-                        .addValue("validTo", JdbcMarketDataSupport.instantParameter(context.effectiveAt())));
+                        .addValue("validTo", JdbcMarketDataSupport.instantParameter(revisionEffectiveAt)));
                 if (old.closed()) {
                     qualityIssues.add(new RevisionQuality(value.sourceId(), value.instrumentId(),
                             MarketRevisionTransactionSupport.INTRADAY_BAR, value.priceType(), value.interval(),
@@ -107,7 +110,7 @@ public class MarketBarJdbcRepository {
             } else {
                 inserted++;
             }
-            inserts.add(intradayParameters(value, nextRevision, context.effectiveAt()));
+            inserts.add(intradayParameters(value, nextRevision, revisionEffectiveAt));
             maxRevision = Math.max(maxRevision, nextRevision);
         }
 
@@ -133,7 +136,7 @@ public class MarketBarJdbcRepository {
                 )
                 """, inserts.toArray(SqlParameterSource[]::new)), "insert intraday bar revision");
         qualityIssues.forEach(issue -> recordQuality(context, issue));
-        revisionSupport.completeCursor(cursor, context, ordered.getLast().checksum());
+        revisionSupport.completeCursor(fence, context, ordered.getLast().checksum());
         return new RevisionBatchResult(inserted, revised, unchanged, maxRevision);
     }
 
@@ -151,7 +154,7 @@ public class MarketBarJdbcRepository {
         Objects.requireNonNull(context, "context");
         List<MarketBarDailyWrite> ordered = validateDailyBatch(values);
         MarketBarDailyWrite dimension = ordered.getFirst();
-        InvestmentIngestCursorPo cursor = revisionSupport.lockCursor(
+        MarketRevisionTransactionSupport.RevisionFence fence = revisionSupport.lockCursor(
                 dimension.sourceId(), dimension.instrumentId(), MarketRevisionTransactionSupport.DAILY_BAR,
                 dimension.priceType(), BarInterval.D1);
 
@@ -159,6 +162,11 @@ public class MarketBarJdbcRepository {
         List<SqlParameterSource> inserts = new ArrayList<>();
         List<RevisionQuality> qualityIssues = new ArrayList<>();
         Map<LocalDate, CurrentRevision> currentRevisions = currentDaily(ordered);
+        Instant revisionEffectiveAt = revisionSupport.revisionEffectiveAt(fence, ordered.stream()
+                .filter(value -> currentRevisions.containsKey(value.barDate()))
+                .filter(value -> !value.checksum().equals(currentRevisions.get(value.barDate()).checksum()))
+                .map(value -> currentRevisions.get(value.barDate()).validFrom())
+                .toList());
         int inserted = 0;
         int revised = 0;
         int unchanged = 0;
@@ -173,11 +181,10 @@ public class MarketBarJdbcRepository {
             long nextRevision = current.map(CurrentRevision::revision).orElse(0L) + 1L;
             if (current.isPresent()) {
                 CurrentRevision old = current.orElseThrow();
-                requireLaterEffectiveTime(context.effectiveAt(), old.validFrom());
                 closes.add(dailyKey(value)
                         .addValue("revision", old.revision())
                         .addValue("checksum", old.checksum())
-                        .addValue("validTo", JdbcMarketDataSupport.instantParameter(context.effectiveAt())));
+                        .addValue("validTo", JdbcMarketDataSupport.instantParameter(revisionEffectiveAt)));
                 if (old.closed()) {
                     qualityIssues.add(new RevisionQuality(value.sourceId(), value.instrumentId(),
                             MarketRevisionTransactionSupport.DAILY_BAR, value.priceType(), BarInterval.D1,
@@ -188,7 +195,7 @@ public class MarketBarJdbcRepository {
             } else {
                 inserted++;
             }
-            inserts.add(dailyParameters(value, nextRevision, context.effectiveAt()));
+            inserts.add(dailyParameters(value, nextRevision, revisionEffectiveAt));
             maxRevision = Math.max(maxRevision, nextRevision);
         }
 
@@ -213,7 +220,7 @@ public class MarketBarJdbcRepository {
                 )
                 """, inserts.toArray(SqlParameterSource[]::new)), "insert daily bar revision");
         qualityIssues.forEach(issue -> recordQuality(context, issue));
-        revisionSupport.completeCursor(cursor, context, ordered.getLast().checksum());
+        revisionSupport.completeCursor(fence, context, ordered.getLast().checksum());
         return new RevisionBatchResult(inserted, revised, unchanged, maxRevision);
     }
 
@@ -487,12 +494,6 @@ public class MarketBarJdbcRepository {
                 JdbcMarketDataSupport.instant(resultSet, "ingested_at"), resultSet.getLong("revision"),
                 JdbcMarketDataSupport.instant(resultSet, "valid_from"),
                 JdbcMarketDataSupport.instant(resultSet, "valid_to"), resultSet.getString("checksum"));
-    }
-
-    private void requireLaterEffectiveTime(Instant effectiveAt, Instant validFrom) {
-        if (!effectiveAt.isAfter(validFrom)) {
-            throw new IllegalArgumentException("A revision effectiveAt must be after the current validFrom");
-        }
     }
 
     private void recordQuality(MarketDataWriteContext context, RevisionQuality issue) {

@@ -7,7 +7,6 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import top.egon.mario.investment.common.model.BarInterval;
 import top.egon.mario.investment.common.model.PriceType;
-import top.egon.mario.investment.marketdata.po.InvestmentIngestCursorPo;
 import top.egon.mario.investment.marketdata.repository.jdbc.model.FundingRateRow;
 import top.egon.mario.investment.marketdata.repository.jdbc.model.FundingRateWrite;
 import top.egon.mario.investment.marketdata.repository.jdbc.model.MarketDataWriteContext;
@@ -58,7 +57,7 @@ public class FundingRateJdbcRepository {
         Objects.requireNonNull(context, "context");
         List<FundingRateWrite> ordered = validateBatch(values);
         FundingRateWrite dimension = ordered.getFirst();
-        InvestmentIngestCursorPo cursor = revisionSupport.lockCursor(
+        MarketRevisionTransactionSupport.RevisionFence fence = revisionSupport.lockCursor(
                 dimension.sourceId(), dimension.instrumentId(), MarketRevisionTransactionSupport.FUNDING_RATE,
                 PriceType.NONE, BarInterval.NONE);
 
@@ -66,6 +65,11 @@ public class FundingRateJdbcRepository {
         List<SqlParameterSource> inserts = new ArrayList<>();
         List<RevisionQuality> qualityIssues = new ArrayList<>();
         Map<Instant, CurrentRevision> currentRevisions = current(ordered);
+        Instant revisionEffectiveAt = revisionSupport.revisionEffectiveAt(fence, ordered.stream()
+                .filter(value -> currentRevisions.containsKey(value.fundingTime()))
+                .filter(value -> !value.checksum().equals(currentRevisions.get(value.fundingTime()).checksum()))
+                .map(value -> currentRevisions.get(value.fundingTime()).validFrom())
+                .toList());
         int inserted = 0;
         int revised = 0;
         int unchanged = 0;
@@ -80,20 +84,17 @@ public class FundingRateJdbcRepository {
             long nextRevision = current.map(CurrentRevision::revision).orElse(0L) + 1L;
             if (current.isPresent()) {
                 CurrentRevision old = current.orElseThrow();
-                if (!context.effectiveAt().isAfter(old.validFrom())) {
-                    throw new IllegalArgumentException("A revision effectiveAt must be after the current validFrom");
-                }
                 closes.add(key(value)
                         .addValue("revision", old.revision())
                         .addValue("checksum", old.checksum())
-                        .addValue("validTo", JdbcMarketDataSupport.instantParameter(context.effectiveAt())));
+                        .addValue("validTo", JdbcMarketDataSupport.instantParameter(revisionEffectiveAt)));
                 qualityIssues.add(new RevisionQuality(value.fundingTime(), old.revision(), old.checksum(),
                         nextRevision, value.checksum()));
                 revised++;
             } else {
                 inserted++;
             }
-            inserts.add(parameters(value, nextRevision, context.effectiveAt()));
+            inserts.add(parameters(value, nextRevision, revisionEffectiveAt));
             maxRevision = Math.max(maxRevision, nextRevision);
         }
 
@@ -117,7 +118,7 @@ public class FundingRateJdbcRepository {
                 dimension.sourceId(), dimension.instrumentId(), MarketRevisionTransactionSupport.FUNDING_RATE,
                 PriceType.NONE, BarInterval.NONE, issue.pointTime(), issue.oldRevision(), issue.oldChecksum(),
                 issue.newRevision(), issue.newChecksum()));
-        revisionSupport.completeCursor(cursor, context, ordered.getLast().checksum());
+        revisionSupport.completeCursor(fence, context, ordered.getLast().checksum());
         return new RevisionBatchResult(inserted, revised, unchanged, maxRevision);
     }
 
