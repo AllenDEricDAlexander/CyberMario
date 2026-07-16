@@ -180,6 +180,26 @@ describe('admin menu authorization', () => {
         expect(firstAuthorizedMenuPath(menuTree, false)).toBe('/dashboard')
     })
 
+    test('shows the platform IM entry only with its server-provided menu permission', () => {
+        const imMenuTree: MenuTreeResponse[] = [
+            ...menuTree,
+            {
+                permissionId: 40,
+                permCode: 'menu:im',
+                permName: '即时通信',
+                routePath: '/im',
+                hidden: false,
+                cacheable: true,
+                sortNo: 40,
+                children: [],
+            },
+        ]
+
+        expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(menuTree, false, ['IM_USER']))).not.toContain('/im')
+        expect(flattenMenuKeys(buildAuthorizedAdminMenuItems(imMenuTree, false, ['IM_USER']))).toContain('/im')
+        expect(canAccessAdminPath('/im', imMenuTree, false, ['IM_USER'])).toBe(true)
+    })
+
     test('selects the most specific menu key for nested routes', () => {
         expect(selectedAdminMenuKey('/agent/memory/archive', [
             '/agent/memory',

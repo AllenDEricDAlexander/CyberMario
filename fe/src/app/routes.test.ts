@@ -5,6 +5,11 @@ import {describe, expect, test} from 'vitest'
 const routesSource = readFileSync(resolve(process.cwd(), 'src/app/routes.tsx'), 'utf8')
 
 describe('admin routes', () => {
+    test('registers the platform IM workspace as a lazy admin route', () => {
+        expect(routesSource).toContain("path: 'im'")
+        expect(routesSource).toContain("lazy: () => import('../modules/im/PlatformImPage')")
+    })
+
     test('does not register the legacy global MCP tool policy page', () => {
         expect(routesSource).not.toContain("path: 'agent/mcp/tools'")
         expect(routesSource).not.toContain('McpToolListPage')

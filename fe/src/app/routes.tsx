@@ -37,6 +37,7 @@ export const router = createBrowserRouter([
                     {path: 'dashboard', lazy: () => import('../modules/dashboard/DashboardPage')},
                     {path: 'account/settings', lazy: () => import('../modules/account/pages/AccountSettingsPage')},
                     {path: 'chat', element: <ChatPage/>},
+                    {path: 'im', lazy: () => import('../modules/im/PlatformImPage')},
                     {path: 'agent/debug', lazy: () => import('../modules/agent/AgentDebugPage')},
                     {
                         path: 'agent/conversation-audits',

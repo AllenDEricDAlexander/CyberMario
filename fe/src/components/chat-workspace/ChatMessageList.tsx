@@ -18,6 +18,7 @@ export type ChatMessageListProps = {
     sending?: boolean
     canFeedback?: boolean
     canFeedbackMessage?: (message: ChatWorkspaceMessage) => boolean
+    canReloadMessage?: (message: ChatWorkspaceMessage) => boolean
     onSourceSelect?: (source: SourceReferenceResponse) => void
     onFeedback?: (message: ChatWorkspaceMessage, feedbackType: RagFeedbackType) => void
     onCopy?: (message: ChatWorkspaceMessage) => void
@@ -45,6 +46,7 @@ export function ChatMessageList(props: ChatMessageListProps) {
         sending = false,
         canFeedback = false,
         canFeedbackMessage,
+        canReloadMessage,
         onSourceSelect,
         onFeedback,
         onCopy,
@@ -62,6 +64,7 @@ export function ChatMessageList(props: ChatMessageListProps) {
                 contentRender: () => renderMessageContent({
                     canFeedback,
                     canFeedbackMessage,
+                    canReloadMessage,
                     isPending,
                     message,
                     onCopy,
@@ -71,7 +74,7 @@ export function ChatMessageList(props: ChatMessageListProps) {
                 }),
             }
         }),
-        [canFeedback, canFeedbackMessage, messages, onCopy, onFeedback, onReload, onSourceSelect, sending]
+        [canFeedback, canFeedbackMessage, canReloadMessage, messages, onCopy, onFeedback, onReload, onSourceSelect, sending]
     )
 
     if (items.length === 0) {
@@ -99,6 +102,7 @@ type RenderMessageContentOptions = {
     isPending: boolean
     canFeedback: boolean
     canFeedbackMessage?: (message: ChatWorkspaceMessage) => boolean
+    canReloadMessage?: (message: ChatWorkspaceMessage) => boolean
     onSourceSelect?: (source: SourceReferenceResponse) => void
     onFeedback?: (message: ChatWorkspaceMessage, feedbackType: RagFeedbackType) => void
     onCopy?: (message: ChatWorkspaceMessage) => void
@@ -111,6 +115,7 @@ function renderMessageContent(options: RenderMessageContentOptions) {
         isPending,
         canFeedback,
         canFeedbackMessage,
+        canReloadMessage,
         onSourceSelect,
         onFeedback,
         onCopy,
@@ -121,7 +126,8 @@ function renderMessageContent(options: RenderMessageContentOptions) {
     const messageCanReceiveFeedback = defaultCanFeedbackMessage(message) &&
         (canFeedbackMessage?.(message) ?? true)
     const showFeedback = canFeedback && hasContent && messageCanReceiveFeedback
-    const showActions = Boolean(onCopy || onReload || (showFeedback && onFeedback))
+    const showReload = Boolean(onReload && (canReloadMessage?.(message) ?? true))
+    const showActions = Boolean(onCopy || showReload || (showFeedback && onFeedback))
 
     return (
         <div className="chat-workspace-x-message-content">
@@ -164,7 +170,7 @@ function renderMessageContent(options: RenderMessageContentOptions) {
                         canFeedback={showFeedback}
                         onCopy={onCopy ? () => onCopy(message) : undefined}
                         onFeedback={onFeedback ? feedbackType => onFeedback(message, feedbackType) : undefined}
-                        onReload={onReload ? () => onReload(message) : undefined}
+                        onReload={showReload && onReload ? () => onReload(message) : undefined}
                     />
                 </div>
             )}

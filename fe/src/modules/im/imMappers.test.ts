@@ -5,6 +5,7 @@ import {
     mapImMessagesToWorkspaceMessages,
 } from './imMappers'
 import type {ConversationView, MessageView} from './imTypes'
+import type {OptimisticMessageView} from './platformImTypes'
 
 const message: MessageView = {
     id: 10,
@@ -117,5 +118,17 @@ describe('imMappers', () => {
                 status: 'success',
             },
         ])
+    })
+
+    test('maps optimistic pending and failed delivery states for the shared message renderer', () => {
+        const failedMessage: OptimisticMessageView = {...message, status: 'FAILED', error: 'offline'}
+
+        expect(mapImMessageToWorkspaceMessage({...message, status: 'PENDING'})).toMatchObject({
+            status: 'loading',
+        })
+        expect(mapImMessageToWorkspaceMessage(failedMessage)).toMatchObject({
+            status: 'error',
+            error: 'offline',
+        })
     })
 })

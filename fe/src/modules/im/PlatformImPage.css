@@ -1,0 +1,353 @@
+.platform-im-shell {
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    gap: 10px;
+}
+
+.platform-im-loading {
+    min-height: min(680px, calc(100svh - 126px));
+    display: grid;
+    place-items: center;
+}
+
+.platform-im-workspace {
+    width: 100%;
+    min-width: 0;
+    height: min(760px, calc(100svh - 126px));
+    min-height: 580px;
+    display: grid;
+    grid-template-columns: 72px 304px minmax(0, 1fr);
+    overflow: hidden;
+    border: 1px solid rgba(200, 221, 214, 0.9);
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: 0 16px 38px rgba(30, 69, 69, 0.1);
+}
+
+.platform-im-activity-rail {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 8px;
+    border-right: 1px solid rgba(200, 221, 214, 0.72);
+    background: linear-gradient(180deg, #eaf7f2 0%, #f6fbf8 100%);
+}
+
+.platform-im-activity-brand {
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    margin-bottom: 6px;
+    border-radius: 12px;
+    color: #ffffff;
+    background: #0f766e;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+}
+
+.platform-im-activity-button.ant-btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    font-size: 18px;
+}
+
+.platform-im-activity-user {
+    width: 52px;
+    min-width: 0;
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+    margin-top: auto;
+}
+
+.platform-im-activity-user .ant-typography {
+    width: 100%;
+    overflow: hidden;
+    color: #607477;
+    font-size: 10px;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.platform-im-list-pane,
+.platform-im-detail-pane {
+    min-width: 0;
+    min-height: 0;
+    background: #ffffff;
+}
+
+.platform-im-list-pane {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-right: 1px solid rgba(200, 221, 214, 0.72);
+}
+
+.platform-im-pane-header {
+    min-height: 74px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(200, 221, 214, 0.65);
+}
+
+.platform-im-pane-header .ant-typography {
+    display: block;
+    margin: 0;
+}
+
+.platform-im-pane-header .ant-typography-secondary {
+    margin-top: 3px;
+    font-size: 12px;
+}
+
+.platform-im-list-scroll {
+    min-height: 0;
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    scrollbar-color: rgba(159, 200, 191, 0.82) transparent;
+}
+
+.platform-im-conversation-row {
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 8px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.platform-im-conversation-row:hover,
+.platform-im-conversation-row:focus-visible {
+    border-color: rgba(15, 118, 110, 0.25);
+    outline: none;
+    background: #f4fbf7;
+}
+
+.platform-im-conversation-row[aria-current='true'] {
+    border-color: rgba(15, 118, 110, 0.3);
+    background: #eaf8f2;
+    box-shadow: inset 3px 0 0 #0f766e;
+}
+
+.platform-im-conversation-copy,
+.platform-im-conversation-title {
+    min-width: 0;
+}
+
+.platform-im-conversation-copy {
+    display: grid;
+    gap: 4px;
+}
+
+.platform-im-conversation-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.platform-im-conversation-title .ant-typography {
+    min-width: 0;
+    font-weight: 680;
+}
+
+.platform-im-conversation-title .ant-tag {
+    flex: 0 0 auto;
+    margin: 0;
+    font-size: 10px;
+}
+
+.platform-im-conversation-row time {
+    align-self: start;
+    color: #7a8d90;
+    font-size: 10px;
+}
+
+.platform-im-detail-pane {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.platform-im-detail-empty,
+.platform-im-profile-pane:has(> .ant-empty),
+.platform-im-group-detail:has(> .ant-empty) {
+    display: grid;
+    place-items: center;
+}
+
+.platform-im-thread-header {
+    min-height: 74px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    border-bottom: 1px solid rgba(200, 221, 214, 0.72);
+}
+
+.platform-im-thread-heading {
+    min-width: 0;
+    flex: 1;
+}
+
+.platform-im-thread-heading .ant-typography {
+    margin: 0 0 5px;
+}
+
+.platform-im-thread-membership .ant-space-vertical {
+    align-items: flex-end;
+}
+
+.platform-im-thread-body {
+    min-height: 0;
+    flex: 1;
+    overflow: hidden;
+    background: #f7fbf9;
+}
+
+.platform-im-composer-area {
+    display: grid;
+    gap: 8px;
+    padding: 10px 14px 14px;
+    border-top: 1px solid rgba(200, 221, 214, 0.72);
+    background: #ffffff;
+}
+
+.platform-im-emoji-row {
+    display: flex;
+    gap: 2px;
+}
+
+.platform-im-emoji-row .ant-btn {
+    font-size: 17px;
+}
+
+.platform-im-tabs {
+    margin: 0 12px;
+}
+
+.platform-im-tabs .ant-tabs-content-holder {
+    display: none;
+}
+
+.platform-im-list-pane .ant-list-item {
+    padding-inline: 8px;
+    border-radius: 7px;
+    cursor: pointer;
+}
+
+.platform-im-list-pane .ant-list-item:hover,
+.platform-im-list-pane .ant-list-item.is-active {
+    background: #eef9f4;
+}
+
+.platform-im-profile-pane,
+.platform-im-group-detail {
+    gap: 20px;
+    overflow-y: auto;
+    padding: 28px;
+}
+
+.platform-im-profile-hero,
+.platform-im-group-header {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+
+.platform-im-profile-hero .ant-typography,
+.platform-im-group-header .ant-typography {
+    margin: 0 0 6px;
+}
+
+.platform-im-profile-form {
+    max-width: 560px;
+    display: grid;
+    gap: 12px;
+    padding: 20px;
+    border: 1px solid rgba(200, 221, 214, 0.82);
+    border-radius: 10px;
+    background: #f8fcfa;
+}
+
+.platform-im-friend-search,
+.platform-im-create-group {
+    width: 100%;
+}
+
+.platform-im-group-header > div:nth-child(2) {
+    min-width: 0;
+    flex: 1;
+}
+
+.platform-im-group-membership,
+.platform-im-group-management {
+    padding: 18px;
+    border: 1px solid rgba(200, 221, 214, 0.82);
+    border-radius: 10px;
+    background: #f8fcfa;
+}
+
+.platform-im-group-management .ant-typography {
+    margin-top: 0;
+}
+
+@media (max-width: 980px) {
+    .platform-im-workspace {
+        height: auto;
+        min-height: 0;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto minmax(220px, 34svh) minmax(560px, calc(100svh - 150px));
+        overflow: visible;
+    }
+
+    .platform-im-activity-rail {
+        min-height: 64px;
+        flex-direction: row;
+        justify-content: center;
+        padding: 8px 12px;
+        border-right: 0;
+        border-bottom: 1px solid rgba(200, 221, 214, 0.72);
+    }
+
+    .platform-im-activity-brand {
+        margin: 0 auto 0 0;
+    }
+
+    .platform-im-activity-user {
+        width: auto;
+        margin: 0 0 0 auto;
+    }
+
+    .platform-im-activity-user .ant-typography {
+        display: none;
+    }
+
+    .platform-im-list-pane {
+        border-right: 0;
+        border-bottom: 1px solid rgba(200, 221, 214, 0.72);
+    }
+
+    .platform-im-profile-pane,
+    .platform-im-group-detail {
+        padding: 18px;
+    }
+}

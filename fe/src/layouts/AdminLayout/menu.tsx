@@ -33,6 +33,7 @@ export type AdminMenuItem = Required<MenuProps>['items'][number]
 const menuPathByKey: Record<string, string> = {
     '/dashboard': '/dashboard',
     '/chat': '/chat',
+    '/im': '/im',
     '/agent/debug': '/agent/debug',
     '/agent/conversation-audits': '/agent/conversation-audits',
     '/agent/run-audits': '/agent/run-audits',
@@ -77,6 +78,11 @@ export const adminMenuItems: AdminMenuItem[] = [
         key: '/chat',
         icon: <CommentOutlined/>,
         label: 'Agent Chat',
+    },
+    {
+        key: '/im',
+        icon: <MessageOutlined/>,
+        label: '即时通信',
     },
     {
         key: 'agent',

@@ -34,8 +34,8 @@ export type ImJoinApplyControlsProps = {
     pendingReviewRequests?: PendingReviewRequest[]
     onApply: (surface: SurfaceIdentity) => Promise<JoinResultView> | JoinResultView
     onCancel: (requestId: number) => Promise<JoinResultView> | JoinResultView
-    onApprove: (requestId: number) => Promise<JoinResultView> | JoinResultView
-    onReject: (requestId: number) => Promise<JoinResultView> | JoinResultView
+    onApprove: (requestId: number) => Promise<JoinResultView | void> | JoinResultView | void
+    onReject: (requestId: number) => Promise<JoinResultView | void> | JoinResultView | void
     onLeave: (surface: SurfaceIdentity) => Promise<void> | void
 }
 

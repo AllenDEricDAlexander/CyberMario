@@ -1,9 +1,10 @@
 /// <reference types="node" />
 
 import {readFileSync} from 'node:fs'
+import {resolve} from 'node:path'
 import {describe, expect, test} from 'vitest'
 
-const css = readFileSync(new URL('../../styles/global.css', import.meta.url), 'utf8')
+const css = readFileSync(resolve(process.cwd(), 'src/styles/global.css'), 'utf8')
 
 function cssRule(selector: string) {
     const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')

@@ -3,6 +3,7 @@ import {Sender} from '@ant-design/x'
 export type ChatSenderProps = {
     input: string
     sending?: boolean
+    disabled?: boolean
     placeholder?: string
     onInputChange: (value: string) => void
     onSend: (message: string) => void
@@ -13,6 +14,7 @@ export function ChatSender(props: ChatSenderProps) {
     const {
         input,
         sending = false,
+        disabled = false,
         placeholder = 'Ask a question...',
         onInputChange,
         onSend,
@@ -23,6 +25,7 @@ export function ChatSender(props: ChatSenderProps) {
         <Sender
             autoSize={{minRows: 2, maxRows: 6}}
             className="chat-workspace-x-sender"
+            disabled={disabled}
             loading={sending}
             placeholder={placeholder}
             submitType="enter"

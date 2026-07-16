@@ -25,11 +25,13 @@ export function mapImMessageToWorkspaceMessage(
 ): ChatWorkspaceMessage {
     const deleted = Boolean(message.deletedAt)
     const system = deleted || message.messageType === 'SYSTEM' || message.senderUserId === null || message.senderUserId === undefined
+    const error = messageError(message)
     return {
         id: `im-message-${message.id}`,
         role: system ? 'system' : message.senderUserId === options.currentUserId ? 'user' : 'assistant',
         content: deleted ? 'Message deleted' : message.content ?? '',
-        status: message.status === 'FAILED' ? 'error' : 'success',
+        status: message.status === 'FAILED' ? 'error' : message.status === 'PENDING' ? 'loading' : 'success',
+        ...(error ? {error} : {}),
         messageId: String(message.id),
         conversationId: message.conversationId,
         senderUserId: message.senderUserId,
@@ -41,6 +43,13 @@ export function mapImMessageToWorkspaceMessage(
         sentAt: message.sentAt,
         imMessage: message,
     }
+}
+
+function messageError(message: MessageView) {
+    if (message.status !== 'FAILED' || !('error' in message)) {
+        return undefined
+    }
+    return typeof message.error === 'string' ? message.error : undefined
 }
 
 export function mapImMessagesToWorkspaceMessages(

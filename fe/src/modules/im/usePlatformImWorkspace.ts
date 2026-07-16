@@ -590,12 +590,17 @@ export function usePlatformImWorkspace(options: UsePlatformImWorkspaceOptions = 
             await refreshPlatformData()
         },
         applyJoin: async (request: JoinRequestCreateRequest) => {
-            await apiRef.current.applyJoin(request)
+            const result = await apiRef.current.applyJoin(request)
             await refreshPlatformData()
+            return result
         },
         approveJoin: async (surfaceType: ImSurfaceType, surfaceId: number, id: number) => {
             await apiRef.current.approveJoin(id)
-            await Promise.all([refreshSurfaceAdmin(surfaceType, surfaceId), refreshConversations()])
+            await Promise.all([
+                refreshSurfaceAdmin(surfaceType, surfaceId),
+                refreshConversations(),
+                refreshGroups(),
+            ])
         },
         rejectJoin: async (
             surfaceType: ImSurfaceType,
@@ -607,8 +612,9 @@ export function usePlatformImWorkspace(options: UsePlatformImWorkspaceOptions = 
             await refreshSurfaceAdmin(surfaceType, surfaceId)
         },
         cancelJoin: async (id: number) => {
-            await apiRef.current.cancelJoin(id)
+            const result = await apiRef.current.cancelJoin(id)
             await refreshGroups()
+            return result
         },
         leaveSurface: async (surfaceType: ImSurfaceType, surfaceId: number) => {
             await apiRef.current.leaveSurface(surfaceType, surfaceId)
@@ -616,7 +622,11 @@ export function usePlatformImWorkspace(options: UsePlatformImWorkspaceOptions = 
         },
         removeSurfaceMember: async (surfaceType: ImSurfaceType, surfaceId: number, userId: number) => {
             await apiRef.current.removeSurfaceMember(surfaceType, surfaceId, userId)
-            await refreshSurfaceAdmin(surfaceType, surfaceId)
+            await Promise.all([
+                refreshSurfaceAdmin(surfaceType, surfaceId),
+                refreshConversations(),
+                refreshGroups(),
+            ])
         },
     }
 }
