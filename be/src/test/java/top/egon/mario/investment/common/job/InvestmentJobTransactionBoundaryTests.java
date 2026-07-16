@@ -8,6 +8,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockReset;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -17,6 +18,7 @@ import top.egon.mario.investment.common.model.InvestmentJobStatus;
 import top.egon.mario.investment.common.model.InvestmentJobType;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -158,9 +160,15 @@ class InvestmentJobTransactionBoundaryTests {
         RecordingHandler recordingHandler(InvestmentJobRepository jobRepository) {
             return new RecordingHandler(jobRepository);
         }
+
+        @Bean
+        @Primary
+        InvestmentJobHandlerRegistry recordingJobHandlerRegistry(RecordingHandler recordingHandler) {
+            return new InvestmentJobHandlerRegistry(List.of(recordingHandler.asJobHandler()));
+        }
     }
 
-    static final class RecordingHandler implements InvestmentJobHandler {
+    static final class RecordingHandler {
 
         private final InvestmentJobRepository jobRepository;
         private final AtomicBoolean transactionActive = new AtomicBoolean();
@@ -173,13 +181,21 @@ class InvestmentJobTransactionBoundaryTests {
             this.jobRepository = jobRepository;
         }
 
-        @Override
-        public InvestmentJobType jobType() {
-            return InvestmentJobType.CONTRACT_SYNC;
+        InvestmentJobHandler asJobHandler() {
+            return new InvestmentJobHandler() {
+                @Override
+                public InvestmentJobType jobType() {
+                    return InvestmentJobType.CONTRACT_SYNC;
+                }
+
+                @Override
+                public InvestmentJobHandlerResult execute(InvestmentJobClaim claim) {
+                    return RecordingHandler.this.execute(claim);
+                }
+            };
         }
 
-        @Override
-        public InvestmentJobHandlerResult execute(InvestmentJobClaim claim) {
+        private InvestmentJobHandlerResult execute(InvestmentJobClaim claim) {
             transactionActive.set(TransactionSynchronizationManager.isActualTransactionActive());
             sawCommittedRunningClaim.set(jobRepository.findById(claim.id())
                     .map(job -> job.getStatus() == InvestmentJobStatus.RUNNING)
