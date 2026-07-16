@@ -5,6 +5,7 @@ import {InvestmentAsyncState} from '../components/InvestmentAsyncState'
 import {InvestmentCandlestickChart} from '../components/InvestmentCandlestickChart'
 import {InvestmentDecimalText} from '../components/InvestmentDecimalText'
 import {getInvestmentIndicators, listInvestmentCandles} from '../services/investmentMarketService'
+import {listInvestmentPaperFills} from '../services/investmentPortfolioService'
 import type {InvestmentDecimal, InvestmentLoadState} from '../types/investmentCommonTypes'
 import type {
     InvestmentBarInterval,
@@ -12,10 +13,13 @@ import type {
     InvestmentIndicatorSnapshot,
     InvestmentPriceType,
 } from '../types/investmentMarketTypes'
+import type {InvestmentFillMarker} from '../types/investmentPortfolioTypes'
 import {toInvestmentCandlestickData} from './investmentChartMappers'
+import {toInvestmentTradeMarkers} from './investmentTradeMarkerMappers'
 
 type InvestmentKlinePanelProps = {
     instrumentId: number
+    accountId?: number
     availablePriceTypes: InvestmentPriceType[]
     availableIntervals: InvestmentBarInterval[]
     now?: () => number
@@ -23,8 +27,15 @@ type InvestmentKlinePanelProps = {
 
 type InvestmentRange = '1H' | '24H' | '7D'
 
+type TradeActivityState = {
+    scope: string
+    records: InvestmentFillMarker[]
+    error?: string
+}
+
 export function InvestmentKlinePanel({
     instrumentId,
+    accountId,
     availablePriceTypes,
     availableIntervals,
     now = Date.now,
@@ -35,9 +46,11 @@ export function InvestmentKlinePanel({
     const [candles, setCandles] = useState<InvestmentCandleResponse[]>([])
     const [indicators, setIndicators] = useState<InvestmentIndicatorSnapshot>()
     const [indicatorError, setIndicatorError] = useState<string>()
+    const [tradeActivityState, setTradeActivityState] = useState<TradeActivityState>()
     const [loadState, setLoadState] = useState<InvestmentLoadState>('loading')
     const [loadError, setLoadError] = useState<string>()
     const generationRef = useRef(0)
+    const tradeGenerationRef = useRef(0)
 
     useEffect(() => {
         if (!availablePriceTypes.includes(priceType)) {
@@ -94,11 +107,50 @@ export function InvestmentKlinePanel({
         }
     }, [load])
 
+    useEffect(() => {
+        const generation = ++tradeGenerationRef.current
+        const activityScope = tradeActivityScope(accountId, instrumentId, priceType, interval, range)
+        setTradeActivityState(undefined)
+        if (accountId === undefined) {
+            return
+        }
+        const query = candleQuery(instrumentId, priceType, interval, range, now())
+        void listInvestmentPaperFills(
+            accountId, instrumentId, query.from, query.to, 1, 100,
+        ).then((response) => {
+            if (generation === tradeGenerationRef.current) {
+                setTradeActivityState({scope: activityScope, records: response.records})
+            }
+        }).catch((reason: unknown) => {
+            if (generation === tradeGenerationRef.current) {
+                setTradeActivityState({
+                    scope: activityScope,
+                    records: [],
+                    error: errorMessage(reason, '私人模拟盘活动暂不可用'),
+                })
+            }
+        })
+        return () => {
+            tradeGenerationRef.current += 1
+        }
+    }, [accountId, instrumentId, interval, now, priceType, range])
+
     const chartData = useMemo<CandlestickData<UTCTimestamp>[]>(
         () => toInvestmentCandlestickData(candles),
         [candles],
     )
     const latestIndicator = indicators?.points.at(-1)
+    const currentActivityScope = tradeActivityScope(accountId, instrumentId, priceType, interval, range)
+    const visibleTradeActivity = tradeActivityState?.scope === currentActivityScope
+        ? tradeActivityState.records
+        : []
+    const tradeActivityError = tradeActivityState?.scope === currentActivityScope
+        ? tradeActivityState.error
+        : undefined
+    const tradeMarkers = useMemo(
+        () => toInvestmentTradeMarkers(visibleTradeActivity, candles),
+        [candles, visibleTradeActivity],
+    )
 
     return (
         <Card title="K 线与技术指标">
@@ -142,7 +194,7 @@ export function InvestmentKlinePanel({
                 onRetry={() => void load()}
                 state={loadState}
             >
-                <InvestmentCandlestickChart data={chartData}/>
+                <InvestmentCandlestickChart data={chartData} markers={tradeMarkers}/>
                 <Table
                     columns={[
                         {title: '开盘时间', dataIndex: 'openTime'},
@@ -157,6 +209,35 @@ export function InvestmentKlinePanel({
                     size="small"
                 />
             </InvestmentAsyncState>
+            {accountId === undefined && (
+                <Alert showIcon title="选择当前工作区的模拟账户后可叠加私人成交与强平标记" type="info"/>
+            )}
+            {tradeActivityError && (
+                <Alert description={tradeActivityError} showIcon title="私人交易标记独立加载失败" type="warning"/>
+            )}
+            {accountId !== undefined && !tradeActivityError && (
+                <section aria-label="模拟盘活动文本摘要">
+                    <Typography.Title level={5}>模拟盘成交与强平活动</Typography.Title>
+                    <Table
+                        columns={[
+                            {title: '事件时间', dataIndex: 'eventTime'},
+                            {title: '方向', dataIndex: 'side'},
+                            {title: '动作', dataIndex: 'actionType'},
+                            {title: '来源', dataIndex: 'orderOrigin'},
+                            {title: '事件', dataIndex: 'eventType'},
+                            {title: '价格', dataIndex: 'price', render: (value: InvestmentDecimal) => <InvestmentDecimalText value={value}/>},
+                            {title: '数量', dataIndex: 'quantity', render: (value: InvestmentDecimal) => <InvestmentDecimalText value={value}/>},
+                            {title: '强平', dataIndex: 'liquidation', render: (value: boolean) => value ? '是' : '否'},
+                        ]}
+                        dataSource={visibleTradeActivity}
+                        locale={{emptyText: '当前 K 线范围暂无私人模拟盘活动'}}
+                        pagination={{pageSize: 20, hideOnSinglePage: true}}
+                        rowKey="id"
+                        scroll={{x: 900}}
+                        size="small"
+                    />
+                </section>
+            )}
             {indicatorError && <Alert description={indicatorError} showIcon title="技术指标独立加载失败" type="warning"/>}
             {latestIndicator && (
                 <Flex gap={16} wrap>
@@ -199,4 +280,14 @@ export function candleQuery(
 
 function errorMessage(reason: unknown, fallback: string) {
     return reason instanceof Error ? reason.message : fallback
+}
+
+function tradeActivityScope(
+    accountId: number | undefined,
+    instrumentId: number,
+    priceType: InvestmentPriceType,
+    interval: InvestmentBarInterval,
+    range: InvestmentRange,
+) {
+    return `${accountId ?? 'none'}:${instrumentId}:${priceType}:${interval}:${range}`
 }

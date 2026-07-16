@@ -14,6 +14,14 @@ const mocks = vi.hoisted(() => ({
     quote: vi.fn(),
     funding: vi.fn(),
     tiers: vi.fn(),
+    workspace: {
+        currentWorkspace: {id: 7, name: '个人投资'},
+        currentPaperAccount: {id: 21, workspaceId: 7, name: '模拟 A'},
+    },
+}))
+
+vi.mock('../hooks/useInvestmentWorkspace', () => ({
+    useInvestmentWorkspace: () => mocks.workspace,
 }))
 
 vi.mock('../services/investmentMarketService', () => ({
@@ -24,13 +32,21 @@ vi.mock('../services/investmentMarketService', () => ({
 }))
 
 vi.mock('./InvestmentKlinePanel', () => ({
-    InvestmentKlinePanel: ({instrumentId}: {instrumentId: number}) => (
-        <div aria-label="K 线面板">instrument {instrumentId}</div>
+    InvestmentKlinePanel: ({accountId, instrumentId}: {accountId?: number; instrumentId: number}) => (
+        <div aria-label="K 线面板">instrument {instrumentId} / account {accountId ?? 'none'}</div>
+    ),
+}))
+
+vi.mock('./InvestmentInstrumentReportsPanel', () => ({
+    InvestmentInstrumentReportsPanel: ({instrumentId, workspaceId}: {instrumentId: number; workspaceId?: number}) => (
+        <div aria-label="合约报告面板">instrument {instrumentId} / workspace {workspaceId ?? 'none'}</div>
     ),
 }))
 
 describe('InvestmentInstrumentPage', () => {
     beforeEach(() => {
+        mocks.workspace.currentWorkspace = {id: 7, name: '个人投资'}
+        mocks.workspace.currentPaperAccount = {id: 21, workspaceId: 7, name: '模拟 A'}
         mocks.instrument.mockReset()
         mocks.quote.mockReset()
         mocks.funding.mockReset()
@@ -56,6 +72,8 @@ describe('InvestmentInstrumentPage', () => {
 
         expect(await screen.findByRole('heading', {name: 'BTCUSDT'})).toBeTruthy()
         expect(screen.getByLabelText('K 线面板').textContent).toContain('11')
+        expect(screen.getByLabelText('K 线面板').textContent).toContain('account 21')
+        expect(screen.getByLabelText('合约报告面板').textContent).toContain('workspace 7')
         expect(screen.getByText('65000.000000000000000001')).toBeTruthy()
         expect(screen.getByText('0.005000000000000001')).toBeTruthy()
         expect(await screen.findByText('资金费率独立加载失败')).toBeTruthy()
@@ -114,6 +132,15 @@ describe('InvestmentInstrumentPage', () => {
         expect(mocks.quote).not.toHaveBeenCalled()
         expect(mocks.funding).not.toHaveBeenCalled()
         expect(mocks.tiers).not.toHaveBeenCalled()
+    })
+
+    test('clears private overlays when the selected account belongs to another workspace', async () => {
+        mocks.workspace.currentPaperAccount = {id: 22, workspaceId: 8, name: '其他账户'}
+        renderPage('/investment/instruments/11')
+
+        expect(await screen.findByRole('heading', {name: 'BTCUSDT'})).toBeTruthy()
+        expect(screen.getByLabelText('K 线面板').textContent).toContain('account none')
+        expect(screen.getByLabelText('合约报告面板').textContent).toContain('workspace 7')
     })
 })
 

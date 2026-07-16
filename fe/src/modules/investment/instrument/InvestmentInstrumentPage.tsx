@@ -3,6 +3,7 @@ import {useCallback, useEffect, useRef, useState} from 'react'
 import {useParams} from 'react-router'
 import {InvestmentAsyncState} from '../components/InvestmentAsyncState'
 import {InvestmentDecimalText} from '../components/InvestmentDecimalText'
+import {useInvestmentWorkspace} from '../hooks/useInvestmentWorkspace'
 import {
     getInvestmentInstrument,
     getInvestmentQuote,
@@ -17,12 +18,18 @@ import type {
     InvestmentQuoteResponse,
 } from '../types/investmentMarketTypes'
 import {InvestmentKlinePanel} from './InvestmentKlinePanel'
+import {InvestmentInstrumentReportsPanel} from './InvestmentInstrumentReportsPanel'
 
 const FUNDING_LOOKBACK_DAYS = 30
 
 export default function InvestmentInstrumentPage() {
+    const {currentWorkspace, currentPaperAccount} = useInvestmentWorkspace()
     const {instrumentId: instrumentIdParam} = useParams()
     const instrumentId = parseInstrumentId(instrumentIdParam)
+    const workspaceId = currentWorkspace?.id
+    const accountId = currentPaperAccount && currentPaperAccount.workspaceId === workspaceId
+        ? currentPaperAccount.id
+        : undefined
     const [instrument, setInstrument] = useState<InvestmentInstrumentDetailResponse>()
     const [quote, setQuote] = useState<InvestmentQuoteResponse>()
     const [fundingRates, setFundingRates] = useState<InvestmentFundingRateResponse[]>([])
@@ -129,6 +136,7 @@ export default function InvestmentInstrumentPage() {
                     <ContractSpecCard instrument={instrument}/>
                     {instrument.availablePriceTypes.length > 0 && instrument.availableIntervals.length > 0 ? (
                         <InvestmentKlinePanel
+                            accountId={accountId}
                             availableIntervals={instrument.availableIntervals}
                             availablePriceTypes={instrument.availablePriceTypes}
                             instrumentId={instrument.instrumentId}
@@ -136,6 +144,10 @@ export default function InvestmentInstrumentPage() {
                     ) : (
                         <Alert showIcon title="该合约尚未接入 K 线能力" type="info"/>
                     )}
+                    <InvestmentInstrumentReportsPanel
+                        instrumentId={instrument.instrumentId}
+                        workspaceId={workspaceId}
+                    />
                     <FundingRateCard
                         available={instrument.availableCapabilities.includes('FUNDING_RATE')}
                         error={fundingError}

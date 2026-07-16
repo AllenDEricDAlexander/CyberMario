@@ -12,6 +12,7 @@ import {InvestmentKlinePanel} from './InvestmentKlinePanel'
 const mocks = vi.hoisted(() => ({
     candles: vi.fn(),
     indicators: vi.fn(),
+    fills: vi.fn(),
 }))
 
 vi.mock('../services/investmentMarketService', () => ({
@@ -19,14 +20,24 @@ vi.mock('../services/investmentMarketService', () => ({
     getInvestmentIndicators: mocks.indicators,
 }))
 
+vi.mock('../services/investmentPortfolioService', () => ({
+    listInvestmentPaperFills: mocks.fills,
+}))
+
 vi.mock('../components/InvestmentCandlestickChart', () => ({
-    InvestmentCandlestickChart: ({data}: {data: unknown[]}) => <div aria-label="测试 K 线图">{data.length} points</div>,
+    InvestmentCandlestickChart: ({data, markers}: {data: unknown[]; markers: unknown[]}) => (
+        <div aria-label="测试 K 线图">
+            <span>{data.length} points</span>
+            <span>{markers.length} markers</span>
+        </div>
+    ),
 }))
 
 describe('InvestmentKlinePanel', () => {
     beforeEach(() => {
         mocks.candles.mockReset()
         mocks.indicators.mockReset()
+        mocks.fills.mockReset().mockResolvedValue({records: [], page: 1, size: 100, total: 0, totalPages: 0})
         mocks.candles.mockResolvedValue([candle('2026-07-15T23:59:00.000Z', true)])
         mocks.indicators.mockResolvedValue(indicatorSnapshot())
     })
@@ -104,20 +115,60 @@ describe('InvestmentKlinePanel', () => {
         expect(screen.getByText('indicator capability unavailable')).toBeTruthy()
         expect(screen.getByText('65000.000000000000000001')).toBeTruthy()
     })
+
+    test('keeps public candles visible when the private marker request fails', async () => {
+        mocks.fills.mockRejectedValue(new Error('private activity unavailable'))
+        renderPanel(21)
+
+        expect(await screen.findByText('1 points')).toBeTruthy()
+        expect(await screen.findByText('私人交易标记独立加载失败')).toBeTruthy()
+        expect(screen.getByText('private activity unavailable')).toBeTruthy()
+        expect(screen.getByText('65000.000000000000000001')).toBeTruthy()
+    })
+
+    test('loads private markers independently and clears them immediately when the account changes', async () => {
+        mocks.fills.mockResolvedValueOnce({
+            records: [fill(71)], page: 1, size: 100, total: 1, totalPages: 1,
+        }).mockResolvedValueOnce({records: [], page: 1, size: 100, total: 0, totalPages: 0})
+        const view = renderPanel(21)
+
+        expect(await screen.findByText('1 markers')).toBeTruthy()
+        expect(screen.getByText('AGENT')).toBeTruthy()
+        expect(mocks.fills).toHaveBeenCalledWith(
+            21, 11, '2026-07-15T00:00:00.000Z', '2026-07-16T00:00:00.000Z', 1, 100,
+        )
+
+        view.rerender(panel(22))
+
+        expect(screen.getByText('1 points')).toBeTruthy()
+        expect(screen.queryByText('1 markers')).toBeNull()
+        expect(screen.queryByText('AGENT')).toBeNull()
+        expect(await screen.findByText('0 markers')).toBeTruthy()
+        await waitFor(() => expect(mocks.fills).toHaveBeenLastCalledWith(
+            22, 11, '2026-07-15T00:00:00.000Z', '2026-07-16T00:00:00.000Z', 1, 100,
+        ))
+    })
 })
 
-function renderPanel() {
-    return render(
+function renderPanel(accountId?: number) {
+    return render(panel(accountId))
+}
+
+function panel(accountId?: number) {
+    return (
         <App>
             <InvestmentKlinePanel
+                accountId={accountId}
                 availableIntervals={['M1', 'H1']}
                 availablePriceTypes={['MARKET', 'MARK']}
                 instrumentId={11}
-                now={() => Date.parse('2026-07-16T00:00:00.000Z')}
+                now={now}
             />
-        </App>,
+        </App>
     )
 }
+
+const now = () => Date.parse('2026-07-16T00:00:00.000Z')
 
 async function selectOption(label: string, option: string) {
     await userEvent.click(screen.getByLabelText(label))
@@ -169,6 +220,14 @@ function indicatorSnapshot(): InvestmentIndicatorSnapshot {
             bollingerLower: '63000',
             atr14: '500',
         }],
+    }
+}
+
+function fill(id: number) {
+    return {
+        id, instrumentId: 11, marketBarOpenTime: '2026-07-15T23:59:00.000Z',
+        eventTime: '2026-07-15T23:59:30.000Z', side: 'LONG', actionType: 'OPEN',
+        orderOrigin: 'AGENT', eventType: 'FILL', price: '65000', quantity: '0.1', liquidation: false,
     }
 }
 

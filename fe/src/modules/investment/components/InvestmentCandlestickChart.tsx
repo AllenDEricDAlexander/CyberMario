@@ -2,15 +2,20 @@ import {
     CandlestickSeries,
     ColorType,
     createChart,
+    createSeriesMarkers,
     type CandlestickData,
     type IChartApi,
     type ISeriesApi,
+    type ISeriesMarkersPluginApi,
+    type SeriesMarker,
+    type Time,
     type UTCTimestamp,
 } from 'lightweight-charts'
 import {useEffect, useRef} from 'react'
 
 type InvestmentCandlestickChartProps = {
     data: CandlestickData<UTCTimestamp>[]
+    markers?: SeriesMarker<UTCTimestamp>[]
     ariaLabel?: string
     height?: number
 }
@@ -20,12 +25,14 @@ type InvestmentCandlestickChartProps = {
  */
 export function InvestmentCandlestickChart({
     data,
+    markers = [],
     ariaLabel = '合约 K 线图',
     height = 420,
 }: InvestmentCandlestickChartProps) {
     const containerRef = useRef<HTMLDivElement>(null)
     const chartRef = useRef<IChartApi | null>(null)
     const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
+    const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null)
 
     useEffect(() => {
         const container = containerRef.current
@@ -51,6 +58,7 @@ export function InvestmentCandlestickChart({
         })
         chartRef.current = chart
         seriesRef.current = series
+        markersRef.current = createSeriesMarkers(series, [])
         const resizeObserver = new ResizeObserver((entries) => {
             const width = entries[0]?.contentRect.width
             applyChartWidth(chart, width)
@@ -58,6 +66,8 @@ export function InvestmentCandlestickChart({
         resizeObserver.observe(container)
         return () => {
             resizeObserver.disconnect()
+            markersRef.current?.detach()
+            markersRef.current = null
             seriesRef.current = null
             chartRef.current = null
             chart.remove()
@@ -70,6 +80,10 @@ export function InvestmentCandlestickChart({
             chartRef.current?.timeScale().fitContent()
         }
     }, [data])
+
+    useEffect(() => {
+        markersRef.current?.setMarkers(markers)
+    }, [markers])
 
     return <div aria-label={ariaLabel} className="investment-candlestick-chart" ref={containerRef} role="img"/>
 }
