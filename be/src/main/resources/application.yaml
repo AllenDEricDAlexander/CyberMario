@@ -208,6 +208,8 @@ mario:
         owner-account-no: ${IM_PLATFORM_BOOTSTRAP_OWNER_ACCOUNT_NO:}
         channel-key: ${IM_PLATFORM_BOOTSTRAP_CHANNEL_KEY:general}
         channel-name: ${IM_PLATFORM_BOOTSTRAP_CHANNEL_NAME:公共频道}
+      user-role-backfill:
+        enabled: ${IM_PLATFORM_USER_ROLE_BACKFILL_ENABLED:true}
   rag:
     storage:
       type: ${RAG_STORAGE_TYPE:LOCAL}

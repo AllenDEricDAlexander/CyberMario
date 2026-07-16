@@ -28,6 +28,8 @@ public interface UserRepository extends JpaRepository<UserPo, Long>, JpaSpecific
 
     List<UserPo> findByIdInAndDeletedFalse(Collection<Long> ids);
 
+    Page<UserPo> findByStatusAndDeletedFalse(RbacStatus status, Pageable pageable);
+
     @Query("""
             select user from UserPo user
             where user.deleted = false

@@ -108,6 +108,7 @@ class RbacAuthApplicationTests {
         RolePo ragRole = roleRepository.save(role("RAG_USER"));
         RolePo dashboardRole = roleRepository.save(role("AGENT_DASHBOARD_USER"));
         RolePo mcpRole = roleRepository.save(role("AGENT_MCP_USER"));
+        RolePo imRole = roleRepository.save(role("IM_USER"));
         grant(chatRole, menuPermission("menu:chat", "chat", "/chat"));
         grant(chatRole, permission("api:chat:stream", PermissionType.API));
         grant(chatRole, permission("api:rbac:auth:self", PermissionType.API));
@@ -129,6 +130,9 @@ class RbacAuthApplicationTests {
         grant(mcpRole, permission("api:agent:mcp-server:*", PermissionType.API));
         grant(mcpRole, permission("api:agent:mcp-tool:collection", PermissionType.API));
         grant(mcpRole, permission("api:agent:mcp-tool:*", PermissionType.API));
+        grant(imRole, menuPermission("menu:im", "im", "/im"));
+        grant(imRole, permission("api:im:read", PermissionType.API));
+        grant(imRole, permission("api:im:write", PermissionType.API));
         permission("menu:agent:mcp-logs", PermissionType.MENU);
         permission("btn:agent:mcp-log:view", PermissionType.BUTTON);
         permission("api:agent:mcp-log:collection", PermissionType.API);
@@ -149,9 +153,9 @@ class RbacAuthApplicationTests {
         assertThat(response.user().getAccountNo()).isEqualTo("peach-001");
         assertThat(response.user().getNickname()).isEqualTo("Princess Peach");
         assertThat(response.roleCodes()).containsExactlyInAnyOrder("CHAT_BASIC", "RAG_USER", "AGENT_DASHBOARD_USER",
-                "AGENT_MCP_USER");
+                "AGENT_MCP_USER", "IM_USER");
         assertThat(response.menus()).extracting("permCode")
-                .contains("menu:chat", "menu:rag", "menu:agent", "menu:agent:mcp-servers")
+                .contains("menu:chat", "menu:rag", "menu:agent", "menu:agent:mcp-servers", "menu:im")
                 .doesNotContain("menu:agent:mcp-tools", "menu:agent:mcp-logs");
         assertThat(response.buttonCodes())
                 .contains("btn:agent:mcp-server:add",
@@ -170,7 +174,9 @@ class RbacAuthApplicationTests {
                         "api:agent:mcp-server:collection",
                         "api:agent:mcp-server:*",
                         "api:agent:mcp-tool:collection",
-                        "api:agent:mcp-tool:*")
+                        "api:agent:mcp-tool:*",
+                        "api:im:read",
+                        "api:im:write")
                 .doesNotContain("api:rbac:admin:*",
                         "api:agent:model-audit:dashboard:global",
                         "api:agent:model-audit:dashboard:user-options",
@@ -182,7 +188,35 @@ class RbacAuthApplicationTests {
         assertThat(user.isPasswordExpired()).isFalse();
         assertThat(userRoleRepository.findByUserId(user.getId()))
                 .extracting(UserRolePo::getRoleId)
-                .containsExactlyInAnyOrder(chatRole.getId(), ragRole.getId(), dashboardRole.getId(), mcpRole.getId());
+                .containsExactlyInAnyOrder(chatRole.getId(), ragRole.getId(), dashboardRole.getId(), mcpRole.getId(),
+                        imRole.getId());
+    }
+
+    @Test
+    void registerFailsAtomicallyWhenImUserDefaultRoleIsMissing() {
+        saveNonImDefaultRegisterRoles();
+        RegisterRequest request = registerRequest("daisy-001", "Daisy", "password123", "Princess Daisy",
+                null, null, null);
+
+        assertThatThrownBy(() -> authApplication.register(request, "127.0.0.1", "test"))
+                .extracting("code")
+                .isEqualTo("RBAC_DEFAULT_ROLE_NOT_FOUND");
+        assertThat(userRepository.findByAccountNoAndDeletedFalse("daisy-001")).isEmpty();
+    }
+
+    @Test
+    void registerFailsAtomicallyWhenImUserDefaultRoleIsDisabled() {
+        saveNonImDefaultRegisterRoles();
+        RolePo imRole = role("IM_USER");
+        imRole.setStatus(RbacStatus.DISABLED);
+        roleRepository.save(imRole);
+        RegisterRequest request = registerRequest("rosalina-001", "Rosalina", "password123", "Rosalina",
+                null, null, null);
+
+        assertThatThrownBy(() -> authApplication.register(request, "127.0.0.1", "test"))
+                .extracting("code")
+                .isEqualTo("RBAC_DEFAULT_ROLE_DISABLED");
+        assertThat(userRepository.findByAccountNoAndDeletedFalse("rosalina-001")).isEmpty();
     }
 
     @Test
@@ -300,6 +334,13 @@ class RbacAuthApplicationTests {
         role.setRoleName(code);
         role.setStatus(RbacStatus.ENABLED);
         return role;
+    }
+
+    private void saveNonImDefaultRegisterRoles() {
+        roleRepository.save(role("CHAT_BASIC"));
+        roleRepository.save(role("RAG_USER"));
+        roleRepository.save(role("AGENT_DASHBOARD_USER"));
+        roleRepository.save(role("AGENT_MCP_USER"));
     }
 
     private PermissionPo permission(String code, PermissionType type) {

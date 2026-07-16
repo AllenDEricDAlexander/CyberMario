@@ -133,6 +133,8 @@ mario:
     platform:
       bootstrap:
         enabled: false
+      user-role-backfill:
+        enabled: false
   security:
     jwt:
       issuer: CyberMarioTest
