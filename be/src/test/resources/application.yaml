@@ -57,6 +57,13 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+im:
+  realtime:
+    dispatcher:
+      enabled: false
+      runner:
+        enabled: false
+
 management:
   endpoints:
     web:

@@ -130,12 +130,6 @@ export function createImSocketController(options: ImSocketOptions): ImSocketCont
     }
 
     function handleOpen() {
-        if (socketOptions.activeConversationId) {
-            sendFrame('SUBSCRIBE', {
-                conversationId: socketOptions.activeConversationId,
-                lastSeq: socketOptions.lastSeq,
-            })
-        }
         pingTimer = setInterval(() => {
             sendFrame('PING', {})
         }, socketOptions.pingIntervalMs)

@@ -29,17 +29,13 @@ import java.net.URI;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Component
 public class ImWebSocketHandler implements WebSocketHandler {
-
-    public static final String SUBSCRIPTIONS_ATTRIBUTE = ImWebSocketHandler.class.getName() + ".SUBSCRIPTIONS";
 
     private static final int DEFAULT_OUTBOUND_CAPACITY = 256;
 
@@ -82,9 +78,6 @@ public class ImWebSocketHandler implements WebSocketHandler {
     }
 
     private Mono<Void> handleAuthenticated(WebSocketSession session, ImPrincipal principal) {
-        Set<Long> subscriptions = ConcurrentHashMap.newKeySet();
-        session.getAttributes().put(SUBSCRIPTIONS_ATTRIBUTE, subscriptions);
-
         BlockingQueue<ImFrame> outboundQueue = new ArrayBlockingQueue<>(outboundCapacity);
         Sinks.Many<ImFrame> outbound = Sinks.many().unicast().onBackpressureBuffer(outboundQueue);
         AtomicReference<Map<String, Object>> resyncHint =
@@ -97,7 +90,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
                 .map(frame -> session.textMessage(write(frame)));
         Mono<Void> receive = session.receive()
                 .filter(message -> WebSocketMessage.Type.TEXT.equals(message.getType()))
-                .concatMap(message -> handleClientFrame(principal, subscriptions, outbound, outboundQueue, resyncHint,
+                .concatMap(message -> handleClientFrame(principal, outbound, outboundQueue, resyncHint,
                         message.getPayloadAsText()))
                 .then()
                 .doFinally(ignored -> outbound.tryEmitComplete());
@@ -106,8 +99,8 @@ public class ImWebSocketHandler implements WebSocketHandler {
                 .doFinally(ignored -> close(registration, outbound, closed));
     }
 
-    private Mono<Void> handleClientFrame(ImPrincipal principal, Set<Long> subscriptions,
-                                         Sinks.Many<ImFrame> outbound, BlockingQueue<ImFrame> outboundQueue,
+    private Mono<Void> handleClientFrame(ImPrincipal principal, Sinks.Many<ImFrame> outbound,
+                                         BlockingQueue<ImFrame> outboundQueue,
                                          AtomicReference<Map<String, Object>> resyncHint, String payload) {
         ImFrame frame;
         try {
@@ -131,10 +124,8 @@ public class ImWebSocketHandler implements WebSocketHandler {
                 case "SEND_MESSAGE" -> sendMessage(principal, outbound, outboundQueue, resyncHint, frame);
                 case "MARK_READ" -> markRead(principal, outbound, outboundQueue, resyncHint, frame);
                 case "SUBSCRIBE" -> {
-                    SubscribePayload subscribe = payload(frame, SubscribePayload.class);
-                    if (subscribe.conversationId() != null) {
-                        subscriptions.add(subscribe.conversationId());
-                    }
+                    // Deprecated compatibility no-op. Routing follows active conversation membership.
+                    payload(frame, SubscribePayload.class);
                     yield Mono.empty();
                 }
                 default -> recoverClientFrame(outbound, outboundQueue, resyncHint, frame.requestId(),

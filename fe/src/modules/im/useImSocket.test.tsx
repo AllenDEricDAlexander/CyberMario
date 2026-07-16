@@ -90,14 +90,15 @@ describe('createImSocketController', () => {
         vi.useRealTimers()
     })
 
-    test('mints a ticket, opens the socket URL, subscribes the active conversation, and pings while connected', async () => {
+    test('mints a scoped ticket, opens the socket URL, and pings without a redundant subscription frame', async () => {
+        const ticketLoader = vi.fn().mockResolvedValue(ticket)
         const controller = createImSocketController({
             enabled: true,
             activeConversationId: 2,
             lastSeq: 4,
             pingIntervalMs: 1000,
             WebSocketCtor: MockWebSocket,
-            ticketLoader: vi.fn().mockResolvedValue(ticket),
+            ticketLoader,
             location: {protocol: 'https:', host: 'example.com'},
         })
 
@@ -107,10 +108,36 @@ describe('createImSocketController', () => {
         vi.advanceTimersByTime(1000)
 
         expect(socket.url).toBe('wss://example.com/ws/im?ticket=ticket+value')
+        expect(ticketLoader).toHaveBeenCalledWith({conversationId: 2})
         expect(socket.sent.map(parseSentFrame)).toMatchObject([
-            {type: 'SUBSCRIBE', payload: {conversationId: 2, lastSeq: 4}},
             {type: 'PING', payload: {}},
         ])
+    })
+
+    test('reconnect mints a fresh ticket and keeps sequence recovery on the RESYNC callback', async () => {
+        const ticketLoader = vi.fn().mockResolvedValue(ticket)
+        const onResync = vi.fn()
+        const controller = createImSocketController({
+            enabled: true,
+            activeConversationId: 2,
+            lastSeq: 7,
+            WebSocketCtor: MockWebSocket,
+            ticketLoader,
+            location: {protocol: 'https:', host: 'example.com'},
+            onResync,
+        })
+
+        await controller.connect()
+        const first = MockWebSocket.instances[0]
+        first.emit('open')
+        first.emit('message', {type: 'RESYNC', payload: {reason: 'gap', conversationId: 2, messageSeq: 9}})
+        await controller.reconnect()
+
+        expect(first.closed).toBe(true)
+        expect(MockWebSocket.instances).toHaveLength(2)
+        expect(ticketLoader).toHaveBeenNthCalledWith(1, {conversationId: 2})
+        expect(ticketLoader).toHaveBeenNthCalledWith(2, {conversationId: 2})
+        expect(onResync).toHaveBeenCalledWith({reason: 'gap', conversationId: 2, messageSeq: 9})
     })
 
     test('preserves enabled and ping defaults when optional controller options are explicit undefined', async () => {

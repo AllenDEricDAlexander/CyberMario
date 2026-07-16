@@ -116,7 +116,7 @@ Client frame types:
 | Type | Payload |
 |---|---|
 | `PING` | `{}` |
-| `SUBSCRIBE` | `{ "conversationId": number, "lastSeq": number }` |
+| `SUBSCRIBE` | Deprecated compatibility no-op; clients should not emit it |
 | `SEND_MESSAGE` | `SendMessageRequest` payload |
 | `MARK_READ` | `{ "conversationId": number, "messageSeq": number }` |
 
@@ -132,6 +132,9 @@ Server frame types:
 
 Invalid client frames and outbound overflow are recovered with `RESYNC`. Clients
 should reload history/surfaces from REST when they receive `RESYNC`.
+Realtime delivery is routed by active conversation membership to every active
+connection for that user. Selecting a conversation does not change server-side
+routing; recovery uses REST history by `messageSeq` after reconnect or `RESYNC`.
 
 ## Facade Package Rule
 

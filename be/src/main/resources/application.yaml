@@ -112,6 +112,18 @@ server:
   # 收到 SIGTERM 时停止接收新请求，并等待已进入 WebFlux 的请求完成。
   shutdown: graceful
 
+im:
+  realtime:
+    dispatcher:
+      enabled: ${IM_REALTIME_DISPATCHER_ENABLED:true}
+      max-attempts: ${IM_REALTIME_DISPATCHER_MAX_ATTEMPTS:3}
+      retry-base-delay-ms: ${IM_REALTIME_DISPATCHER_RETRY_BASE_DELAY_MS:1000}
+      runner:
+        enabled: ${IM_REALTIME_DISPATCHER_RUNNER_ENABLED:true}
+        batch-size: ${IM_REALTIME_DISPATCHER_BATCH_SIZE:100}
+        initial-delay-ms: ${IM_REALTIME_DISPATCHER_INITIAL_DELAY_MS:1000}
+        fixed-delay-ms: ${IM_REALTIME_DISPATCHER_FIXED_DELAY_MS:1000}
+
 management:
   endpoints:
     web:

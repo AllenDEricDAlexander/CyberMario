@@ -12,11 +12,17 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.data.domain.Pageable;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import top.egon.mario.im.facade.DmFacade;
 import top.egon.mario.im.facade.ImFacade;
+import top.egon.mario.im.facade.RoomFacade;
+import top.egon.mario.im.facade.dto.command.JoinCommand;
 import top.egon.mario.im.facade.dto.command.OpenDmCommand;
 import top.egon.mario.im.facade.dto.command.SendMessageCommand;
+import top.egon.mario.im.facade.dto.view.ChannelView;
 import top.egon.mario.im.facade.dto.view.ConversationView;
+import top.egon.mario.im.platform.PlatformRoomFacade;
 import top.egon.mario.im.po.ImOutboxPo;
 import top.egon.mario.im.po.enums.ImOutboxStatus;
 import top.egon.mario.im.policy.ImPrincipal;
@@ -66,6 +72,12 @@ class ImOutboxDispatcherTests {
     private ImFacade imFacade;
 
     @Autowired
+    private RoomFacade roomFacade;
+
+    @Autowired
+    private PlatformRoomFacade platformRoomFacade;
+
+    @Autowired
     private OutboxDispatcher outboxDispatcher;
 
     @Autowired
@@ -79,6 +91,12 @@ class ImOutboxDispatcherTests {
 
     @Autowired
     private ImOutboxRepository outboxRepository;
+
+    @Autowired
+    private DataSourceProperties dataSourceProperties;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @BeforeEach
     void setUp() {
@@ -251,6 +269,54 @@ class ImOutboxDispatcherTests {
         }
     }
 
+    @Test
+    void committedPublicChannelEventReachesEveryMemberConnectionButNotNonmemberReader() {
+        long ownerUserId = 9341L;
+        long memberUserId = 9342L;
+        long nonmemberUserId = 9343L;
+        ChannelView channel = platformRoomFacade.createGeneralChannel(
+                platformPrincipal(ownerUserId), "realtime-general-9341", "Realtime General");
+        roomFacade.applyJoin(new JoinCommand(
+                platformPrincipal(memberUserId), "CHANNEL", channel.id(), "join realtime test"));
+        imFacade.send(new SendMessageCommand(
+                platformPrincipal(ownerUserId), channel.mainConversationId(), "realtime-general-message",
+                "TEXT", "hello realtime", "{}", "{}"));
+        ImOutboxPo outbox = pendingRowsFor(channel.mainConversationId()).getFirst();
+        makeImmediatelyAvailable(List.of(outbox));
+
+        ImConnectionRegistry registry = new ImConnectionRegistry();
+        LocalRealtimeRouter router = new LocalRealtimeRouter(registry, conversationMemberRepository);
+        OutboxDispatcher dispatcher = new OutboxDispatcher(
+                outboxRepository, router, dataSourceProperties, 3, 1000L);
+        List<Map<String, Object>> ownerFirstFrames = new CopyOnWriteArrayList<>();
+        List<Map<String, Object>> ownerSecondFrames = new CopyOnWriteArrayList<>();
+        List<Map<String, Object>> memberFrames = new CopyOnWriteArrayList<>();
+        List<Map<String, Object>> nonmemberFrames = new CopyOnWriteArrayList<>();
+
+        try (var ownerFirst = registry.register(ownerUserId, ownerFirstFrames::add);
+             var ownerSecond = registry.register(ownerUserId, ownerSecondFrames::add);
+             var member = registry.register(memberUserId, memberFrames::add);
+             var nonmember = registry.register(nonmemberUserId, nonmemberFrames::add)) {
+            Integer dispatched = new TransactionTemplate(transactionManager)
+                    .execute(status -> dispatcher.dispatchBatch(1));
+            assertThat(dispatched).isEqualTo(1);
+        }
+
+        assertThat(ownerFirstFrames).singleElement()
+                .extracting(frame -> frame.get("outboxId"))
+                .isEqualTo(outbox.getId());
+        assertThat(ownerSecondFrames).singleElement()
+                .extracting(frame -> frame.get("outboxId"))
+                .isEqualTo(outbox.getId());
+        assertThat(memberFrames).singleElement()
+                .extracting(frame -> frame.get("outboxId"))
+                .isEqualTo(outbox.getId());
+        assertThat(nonmemberFrames).isEmpty();
+        assertThat(outboxRepository.findByIdAndDeletedFalse(outbox.getId())).get()
+                .extracting(ImOutboxPo::getStatus)
+                .isEqualTo(ImOutboxStatus.DISPATCHED);
+    }
+
     private Callable<Integer> worker(CountDownLatch ready, CountDownLatch start) {
         return () -> {
             ready.countDown();
@@ -315,6 +381,10 @@ class ImOutboxDispatcherTests {
 
     private ImPrincipal principal(Long userId) {
         return new ImPrincipal(userId, Set.of(), CONTEXT_TYPE, Map.of());
+    }
+
+    private ImPrincipal platformPrincipal(Long userId) {
+        return new ImPrincipal(userId, Set.of(), PlatformRoomFacade.PLATFORM_CONTEXT_TYPE, Map.of());
     }
 
     @TestConfiguration

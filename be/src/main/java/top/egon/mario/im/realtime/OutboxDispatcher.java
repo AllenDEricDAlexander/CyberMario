@@ -1,5 +1,6 @@
 package top.egon.mario.im.realtime;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
 import org.springframework.data.domain.PageRequest;
@@ -20,19 +21,23 @@ import java.util.Map;
 @ConditionalOnProperty(prefix = "im.realtime.dispatcher", name = "enabled", havingValue = "true")
 public class OutboxDispatcher {
 
-    private static final int MAX_ATTEMPTS = 3;
-    private static final Duration RETRY_BASE_DELAY = Duration.ofSeconds(1);
     private static final int MAX_ERROR_LENGTH = 512;
 
     private final ImOutboxRepository outboxRepository;
     private final RealtimeRouter realtimeRouter;
     private final boolean postgresqlClaims;
+    private final int maxAttempts;
+    private final Duration retryBaseDelay;
 
     public OutboxDispatcher(ImOutboxRepository outboxRepository, RealtimeRouter realtimeRouter,
-                            DataSourceProperties dataSourceProperties) {
+                            DataSourceProperties dataSourceProperties,
+                            @Value("${im.realtime.dispatcher.max-attempts:3}") int maxAttempts,
+                            @Value("${im.realtime.dispatcher.retry-base-delay-ms:1000}") long retryBaseDelayMillis) {
         this.outboxRepository = outboxRepository;
         this.realtimeRouter = realtimeRouter;
         this.postgresqlClaims = postgresqlClaims(dataSourceProperties);
+        this.maxAttempts = Math.max(1, maxAttempts);
+        this.retryBaseDelay = Duration.ofMillis(Math.max(1L, retryBaseDelayMillis));
     }
 
     @Transactional
@@ -96,7 +101,7 @@ public class OutboxDispatcher {
         int attempts = attempts(row) + 1;
         row.setAttempts(attempts);
         row.setLastError(lastError(ex));
-        if (attempts >= MAX_ATTEMPTS) {
+        if (attempts >= maxAttempts) {
             row.setStatus(ImOutboxStatus.FAILED);
         } else {
             row.setStatus(ImOutboxStatus.PENDING);
@@ -106,7 +111,7 @@ public class OutboxDispatcher {
     }
 
     private Duration retryDelay(int attempts) {
-        return RETRY_BASE_DELAY.multipliedBy(attempts);
+        return retryBaseDelay.multipliedBy(attempts);
     }
 
     private int attempts(ImOutboxPo row) {

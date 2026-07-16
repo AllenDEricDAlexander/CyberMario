@@ -56,7 +56,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -190,7 +189,7 @@ class ImWebSocketGatewayTests {
     }
 
     @Test
-    void websocketHandlesPingSendMessageMarkReadAndSubscribeFrames() throws Exception {
+    void websocketHandlesFramesAndTreatsDeprecatedSubscribeAsNoOp() throws Exception {
         ImTicketService tickets = mock(ImTicketService.class);
         ImFacade facade = mock(ImFacade.class);
         PlatformImFacade platformFacade = mock(PlatformImFacade.class);
@@ -230,7 +229,6 @@ class ImWebSocketGatewayTests {
         assertThat(frames.get(0).get("requestId").asText()).isEqualTo("r-ping");
         assertThat(frames.get(1).get("payload").get("message").get("id").asLong()).isEqualTo(8801L);
         assertThat(frames.get(2).get("payload").get("unread").get("lastReadSeq").asLong()).isEqualTo(1L);
-        assertThat(session.subscriptions()).containsExactly(7701L);
         verify(platformFacade).send(argThat((SendMessageCommand command) ->
                 command.principal().equals(principal)
                         && command.conversationId().equals(7701L)
@@ -625,19 +623,6 @@ class ImWebSocketGatewayTests {
                     .map(payload -> readJson(objectMapper, payload))
                     .collectList()
                     .block(Duration.ofSeconds(2));
-        }
-
-        List<Long> subscriptions() {
-            Object subscriptions = attributes.get(ImWebSocketHandler.SUBSCRIPTIONS_ATTRIBUTE);
-            if (subscriptions instanceof Set<?> values) {
-                List<Long> conversationIds = new ArrayList<>();
-                for (Object value : values) {
-                    conversationIds.add((Long) value);
-                }
-                conversationIds.sort(Long::compareTo);
-                return conversationIds;
-            }
-            return List.of();
         }
 
         boolean awaitDeferredSend() throws InterruptedException {
