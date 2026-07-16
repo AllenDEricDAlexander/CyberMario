@@ -2,6 +2,7 @@ import {describe, expect, it, vi} from 'vitest'
 import {
     advanceClocktowerGameFlow,
     advanceClocktowerFlow,
+    buildClocktowerAuditSearchParams,
     claimClocktowerSeat,
     closeClocktowerNomination,
     confirmClocktowerExecution,
@@ -12,6 +13,7 @@ import {
     enterClocktowerRoom,
     generateClocktowerBoard,
     getClocktowerGameAudit,
+    getClocktowerAuditSummary,
     getClocktowerGameFlow,
     getClocktowerGameReplay,
     getClocktowerGameView,
@@ -24,6 +26,14 @@ import {
     getClocktowerTerms,
     joinClocktowerRoom,
     listClocktowerAdminChatMessages,
+    listClocktowerAuditBans,
+    listClocktowerAuditConversations,
+    listClocktowerAuditEvents,
+    listClocktowerAuditGames,
+    listClocktowerAuditInvitations,
+    listClocktowerAuditMembers,
+    listClocktowerAuditMessages,
+    listClocktowerAuditRooms,
     listClocktowerBoards,
     listClocktowerChatConversations,
     listClocktowerChatMessages,
@@ -552,6 +562,50 @@ describe('clocktowerService', () => {
         expect(requestJson).toHaveBeenCalledWith(
             '/api/admin/clocktower/chat/conversations/13/messages?page=4&size=100',
         )
+    })
+
+    it('builds audit query strings with repeated normalized scope parameters', () => {
+        expect(buildClocktowerAuditSearchParams({
+            roomIds: [2, 4],
+            gameIds: [11, 12],
+            conversationIds: [21, 22],
+            roomName: '  月下钟楼  ',
+            page: 3,
+            size: 40,
+        })).toBe(
+            'roomIds=2&roomIds=4&gameIds=11&gameIds=12&conversationIds=21&conversationIds=22'
+            + '&roomName=%E6%9C%88%E4%B8%8B%E9%92%9F%E6%A5%BC&page=3&size=40',
+        )
+    })
+
+    it('allows an empty audit summary query and pages every audit report endpoint', async () => {
+        const {requestJson} = await import('../../services/request')
+        const query = {roomIds: [2, 4], roomName: '测试', page: 2, size: 50}
+
+        await getClocktowerAuditSummary()
+        await listClocktowerAuditRooms(query)
+        await listClocktowerAuditGames(query)
+        await listClocktowerAuditEvents(query)
+        await listClocktowerAuditConversations(query)
+        await listClocktowerAuditMessages(query)
+        await listClocktowerAuditMembers(query)
+        await listClocktowerAuditInvitations(query)
+        await listClocktowerAuditBans(query)
+
+        expect(requestJson).toHaveBeenCalledWith('/api/admin/clocktower/audit/summary')
+        const suffix = '?roomIds=2&roomIds=4&roomName=%E6%B5%8B%E8%AF%95&page=2&size=50'
+        for (const resource of [
+            'rooms',
+            'games',
+            'events',
+            'conversations',
+            'messages',
+            'members',
+            'invitations',
+            'bans',
+        ]) {
+            expect(requestJson).toHaveBeenCalledWith(`/api/admin/clocktower/audit/${resource}${suffix}`)
+        }
     })
 
     it('submits storyteller actions to the storyteller endpoint', async () => {

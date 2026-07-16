@@ -13,7 +13,17 @@ import type {
     ClocktowerAgentConsoleView,
     ClocktowerAgentMemoryView,
     ClocktowerAgentTaskView,
+    ClocktowerAuditBanResponse,
+    ClocktowerAuditConversationResponse,
+    ClocktowerAuditEventResponse,
+    ClocktowerAuditFilter,
+    ClocktowerAuditGameResponse,
+    ClocktowerAuditInvitationResponse,
+    ClocktowerAuditMemberResponse,
+    ClocktowerAuditMessageResponse,
     ClocktowerAuditQuery,
+    ClocktowerAuditRoomResponse,
+    ClocktowerAuditSummaryResponse,
     ClocktowerChatReadStateResponse,
     ClocktowerBoardConfigResponse,
     ClocktowerBoardGenerateRequest,
@@ -620,6 +630,76 @@ export function listClocktowerAdminChatMessages(conversationId: number, params: 
     return requestJson<ClocktowerPage<ClocktowerMessageResponse>>(
         `/api/admin/clocktower/chat/conversations/${conversationId}/messages${suffix(search)}`,
     )
+}
+
+export function getClocktowerAuditSummary(params: ClocktowerAuditFilter = {}) {
+    return requestJson<ClocktowerAuditSummaryResponse>(clocktowerAuditUrl('summary', params))
+}
+
+export function listClocktowerAuditRooms(params: ClocktowerAuditQuery = {}) {
+    return requestClocktowerAuditPage<ClocktowerAuditRoomResponse>('rooms', params)
+}
+
+export function listClocktowerAuditGames(params: ClocktowerAuditQuery = {}) {
+    return requestClocktowerAuditPage<ClocktowerAuditGameResponse>('games', params)
+}
+
+export function listClocktowerAuditEvents(params: ClocktowerAuditQuery = {}) {
+    return requestClocktowerAuditPage<ClocktowerAuditEventResponse>('events', params)
+}
+
+export function listClocktowerAuditConversations(params: ClocktowerAuditQuery = {}) {
+    return requestClocktowerAuditPage<ClocktowerAuditConversationResponse>('conversations', params)
+}
+
+export function listClocktowerAuditMessages(params: ClocktowerAuditQuery = {}) {
+    return requestClocktowerAuditPage<ClocktowerAuditMessageResponse>('messages', params)
+}
+
+export function listClocktowerAuditMembers(params: ClocktowerAuditQuery = {}) {
+    return requestClocktowerAuditPage<ClocktowerAuditMemberResponse>('members', params)
+}
+
+export function listClocktowerAuditInvitations(params: ClocktowerAuditQuery = {}) {
+    return requestClocktowerAuditPage<ClocktowerAuditInvitationResponse>('invitations', params)
+}
+
+export function listClocktowerAuditBans(params: ClocktowerAuditQuery = {}) {
+    return requestClocktowerAuditPage<ClocktowerAuditBanResponse>('bans', params)
+}
+
+export function buildClocktowerAuditSearchParams(params: ClocktowerAuditQuery) {
+    const search = new URLSearchParams()
+    appendAuditIds(search, 'roomIds', params.roomIds)
+    appendAuditIds(search, 'gameIds', params.gameIds)
+    appendAuditIds(search, 'conversationIds', params.conversationIds)
+    const roomName = params.roomName?.trim()
+    if (roomName) {
+        search.set('roomName', roomName)
+    }
+    if (params.page !== undefined) {
+        search.set('page', String(params.page))
+    }
+    if (params.size !== undefined) {
+        search.set('size', String(params.size))
+    }
+    return search.toString()
+}
+
+function requestClocktowerAuditPage<T>(resource: string, params: ClocktowerAuditQuery) {
+    return requestJson<ClocktowerPage<T>>(clocktowerAuditUrl(resource, {
+        ...params,
+        page: params.page ?? 1,
+        size: params.size ?? 20,
+    }))
+}
+
+function clocktowerAuditUrl(resource: string, params: ClocktowerAuditQuery) {
+    return `/api/admin/clocktower/audit/${resource}${suffix(buildClocktowerAuditSearchParams(params))}`
+}
+
+function appendAuditIds(search: URLSearchParams, key: string, ids?: number[]) {
+    ids?.forEach((id) => search.append(key, String(id)))
 }
 
 export function streamClocktowerEvents(

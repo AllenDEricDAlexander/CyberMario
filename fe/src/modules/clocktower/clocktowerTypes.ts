@@ -951,9 +951,153 @@ export type ClocktowerVoteReplayResponse = {
     eventId?: number | null
 }
 
-export type ClocktowerAuditQuery = {
+export type ClocktowerAuditFilter = {
+    roomIds?: number[]
+    gameIds?: number[]
+    conversationIds?: number[]
+    roomName?: string
+}
+
+export type ClocktowerAuditQuery = ClocktowerAuditFilter & {
     page?: number
     size?: number
+}
+
+export type ClocktowerAuditSummaryResponse = {
+    roomCount: number
+    gameCount: number
+    eventCount: number
+    conversationCount: number
+    messageCount: number
+    memberCount: number
+    invitationCount: number
+    banCount: number
+}
+
+export type ClocktowerAuditRoomResponse = {
+    roomId: number
+    roomCode: string
+    roomName: string
+    status: string
+    visibility: string
+    ownerUserId?: number | null
+    capacity: number
+    currentMemberCount: number
+    lastActiveAt?: string | null
+    createdAt?: string | null
+}
+
+export type ClocktowerAuditGameResponse = {
+    gameId: number
+    roomId: number
+    roomName: string
+    gameNo: number
+    scriptCode: string
+    status: string
+    phase: string
+    dayNo: number
+    nightNo: number
+    startedAt?: string | null
+    endedAt?: string | null
+    lastActiveAt?: string | null
+    createdAt?: string | null
+}
+
+export type ClocktowerAuditEventResponse = {
+    eventId: number
+    roomId: number
+    roomName: string
+    gameId: number
+    eventSeq: number
+    eventType: string
+    phase: string
+    dayNo: number
+    nightNo: number
+    actorGameSeatId?: number | null
+    targetGameSeatId?: number | null
+    visibility: string
+    status: string
+    occurredAt: string
+    payloadJson: string
+}
+
+export type ClocktowerAuditConversationResponse = {
+    conversationId: number
+    roomId: number
+    roomName: string
+    gameId?: number | null
+    channelId: number
+    channelKey: string
+    channelName: string
+    groupId: number
+    groupKey: string
+    groupName: string
+    conversationType: string
+    status: string
+    messageSeq: number
+    lastMessageAt?: string | null
+    lastActiveAt?: string | null
+    createdAt?: string | null
+}
+
+export type ClocktowerAuditMessageResponse = {
+    messageId: number
+    conversationId: number
+    roomId: number
+    roomName: string
+    gameId?: number | null
+    channelKey: string
+    groupKey: string
+    senderUserId?: number | null
+    messageSeq: number
+    messageType: string
+    content: string
+    status: string
+    sentAt: string
+    editedAt?: string | null
+}
+
+export type ClocktowerAuditMemberResponse = {
+    memberId: number
+    roomId: number
+    roomName: string
+    userId: number
+    displayName?: string | null
+    memberType: string
+    status: string
+    activeStatus?: boolean | null
+    seatNo?: number | null
+    joinedAt?: string | null
+    leftAt?: string | null
+    lastActiveAt?: string | null
+    createdAt?: string | null
+}
+
+export type ClocktowerAuditInvitationResponse = {
+    invitationId: number
+    roomId: number
+    roomName: string
+    inviterUserId: number
+    inviteeUserId?: number | null
+    invitationCode: string
+    status: string
+    activeStatus?: boolean | null
+    targetSeatNo?: number | null
+    expiresAt?: string | null
+    acceptedAt?: string | null
+    createdAt?: string | null
+}
+
+export type ClocktowerAuditBanResponse = {
+    banId: number
+    roomId: number
+    roomName: string
+    userId: number
+    bannedByUserId?: number | null
+    reason?: string | null
+    status: string
+    expiresAt?: string | null
+    createdAt?: string | null
 }
 
 export type ClocktowerRoomAuditSeatResponse = {
