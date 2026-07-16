@@ -1,6 +1,8 @@
 package top.egon.mario.im.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import top.egon.mario.im.po.ImContactPo;
 import top.egon.mario.im.po.enums.ImContactStatus;
 
@@ -15,6 +17,6 @@ public interface ImContactRepository extends JpaRepository<ImContactPo, Long> {
 
     List<ImContactPo> findByFriendshipIdAndDeletedFalse(Long friendshipId);
 
-    List<ImContactPo> findByOwnerUserIdAndStatusAndDeletedFalseOrderByUpdatedAtDesc(
-            Long ownerUserId, ImContactStatus status);
+    Page<ImContactPo> findByOwnerUserIdAndStatusAndDeletedFalse(
+            Long ownerUserId, ImContactStatus status, Pageable pageable);
 }

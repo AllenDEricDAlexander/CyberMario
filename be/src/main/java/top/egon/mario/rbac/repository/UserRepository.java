@@ -2,7 +2,12 @@ package top.egon.mario.rbac.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.repository.query.Param;
 import top.egon.mario.rbac.po.UserPo;
+import top.egon.mario.rbac.po.enums.RbacStatus;
 
 import java.util.Collection;
 import java.util.List;
@@ -22,6 +27,20 @@ public interface UserRepository extends JpaRepository<UserPo, Long>, JpaSpecific
     Optional<UserPo> findByIdAndDeletedFalse(Long id);
 
     List<UserPo> findByIdInAndDeletedFalse(Collection<Long> ids);
+
+    @Query("""
+            select user from UserPo user
+            where user.deleted = false
+              and user.status = :status
+              and user.locked = false
+              and user.id <> :excludedUserId
+              and (lower(user.accountNo) = lower(:keyword)
+                or locate(lower(:keyword), lower(coalesce(user.nickname, ''))) > 0)
+            """)
+    Page<UserPo> searchDirectory(@Param("keyword") String keyword,
+                                 @Param("excludedUserId") Long excludedUserId,
+                                 @Param("status") RbacStatus status,
+                                 Pageable pageable);
 
     boolean existsByUsernameAndDeletedFalse(String username);
 
