@@ -169,11 +169,12 @@ public class InvestmentReportService {
             throw invalid("Research report request is required");
         }
         InvestmentReportType reportType = requiredReportType(request.reportType());
-        if (reportType == InvestmentReportType.MARKET_OVERVIEW) {
+        if (reportType == InvestmentReportType.MARKET_OVERVIEW
+                || reportType == InvestmentReportType.PORTFOLIO_REPORT) {
             if (request.instrumentId() != null || StringUtils.hasText(request.priceType())
                     || StringUtils.hasText(request.interval()) || request.fromInclusive() != null
                     || request.toExclusive() != null) {
-                throw invalid("MARKET_OVERVIEW does not accept instrument or candle dimensions");
+                throw invalid(reportType + " does not accept instrument or candle dimensions");
             }
             return new FrozenResearchReportInput(reportType, null, null, null, null, null, dataAsOf);
         }

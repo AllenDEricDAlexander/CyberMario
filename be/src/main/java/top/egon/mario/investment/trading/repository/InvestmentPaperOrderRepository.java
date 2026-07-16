@@ -31,6 +31,21 @@ public interface InvestmentPaperOrderRepository extends JpaRepository<Investment
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select paperOrder from InvestmentPaperOrderPo paperOrder
+            where paperOrder.accountId = :accountId
+              and paperOrder.instrumentId = :instrumentId
+              and paperOrder.status = 'PENDING_MATCH'
+              and paperOrder.deleted = false
+            order by paperOrder.id asc
+            """)
+    List<InvestmentPaperOrderPo> findPendingByAccountAndInstrumentForUpdate(
+            @Param("accountId") Long accountId, @Param("instrumentId") Long instrumentId);
+
+    List<InvestmentPaperOrderPo> findByInstrumentIdAndStatusAndDeletedFalseOrderByIdAsc(
+            Long instrumentId, String status);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select paperOrder from InvestmentPaperOrderPo paperOrder
             where paperOrder.id = :orderId
               and paperOrder.accountId = :accountId
               and paperOrder.instrumentId = :instrumentId

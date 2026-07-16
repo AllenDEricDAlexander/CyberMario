@@ -131,6 +131,24 @@ class InvestmentReportServiceTests {
     }
 
     @Test
+    void rejectsInstrumentDimensionsForAPortfolioReport() {
+        InvestmentResearchReportGenerator portfolioGenerator = mock(InvestmentResearchReportGenerator.class);
+        when(portfolioGenerator.reportType()).thenReturn(InvestmentReportType.PORTFOLIO_REPORT);
+        InvestmentReportService portfolioService = new InvestmentReportService(
+                reportRepository, evidenceRepository, accessService, enqueueService,
+                new InvestmentResearchReportGeneratorRegistry(List.of(portfolioGenerator)), objectMapper,
+                Clock.fixed(NOW, ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> portfolioService.create(101L, 11L,
+                new CreateInvestmentReportRequest("PORTFOLIO_REPORT", 501L, null, null, null, null)))
+                .isInstanceOf(InvestmentException.class)
+                .satisfies(error -> assertThat(((InvestmentException) error).getErrorCode())
+                        .isEqualTo(InvestmentErrorCode.INVALID_REQUEST));
+        verify(reportRepository, never()).saveAndFlush(any());
+        verify(enqueueService, never()).enqueue(any());
+    }
+
+    @Test
     void completesWithoutChangingVersionCutoffOrEvidenceOwner() {
         FrozenResearchReportInput input = new FrozenResearchReportInput(
                 InvestmentReportType.MARKET_OVERVIEW, null, null, null, null, null, NOW);

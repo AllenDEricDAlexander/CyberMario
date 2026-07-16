@@ -13,6 +13,8 @@ public interface InvestmentMarginLedgerRepository extends JpaRepository<Investme
 
     Optional<InvestmentMarginLedgerPo> findByIdempotencyKey(String idempotencyKey);
 
+    boolean existsByIdempotencyKey(String idempotencyKey);
+
     @Query("""
             select coalesce(sum(-ledger.amount), 0) from InvestmentMarginLedgerPo ledger
             where ledger.accountId = :accountId

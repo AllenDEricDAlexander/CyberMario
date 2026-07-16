@@ -73,4 +73,28 @@ public class InvestmentJobEnqueueService {
                         select id from investment_job where idempotency_key = :idempotencyKey
                         """, Map.of("idempotencyKey", command.idempotencyKey()), Long.class);
     }
+
+    /** Creates a missing job or advances an unlocked pending job after a relevant market commit. */
+    @Transactional
+    public long enqueueOrWake(InvestmentJobEnqueueCommand command) {
+        long id = enqueue(command);
+        wakePending(command.idempotencyKey(), command.availableAt());
+        return id;
+    }
+
+    @Transactional
+    public boolean wakePending(String idempotencyKey, Instant availableAt) {
+        Instant now = clock.instant();
+        return jdbcTemplate.update("""
+                update investment_job
+                set available_at = :availableAt, updated_at = :now
+                where idempotency_key = :idempotencyKey
+                  and status = 'PENDING'
+                  and locked_by is null
+                  and available_at > :availableAt
+                """, new MapSqlParameterSource()
+                .addValue("idempotencyKey", idempotencyKey)
+                .addValue("availableAt", availableAt)
+                .addValue("now", now)) == 1;
+    }
 }

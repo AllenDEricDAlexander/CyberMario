@@ -141,6 +141,11 @@ public class PaperExecutionTransactionService {
             sequence = appendLedger(account, order, ++sequence, "MARGIN_RELEASE", BigDecimal.ZERO, wallet,
                     "fill:" + order.getId() + ":margin-release", executedAt,
                     Map.of("releasedMargin", update.releasedMargin().toPlainString()));
+            if ("LIQUIDATION".equals(order.getOrigin())) {
+                sequence = appendLedger(account, order, ++sequence, "LIQUIDATION", BigDecimal.ZERO, wallet,
+                        "fill:" + order.getId() + ":liquidation", executedAt,
+                        Map.of("classification", "ISOLATED_MARGIN_LIQUIDATION"));
+            }
             if (update.closed()) {
                 positionRepository.delete(position);
                 positionRepository.flush();

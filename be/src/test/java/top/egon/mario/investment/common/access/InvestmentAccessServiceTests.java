@@ -9,6 +9,9 @@ import top.egon.mario.investment.common.InvestmentErrorCode;
 import top.egon.mario.investment.common.InvestmentException;
 import top.egon.mario.investment.research.repository.InvestmentWatchlistRepository;
 import top.egon.mario.investment.research.repository.InvestmentWorkspaceRepository;
+import top.egon.mario.investment.portfolio.repository.InvestmentPaperAccountRepository;
+
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,11 +30,14 @@ class InvestmentAccessServiceTests {
     @Mock
     private InvestmentWatchlistRepository watchlistRepository;
 
+    @Mock
+    private InvestmentPaperAccountRepository accountRepository;
+
     private InvestmentAccessService accessService;
 
     @BeforeEach
     void setUp() {
-        accessService = new InvestmentAccessService(workspaceRepository, watchlistRepository);
+        accessService = new InvestmentAccessService(workspaceRepository, watchlistRepository, accountRepository);
     }
 
     @Test
@@ -63,5 +69,26 @@ class InvestmentAccessServiceTests {
         assertThatCode(() -> accessService.requireWatchlistOwner(21L, 11L, 101L)).doesNotThrowAnyException();
 
         verify(watchlistRepository).existsOwnedActiveWatchlist(21L, 11L, 101L);
+    }
+
+    @Test
+    void requiresTheAccountToBelongToTheActor() {
+        when(accountRepository.findOwnedAccount(31L, 101L))
+                .thenReturn(Optional.of(new top.egon.mario.investment.portfolio.po.InvestmentPaperAccountPo()));
+
+        assertThatCode(() -> accessService.requireAccountOwner(31L, 101L)).doesNotThrowAnyException();
+
+        verify(accountRepository).findOwnedAccount(31L, 101L);
+    }
+
+    @Test
+    void rejectsAnAccountOwnedByAnotherActor() {
+        when(accountRepository.findOwnedAccount(31L, 999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> accessService.requireAccountOwner(31L, 999L))
+                .isInstanceOf(InvestmentException.class)
+                .satisfies(error -> org.assertj.core.api.Assertions.assertThat(
+                                ((InvestmentException) error).getErrorCode())
+                        .isEqualTo(InvestmentErrorCode.FORBIDDEN));
     }
 }

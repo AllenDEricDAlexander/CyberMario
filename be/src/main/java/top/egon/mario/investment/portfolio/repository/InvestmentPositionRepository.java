@@ -21,4 +21,11 @@ public interface InvestmentPositionRepository extends JpaRepository<InvestmentPo
             order by position.instrumentId asc
             """)
     List<InvestmentPositionPo> findByAccountIdForUpdate(@Param("accountId") Long accountId);
+
+    List<InvestmentPositionPo> findByAccountIdOrderByInstrumentIdAsc(Long accountId);
+
+    List<InvestmentPositionPo> findByInstrumentIdOrderByAccountIdAscInstrumentIdAsc(Long instrumentId);
+
+    Optional<InvestmentPositionPo> findByIdAndAccountIdAndInstrumentId(
+            Long id, Long accountId, Long instrumentId);
 }
