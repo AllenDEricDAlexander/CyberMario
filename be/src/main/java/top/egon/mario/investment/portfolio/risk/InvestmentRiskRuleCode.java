@@ -1,0 +1,27 @@
+package top.egon.mario.investment.portfolio.risk;
+
+/**
+ * Stable persisted rule codes for every mandatory synchronous paper-trading check.
+ */
+public enum InvestmentRiskRuleCode {
+    TRADING_SWITCH_ENABLED,
+    AGENT_AUTO_TRADE_ENABLED,
+    INSTRUMENT_SUBSCRIBED,
+    INSTRUMENT_TRADABLE,
+    MARKET_DATA_FRESH,
+    MARK_PRICE_AVAILABLE,
+    POSITION_TIER_AVAILABLE,
+    FUNDING_DATA_AVAILABLE,
+    ORDER_NOTIONAL_LIMIT,
+    POSITION_NOTIONAL_LIMIT,
+    GROSS_EXPOSURE_LIMIT,
+    MAX_LEVERAGE_LIMIT,
+    MAX_OPEN_POSITIONS_LIMIT,
+    DAILY_LOSS_LIMIT,
+    MAX_DRAWDOWN_LIMIT,
+    ORDER_RATE_LIMIT,
+    COOLDOWN_LIMIT,
+    AVAILABLE_MARGIN_LIMIT,
+    MAX_SLIPPAGE_LIMIT,
+    REDUCE_ONLY_VALIDATION
+}
