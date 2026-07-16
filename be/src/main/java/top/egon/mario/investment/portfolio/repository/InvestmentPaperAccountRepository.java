@@ -3,9 +3,12 @@ package top.egon.mario.investment.portfolio.repository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import top.egon.mario.investment.portfolio.po.InvestmentPaperAccountPo;
+
+import jakarta.persistence.LockModeType;
 
 import java.util.Optional;
 
@@ -40,4 +43,14 @@ public interface InvestmentPaperAccountRepository extends JpaRepository<Investme
             """)
     Optional<InvestmentPaperAccountPo> findOwnedAccount(
             @Param("accountId") Long accountId, @Param("ownerUserId") Long ownerUserId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select account from InvestmentPaperAccountPo account
+            where account.id = :accountId
+              and account.workspaceId = :workspaceId
+              and account.deleted = false
+            """)
+    Optional<InvestmentPaperAccountPo> findByIdAndWorkspaceIdForUpdate(
+            @Param("accountId") Long accountId, @Param("workspaceId") Long workspaceId);
 }

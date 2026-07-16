@@ -33,7 +33,7 @@ public class OrderRiskRule implements InvestmentRiskRule {
                 && context.portfolio().availableMargin().compareTo(order.requiredMargin()) >= 0;
         boolean slippage = order.slippageBps().signum() >= 0
                 && order.slippageBps().compareTo(limits.maxSlippageBps()) <= 0;
-        boolean reduceOnly = !order.reduceOnly() || order.reduceOnlyValid();
+        boolean reduceOnly = order.reduceOnlyValid();
         return List.of(
                 RiskRuleResults.result(InvestmentRiskRuleCode.ORDER_RATE_LIMIT, rate,
                         BigDecimal.valueOf(requestedHourlyCount), BigDecimal.valueOf(limits.maxOrdersPerHour()),
@@ -51,6 +51,7 @@ public class OrderRiskRule implements InvestmentRiskRule {
                         "Slippage is within limit", "Slippage exceeds limit", checkedAt),
                 RiskRuleResults.result(InvestmentRiskRuleCode.REDUCE_ONLY_VALIDATION, reduceOnly,
                         RiskRuleResults.booleanValue(reduceOnly), BigDecimal.ONE,
-                        "Reduce-only semantics are valid", "Reduce-only order would increase exposure", checkedAt));
+                        "Position-action semantics are valid",
+                        "Order side or reduce-only semantics would increase invalid exposure", checkedAt));
     }
 }

@@ -3,7 +3,8 @@ package top.egon.mario.investment.common.model;
 import com.fasterxml.jackson.annotation.JsonCreator;
 
 public enum InvestmentOrderStatus implements InvestmentWireEnum {
-    PENDING,
+    PENDING_MATCH,
+    FAILED,
     FILLED,
     CANCELLED,
     EXPIRED,

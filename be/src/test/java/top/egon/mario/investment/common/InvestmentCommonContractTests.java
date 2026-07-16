@@ -54,7 +54,8 @@ class InvestmentCommonContractTests {
         assertEnumWireValues(PositionSide.class, "LONG", "SHORT");
         assertEnumWireValues(PositionAction.class, "OPEN", "REDUCE", "CLOSE");
         assertEnumWireValues(OrderType.class, "MARKET", "LIMIT");
-        assertEnumWireValues(InvestmentOrderStatus.class, "PENDING", "FILLED", "CANCELLED", "EXPIRED", "REJECTED");
+        assertEnumWireValues(InvestmentOrderStatus.class,
+                "PENDING_MATCH", "FAILED", "FILLED", "CANCELLED", "EXPIRED", "REJECTED");
         assertEnumWireValues(TradeIntentStatus.class, "RECEIVED", "RISK_REJECTED", "ACCEPTED", "EXPIRED", "FAILED");
         assertEnumWireValues(InvestmentRunStatus.class, "PENDING", "RUNNING", "SUCCEEDED", "FAILED");
     }
