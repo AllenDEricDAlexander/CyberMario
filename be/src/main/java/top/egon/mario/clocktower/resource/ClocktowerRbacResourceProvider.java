@@ -181,7 +181,8 @@ public class ClocktowerRbacResourceProvider implements RbacResourceProvider {
                             new RbacMenuSeed("clocktower:admin-audit", "/clocktower/admin/audit", null,
                                     null, "CrownOutlined", false, true, null), RbacResourceSource.PROVIDER),
                     api(ADMIN_APP_CODE, APP_CODE, ADMIN_AUDIT, "Clocktower admin audit", "GET",
-                            "^/api/admin/clocktower/(rooms/[^/]+/audit|games/[^/]+/audit|"
+                            "^/api/admin/clocktower/(audit/(summary|rooms|games|events|conversations|messages|"
+                                    + "members|invitations|bans)|rooms/[^/]+/audit|games/[^/]+/audit|"
                                     + "chat/conversations/[^/]+/messages)$",
                             ApiMatcherType.REGEX, ApiRiskLevel.HIGH),
                     api(ADMIN_APP_CODE, APP_CODE, ADMIN_RULE_DATA, "Clocktower rule data administration", "ANY",

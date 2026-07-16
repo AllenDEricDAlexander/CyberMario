@@ -312,6 +312,12 @@ class ClocktowerRbacResourceProviderTests {
                 "api:clocktower:chat:read-state");
         assertMatches(rules, "GET", "/api/admin/clocktower/games/9/audit",
                 "api:admin:clocktower:audit");
+        assertMatches(rules, "GET", "/api/admin/clocktower/audit/summary",
+                "api:admin:clocktower:audit");
+        assertMatches(rules, "GET", "/api/admin/clocktower/audit/rooms",
+                "api:admin:clocktower:audit");
+        assertMatches(rules, "GET", "/api/admin/clocktower/audit/messages",
+                "api:admin:clocktower:audit");
         assertMatches(rules, "POST", "/api/admin/clocktower/rule-data/reindex",
                 "api:admin:clocktower:rule-data");
         assertThat(matcher.match("GET", "/api/im/conversations", rules)).isEmpty();

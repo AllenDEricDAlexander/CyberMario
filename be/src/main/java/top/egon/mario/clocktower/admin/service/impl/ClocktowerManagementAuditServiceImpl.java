@@ -5,8 +5,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import top.egon.mario.clocktower.admin.dto.ClocktowerAuditQuery;
+import top.egon.mario.clocktower.admin.dto.ClocktowerAuditReportResponse;
+import top.egon.mario.clocktower.admin.dto.ClocktowerAuditSummaryResponse;
 import top.egon.mario.clocktower.admin.dto.ClocktowerGameAuditResponse;
 import top.egon.mario.clocktower.admin.dto.ClocktowerRoomAuditResponse;
+import top.egon.mario.clocktower.admin.repository.ClocktowerAuditReadRepository;
 import top.egon.mario.clocktower.admin.service.ClocktowerManagementAuditService;
 import top.egon.mario.clocktower.chat.ClocktowerChatViewerMode;
 import top.egon.mario.clocktower.chat.ClocktowerImAdapter;
@@ -52,11 +56,84 @@ public class ClocktowerManagementAuditServiceImpl implements ClocktowerManagemen
     private final ClocktowerGameEventRepository gameEventRepository;
     private final ClocktowerImAdapter clocktowerImAdapter;
     private final ClocktowerGameProjectionMapper projectionMapper;
+    private final ClocktowerAuditReadRepository auditReadRepository;
+
+    @Override
+    @Transactional(readOnly = true)
+    public ClocktowerAuditSummaryResponse summary(ClocktowerAuditQuery query, RbacPrincipal principal) {
+        requireAdmin(principal);
+        return auditReadRepository.summary(query);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ClocktowerAuditReportResponse.Room> rooms(ClocktowerAuditQuery query, Pageable pageable,
+                                                          RbacPrincipal principal) {
+        requireAdmin(principal);
+        return auditReadRepository.rooms(query, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ClocktowerAuditReportResponse.Game> games(ClocktowerAuditQuery query, Pageable pageable,
+                                                          RbacPrincipal principal) {
+        requireAdmin(principal);
+        return auditReadRepository.games(query, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ClocktowerAuditReportResponse.Event> events(ClocktowerAuditQuery query, Pageable pageable,
+                                                            RbacPrincipal principal) {
+        requireAdmin(principal);
+        return auditReadRepository.events(query, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ClocktowerAuditReportResponse.Conversation> conversations(ClocktowerAuditQuery query,
+                                                                          Pageable pageable,
+                                                                          RbacPrincipal principal) {
+        requireAdmin(principal);
+        return auditReadRepository.conversations(query, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ClocktowerAuditReportResponse.Message> messages(ClocktowerAuditQuery query, Pageable pageable,
+                                                                RbacPrincipal principal) {
+        requireAdmin(principal);
+        return auditReadRepository.messages(query, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ClocktowerAuditReportResponse.Member> members(ClocktowerAuditQuery query, Pageable pageable,
+                                                              RbacPrincipal principal) {
+        requireAdmin(principal);
+        return auditReadRepository.members(query, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ClocktowerAuditReportResponse.Invitation> invitations(ClocktowerAuditQuery query, Pageable pageable,
+                                                                      RbacPrincipal principal) {
+        requireAdmin(principal);
+        return auditReadRepository.invitations(query, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ClocktowerAuditReportResponse.Ban> bans(ClocktowerAuditQuery query, Pageable pageable,
+                                                        RbacPrincipal principal) {
+        requireAdmin(principal);
+        return auditReadRepository.bans(query, pageable);
+    }
 
     @Override
     @Transactional(readOnly = true)
     public ClocktowerRoomAuditResponse auditRoom(Long roomId, RbacPrincipal principal) {
-        viewerResolver.requireAdminAudit(principal);
+        requireAdmin(principal);
         RoomSpacePo room = roomRepository.findByIdAndDeletedFalse(roomId)
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_ROOM_NOT_FOUND"));
         var profile = profileRepository.findByRoomIdAndDeletedFalse(roomId)
@@ -86,7 +163,7 @@ public class ClocktowerManagementAuditServiceImpl implements ClocktowerManagemen
     @Override
     @Transactional(readOnly = true)
     public ClocktowerGameAuditResponse auditGame(Long gameId, RbacPrincipal principal) {
-        viewerResolver.requireAdminAudit(principal);
+        requireAdmin(principal);
         ClocktowerGamePo game = gameRepository.findByIdAndDeletedFalse(gameId)
                 .orElseThrow(() -> new ClocktowerException("CLOCKTOWER_GAME_NOT_FOUND"));
         return ClocktowerGameAuditResponse.from(game,
@@ -101,8 +178,12 @@ public class ClocktowerManagementAuditServiceImpl implements ClocktowerManagemen
     @Transactional(readOnly = true)
     public Page<ClocktowerChatMessageResponse> messages(Long conversationId, Pageable pageable,
                                                         RbacPrincipal principal) {
-        viewerResolver.requireAdminAudit(principal);
+        requireAdmin(principal);
         return clocktowerImAdapter.auditMessages(conversationId, pageable, principal);
+    }
+
+    private void requireAdmin(RbacPrincipal principal) {
+        viewerResolver.requireAdminAudit(principal);
     }
 
     private List<ClocktowerGameEventResponse> gameEvents(ClocktowerGamePo game) {
