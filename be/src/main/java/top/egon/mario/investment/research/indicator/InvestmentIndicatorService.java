@@ -1,5 +1,6 @@
 package top.egon.mario.investment.research.indicator;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import top.egon.mario.investment.common.InvestmentErrorCode;
 import top.egon.mario.investment.common.InvestmentException;
@@ -28,6 +29,7 @@ public class InvestmentIndicatorService {
     private final Ta4jIndicatorAdapter indicatorAdapter;
     private final Clock clock;
 
+    @Autowired
     public InvestmentIndicatorService(InvestmentMarketQueryService marketQueryService,
                                       Ta4jIndicatorAdapter indicatorAdapter) {
         this(marketQueryService, indicatorAdapter, Clock.systemUTC());
