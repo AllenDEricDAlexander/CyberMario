@@ -95,7 +95,7 @@ public class InvestmentDatasetSnapshotService {
                         .map(tier -> tierValue(instrument.instrumentId(), tier)))
                 .toList();
         List<Map<String, Object>> fundingValues = dataset.instruments().stream()
-                .flatMap(instrument -> instrument.fundingRates().stream().map(this::fundingValue))
+                .flatMap(instrument -> hasher.fundingValues(instrument.fundingRates()).stream())
                 .toList();
         String contractSpecHash = hasher.hash(specificationValues);
         String positionTierHash = hasher.hash(tierValues);
@@ -168,13 +168,13 @@ public class InvestmentDatasetSnapshotService {
                             rows.getFirst().barDate().atStartOfDay().toInstant(ZoneOffset.UTC),
                             rows.getLast().barDate().atStartOfDay().toInstant(ZoneOffset.UTC), rows.size(),
                             rows.stream().mapToLong(MarketBarDailyRow::revision).max().orElseThrow(),
-                            hasher.hash(rows.stream().map(this::dailyValue).toList()), createdAt));
+                            hasher.hashDailyBars(rows), createdAt));
                 } else {
                     List<MarketBarIntradayRow> rows = series.intradayRows();
                     result.add(item(instrument.instrumentId(), "BAR_INTRADAY", series.priceType(), series.interval(),
                             rows.getFirst().openTime(), rows.getLast().openTime(), rows.size(),
                             rows.stream().mapToLong(MarketBarIntradayRow::revision).max().orElseThrow(),
-                            hasher.hash(rows.stream().map(this::intradayValue).toList()), createdAt));
+                            hasher.hashIntradayBars(rows), createdAt));
                 }
             }
             if (!instrument.fundingRates().isEmpty()) {
@@ -182,7 +182,7 @@ public class InvestmentDatasetSnapshotService {
                 result.add(item(instrument.instrumentId(), "FUNDING_RATE", PriceType.NONE, BarInterval.NONE,
                         rows.getFirst().fundingTime(), rows.getLast().fundingTime(), rows.size(),
                         rows.stream().mapToLong(FundingRateRow::revision).max().orElseThrow(),
-                        hasher.hash(rows.stream().map(this::fundingValue).toList()), createdAt));
+                        hasher.hashFundingRates(rows), createdAt));
             }
         }
         return result;
@@ -249,45 +249,6 @@ public class InvestmentDatasetSnapshotService {
         result.put("maintenanceMarginRate", decimal(value.getMaintenanceMarginRate()));
         result.put("sourceHash", value.getSourceHash());
         return result;
-    }
-
-    private Map<String, Object> intradayValue(MarketBarIntradayRow value) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("openTime", value.openTime().toString());
-        result.put("closeTime", value.closeTime().toString());
-        barPrices(result, value.openPrice(), value.highPrice(), value.lowPrice(), value.closePrice(),
-                value.baseVolume(), value.quoteVolume());
-        result.put("closed", value.closed());
-        result.put("revision", value.revision());
-        result.put("checksum", value.checksum());
-        return result;
-    }
-
-    private Map<String, Object> dailyValue(MarketBarDailyRow value) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("barDate", value.barDate().toString());
-        barPrices(result, value.openPrice(), value.highPrice(), value.lowPrice(), value.closePrice(),
-                value.baseVolume(), value.quoteVolume());
-        result.put("closed", value.closed());
-        result.put("revision", value.revision());
-        result.put("checksum", value.checksum());
-        return result;
-    }
-
-    private Map<String, Object> fundingValue(FundingRateRow value) {
-        return Map.of("instrumentId", value.instrumentId(), "fundingTime", value.fundingTime().toString(),
-                "fundingRate", decimal(value.fundingRate()), "revision", value.revision(),
-                "checksum", value.checksum());
-    }
-
-    private static void barPrices(Map<String, Object> result, BigDecimal open, BigDecimal high,
-                                  BigDecimal low, BigDecimal close, BigDecimal base, BigDecimal quote) {
-        result.put("open", decimal(open));
-        result.put("high", decimal(high));
-        result.put("low", decimal(low));
-        result.put("close", decimal(close));
-        result.put("baseVolume", decimal(base));
-        result.put("quoteVolume", decimal(quote));
     }
 
     private static Map<String, Object> feeSnapshot(StrategyDescriptor descriptor,
