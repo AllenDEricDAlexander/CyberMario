@@ -59,9 +59,9 @@ describe('InvestmentAgentPage', () => {
 
         expect(await screen.findByText(/固定预设 INVESTMENT_ANALYST_V1/)).toBeTruthy()
         expect(screen.getByText('仅模拟盘，风控通过后自动执行')).toBeTruthy()
-        expect(screen.getByLabelText('Agent 运行类型')).toBeTruthy()
-        expect(screen.getByLabelText('Agent 模拟账户')).toBeTruthy()
-        expect(screen.getByLabelText('Agent 分析合约')).toBeTruthy()
+        expect(await screen.findByLabelText('Agent 运行类型')).toBeTruthy()
+        expect(await screen.findByLabelText('Agent 模拟账户')).toBeTruthy()
+        expect(await screen.findByLabelText('Agent 分析合约')).toBeTruthy()
         expect(screen.queryByLabelText(/prompt/i)).toBeNull()
         expect(screen.queryByLabelText(/tool/i)).toBeNull()
         expect(screen.queryByLabelText(/strategy/i)).toBeNull()
