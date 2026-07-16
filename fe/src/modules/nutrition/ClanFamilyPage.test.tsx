@@ -2,6 +2,7 @@ import {screen} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {beforeEach, describe, expect, test, vi} from 'vitest'
 import {
+    deleteNutritionFamily,
     listNutritionClanFamilyRelations,
     listNutritionClans,
     listNutritionDataGrants,
@@ -16,7 +17,7 @@ import {renderNutritionPage} from './test/renderNutritionPage'
 import {Component as ClanFamilyPage} from './ClanFamilyPage'
 
 vi.mock('../auth/authStore', () => ({
-    useAuth: () => ({roleCodes: [], hasAnyButton: () => true, hasPermission: () => true}),
+    useAuth: () => ({user: {id: 1}, roleCodes: [], hasAnyButton: () => true, hasPermission: () => true}),
     canUseRbacButton: () => true,
 }))
 vi.mock('./nutritionService', () => ({
@@ -33,6 +34,7 @@ vi.mock('./nutritionService', () => ({
     associateNutritionClanFamily: vi.fn(),
     createNutritionRoleBinding: vi.fn(),
     createNutritionDataGrant: vi.fn(),
+    deleteNutritionFamily: vi.fn(),
     removeNutritionClanFamilyRelation: vi.fn(),
 }))
 
@@ -102,5 +104,19 @@ describe('ClanFamilyPage', () => {
 
         expect(revokeNutritionRoleBinding).toHaveBeenCalledWith(family.id, 101)
         expect(revokeNutritionDataGrant).toHaveBeenCalledWith(family.id, 102)
+    })
+
+    test('deletes the selected family after destructive confirmation', async () => {
+        const user = userEvent.setup()
+        vi.mocked(deleteNutritionFamily).mockResolvedValue(undefined)
+        renderNutritionPage(<ClanFamilyPage/>)
+
+        await screen.findAllByText('Mario Family')
+        vi.mocked(listNutritionFamilies).mockResolvedValue([])
+        await user.click(screen.getByRole('button', {name: /删除家庭/}))
+        await user.click(screen.getByRole('button', {name: /确认删除/}))
+
+        expect(deleteNutritionFamily).toHaveBeenCalledWith(family.id)
+        expect(await screen.findByText('暂无营养数据')).toBeTruthy()
     })
 })

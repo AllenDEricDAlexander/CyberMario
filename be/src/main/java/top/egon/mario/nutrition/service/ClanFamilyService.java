@@ -37,6 +37,7 @@ import top.egon.mario.nutrition.po.enums.NutritionSubjectType;
 import top.egon.mario.nutrition.repository.NutritionClanFamilyRepository;
 import top.egon.mario.nutrition.repository.NutritionClanRepository;
 import top.egon.mario.nutrition.repository.NutritionDataGrantRepository;
+import top.egon.mario.nutrition.repository.NutritionFamilyCascadeRepository;
 import top.egon.mario.nutrition.repository.NutritionFamilyRepository;
 import top.egon.mario.nutrition.repository.NutritionMemberProfileRepository;
 import top.egon.mario.nutrition.repository.NutritionScopedRoleBindingRepository;
@@ -73,6 +74,7 @@ public class ClanFamilyService {
 
     private final NutritionClanRepository clanRepository;
     private final NutritionFamilyRepository familyRepository;
+    private final NutritionFamilyCascadeRepository familyCascadeRepository;
     private final NutritionClanFamilyRepository clanFamilyRepository;
     private final NutritionMemberProfileRepository memberProfileRepository;
     private final NutritionScopedRoleBindingRepository roleBindingRepository;
@@ -162,6 +164,17 @@ public class ClanFamilyService {
                 .sorted(Comparator.comparing(NutritionFamilyPo::getId).reversed())
                 .map(this::toFamilyResponse)
                 .toList();
+    }
+
+    @Transactional
+    public void deleteFamily(@NotNull Long familyId, Long actorId) {
+        Long userId = requireActor(actorId);
+        NutritionFamilyPo family = getLockedActiveFamily(familyId);
+        if (!userId.equals(family.getOwnerUserId())) {
+            throw new NutritionException(
+                    "NUTRITION_FAMILY_OWNER_REQUIRED", "only the nutrition family owner can delete the family");
+        }
+        familyCascadeRepository.deleteFamilyAggregate(familyId);
     }
 
     @Transactional(readOnly = true)

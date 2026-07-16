@@ -1,5 +1,5 @@
-import {LinkOutlined, PlusOutlined, SafetyCertificateOutlined} from '@ant-design/icons'
-import {Alert, App, Button, Drawer, Form, Input, Select, Space, Switch, Table, Tag} from 'antd'
+import {DeleteOutlined, LinkOutlined, PlusOutlined, SafetyCertificateOutlined} from '@ant-design/icons'
+import {Alert, App, Button, Drawer, Form, Input, Popconfirm, Select, Space, Switch, Table, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useState} from 'react'
 import {PageToolbar} from '../../components/PageToolbar'
@@ -13,6 +13,7 @@ import {
     createNutritionDataGrant,
     createNutritionFamily,
     createNutritionRoleBinding,
+    deleteNutritionFamily,
     listNutritionClanFamilyRelations,
     listNutritionClans,
     listNutritionDataGrants,
@@ -68,6 +69,9 @@ function ClanFamilyPage() {
     const [saving, setSaving] = useState(false)
     const canManage = canUseRbacButton(auth, 'btn:nutrition:family:manage')
         || auth.hasPermission(nutritionApiCodes.family)
+    const canDeleteCurrentFamily = Boolean(
+        familySelection.currentFamily && auth.user?.id === familySelection.currentFamily.ownerUserId,
+    )
 
     const loadData = useCallback(async () => {
         if (!familySelection.currentFamilyId) return
@@ -118,6 +122,16 @@ function ClanFamilyPage() {
             setSettingsOpen(false)
             await familySelection.reload()
         }, '家庭设置已保存')
+    }
+
+    async function deleteCurrentFamily() {
+        if (!familySelection.currentFamilyId) return
+        const familyId = familySelection.currentFamilyId
+        await mutate(async () => {
+            await deleteNutritionFamily(familyId)
+            setSettingsOpen(false)
+            await familySelection.reload()
+        }, '家庭及其关联数据已删除')
     }
 
     async function submitAction(values: AdministrationActionFormValues) {
@@ -239,6 +253,15 @@ function ClanFamilyPage() {
                         />
                         <Button disabled={!canManage} onClick={openSettings}>编辑设置</Button>
                         <Button disabled={!canManage} icon={<PlusOutlined/>} onClick={() => setAction('family')}>新建家庭</Button>
+                        {canDeleteCurrentFamily && <Popconfirm
+                            description="该操作会清理成员、健康、菜谱、餐单、购物、预算和营养记录，且无法恢复。"
+                            okButtonProps={{danger: true}}
+                            okText="确认删除"
+                            onConfirm={() => void deleteCurrentFamily()}
+                            title={`删除家庭“${familySelection.currentFamily?.name ?? ''}”？`}
+                        >
+                            <Button danger icon={<DeleteOutlined/>}>删除家庭</Button>
+                        </Popconfirm>}
                     </Space>
                 )}
                 description="管理 Clan、家庭设置、关联关系、家庭角色和显式数据授权。"

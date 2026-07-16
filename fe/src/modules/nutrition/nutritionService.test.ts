@@ -8,6 +8,7 @@ import {
     createNutritionBudgetRule,
     createNutritionImportJob,
     createNutritionMealConfirmation,
+    deleteNutritionFamily,
     generateNutritionFamilyMonthlyReport,
     generateNutritionFamilyWeeklyReport,
     getNutritionAiRecommendationJob,
@@ -100,12 +101,16 @@ describe('nutritionService', () => {
 
         void updateNutritionFamilySettings(7, settings)
         void revokeNutritionDataGrant(7, 12)
+        void deleteNutritionFamily(7)
 
         expect(requestJson).toHaveBeenNthCalledWith(1, '/api/nutrition/families/7/settings', {
             method: 'PUT',
             body: settings,
         })
         expect(requestJson).toHaveBeenNthCalledWith(2, '/api/nutrition/families/7/data-grants/12', {
+            method: 'DELETE',
+        })
+        expect(requestJson).toHaveBeenNthCalledWith(3, '/api/nutrition/families/7', {
             method: 'DELETE',
         })
     })

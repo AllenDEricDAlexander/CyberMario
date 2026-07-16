@@ -90,6 +90,10 @@ export function listNutritionFamilies() {
     return requestJson<NutritionFamilyResponse[]>('/api/nutrition/families')
 }
 
+export function deleteNutritionFamily(familyId: number) {
+    return requestJson<void>(`/api/nutrition/families/${familyId}`, {method: 'DELETE'})
+}
+
 export function associateNutritionClanFamily(clanId: number, familyId: number) {
     return requestJson<NutritionFamilyResponse>(`/api/nutrition/clans/${clanId}/families/${familyId}`, {
         method: 'POST',

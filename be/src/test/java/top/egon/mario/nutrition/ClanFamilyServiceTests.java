@@ -12,6 +12,7 @@ import top.egon.mario.nutrition.dto.request.UpdateDataGrantRequest;
 import top.egon.mario.nutrition.dto.request.UpdateFamilySettingsRequest;
 import top.egon.mario.nutrition.dto.response.FamilyResponse;
 import top.egon.mario.nutrition.po.NutritionDataGrantPo;
+import top.egon.mario.nutrition.po.NutritionScopedRoleBindingPo;
 import top.egon.mario.nutrition.po.enums.NutritionGrantDataScope;
 import top.egon.mario.nutrition.po.enums.NutritionGrantPermissionLevel;
 import top.egon.mario.nutrition.po.enums.NutritionMealType;
@@ -255,5 +256,56 @@ class ClanFamilyServiceTests {
         assertThat(clanFamilyRepository.findById(relation.id()).orElseThrow().getRelationStatus())
                 .isEqualTo(NutritionStatus.DISABLED);
         assertThat(clanFamilyRepository.findById(relation.id()).orElseThrow().isDeleted()).isFalse();
+    }
+
+    @Test
+    void familyOwnerCanPhysicallyDeleteTheFamilyAggregate() {
+        Long ownerUserId = 1013L;
+        var clan = clanFamilyService.createClan(new CreateClanRequest("Cleanup Clan"), ownerUserId);
+        var family = clanFamilyService.createFamily(new CreateFamilyRequest(
+                "Dirty Family", null, null, List.of(), "ignored"), ownerUserId, "cleanup-owner");
+        clanFamilyService.associateClanFamily(clan.id(), family.id(), ownerUserId);
+        clanFamilyService.createDataGrant(family.id(),
+                new CreateDataGrantRequest(family.ownerMemberProfileId(), "USER", 1014L,
+                        NutritionGrantDataScope.HEALTH_PROFILE, NutritionGrantPermissionLevel.MANAGE, null),
+                ownerUserId);
+        NutritionScopedRoleBindingPo memberSubjectBinding = new NutritionScopedRoleBindingPo();
+        memberSubjectBinding.setSubjectType(NutritionSubjectType.MEMBER_PROFILE);
+        memberSubjectBinding.setSubjectId(family.ownerMemberProfileId());
+        memberSubjectBinding.setRoleCode(NutritionRoleCode.MEMBER);
+        memberSubjectBinding.setScopeType(NutritionScopeType.CLAN);
+        memberSubjectBinding.setScopeId(clan.id());
+        roleBindingRepository.save(memberSubjectBinding);
+
+        clanFamilyService.deleteFamily(family.id(), ownerUserId);
+
+        assertThat(familyRepository.findById(family.id())).isEmpty();
+        assertThat(memberProfileRepository.findByFamilyIdAndDeletedFalseOrderByIdAsc(family.id())).isEmpty();
+        assertThat(clanFamilyRepository.findByFamilyIdAndDeletedFalseOrderByIdAsc(family.id())).isEmpty();
+        assertThat(dataGrantRepository.findByFamilyIdAndDeletedFalseOrderByIdAsc(family.id())).isEmpty();
+        assertThat(roleBindingRepository.findAll()).noneMatch(binding ->
+                (NutritionScopeType.FAMILY == binding.getScopeType()
+                        && family.id().equals(binding.getScopeId()))
+                        || (NutritionScopeType.MEMBER_PROFILE == binding.getScopeType()
+                        && family.ownerMemberProfileId().equals(binding.getScopeId()))
+                        || (NutritionSubjectType.MEMBER_PROFILE == binding.getSubjectType()
+                        && family.ownerMemberProfileId().equals(binding.getSubjectId())));
+    }
+
+    @Test
+    void familyAdministratorCannotDeleteAFamilyOwnedByAnotherUser() {
+        Long ownerUserId = 1015L;
+        Long administratorUserId = 1016L;
+        var family = clanFamilyService.createFamily(new CreateFamilyRequest(
+                "Protected Family", null, null, List.of(), "Owner"), ownerUserId);
+        clanFamilyService.createRoleBinding(family.id(),
+                new CreateScopedRoleBindingRequest(NutritionSubjectType.USER, administratorUserId,
+                        NutritionRoleCode.FAMILY_ADMIN, NutritionScopeType.FAMILY, family.id()), ownerUserId);
+
+        assertThatThrownBy(() -> clanFamilyService.deleteFamily(family.id(), administratorUserId))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_FAMILY_OWNER_REQUIRED");
+        assertThat(familyRepository.findById(family.id())).isPresent();
     }
 }

@@ -51,7 +51,8 @@ class NutritionAdministrationControllerTests {
                         "/api/nutrition/families/{familyId}/data-grants",
                         "/api/nutrition/families/{familyId}/data-grants/{grantId}",
                         "/api/nutrition/families/{familyId}/clan-relations",
-                        "/api/nutrition/families/{familyId}/clan-relations/{relationId}"
+                        "/api/nutrition/families/{familyId}/clan-relations/{relationId}",
+                        "/api/nutrition/families/{familyId}"
                 );
         assertThat(controllerPaths(MemberHealthController.class))
                 .contains(
@@ -97,6 +98,18 @@ class NutritionAdministrationControllerTests {
                 .verifyComplete();
 
         verify(service).createFamily(request, 7001L, "user-7001");
+    }
+
+    @Test
+    void familyDeletionDelegatesAuthenticatedOwner() {
+        ClanFamilyService service = mock(ClanFamilyService.class);
+        ClanFamilyController controller = clanFamilyController(service);
+
+        StepVerifier.create(controller.deleteFamily(42L, principal(7001L)))
+                .assertNext(apiResponse -> assertThat(apiResponse.data()).isNull())
+                .verifyComplete();
+
+        verify(service).deleteFamily(42L, 7001L);
     }
 
     @Test

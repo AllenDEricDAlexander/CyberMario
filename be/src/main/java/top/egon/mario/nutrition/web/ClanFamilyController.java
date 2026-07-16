@@ -65,6 +65,12 @@ public class ClanFamilyController extends ReactiveNutritionSupport {
         return blocking(() -> clanFamilyService.listAccessibleFamilies(actorId(principal)));
     }
 
+    @DeleteMapping("/families/{familyId}")
+    public Mono<ApiResponse<Void>> deleteFamily(@PathVariable @Min(1) Long familyId,
+                                                @AuthenticationPrincipal RbacPrincipal principal) {
+        return blockingVoid(() -> clanFamilyService.deleteFamily(familyId, actorId(principal)));
+    }
+
     @GetMapping("/families/{familyId}/settings")
     public Mono<ApiResponse<FamilyResponse>> getFamilySettings(@PathVariable @Min(1) Long familyId,
                                                                @AuthenticationPrincipal RbacPrincipal principal) {
