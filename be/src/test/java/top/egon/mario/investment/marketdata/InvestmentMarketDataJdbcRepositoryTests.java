@@ -3,7 +3,11 @@ package top.egon.mario.investment.marketdata;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import top.egon.mario.investment.common.model.BarInterval;
 import top.egon.mario.investment.common.model.PriceType;
@@ -15,6 +19,7 @@ import top.egon.mario.investment.marketdata.repository.jdbc.model.MarketBarIntra
 import top.egon.mario.investment.marketdata.repository.jdbc.model.MarketDataWriteContext;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -25,9 +30,11 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
+@Import(InvestmentMarketDataJdbcRepositoryTests.FixedClockConfiguration.class)
 class InvestmentMarketDataJdbcRepositoryTests {
 
     private static final Instant T1 = Instant.parse("2030-01-01T00:00:00Z");
+    private static final Instant LOCK_TIME = T1.minusSeconds(60);
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -96,6 +103,13 @@ class InvestmentMarketDataJdbcRepositoryTests {
         seedCursor("BAR_INTRADAY", "MARK", "H1");
         Instant openTime = T1;
         Instant furthestNextStart = T1.plusSeconds(300);
+        Instant futureCursorTime = Instant.parse("2100-01-01T00:00:00Z");
+        jdbcTemplate.update("""
+                update investment_ingest_cursor
+                set next_start_time = ?, last_success_time = ?, updated_at = ?
+                where source_id = ? and instrument_id = ? and data_type = 'BAR_INTRADAY'
+                """, furthestNextStart.atOffset(ZoneOffset.UTC), futureCursorTime.atOffset(ZoneOffset.UTC),
+                futureCursorTime.atOffset(ZoneOffset.UTC), sourceId, instrumentId);
         MarketDataWriteContext firstContext = new MarketDataWriteContext(
                 jobId, Instant.EPOCH, furthestNextStart);
         MarketDataWriteContext staleBackfillContext = new MarketDataWriteContext(
@@ -135,8 +149,9 @@ class InvestmentMarketDataJdbcRepositoryTests {
                 select updated_at from investment_ingest_cursor
                 where source_id = ? and instrument_id = ? and data_type = 'BAR_INTRADAY'
                 """, OffsetDateTime.class, sourceId, instrumentId);
-        assertThat(lastSuccessTime.toInstant()).isBefore(futureValidFrom);
-        assertThat(updatedAt).isEqualTo(lastSuccessTime);
+        assertThat(lastSuccessTime.toInstant()).isEqualTo(futureCursorTime);
+        assertThat(updatedAt.toInstant()).isEqualTo(futureCursorTime);
+        assertThat(lastSuccessTime.toInstant()).isAfter(LOCK_TIME);
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from investment_data_quality_issue where issue_code = 'UNEXPECTED_REVISION'",
                 Integer.class)).isEqualTo(1);
@@ -264,5 +279,15 @@ class InvestmentMarketDataJdbcRepositoryTests {
 
     private BigDecimal decimal(String value) {
         return new BigDecimal(value);
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class FixedClockConfiguration {
+
+        @Bean
+        @Primary
+        Clock marketRevisionTestClock() {
+            return Clock.fixed(LOCK_TIME, ZoneOffset.UTC);
+        }
     }
 }

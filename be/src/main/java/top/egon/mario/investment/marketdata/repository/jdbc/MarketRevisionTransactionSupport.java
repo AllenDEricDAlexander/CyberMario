@@ -77,11 +77,18 @@ class MarketRevisionTransactionSupport {
                 && (cursor.getNextStartTime() == null || requestedNextStart.isAfter(cursor.getNextStartTime()))) {
             cursor.setNextStartTime(requestedNextStart);
         }
-        cursor.setLastSuccessTime(fence.authoritativeAt());
+        Instant completionAt = fence.authoritativeAt();
+        if (cursor.getLastSuccessTime() != null && cursor.getLastSuccessTime().isAfter(completionAt)) {
+            completionAt = cursor.getLastSuccessTime();
+        }
+        if (cursor.getUpdatedAt() != null && cursor.getUpdatedAt().isAfter(completionAt)) {
+            completionAt = cursor.getUpdatedAt();
+        }
+        cursor.setLastSuccessTime(completionAt);
         cursor.setLastChecksum(checksum);
         cursor.setStatus("SUCCEEDED");
         cursor.setLastError(null);
-        cursor.setUpdatedAt(fence.authoritativeAt());
+        cursor.setUpdatedAt(completionAt);
     }
 
     void recordRevision(MarketDataWriteContext context, long sourceId, long instrumentId,
