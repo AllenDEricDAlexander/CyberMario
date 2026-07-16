@@ -10,6 +10,7 @@ import top.egon.mario.investment.common.InvestmentException;
 import top.egon.mario.investment.research.repository.InvestmentWatchlistRepository;
 import top.egon.mario.investment.research.repository.InvestmentWorkspaceRepository;
 import top.egon.mario.investment.portfolio.repository.InvestmentPaperAccountRepository;
+import top.egon.mario.investment.agent.repository.InvestmentAgentRunRepository;
 
 import java.util.Optional;
 
@@ -33,11 +34,15 @@ class InvestmentAccessServiceTests {
     @Mock
     private InvestmentPaperAccountRepository accountRepository;
 
+    @Mock
+    private InvestmentAgentRunRepository agentRunRepository;
+
     private InvestmentAccessService accessService;
 
     @BeforeEach
     void setUp() {
-        accessService = new InvestmentAccessService(workspaceRepository, watchlistRepository, accountRepository);
+        accessService = new InvestmentAccessService(
+                workspaceRepository, watchlistRepository, accountRepository, agentRunRepository);
     }
 
     @Test

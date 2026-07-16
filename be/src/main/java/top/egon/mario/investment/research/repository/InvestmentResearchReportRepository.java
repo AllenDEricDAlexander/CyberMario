@@ -43,4 +43,7 @@ public interface InvestmentResearchReportRepository extends JpaRepository<Invest
             @Param("reportId") Long reportId, @Param("ownerUserId") Long ownerUserId);
 
     Optional<InvestmentResearchReportPo> findByIdAndDeletedFalse(Long reportId);
+
+    Optional<InvestmentResearchReportPo> findFirstBySourceTypeAndSourceReferenceIdAndDeletedFalseOrderByIdAsc(
+            String sourceType, Long sourceReferenceId);
 }

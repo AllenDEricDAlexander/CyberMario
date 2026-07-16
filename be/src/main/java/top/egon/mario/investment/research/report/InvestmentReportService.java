@@ -85,6 +85,45 @@ public class InvestmentReportService {
         return new CreateInvestmentReportResponse(toSummary(report), jobId);
     }
 
+    /** Creates one immutable AGENT_ANALYSIS report version from a validated domain run. */
+    @Transactional
+    public CreateInvestmentReportResponse createAgentAnalysis(
+            Long actorId, Long workspaceId, Long agentRunId, Long instrumentId, Instant dataAsOf) {
+        accessService.requireWorkspaceOwner(workspaceId, actorId);
+        if (agentRunId == null || agentRunId <= 0 || dataAsOf == null || dataAsOf.isAfter(clock.instant())) {
+            throw invalid("Validated Agent report scope is required");
+        }
+        InvestmentResearchReportPo existing = reportRepository
+                .findFirstBySourceTypeAndSourceReferenceIdAndDeletedFalseOrderByIdAsc("AGENT", agentRunId)
+                .orElse(null);
+        if (existing != null) {
+            return new CreateInvestmentReportResponse(toSummary(existing), 0L);
+        }
+        FrozenResearchReportInput input = new FrozenResearchReportInput(
+                InvestmentReportType.AGENT_ANALYSIS, instrumentId, null, null, null, null, dataAsOf);
+        generatorRegistry.require(input.reportType());
+        String inputHash = ResearchHashSupport.sha256(input.canonicalValue());
+        InvestmentResearchReportPo report = new InvestmentResearchReportPo();
+        report.setWorkspaceId(workspaceId);
+        report.setInstrumentId(instrumentId);
+        report.setReportType(InvestmentReportType.AGENT_ANALYSIS.name());
+        report.setSourceType("AGENT");
+        report.setSourceReferenceId(agentRunId);
+        report.setTitle(pendingTitle(InvestmentReportType.AGENT_ANALYSIS));
+        report.setDataAsOf(dataAsOf);
+        report.setStatus(PENDING);
+        report.setReportVersion(1L);
+        report.setMetricsJson(json(new PersistedResearchMetrics(input, inputHash, null, Map.of())));
+        report.setCreatedBy(actorId);
+        report.setUpdatedBy(actorId);
+        report = reportRepository.saveAndFlush(report);
+        long jobId = jobEnqueueService.enqueue(new InvestmentJobEnqueueCommand(
+                workspaceId, InvestmentJobType.REPORT_BUILD, 100, clock.instant(), 3,
+                "report-build:%d:v%d".formatted(report.getId(), report.getReportVersion()),
+                json(new InvestmentReportBuildInput(report.getId(), report.getReportVersion()))));
+        return new CreateInvestmentReportResponse(toSummary(report), jobId);
+    }
+
     @Transactional(readOnly = true)
     public Page<InvestmentReportSummaryResponse> list(Long actorId, Long workspaceId,
                                                       String requestedType, Pageable pageable) {
@@ -169,6 +208,9 @@ public class InvestmentReportService {
             throw invalid("Research report request is required");
         }
         InvestmentReportType reportType = requiredReportType(request.reportType());
+        if (reportType == InvestmentReportType.AGENT_ANALYSIS) {
+            throw invalid("AGENT_ANALYSIS reports are created only by validated Agent runs");
+        }
         if (reportType == InvestmentReportType.MARKET_OVERVIEW
                 || reportType == InvestmentReportType.PORTFOLIO_REPORT) {
             if (request.instrumentId() != null || StringUtils.hasText(request.priceType())
@@ -327,6 +369,7 @@ public class InvestmentReportService {
         return switch (type) {
             case MARKET_OVERVIEW -> "市场概览（生成中）";
             case INSTRUMENT_ANALYSIS -> "合约分析（生成中）";
+            case AGENT_ANALYSIS -> "Agent 分析（生成中）";
             default -> type.name() + "（生成中）";
         };
     }
