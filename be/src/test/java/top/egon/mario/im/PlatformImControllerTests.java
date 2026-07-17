@@ -8,6 +8,10 @@ import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.im.platform.PlatformImFacade;
+import top.egon.mario.im.platform.PlatformRoomFacade;
+import top.egon.mario.im.platform.PlatformInvitationFacade;
+import top.egon.mario.im.facade.dto.view.ChannelView;
+import top.egon.mario.im.facade.dto.view.GroupView;
 import top.egon.mario.im.platform.dto.PlatformBootstrapView;
 import top.egon.mario.im.platform.dto.PlatformConversationView;
 import top.egon.mario.im.platform.dto.PlatformUserView;
@@ -20,6 +24,7 @@ import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -31,6 +36,8 @@ class PlatformImControllerTests {
             "platform-im-controller-test"
     );
     private final PlatformImFacade platformImFacade = mock(PlatformImFacade.class);
+    private final PlatformRoomFacade platformRoomFacade = mock(PlatformRoomFacade.class);
+    private final PlatformInvitationFacade platformInvitationFacade = mock(PlatformInvitationFacade.class);
     private final PlatformImController controller = controller();
 
     @AfterEach
@@ -42,11 +49,11 @@ class PlatformImControllerTests {
     void bootstrapAndConversationEndpointsUseAuthenticatedBoundaryPrincipal() {
         PlatformUserView currentUser = new PlatformUserView(1L, "mario", "Mario", null);
         PlatformConversationView conversation = new PlatformConversationView(
-                11L, "CHANNEL_MAIN", "PUBLIC_CHANNEL", "公共频道", null, null,
-                "CHANNEL", 12L, "general", null, null, true, false,
+                11L, "CHANNEL_MAIN", "CHANNEL", "产品频道", null, null,
+                "CHANNEL", 12L, "channel-12", null, null, true, false,
                 0L, null, null, null, null, null, "ACTIVE", 0L);
         PlatformBootstrapView bootstrap = new PlatformBootstrapView(
-                currentUser, conversation, List.of(conversation), 0L, 2L);
+                currentUser, List.of(conversation), 0L, 2L);
         when(platformImFacade.bootstrap(argThat(principal -> principal.userId().equals(1L))))
                 .thenReturn(bootstrap);
         when(platformImFacade.listConversations(argThat(principal -> principal.userId().equals(1L))))
@@ -66,8 +73,33 @@ class PlatformImControllerTests {
                 && "RBAC".equals(principal.contextType())));
     }
 
+    @Test
+    void roomEndpointsUsePlatformAdapterAndDoNotExposeDiscoveryParameters() {
+        ChannelView channel = new ChannelView(
+                12L, "PLATFORM", null, "channel-12", "产品频道", 1L,
+                "PUBLIC", "APPROVAL", "ACTIVE", "", 11L, 1, null);
+        GroupView group = new GroupView(
+                21L, 12L, "PLATFORM", null, "group-21", "研发群", 1L,
+                "OPEN", "ACTIVE", "", 22L, 1, null);
+        when(platformRoomFacade.createChannel(argThat(principal -> principal.userId().equals(1L)),
+                eq("产品频道"), eq("{}"))).thenReturn(channel);
+        when(platformRoomFacade.createChannelGroup(argThat(principal -> principal.userId().equals(1L)),
+                eq(12L), eq("研发群"), eq("OPEN"), eq("{}"))).thenReturn(group);
+
+        StepVerifier.create(controller.createChannel(
+                        principal(), new PlatformImController.SurfaceCreateRequest("产品频道", "{}")))
+                .assertNext(response -> assertThat(response.data()).isSameAs(channel))
+                .verifyComplete();
+        StepVerifier.create(controller.createChannelGroup(
+                        principal(), 12L,
+                        new PlatformImController.ChannelGroupCreateRequest("研发群", "OPEN", "{}")))
+                .assertNext(response -> assertThat(response.data()).isSameAs(group))
+                .verifyComplete();
+    }
+
     private PlatformImController controller() {
-        PlatformImController controller = new PlatformImController(platformImFacade);
+        PlatformImController controller = new PlatformImController(
+                platformImFacade, platformRoomFacade, platformInvitationFacade);
         ReflectionTestUtils.invokeMethod(controller, "setBlockingScheduler", scheduler);
         return controller;
     }

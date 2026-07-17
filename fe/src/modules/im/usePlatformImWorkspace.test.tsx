@@ -9,7 +9,7 @@ import {
 } from './usePlatformImWorkspace'
 
 describe('usePlatformImWorkspace', () => {
-    test('bootstraps the public channel, reconciles history, then marks the latest sequence read', async () => {
+    test('bootstraps the first member conversation without assuming a default public channel', async () => {
         const api = createApi()
         api.listMessages = vi.fn().mockResolvedValue(page([message({messageSeq: 3})]))
 
@@ -121,8 +121,17 @@ function createApi(): PlatformImWorkspaceApi {
         cancelFriendRequest: vi.fn(),
         updateFriendRemark: vi.fn(),
         removeFriend: vi.fn(),
+        createChannel: vi.fn(),
+        listChannels: vi.fn().mockResolvedValue([]),
         createGroup: vi.fn(),
         listGroups: vi.fn().mockResolvedValue([]),
+        createChannelGroup: vi.fn(),
+        listChannelGroups: vi.fn().mockResolvedValue([]),
+        listInvitations: vi.fn().mockResolvedValue(page([])),
+        inviteSurface: vi.fn(),
+        acceptInvitation: vi.fn(),
+        rejectInvitation: vi.fn(),
+        transferOwnership: vi.fn(),
         applyJoin: vi.fn(),
         approveJoin: vi.fn(),
         rejectJoin: vi.fn(),
@@ -135,11 +144,10 @@ function createApi(): PlatformImWorkspaceApi {
 }
 
 function bootstrap(): PlatformBootstrapView {
-    const publicChannel = conversation()
+    const channel = conversation()
     return {
         currentUser: {userId: 1, accountNo: 'mario', displayName: 'Mario'},
-        publicChannel,
-        conversations: [publicChannel],
+        conversations: [channel],
         unreadTotal: 1,
         pendingFriendRequestCount: 0,
     }
@@ -149,11 +157,11 @@ function conversation(overrides: Partial<PlatformConversationView> = {}): Platfo
     return {
         conversationId: 10,
         conversationType: 'CHANNEL',
-        displayType: 'PUBLIC_CHANNEL',
-        title: 'General',
+        displayType: 'CHANNEL',
+        title: 'Product',
         ownerSurfaceType: 'CHANNEL',
         surfaceId: 2,
-        surfaceKey: 'general',
+        surfaceKey: 'product',
         membershipStatus: 'ACTIVE',
         memberRole: 'MEMBER',
         canRead: true,

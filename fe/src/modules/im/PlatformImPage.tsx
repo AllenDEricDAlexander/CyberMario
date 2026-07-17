@@ -1,8 +1,10 @@
 import {Alert, Button, Spin} from 'antd'
 import {ImActivityRail} from './components/ImActivityRail'
+import {ImChannelPane} from './components/ImChannelPane'
 import {ImConversationPane} from './components/ImConversationPane'
 import {ImFriendPane} from './components/ImFriendPane'
 import {ImGroupPane} from './components/ImGroupPane'
+import {ImInvitationPane} from './components/ImInvitationPane'
 import {ImThreadPane} from './components/ImThreadPane'
 import type {PlatformImActivity} from './platformImTypes'
 import {usePlatformImWorkspace} from './usePlatformImWorkspace'
@@ -40,16 +42,12 @@ export function PlatformImWorkspaceView({workspace}: {workspace: PlatformImWorks
         workspace.selectActivity(activity)
         if (activity === 'FRIENDS') {
             void workspace.refreshFriends()
+        } else if (activity === 'CHANNELS') {
+            void workspace.refreshChannels()
         } else if (activity === 'GROUPS') {
             void workspace.refreshGroups()
-        }
-    }
-
-    function openPublicChannel() {
-        const publicChannelId = workspace.publicChannel?.conversationId
-        workspace.selectActivity('MESSAGES')
-        if (publicChannelId) {
-            void workspace.selectConversation(publicChannelId)
+        } else if (activity === 'INVITATIONS') {
+            void workspace.refreshInvitations()
         }
     }
 
@@ -72,9 +70,9 @@ export function PlatformImWorkspaceView({workspace}: {workspace: PlatformImWorks
                     activity={workspace.activity}
                     currentUser={workspace.currentUser}
                     pendingFriendRequestCount={workspace.pendingFriendRequestCount}
+                    pendingInvitationCount={workspace.pendingInvitationCount}
                     unreadTotal={workspace.unreadTotal}
                     onActivityChange={selectActivity}
-                    onOpenPublicChannel={openPublicChannel}
                 />
                 {workspace.activity === 'MESSAGES' && (
                     <>
@@ -122,16 +120,62 @@ export function PlatformImWorkspaceView({workspace}: {workspace: PlatformImWorks
                         groups={workspace.groups}
                         joinRequests={workspace.joinRequests}
                         members={workspace.surfaceMembers}
-                        onApply={workspace.applyJoin}
+                        userResults={workspace.userResults}
                         onApprove={workspace.approveJoin}
-                        onCancel={workspace.cancelJoin}
                         onCreate={workspace.createGroup}
+                        onInvite={async (surfaceType, surfaceId, request) => {
+                            await workspace.inviteSurface(surfaceType, surfaceId, request)
+                        }}
                         onLeave={workspace.leaveSurface}
                         onLoadManagement={workspace.refreshSurfaceAdmin}
                         onOpenConversation={openConversation}
                         onRefresh={workspace.refreshGroups}
                         onReject={workspace.rejectJoin}
                         onRemoveMember={workspace.removeSurfaceMember}
+                        onSearchUsers={workspace.searchUsers}
+                        onTransferOwnership={(surfaceType, surfaceId, userId) => workspace.transferOwnership(
+                            surfaceType,
+                            surfaceId,
+                            {newOwnerUserId: userId},
+                        )}
+                    />
+                )}
+                {workspace.activity === 'CHANNELS' && (
+                    <ImChannelPane
+                        channels={workspace.channels}
+                        currentUser={workspace.currentUser}
+                        joinRequests={workspace.joinRequests}
+                        members={workspace.surfaceMembers}
+                        userResults={workspace.userResults}
+                        onApply={workspace.applyJoin}
+                        onApprove={workspace.approveJoin}
+                        onCancel={workspace.cancelJoin}
+                        onCreate={workspace.createChannel}
+                        onCreateGroup={workspace.createChannelGroup}
+                        onInvite={async (surfaceType, surfaceId, request) => {
+                            await workspace.inviteSurface(surfaceType, surfaceId, request)
+                        }}
+                        onLeave={workspace.leaveSurface}
+                        onListGroups={workspace.listChannelGroups}
+                        onLoadManagement={workspace.refreshSurfaceAdmin}
+                        onOpenConversation={openConversation}
+                        onRefresh={workspace.refreshChannels}
+                        onReject={workspace.rejectJoin}
+                        onRemoveMember={workspace.removeSurfaceMember}
+                        onSearchUsers={workspace.searchUsers}
+                        onTransferOwnership={(surfaceType, surfaceId, userId) => workspace.transferOwnership(
+                            surfaceType,
+                            surfaceId,
+                            {newOwnerUserId: userId},
+                        )}
+                    />
+                )}
+                {workspace.activity === 'INVITATIONS' && (
+                    <ImInvitationPane
+                        invitations={workspace.invitations}
+                        onAccept={workspace.acceptInvitation}
+                        onRefresh={workspace.refreshInvitations}
+                        onReject={workspace.rejectInvitation}
                     />
                 )}
             </div>

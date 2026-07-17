@@ -21,12 +21,10 @@ import top.egon.mario.im.facade.dto.command.OpenDmCommand;
 import top.egon.mario.im.facade.dto.command.SendMessageCommand;
 import top.egon.mario.im.facade.dto.query.ListConversationsQuery;
 import top.egon.mario.im.facade.dto.view.ConversationView;
-import top.egon.mario.im.facade.dto.view.GroupView;
 import top.egon.mario.im.facade.dto.view.MessageView;
 import top.egon.mario.im.facade.dto.view.SurfaceMemberView;
 import top.egon.mario.im.facade.dto.view.WsTicketView;
 import top.egon.mario.im.policy.ImPrincipal;
-import top.egon.mario.im.platform.PlatformRoomFacade;
 import top.egon.mario.im.platform.PlatformImFacade;
 import top.egon.mario.im.service.ImException;
 import top.egon.mario.im.web.ImController;
@@ -42,7 +40,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -57,7 +54,6 @@ class ImControllerTests {
     private final ImFacade imFacade = mock(ImFacade.class);
     private final PlatformImFacade platformImFacade = mock(PlatformImFacade.class);
     private final RoomFacade roomFacade = mock(RoomFacade.class);
-    private final PlatformRoomFacade platformRoomFacade = mock(PlatformRoomFacade.class);
     private final DmFacade dmFacade = mock(DmFacade.class);
     private final GovFacade govFacade = mock(GovFacade.class);
     private final ImController controller = controller();
@@ -176,31 +172,6 @@ class ImControllerTests {
     }
 
     @Test
-    void platformGroupEndpointForcesPlatformAdapterBoundary() {
-        GroupView group = new GroupView(
-                8801L, null, "PLATFORM", null, "team", "Team", 12001L,
-                "APPROVAL", "ACTIVE", "", 8802L, 1, Instant.parse("2026-07-16T01:00:00Z"));
-        when(platformRoomFacade.createGroup(
-                argThat(this::isBoundaryPrincipal),
-                eq("team"),
-                eq("Team"),
-                eq("APPROVAL"),
-                eq("{}")))
-                .thenReturn(group);
-
-        StepVerifier.create(controller.createPlatformGroup(principal(),
-                        new ImController.PlatformGroupRequest("team", "Team", "APPROVAL", "{}")))
-                .assertNext(body -> assertThat(body.data()).isSameAs(group))
-                .verifyComplete();
-        verify(platformRoomFacade).createGroup(
-                argThat(this::isBoundaryPrincipal),
-                eq("team"),
-                eq("Team"),
-                eq("APPROVAL"),
-                eq("{}"));
-    }
-
-    @Test
     void surfaceMemberEndpointReturnsBoundedPage() {
         SurfaceMemberView member = new SurfaceMemberView(
                 9901L, 12001L, "mario", "Mario", null, true,
@@ -229,7 +200,7 @@ class ImControllerTests {
                         .extracting("code")
                         .isEqualTo("IM_PRINCIPAL_REQUIRED"))
                 .verify();
-        verifyNoInteractions(imFacade, platformImFacade, roomFacade, platformRoomFacade, dmFacade, govFacade);
+        verifyNoInteractions(imFacade, platformImFacade, roomFacade, dmFacade, govFacade);
     }
 
     @Test
@@ -243,7 +214,7 @@ class ImControllerTests {
 
     private ImController controller() {
         ImController controller = new ImController(
-                imFacade, platformImFacade, roomFacade, platformRoomFacade, dmFacade, govFacade);
+                imFacade, platformImFacade, roomFacade, dmFacade, govFacade);
         ReflectionTestUtils.invokeMethod(controller, "setBlockingScheduler", scheduler);
         return controller;
     }

@@ -17,8 +17,8 @@ facade, service, policy, and realtime code.
 
 | Concept | Implemented contract |
 |---|---|
-| Channel | Public, discoverable surface with one `CHANNEL_MAIN` conversation. Anyone can read an active channel conversation; active channel members can post. |
-| Group | Discoverable surface under a channel or standalone. Active group members can read and post its `GROUP` conversation. |
+| Channel | Generic surface with one `CHANNEL_MAIN` conversation. Its visibility is context-policy controlled; the Platform Web context requires active membership. |
+| Group | Generic surface under a channel or standalone. Active group members can read and post its `GROUP` conversation. Platform Web discovery is membership scoped. |
 | DM | Implicit ordered user pair (`userLoId`, `userHiId`) with one `DM` conversation. The pair is created on first open/block; Platform Web entry points additionally require an active friendship. |
 | Conversation | Unified message stream for `CHANNEL_MAIN`, `GROUP`, and `DM`; sequence, unread, outbox, inbox, and realtime dispatch operate on `conversationId`. |
 
@@ -30,21 +30,30 @@ The first-party Web workspace is mounted at `/im` inside the authenticated
 PLATFORM` instead of accepting a caller-supplied product context.
 
 - `GET /api/im/platform/bootstrap` returns the current safe user projection,
-  display-ready conversations, the initialized public channel, total unread,
-  and pending friend-request count.
-- `GET /api/im/platform/conversations` returns `PUBLIC_CHANNEL`, `GROUP`, and
+  display-ready member conversations, total unread, and pending friend-request
+  count. A new user can have zero channels and zero groups.
+- `GET /api/im/platform/conversations` returns `CHANNEL`, `GROUP`, and
   `DM` summaries with title/avatar, surface or peer identity, membership state,
   exact unread count, and `canRead`/`canPost` capabilities.
 - `GET /api/im/platform/users?keyword=...` searches enabled users through the
   RBAC user-directory facade and never exposes account credentials, contact
   data, roles, lock state, or audit fields.
-- `POST/GET /api/im/platform/groups` creates and discovers standalone
-  `PLATFORM` groups. The supported join policies are `OPEN` and `APPROVAL`.
-- The configured `PLATFORM/general` channel is created idempotently at startup.
-  It is public-readable, but posting, unread tracking, and realtime fanout
-  begin only after active membership.
+- `POST/GET /api/im/platform/channels` creates a channel and lists only channels
+  where the caller has active membership.
+- `POST/GET /api/im/platform/groups` creates an invitation-only standalone
+  group and lists only the caller's active standalone groups.
+- `POST/GET /api/im/platform/channels/{channelId}/groups` creates or lists child
+  groups. Listing requires active parent-channel membership; creating requires
+  channel `OWNER` or `ADMIN`. Child groups support `OPEN` and `APPROVAL` for
+  parent-channel members.
+- Platform channels and standalone groups cannot be searched or joined through
+  the generic join endpoint. Owners/admins invite a user, and that user accepts
+  or rejects from `/api/im/platform/invitations`.
+- No channel is initialized at startup. Existing `PLATFORM/general` data is not
+  deleted and, for active members, appears as an ordinary channel.
 
-The Web page presents messages, contacts, groups, and owner review flows. V1
+The Web page presents messages, contacts, channels, standalone groups,
+invitations, and owner review flows. V1
 renders `TEXT` and `SYSTEM` messages and permits ordinary Unicode emoji input;
 it intentionally has no upload, image, search, reaction, typing, presence, or
 receipt controls.
@@ -76,6 +85,14 @@ the two caller-owned directed contact rows and remarks.
   channel surface are active, even without membership.
 - Default send policy requires an authenticated active member who is not muted,
   banned, or globally muted.
+- `PLATFORM` overrides generic public visibility: channel history requires an
+  active channel membership. Leaving or removal revokes history, push, and
+  unread participation; rejoining restores access to retained history.
+- Leaving or removing a Platform channel member also deactivates all active
+  child-group memberships and conversation memberships and cancels that user's
+  pending child-group applications and invitations.
+- A channel owner who still owns an active child group must transfer that child
+  group before leaving the parent channel.
 
 ## Group Rules
 
@@ -86,6 +103,9 @@ the two caller-owned directed contact rows and remarks.
   `IM_INVALID_SURFACE_NESTING`.
 - `RoomFacade.listGroups` lists active groups by channel or standalone context.
 - Default visibility and send policy both require active group membership.
+- Platform standalone groups are invitation-only. Platform child groups are
+  visible only to active parent-channel members; their `OPEN`/`APPROVAL` policy
+  applies only after that parent membership check.
 
 ## Join Requests
 
@@ -100,6 +120,25 @@ Supported join policies are `OPEN` and `APPROVAL`.
 
 `OPEN` surfaces activate membership immediately and return `ACTIVE` in
 `JoinResultView`, not a join-request state.
+
+For `PLATFORM`, the generic join endpoint rejects channels and standalone
+groups with `IM_PLATFORM_INVITATION_REQUIRED`. A child-group application or
+approval additionally rechecks active parent-channel membership.
+
+## Platform Surface Invitations
+
+- `im_surface_invitation` stores one reusable natural row per
+  `(surface_type, surface_id, invitee_user_id)` with `PENDING`, `ACCEPTED`,
+  `REJECTED`, or `CANCELLED` status.
+- Channel/group `OWNER` and `ADMIN` may invite enabled users. Self invitation,
+  duplicate active membership, non-Platform surfaces, and invalid parent
+  membership are rejected.
+- Accepting activates both surface membership and conversation membership.
+  Rejecting does not create membership.
+- For a child group, the invitee must already be an active member of the parent
+  channel when invited and again when accepting.
+- Surface ownership can be transferred only by the current owner to another
+  active member. The former owner becomes `ADMIN`.
 
 ## DM Contract
 
@@ -320,14 +359,15 @@ when possible.
 
 - `IM_CONTEXT_TYPE_REQUIRED`: create/list operations and DM open/block require
   a non-blank context type from the caller or principal.
-- `IM_MEMBER_REQUIRED`: mark-read requires active conversation membership; public
-  channel read does not automatically create unread tracking.
+- `IM_MEMBER_REQUIRED`: mark-read requires active conversation membership.
+- `IM_PLATFORM_INVITATION_REQUIRED`: a Platform channel or standalone group
+  must be joined through a direct invitation rather than generic discovery.
+- `IM_PARENT_CHANNEL_MEMBERSHIP_REQUIRED`: a Platform child-group operation
+  requires active membership in its parent channel.
 - Missing realtime updates: verify `im.realtime.dispatcher.enabled=true`, then
   reload by history after the last known sequence.
-- Missing the public channel at startup: verify
-  `IM_PLATFORM_BOOTSTRAP_ENABLED` and
-  `IM_PLATFORM_BOOTSTRAP_OWNER_ACCOUNT_NO`; when the owner override is blank,
-  the configured RBAC bootstrap administrator account is used.
+- No channel at first login is expected. Create one from the Channel page or
+  accept a direct channel invitation.
 - Existing users cannot enter `/im`: verify resource synchronization completed
   and `IM_PLATFORM_USER_ROLE_BACKFILL_ENABLED=true`, then inspect the managed
   `IM_USER` assignment.

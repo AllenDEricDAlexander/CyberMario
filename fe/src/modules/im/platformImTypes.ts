@@ -1,8 +1,8 @@
 import type {PageResult} from '../../types/api'
-import type {GroupView, ImJoinPolicy, ImMembershipStatus, ImSurfaceType, MessageView} from './imTypes'
+import type {ChannelView, GroupView, ImJoinPolicy, ImMembershipStatus, ImSurfaceType, MessageView} from './imTypes'
 
-export type PlatformImActivity = 'MESSAGES' | 'FRIENDS' | 'GROUPS'
-export type PlatformConversationDisplayType = 'PUBLIC_CHANNEL' | 'GROUP' | 'DM'
+export type PlatformImActivity = 'MESSAGES' | 'FRIENDS' | 'CHANNELS' | 'GROUPS' | 'INVITATIONS'
+export type PlatformConversationDisplayType = 'CHANNEL' | 'GROUP' | 'DM'
 export type FriendRequestBox = 'INCOMING' | 'OUTGOING'
 
 export type PlatformUserView = {
@@ -38,7 +38,6 @@ export type PlatformConversationView = {
 
 export type PlatformBootstrapView = {
     currentUser: PlatformUserView
-    publicChannel?: PlatformConversationView | null
     conversations: PlatformConversationView[]
     unreadTotal: number
     pendingFriendRequestCount: number
@@ -95,11 +94,36 @@ export type PlatformJoinRequestView = {
     requestedAt: string
 }
 
-export type PlatformGroupCreateRequest = {
-    groupKey: string
+export type PlatformSurfaceCreateRequest = {
     name: string
-    joinPolicy: ImJoinPolicy
     metadataJson?: string | null
+}
+
+export type PlatformChannelGroupCreateRequest = PlatformSurfaceCreateRequest & {
+    joinPolicy: ImJoinPolicy
+}
+
+export type PlatformSurfaceInvitationRequest = {
+    inviteeUserId: number
+    message?: string | null
+}
+
+export type PlatformOwnershipTransferRequest = {
+    newOwnerUserId: number
+}
+
+export type PlatformInvitationView = {
+    invitationId: number
+    surfaceType: ImSurfaceType
+    surfaceId: number
+    channelId?: number | null
+    surfaceName: string
+    inviterUserId: number
+    inviterDisplayName: string
+    status: string
+    message?: string | null
+    createdAt: string
+    respondedAt?: string | null
 }
 
 export type PlatformPageParams = {
@@ -133,6 +157,8 @@ export type PlatformFriendPage = PageResult<PlatformFriendView>
 export type PlatformFriendRequestPage = PageResult<PlatformFriendRequestView>
 export type PlatformSurfaceMemberPage = PageResult<PlatformSurfaceMemberView>
 export type PlatformJoinRequestPage = PageResult<PlatformJoinRequestView>
+export type PlatformInvitationPage = PageResult<PlatformInvitationView>
+export type PlatformChannelView = ChannelView
 export type PlatformGroupView = GroupView
 
 export type OptimisticMessageView = MessageView & {

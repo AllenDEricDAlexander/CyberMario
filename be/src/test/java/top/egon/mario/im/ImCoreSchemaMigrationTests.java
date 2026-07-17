@@ -22,6 +22,8 @@ class ImCoreSchemaMigrationTests {
             "src/main/resources/db/migration/V30__create_im_core_schema.sql");
     private static final Path IM_PLATFORM_FRIENDSHIP_MIGRATION = Path.of(
             "src/main/resources/db/migration/V46__create_im_platform_friendship_schema.sql");
+    private static final Path IM_SURFACE_INVITATION_MIGRATION = Path.of(
+            "src/main/resources/db/migration/V47__create_im_surface_invitation_schema.sql");
     private static final Path IM_POSTGRESQL_INDEX_MIGRATION = Path.of(
             "src/main/resources/db/postgresql/R__create_im_core_postgresql_indexes.sql");
 
@@ -53,7 +55,8 @@ class ImCoreSchemaMigrationTests {
 
     private static final List<String> PLATFORM_TABLES = List.of(
             "im_friendship",
-            "im_contact"
+            "im_contact",
+            "im_surface_invitation"
     );
 
     private static final List<String> AUDIT_COLUMNS = List.of(
@@ -219,7 +222,7 @@ class ImCoreSchemaMigrationTests {
                 .containsPattern("\\n\\s+contact_user_id\\s+BIGINT NOT NULL")
                 .contains("CONSTRAINT uk_im_contact_owner_user UNIQUE (owner_user_id, contact_user_id)")
                 .contains("CONSTRAINT chk_im_contact_not_self CHECK (owner_user_id <> contact_user_id)");
-        for (String table : PLATFORM_TABLES) {
+        for (String table : List.of("im_friendship", "im_contact")) {
             String definition = tableDefinition(sql, table);
             for (String column : AUDIT_COLUMNS) {
                 assertThat(definition).as(table + "." + column).containsPattern("\\n\\s+" + column + "\\s");
@@ -228,6 +231,34 @@ class ImCoreSchemaMigrationTests {
         assertThat(sql).contains("CREATE INDEX idx_im_friendship_lo_status");
         assertThat(sql).contains("CREATE INDEX idx_im_friendship_hi_status");
         assertThat(sql).contains("CREATE INDEX idx_im_contact_owner_status");
+    }
+
+    @Test
+    void surfaceInvitationMigrationAddsDurableChannelAndGroupInvitations() throws IOException {
+        String sql = readSurfaceInvitationMigration();
+        String definition = tableDefinition(sql, "im_surface_invitation");
+
+        assertThat(sql).doesNotContain("DROP TABLE");
+        assertThat(definition)
+                .containsPattern("\\n\\s+surface_type\\s+VARCHAR\\(32\\) NOT NULL")
+                .containsPattern("\\n\\s+surface_id\\s+BIGINT NOT NULL")
+                .containsPattern("\\n\\s+inviter_user_id\\s+BIGINT NOT NULL")
+                .containsPattern("\\n\\s+invitee_user_id\\s+BIGINT NOT NULL")
+                .containsPattern("\\n\\s+status\\s+VARCHAR\\(32\\) NOT NULL")
+                .contains("CONSTRAINT uk_im_surface_invitation_target UNIQUE "
+                        + "(surface_type, surface_id, invitee_user_id)")
+                .contains("CONSTRAINT chk_im_surface_invitation_type CHECK "
+                        + "(surface_type IN ('CHANNEL', 'GROUP'))")
+                .contains("CONSTRAINT chk_im_surface_invitation_not_self CHECK "
+                        + "(inviter_user_id <> invitee_user_id)");
+        for (String column : AUDIT_COLUMNS) {
+            assertThat(definition).as("im_surface_invitation." + column)
+                    .containsPattern("\\n\\s+" + column + "\\s");
+        }
+        assertThat(sql).contains("CREATE INDEX idx_im_surface_invitation_invitee_status")
+                .contains("ON im_surface_invitation (invitee_user_id, status, created_at)")
+                .contains("CREATE INDEX idx_im_surface_invitation_surface_status")
+                .contains("ON im_surface_invitation (surface_type, surface_id, status)");
     }
 
     @Test
@@ -279,6 +310,11 @@ class ImCoreSchemaMigrationTests {
     private static String readPlatformFriendshipMigration() throws IOException {
         assertThat(Files.exists(IM_PLATFORM_FRIENDSHIP_MIGRATION)).isTrue();
         return Files.readString(IM_PLATFORM_FRIENDSHIP_MIGRATION);
+    }
+
+    private static String readSurfaceInvitationMigration() throws IOException {
+        assertThat(Files.exists(IM_SURFACE_INVITATION_MIGRATION)).isTrue();
+        return Files.readString(IM_SURFACE_INVITATION_MIGRATION);
     }
 
     private static String tableDefinition(String sql, String table) {

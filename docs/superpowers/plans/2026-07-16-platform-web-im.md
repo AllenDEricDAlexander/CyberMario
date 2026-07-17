@@ -1,8 +1,14 @@
 # Platform Web IM Productization — Implementation Plan
 
 Date: 2026-07-16
-Status: Ready for execution after an explicit start instruction
+Status: Historical — executed, then corrected by the 2026-07-17 membership design
 Design: docs/superpowers/specs/2026-07-16-platform-web-im-design.md
+
+> Historical plan note: the public `PLATFORM/general`, discovery, and global
+> join tasks were implemented first and then replaced by the confirmed
+> 2026-07-17 membership/invitation correction. See
+> `docs/superpowers/specs/2026-07-17-platform-web-im-membership-correction.md`
+> and the current `docs/im-core-contract.md` for final behavior.
 
 ## Goal
 

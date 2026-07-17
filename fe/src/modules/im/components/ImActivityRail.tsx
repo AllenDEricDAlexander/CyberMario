@@ -1,5 +1,6 @@
 import {
     ContactsOutlined,
+    InboxOutlined,
     GlobalOutlined,
     MessageOutlined,
     TeamOutlined,
@@ -12,8 +13,8 @@ export type ImActivityRailProps = {
     currentUser?: PlatformUserView
     unreadTotal: number
     pendingFriendRequestCount: number
+    pendingInvitationCount: number
     onActivityChange: (activity: PlatformImActivity) => void
-    onOpenPublicChannel: () => void
 }
 
 export function ImActivityRail(props: ImActivityRailProps) {
@@ -35,16 +36,23 @@ export function ImActivityRail(props: ImActivityRailProps) {
                 onClick={() => props.onActivityChange('FRIENDS')}
             />
             <RailButton
+                active={props.activity === 'CHANNELS'}
+                icon={<GlobalOutlined/>}
+                label="频道"
+                onClick={() => props.onActivityChange('CHANNELS')}
+            />
+            <RailButton
                 active={props.activity === 'GROUPS'}
                 icon={<TeamOutlined/>}
                 label="群组"
                 onClick={() => props.onActivityChange('GROUPS')}
             />
             <RailButton
-                active={false}
-                icon={<GlobalOutlined/>}
-                label="公共频道"
-                onClick={props.onOpenPublicChannel}
+                active={props.activity === 'INVITATIONS'}
+                badge={props.pendingInvitationCount}
+                icon={<InboxOutlined/>}
+                label="邀请"
+                onClick={() => props.onActivityChange('INVITATIONS')}
             />
             <Tooltip placement="right" title={props.currentUser?.displayName ?? '当前用户'}>
                 <div className="platform-im-activity-user">

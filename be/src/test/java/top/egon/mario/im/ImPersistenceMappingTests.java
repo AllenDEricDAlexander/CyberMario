@@ -22,6 +22,7 @@ import top.egon.mario.im.po.ImJoinRequestPo;
 import top.egon.mario.im.po.ImMembershipPo;
 import top.egon.mario.im.po.ImMessagePo;
 import top.egon.mario.im.po.ImOutboxPo;
+import top.egon.mario.im.po.ImSurfaceInvitationPo;
 import top.egon.mario.im.po.ImWsTicketPo;
 import top.egon.mario.im.po.enums.ImChannelVisibility;
 import top.egon.mario.im.po.enums.ImContactStatus;
@@ -40,6 +41,7 @@ import top.egon.mario.im.po.enums.ImMessageType;
 import top.egon.mario.im.po.enums.ImOutboxEventType;
 import top.egon.mario.im.po.enums.ImOutboxStatus;
 import top.egon.mario.im.po.enums.ImSurfaceStatus;
+import top.egon.mario.im.po.enums.ImSurfaceInvitationStatus;
 import top.egon.mario.im.po.enums.ImSurfaceType;
 import top.egon.mario.im.po.enums.ImWsTicketStatus;
 import top.egon.mario.im.repository.ImBanRepository;
@@ -57,6 +59,7 @@ import top.egon.mario.im.repository.ImJoinRequestRepository;
 import top.egon.mario.im.repository.ImMembershipRepository;
 import top.egon.mario.im.repository.ImMessageRepository;
 import top.egon.mario.im.repository.ImOutboxRepository;
+import top.egon.mario.im.repository.ImSurfaceInvitationRepository;
 import top.egon.mario.im.repository.ImWsTicketRepository;
 
 import java.time.Instant;
@@ -94,6 +97,9 @@ class ImPersistenceMappingTests {
 
     @Autowired
     private ImJoinRequestRepository joinRequestRepository;
+
+    @Autowired
+    private ImSurfaceInvitationRepository surfaceInvitationRepository;
 
     @Autowired
     private ImConversationRepository conversationRepository;
@@ -142,6 +148,8 @@ class ImPersistenceMappingTests {
                 ImSurfaceType.CHANNEL, channel.getId(), 3001L, ImMembershipRole.OWNER, ImMembershipStatus.ACTIVE, now));
         ImJoinRequestPo joinRequest = joinRequestRepository.saveAndFlush(joinRequest(
                 ImSurfaceType.GROUP, group.getId(), 3002L, ImJoinRequestStatus.PENDING));
+        ImSurfaceInvitationPo invitation = surfaceInvitationRepository.saveAndFlush(surfaceInvitation(
+                ImSurfaceType.GROUP, group.getId(), 3001L, 3003L, ImSurfaceInvitationStatus.PENDING));
         ImConversationMemberPo member = conversationMemberRepository.saveAndFlush(conversationMember(
                 conversation.getId(), 3001L, ImDeliveryMode.INBOX, ImMembershipStatus.ACTIVE));
         ImMessagePo message = messageRepository.saveAndFlush(message(
@@ -202,6 +210,12 @@ class ImPersistenceMappingTests {
                 });
         assertThat(joinRequestRepository.findByIdAndDeletedFalse(joinRequest.getId())).get()
                 .satisfies(reloaded -> assertThat(reloaded.getStatus()).isEqualTo(ImJoinRequestStatus.PENDING));
+        assertThat(surfaceInvitationRepository.findByIdAndDeletedFalse(invitation.getId())).get()
+                .satisfies(reloaded -> {
+                    assertThat(reloaded.getInviterUserId()).isEqualTo(3001L);
+                    assertThat(reloaded.getInviteeUserId()).isEqualTo(3003L);
+                    assertThat(reloaded.getStatus()).isEqualTo(ImSurfaceInvitationStatus.PENDING);
+                });
         assertThat(conversationRepository.findByOwnerSurfaceTypeAndOwnerSurfaceIdAndConversationTypeAndDeletedFalse(
                 ImSurfaceType.CHANNEL, channel.getId(), ImConversationType.CHANNEL_MAIN)).get()
                 .satisfies(reloaded -> {
@@ -255,6 +269,8 @@ class ImPersistenceMappingTests {
                 ImSurfaceType.GROUP, group.getId(), 9002L, ImMembershipRole.ADMIN, ImMembershipStatus.PENDING, now));
         ImJoinRequestPo joinRequest = joinRequestRepository.saveAndFlush(joinRequest(
                 ImSurfaceType.GROUP, group.getId(), 9003L, ImJoinRequestStatus.REJECTED));
+        ImSurfaceInvitationPo invitation = surfaceInvitationRepository.saveAndFlush(surfaceInvitation(
+                ImSurfaceType.GROUP, group.getId(), 9002L, 9004L, ImSurfaceInvitationStatus.REJECTED));
         ImConversationMemberPo member = conversationMemberRepository.saveAndFlush(conversationMember(
                 conversation.getId(), 9002L, ImDeliveryMode.CURSOR, ImMembershipStatus.LEFT));
         ImFriendshipPo friendship = friendshipRepository.saveAndFlush(friendship(
@@ -284,6 +300,8 @@ class ImPersistenceMappingTests {
         assertColumn(membership.getId(), "im_membership", "member_role", "ADMIN");
         assertColumn(membership.getId(), "im_membership", "status", "PENDING");
         assertColumn(joinRequest.getId(), "im_join_request", "status", "REJECTED");
+        assertColumn(invitation.getId(), "im_surface_invitation", "surface_type", "GROUP");
+        assertColumn(invitation.getId(), "im_surface_invitation", "status", "REJECTED");
         assertColumn(member.getId(), "im_conversation_member", "delivery_mode", "CURSOR");
         assertColumn(friendship.getId(), "im_friendship", "status", "REJECTED");
         assertColumn(contact.getId(), "im_contact", "status", "REMOVED");
@@ -466,6 +484,19 @@ class ImPersistenceMappingTests {
         joinRequest.setStatus(status);
         joinRequest.setMetadataJson("{}");
         return joinRequest;
+    }
+
+    private ImSurfaceInvitationPo surfaceInvitation(ImSurfaceType surfaceType, Long surfaceId, Long inviterUserId,
+                                                     Long inviteeUserId, ImSurfaceInvitationStatus status) {
+        ImSurfaceInvitationPo invitation = new ImSurfaceInvitationPo();
+        invitation.setSurfaceType(surfaceType);
+        invitation.setSurfaceId(surfaceId);
+        invitation.setInviterUserId(inviterUserId);
+        invitation.setInviteeUserId(inviteeUserId);
+        invitation.setStatus(status);
+        invitation.setMessage("");
+        invitation.setMetadataJson("{}");
+        return invitation;
     }
 
     private ImConversationPo conversation(ImConversationType type, ImSurfaceType ownerSurfaceType,

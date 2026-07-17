@@ -24,27 +24,38 @@ import type {
     UnreadView,
 } from './imTypes'
 import {
+    acceptPlatformInvitation,
     acceptPlatformFriendRequest,
     cancelPlatformFriendRequest,
+    createPlatformChannel,
+    createPlatformChannelGroup,
     createPlatformFriendRequest,
     createPlatformGroup,
     getPlatformImBootstrap,
+    invitePlatformSurface,
+    listPlatformChannelGroups,
+    listPlatformChannels,
     listPlatformFriendRequests,
     listPlatformFriends,
     listPlatformGroups,
+    listPlatformInvitations,
     listPlatformImConversations,
     listPlatformJoinRequests,
     listPlatformSurfaceMembers,
+    rejectPlatformInvitation,
     rejectPlatformFriendRequest,
     removePlatformFriend,
     removePlatformSurfaceMember,
     searchPlatformUsers,
+    transferPlatformSurfaceOwnership,
     updatePlatformFriendRemark,
 } from './platformImService'
 import type {
     FriendRequestBox,
     OptimisticMessageView,
     PlatformBootstrapView,
+    PlatformChannelGroupCreateRequest,
+    PlatformChannelView,
     PlatformConversationView,
     PlatformFriendDecisionRequest,
     PlatformFriendPage,
@@ -53,12 +64,16 @@ import type {
     PlatformFriendRequestPage,
     PlatformFriendRequestView,
     PlatformFriendView,
-    PlatformGroupCreateRequest,
     PlatformGroupView,
     PlatformImActivity,
+    PlatformInvitationPage,
+    PlatformInvitationView,
     PlatformJoinRequestPage,
     PlatformJoinRequestView,
+    PlatformOwnershipTransferRequest,
     PlatformPageParams,
+    PlatformSurfaceCreateRequest,
+    PlatformSurfaceInvitationRequest,
     PlatformSurfaceMemberPage,
     PlatformSurfaceMemberView,
     PlatformUserPage,
@@ -72,18 +87,20 @@ export type PlatformImWorkspaceState = {
     activity: PlatformImActivity
     selectedConversationId?: number
     currentUser?: PlatformUserView
-    publicChannel?: PlatformConversationView
     conversations: PlatformConversationView[]
     messagesByConversation: Record<number, OptimisticMessageView[]>
     friends: PlatformFriendView[]
     incomingRequests: PlatformFriendRequestView[]
     outgoingRequests: PlatformFriendRequestView[]
     userResults: PlatformUserView[]
+    channels: PlatformChannelView[]
     groups: PlatformGroupView[]
+    invitations: PlatformInvitationView[]
     surfaceMembers: PlatformSurfaceMemberView[]
     joinRequests: PlatformJoinRequestView[]
     unreadTotal: number
     pendingFriendRequestCount: number
+    pendingInvitationCount: number
     status: WorkspaceStatus
     error?: string
 }
@@ -104,7 +121,9 @@ export type PlatformImWorkspaceAction =
     | {type: 'FRIENDS_LOADED'; friends: PlatformFriendView[]}
     | {type: 'FRIEND_REQUESTS_LOADED'; box: FriendRequestBox; requests: PlatformFriendRequestView[]}
     | {type: 'USERS_LOADED'; users: PlatformUserView[]}
+    | {type: 'CHANNELS_LOADED'; channels: PlatformChannelView[]}
     | {type: 'GROUPS_LOADED'; groups: PlatformGroupView[]}
+    | {type: 'INVITATIONS_LOADED'; invitations: PlatformInvitationView[]}
     | {type: 'SURFACE_MEMBERS_LOADED'; members: PlatformSurfaceMemberView[]}
     | {type: 'JOIN_REQUESTS_LOADED'; requests: PlatformJoinRequestView[]}
 
@@ -124,8 +143,25 @@ export type PlatformImWorkspaceApi = {
     cancelFriendRequest: (id: number) => Promise<PlatformFriendRequestView>
     updateFriendRemark: (friendUserId: number, request: PlatformFriendRemarkRequest) => Promise<PlatformFriendView>
     removeFriend: (friendUserId: number) => Promise<void>
-    createGroup: (request: PlatformGroupCreateRequest) => Promise<PlatformGroupView>
+    createChannel: (request: PlatformSurfaceCreateRequest) => Promise<PlatformChannelView>
+    listChannels: () => Promise<PlatformChannelView[]>
+    createGroup: (request: PlatformSurfaceCreateRequest) => Promise<PlatformGroupView>
     listGroups: () => Promise<PlatformGroupView[]>
+    createChannelGroup: (channelId: number, request: PlatformChannelGroupCreateRequest) => Promise<PlatformGroupView>
+    listChannelGroups: (channelId: number) => Promise<PlatformGroupView[]>
+    listInvitations: (params?: PlatformPageParams) => Promise<PlatformInvitationPage>
+    inviteSurface: (
+        surfaceType: ImSurfaceType,
+        surfaceId: number,
+        request: PlatformSurfaceInvitationRequest,
+    ) => Promise<PlatformInvitationView>
+    acceptInvitation: (id: number) => Promise<PlatformInvitationView>
+    rejectInvitation: (id: number) => Promise<PlatformInvitationView>
+    transferOwnership: (
+        surfaceType: ImSurfaceType,
+        surfaceId: number,
+        request: PlatformOwnershipTransferRequest,
+    ) => Promise<void>
     applyJoin: (request: JoinRequestCreateRequest) => Promise<JoinResultView>
     approveJoin: (id: number) => Promise<JoinResultView>
     rejectJoin: (id: number, request?: JoinRequestRejectRequest) => Promise<JoinResultView>
@@ -157,11 +193,14 @@ const initialState: PlatformImWorkspaceState = {
     incomingRequests: [],
     outgoingRequests: [],
     userResults: [],
+    channels: [],
     groups: [],
+    invitations: [],
     surfaceMembers: [],
     joinRequests: [],
     unreadTotal: 0,
     pendingFriendRequestCount: 0,
+    pendingInvitationCount: 0,
     status: 'idle',
 }
 
@@ -183,8 +222,17 @@ export const defaultPlatformImWorkspaceApi: PlatformImWorkspaceApi = {
     cancelFriendRequest: cancelPlatformFriendRequest,
     updateFriendRemark: updatePlatformFriendRemark,
     removeFriend: removePlatformFriend,
+    createChannel: createPlatformChannel,
+    listChannels: listPlatformChannels,
     createGroup: createPlatformGroup,
     listGroups: listPlatformGroups,
+    createChannelGroup: createPlatformChannelGroup,
+    listChannelGroups: listPlatformChannelGroups,
+    listInvitations: listPlatformInvitations,
+    inviteSurface: invitePlatformSurface,
+    acceptInvitation: acceptPlatformInvitation,
+    rejectInvitation: rejectPlatformInvitation,
+    transferOwnership: transferPlatformSurfaceOwnership,
     applyJoin: createImJoinRequest,
     approveJoin: approveImJoinRequest,
     rejectJoin: rejectImJoinRequest,
@@ -210,12 +258,10 @@ export function platformImWorkspaceReducer(
             const selectedConversationId = retainSelection(
                 state.selectedConversationId,
                 action.bootstrap.conversations,
-                action.bootstrap.publicChannel?.conversationId,
             )
             return {
                 ...state,
                 currentUser: action.bootstrap.currentUser,
-                publicChannel: action.bootstrap.publicChannel ?? undefined,
                 conversations: action.bootstrap.conversations,
                 selectedConversationId,
                 unreadTotal: action.bootstrap.unreadTotal,
@@ -228,11 +274,9 @@ export function platformImWorkspaceReducer(
             return withUnreadTotal({
                 ...state,
                 conversations: action.conversations,
-                publicChannel: action.conversations.find((conversation) => conversation.displayType === 'PUBLIC_CHANNEL'),
                 selectedConversationId: retainSelection(
                     state.selectedConversationId,
                     action.conversations,
-                    state.publicChannel?.conversationId,
                 ),
             })
         case 'CONVERSATION_SELECTED':
@@ -272,8 +316,16 @@ export function platformImWorkspaceReducer(
                 : {...state, outgoingRequests: action.requests}
         case 'USERS_LOADED':
             return {...state, userResults: action.users}
+        case 'CHANNELS_LOADED':
+            return {...state, channels: action.channels}
         case 'GROUPS_LOADED':
             return {...state, groups: action.groups}
+        case 'INVITATIONS_LOADED':
+            return {
+                ...state,
+                invitations: action.invitations,
+                pendingInvitationCount: action.invitations.filter((item) => item.status === 'PENDING').length,
+            }
         case 'SURFACE_MEMBERS_LOADED':
             return {...state, surfaceMembers: action.members}
         case 'JOIN_REQUESTS_LOADED':
@@ -341,12 +393,15 @@ export function usePlatformImWorkspace(options: UsePlatformImWorkspaceOptions = 
     const reload = useCallback(async () => {
         dispatch({type: 'LOADING'})
         try {
-            const bootstrap = await apiRef.current.getBootstrap()
+            const [bootstrap, invitations] = await Promise.all([
+                apiRef.current.getBootstrap(),
+                apiRef.current.listInvitations(),
+            ])
             dispatch({type: 'BOOTSTRAPPED', bootstrap})
+            dispatch({type: 'INVITATIONS_LOADED', invitations: invitations.records})
             const selectedConversationId = retainSelection(
                 stateRef.current.selectedConversationId,
                 bootstrap.conversations,
-                bootstrap.publicChannel?.conversationId,
             )
             if (selectedConversationId) {
                 const messages = await reconcileMessages(selectedConversationId)
@@ -512,6 +567,33 @@ export function usePlatformImWorkspace(options: UsePlatformImWorkspaceOptions = 
         }
     }, [setFailure])
 
+    const refreshChannels = useCallback(async () => {
+        try {
+            const channels = await apiRef.current.listChannels()
+            dispatch({type: 'CHANNELS_LOADED', channels})
+            return channels
+        } catch (error) {
+            setFailure(error)
+            return []
+        }
+    }, [setFailure])
+
+    const refreshInvitations = useCallback(async () => {
+        try {
+            const invitations = await apiRef.current.listInvitations()
+            dispatch({type: 'INVITATIONS_LOADED', invitations: invitations.records})
+            return invitations.records
+        } catch (error) {
+            setFailure(error)
+            return []
+        }
+    }, [setFailure])
+
+    const listChannelGroups = useCallback(
+        (channelId: number) => apiRef.current.listChannelGroups(channelId),
+        [],
+    )
+
     const refreshSurfaceAdmin = useCallback(async (surfaceType: ImSurfaceType, surfaceId: number) => {
         try {
             const [members, requests] = await Promise.all([
@@ -526,8 +608,8 @@ export function usePlatformImWorkspace(options: UsePlatformImWorkspaceOptions = 
     }, [setFailure])
 
     const refreshPlatformData = useCallback(async () => {
-        await Promise.all([refreshConversations(), refreshFriends(), refreshGroups()])
-    }, [refreshConversations, refreshFriends, refreshGroups])
+        await Promise.all([refreshConversations(), refreshFriends(), refreshChannels(), refreshGroups(), refreshInvitations()])
+    }, [refreshChannels, refreshConversations, refreshFriends, refreshGroups, refreshInvitations])
 
     useEffect(() => {
         void reload()
@@ -549,7 +631,9 @@ export function usePlatformImWorkspace(options: UsePlatformImWorkspaceOptions = 
         reload,
         refreshConversations,
         refreshFriends,
+        refreshChannels,
         refreshGroups,
+        refreshInvitations,
         refreshSurfaceAdmin,
         refreshPlatformData,
         searchUsers,
@@ -585,9 +669,42 @@ export function usePlatformImWorkspace(options: UsePlatformImWorkspaceOptions = 
             await refreshConversations()
             await selectConversation(conversation.id)
         },
-        createGroup: async (request: PlatformGroupCreateRequest) => {
-            await apiRef.current.createGroup(request)
+        createChannel: async (request: PlatformSurfaceCreateRequest) => {
+            const channel = await apiRef.current.createChannel(request)
+            await Promise.all([refreshChannels(), refreshConversations()])
+            return channel
+        },
+        createGroup: async (request: PlatformSurfaceCreateRequest) => {
+            const group = await apiRef.current.createGroup(request)
             await refreshPlatformData()
+            return group
+        },
+        createChannelGroup: async (channelId: number, request: PlatformChannelGroupCreateRequest) => {
+            const group = await apiRef.current.createChannelGroup(channelId, request)
+            await refreshConversations()
+            return group
+        },
+        listChannelGroups,
+        inviteSurface: (
+            surfaceType: ImSurfaceType,
+            surfaceId: number,
+            request: PlatformSurfaceInvitationRequest,
+        ) => apiRef.current.inviteSurface(surfaceType, surfaceId, request),
+        acceptInvitation: async (id: number) => {
+            await apiRef.current.acceptInvitation(id)
+            await refreshPlatformData()
+        },
+        rejectInvitation: async (id: number) => {
+            await apiRef.current.rejectInvitation(id)
+            await refreshInvitations()
+        },
+        transferOwnership: async (
+            surfaceType: ImSurfaceType,
+            surfaceId: number,
+            request: PlatformOwnershipTransferRequest,
+        ) => {
+            await apiRef.current.transferOwnership(surfaceType, surfaceId, request)
+            await Promise.all([refreshChannels(), refreshGroups(), refreshConversations()])
         },
         applyJoin: async (request: JoinRequestCreateRequest) => {
             const result = await apiRef.current.applyJoin(request)

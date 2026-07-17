@@ -4,12 +4,12 @@ import type {PlatformConversationView} from '../platformImTypes'
 import {ImConversationPane, sortPlatformConversations} from './ImConversationPane'
 
 describe('ImConversationPane', () => {
-    test('pins the public channel and orders the remaining conversations by latest activity', () => {
+    test('orders all conversations by latest activity without pinning a default channel', () => {
         expect(sortPlatformConversations([
             conversation({conversationId: 2, title: 'Older', lastActiveAt: '2026-07-15T12:00:00Z'}),
-            conversation({conversationId: 1, title: '公共频道', displayType: 'PUBLIC_CHANNEL'}),
+            conversation({conversationId: 1, title: 'Channel', displayType: 'CHANNEL'}),
             conversation({conversationId: 3, title: 'Newer', lastActiveAt: '2026-07-16T12:00:00Z'}),
-        ]).map((item) => item.title)).toEqual(['公共频道', 'Newer', 'Older'])
+        ]).map((item) => item.title)).toEqual(['Newer', 'Older', 'Channel'])
     })
 
     test('renders exact unread badges and selects a conversation with a native button', () => {
