@@ -42,7 +42,7 @@ class ImPostgresContractIT {
     private static final Path IM_PLATFORM_FRIENDSHIP_MIGRATION = Path.of(
             "src/main/resources/db/migration/V46__create_im_platform_friendship_schema.sql");
     private static final Path IM_SURFACE_INVITATION_MIGRATION = Path.of(
-            "src/main/resources/db/migration/V47__create_im_surface_invitation_schema.sql");
+            "src/main/resources/db/migration/V48__create_im_surface_invitation_schema.sql");
     private static final Path IM_POSTGRESQL_INDEX_MIGRATION = Path.of(
             "src/main/resources/db/postgresql/R__create_im_core_postgresql_indexes.sql");
 
@@ -201,7 +201,7 @@ class ImPostgresContractIT {
                 select count(*)
                 from %s.flyway_schema_history
                 where version = '42'
-                  and script = 'V47__create_im_surface_invitation_schema.sql'
+                  and script = 'V48__create_im_surface_invitation_schema.sql'
                 """.formatted(schemaName), Integer.class);
         assertThat(v42Count).as("V42 surface invitation migration must be applied").isEqualTo(1);
 

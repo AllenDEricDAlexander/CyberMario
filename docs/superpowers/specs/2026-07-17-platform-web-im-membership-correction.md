@@ -47,7 +47,7 @@ and a `PLATFORM` visibility policy.
 
 ## Persistence
 
-Exactly one additive migration, `V47__create_im_surface_invitation_schema.sql`,
+Exactly one additive migration, `V48__create_im_surface_invitation_schema.sql`,
 adds `im_surface_invitation`. The natural key is
 `(surface_type, surface_id, invitee_user_id)` and the workflow statuses are
 `PENDING`, `ACCEPTED`, `REJECTED`, and `CANCELLED`.
@@ -58,19 +58,19 @@ unbounded duplicate history.
 
 ## Platform API Contract
 
-| Endpoint | Contract |
-|---|---|
-| `POST /api/im/platform/channels` | Create a caller-owned channel. |
-| `GET /api/im/platform/channels` | List caller's active channel memberships only. |
-| `POST /api/im/platform/groups` | Create a caller-owned standalone group. |
-| `GET /api/im/platform/groups` | List caller's active standalone groups only. |
-| `POST /api/im/platform/channels/{id}/groups` | Channel owner/admin creates a child group. |
-| `GET /api/im/platform/channels/{id}/groups` | Active channel member lists child groups. |
-| `POST /api/im/platform/surfaces/{type}/{id}/invitations` | Surface owner/admin directly invites a user. |
-| `GET /api/im/platform/invitations` | List caller's pending incoming invitations. |
-| `POST /api/im/platform/invitations/{id}/accept` | Accept and activate membership. |
-| `POST /api/im/platform/invitations/{id}/reject` | Reject without creating membership. |
-| `POST /api/im/platform/surfaces/{type}/{id}/owner` | Transfer ownership to an active member. |
+| Endpoint                                                 | Contract                                       |
+|----------------------------------------------------------|------------------------------------------------|
+| `POST /api/im/platform/channels`                         | Create a caller-owned channel.                 |
+| `GET /api/im/platform/channels`                          | List caller's active channel memberships only. |
+| `POST /api/im/platform/groups`                           | Create a caller-owned standalone group.        |
+| `GET /api/im/platform/groups`                            | List caller's active standalone groups only.   |
+| `POST /api/im/platform/channels/{id}/groups`             | Channel owner/admin creates a child group.     |
+| `GET /api/im/platform/channels/{id}/groups`              | Active channel member lists child groups.      |
+| `POST /api/im/platform/surfaces/{type}/{id}/invitations` | Surface owner/admin directly invites a user.   |
+| `GET /api/im/platform/invitations`                       | List caller's pending incoming invitations.    |
+| `POST /api/im/platform/invitations/{id}/accept`          | Accept and activate membership.                |
+| `POST /api/im/platform/invitations/{id}/reject`          | Reject without creating membership.            |
+| `POST /api/im/platform/surfaces/{type}/{id}/owner`       | Transfer ownership to an active member.        |
 
 Generic surface administration remains available to privileged integrations,
 but Platform guards reject global channel/standalone joins and recheck parent

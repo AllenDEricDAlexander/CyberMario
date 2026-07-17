@@ -348,7 +348,7 @@
   ，不会自动授予 `IM_ADMIN`。
 - 好友关系通过 `im_friendship` 的规范化用户对和 `im_contact` 的双向联系人记录持久化；本次数据库变更仅新增
   `V46__create_im_platform_friendship_schema.sql`。
-- 频道/群组邀请通过 `V47__create_im_surface_invitation_schema.sql` 持久化；未修改或重算任何已有 Flyway 迁移。
+- 频道/群组邀请通过 `V48__create_im_surface_invitation_schema.sql` 持久化；未修改或重算任何已有 Flyway 迁移。
 - Clocktower 仍只依赖通用 `ImFacade` / `RoomFacade` 和自身策略适配器，不依赖平台好友门禁或平台展示模型。
 
 ## Clocktower Phase 1
@@ -424,7 +424,7 @@
 - `V30__create_im_core_schema.sql`：统一 Channel、Group、DM、Conversation、Message、Inbox、Outbox 与治理基础 schema。
 - `V31__create_nutrition_mvp_schema.sql`：营养管理持久化基线；恢复实现未修改该历史迁移。
 - `V46__create_im_platform_friendship_schema.sql`：平台好友关系和双向联系人 schema；未修改任何历史迁移。
-- `V47__create_im_surface_invitation_schema.sql`：平台频道/群组直接邀请 schema；未修改任何历史迁移。
+- `V48__create_im_surface_invitation_schema.sql`：平台频道/群组直接邀请 schema；未修改任何历史迁移。
 
 ## 17. 已有测试覆盖线索
 
