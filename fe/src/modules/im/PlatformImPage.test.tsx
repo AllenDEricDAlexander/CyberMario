@@ -15,19 +15,25 @@ vi.mock('./components/ImFriendPane', () => ({
 vi.mock('./components/ImGroupPane', () => ({
     ImGroupPane: () => <><aside aria-label="群组列表"/><section aria-label="群组详情"/></>,
 }))
+vi.mock('./components/ImChannelPane', () => ({
+    ImChannelPane: () => <><aside aria-label="频道列表"/><section aria-label="频道详情"/></>,
+}))
+vi.mock('./components/ImInvitationPane', () => ({
+    ImInvitationPane: () => <><aside aria-label="邀请列表"/><section aria-label="邀请详情"/></>,
+}))
 
 describe('PlatformImWorkspaceView', () => {
-    test('renders the three-column message workspace with a pinned public channel and exact unread count', () => {
+    test('renders the three-column workspace without a pinned default channel', () => {
         renderWorkspace()
 
         expect(screen.getByRole('navigation', {name: '即时通信功能'})).toBeTruthy()
         expect(screen.getByRole('complementary', {name: '会话列表'})).toBeTruthy()
-        expect(screen.getByRole('region', {name: '消息详情'}).textContent).toContain('公共频道')
-        expect(screen.getByText('置顶')).toBeTruthy()
+        expect(screen.getByRole('region', {name: '消息详情'}).textContent).toContain('产品频道')
+        expect(screen.queryByText('置顶')).toBeNull()
         expect(screen.getAllByText('3').length).toBeGreaterThan(0)
     })
 
-    test('loads activity data on switch and opens the public channel from the rail', () => {
+    test('loads member-scoped channel and invitation data from the rail', () => {
         const workspace = createWorkspace()
         renderWorkspace(workspace)
 
@@ -35,9 +41,13 @@ describe('PlatformImWorkspaceView', () => {
         expect(workspace.selectActivity).toHaveBeenCalledWith('FRIENDS')
         expect(workspace.refreshFriends).toHaveBeenCalledTimes(1)
 
-        fireEvent.click(screen.getByRole('button', {name: '公共频道'}))
-        expect(workspace.selectActivity).toHaveBeenLastCalledWith('MESSAGES')
-        expect(workspace.selectConversation).toHaveBeenCalledWith(10)
+        fireEvent.click(screen.getByRole('button', {name: '频道'}))
+        expect(workspace.selectActivity).toHaveBeenLastCalledWith('CHANNELS')
+        expect(workspace.refreshChannels).toHaveBeenCalledTimes(1)
+
+        fireEvent.click(screen.getByRole('button', {name: '邀请'}))
+        expect(workspace.selectActivity).toHaveBeenLastCalledWith('INVITATIONS')
+        expect(workspace.refreshInvitations).toHaveBeenCalledTimes(1)
     })
 })
 
@@ -46,32 +56,36 @@ function renderWorkspace(workspace = createWorkspace()) {
 }
 
 function createWorkspace(): PlatformImWorkspace {
-    const publicChannel = conversation()
+    const channel = conversation()
     return {
         activity: 'MESSAGES',
         selectedConversationId: 10,
         currentUser: {userId: 1, accountNo: 'mario', displayName: 'Mario'},
-        publicChannel,
-        conversations: [publicChannel],
+        conversations: [channel],
         messagesByConversation: {10: []},
         friends: [],
         incomingRequests: [],
         outgoingRequests: [],
         userResults: [],
+        channels: [],
         groups: [],
+        invitations: [],
         surfaceMembers: [],
         joinRequests: [],
         unreadTotal: 3,
         pendingFriendRequestCount: 1,
+        pendingInvitationCount: 2,
         status: 'ready',
-        selectedConversation: publicChannel,
+        selectedConversation: channel,
         messages: [],
         selectActivity: vi.fn(),
         selectConversation: vi.fn().mockResolvedValue(undefined),
         reload: vi.fn().mockResolvedValue(undefined),
-        refreshConversations: vi.fn().mockResolvedValue([publicChannel]),
+        refreshConversations: vi.fn().mockResolvedValue([channel]),
         refreshFriends: vi.fn().mockResolvedValue(undefined),
+        refreshChannels: vi.fn().mockResolvedValue([]),
         refreshGroups: vi.fn().mockResolvedValue(undefined),
+        refreshInvitations: vi.fn().mockResolvedValue([]),
         refreshSurfaceAdmin: vi.fn().mockResolvedValue(undefined),
         refreshPlatformData: vi.fn().mockResolvedValue(undefined),
         searchUsers: vi.fn().mockResolvedValue(undefined),
@@ -85,7 +99,14 @@ function createWorkspace(): PlatformImWorkspace {
         updateFriendRemark: vi.fn().mockResolvedValue(undefined),
         removeFriend: vi.fn().mockResolvedValue(undefined),
         openDm: vi.fn().mockResolvedValue(undefined),
+        createChannel: vi.fn(),
         createGroup: vi.fn().mockResolvedValue(undefined),
+        createChannelGroup: vi.fn(),
+        listChannelGroups: vi.fn().mockResolvedValue([]),
+        inviteSurface: vi.fn(),
+        acceptInvitation: vi.fn().mockResolvedValue(undefined),
+        rejectInvitation: vi.fn().mockResolvedValue(undefined),
+        transferOwnership: vi.fn().mockResolvedValue(undefined),
         applyJoin: vi.fn(),
         approveJoin: vi.fn().mockResolvedValue(undefined),
         rejectJoin: vi.fn().mockResolvedValue(undefined),
@@ -99,11 +120,11 @@ function conversation(): PlatformConversationView {
     return {
         conversationId: 10,
         conversationType: 'CHANNEL_MAIN',
-        displayType: 'PUBLIC_CHANNEL',
-        title: '公共频道',
+        displayType: 'CHANNEL',
+        title: '产品频道',
         ownerSurfaceType: 'CHANNEL',
         surfaceId: 2,
-        surfaceKey: 'general',
+        surfaceKey: 'product',
         membershipStatus: 'ACTIVE',
         memberRole: 'MEMBER',
         canRead: true,

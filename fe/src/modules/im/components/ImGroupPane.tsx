@@ -1,78 +1,65 @@
 import {PlusOutlined, ReloadOutlined, TeamOutlined} from '@ant-design/icons'
-import {Alert, App, Avatar, Button, Empty, Input, List, Modal, Popconfirm, Select, Space, Tag, Typography} from 'antd'
-import {useEffect, useState} from 'react'
-import type {ImJoinPolicy, ImSurfaceType, JoinRequestCreateRequest, JoinResultView} from '../imTypes'
+import {Alert, App, Avatar, Button, Empty, Input, List, Modal, Space, Tag, Typography} from 'antd'
+import {useState} from 'react'
+import type {ImSurfaceType} from '../imTypes'
 import type {
-    PlatformGroupCreateRequest,
     PlatformGroupView,
     PlatformJoinRequestView,
+    PlatformSurfaceCreateRequest,
+    PlatformSurfaceInvitationRequest,
     PlatformSurfaceMemberView,
     PlatformUserView,
 } from '../platformImTypes'
-import {ImJoinApplyControls} from './ImJoinApplyControls'
+import {ImSurfaceManagement} from './ImSurfaceManagement'
 
 export type ImGroupPaneProps = {
     currentUser?: PlatformUserView
     groups: PlatformGroupView[]
     members: PlatformSurfaceMemberView[]
     joinRequests: PlatformJoinRequestView[]
+    userResults: PlatformUserView[]
     onRefresh: () => Promise<void>
-    onCreate: (request: PlatformGroupCreateRequest) => Promise<void>
-    onApply: (request: JoinRequestCreateRequest) => Promise<JoinResultView>
-    onCancel: (id: number) => Promise<JoinResultView>
+    onCreate: (request: PlatformSurfaceCreateRequest) => Promise<PlatformGroupView>
     onLeave: (surfaceType: ImSurfaceType, surfaceId: number) => Promise<void>
+    onOpenConversation: (conversationId: number) => Promise<void>
+    onSearchUsers: (keyword: string) => Promise<void>
+    onInvite: (
+        surfaceType: ImSurfaceType,
+        surfaceId: number,
+        request: PlatformSurfaceInvitationRequest,
+    ) => Promise<void>
     onLoadManagement: (surfaceType: ImSurfaceType, surfaceId: number) => Promise<void>
     onApprove: (surfaceType: ImSurfaceType, surfaceId: number, id: number) => Promise<void>
     onReject: (surfaceType: ImSurfaceType, surfaceId: number, id: number) => Promise<void>
     onRemoveMember: (surfaceType: ImSurfaceType, surfaceId: number, userId: number) => Promise<void>
-    onOpenConversation: (conversationId: number) => Promise<void>
+    onTransferOwnership: (surfaceType: ImSurfaceType, surfaceId: number, userId: number) => Promise<void>
 }
 
 export function ImGroupPane(props: ImGroupPaneProps) {
     const {message} = App.useApp()
-    const {onLoadManagement} = props
     const [selectedGroupId, setSelectedGroupId] = useState<number>()
     const [createOpen, setCreateOpen] = useState(false)
     const [name, setName] = useState('')
-    const [joinPolicy, setJoinPolicy] = useState<ImJoinPolicy>('OPEN')
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string>()
     const selectedGroup = props.groups.find((group) => group.id === selectedGroupId) ?? props.groups[0]
-    const selectedConversationId = selectedGroup?.conversationId
-    const reviewer = selectedGroup?.memberRole === 'OWNER' || selectedGroup?.memberRole === 'ADMIN'
-
-    useEffect(() => {
-        if (selectedGroup && reviewer) {
-            void onLoadManagement('GROUP', selectedGroup.id)
-        }
-    }, [onLoadManagement, reviewer, selectedGroup])
-
-    async function run(action: () => Promise<void>, success: string) {
-        setBusy(true)
-        setError(undefined)
-        try {
-            await action()
-            void message.success(success)
-        } catch (reason) {
-            setError(reason instanceof Error ? reason.message : '操作失败，请稍后重试')
-        } finally {
-            setBusy(false)
-        }
-    }
 
     async function create() {
         const normalized = name.trim()
         if (!normalized) return
-        await run(async () => {
-            await props.onCreate({
-                groupKey: createGroupKey(normalized),
-                name: normalized,
-                joinPolicy,
-            })
+        setBusy(true)
+        setError(undefined)
+        try {
+            const group = await props.onCreate({name: normalized})
+            setSelectedGroupId(group.id)
             setName('')
-            setJoinPolicy('OPEN')
             setCreateOpen(false)
-        }, '群组已创建')
+            void message.success('独立群组已创建')
+        } catch (reason) {
+            setError(reason instanceof Error ? reason.message : '群组创建失败')
+        } finally {
+            setBusy(false)
+        }
     }
 
     return (
@@ -80,11 +67,11 @@ export function ImGroupPane(props: ImGroupPaneProps) {
             <aside aria-label="群组列表" className="platform-im-list-pane">
                 <header className="platform-im-pane-header">
                     <div>
-                        <Typography.Title level={4}>群组</Typography.Title>
-                        <Typography.Text type="secondary">发现与管理平台群组</Typography.Text>
+                        <Typography.Title level={4}>独立群组</Typography.Title>
+                        <Typography.Text type="secondary">仅显示你已加入的独立群组</Typography.Text>
                     </div>
                     <Space.Compact>
-                        <Button aria-label="创建群组" icon={<PlusOutlined/>} onClick={() => setCreateOpen(true)}/>
+                        <Button aria-label="创建独立群组" icon={<PlusOutlined/>} onClick={() => setCreateOpen(true)}/>
                         <Button aria-label="刷新群组" icon={<ReloadOutlined/>} onClick={() => void props.onRefresh()}/>
                     </Space.Compact>
                 </header>
@@ -92,18 +79,18 @@ export function ImGroupPane(props: ImGroupPaneProps) {
                 <div className="platform-im-list-scroll">
                     <List
                         dataSource={props.groups}
-                        locale={{emptyText: <Empty description="暂无群组" image={Empty.PRESENTED_IMAGE_SIMPLE}/>}}
+                        locale={{emptyText: <Empty description="暂无独立群组，可自行创建" image={Empty.PRESENTED_IMAGE_SIMPLE}/>}}
                         renderItem={(group) => (
-                            <List.Item className={group.id === selectedGroup?.id ? 'is-active' : ''}
-                                       onClick={() => setSelectedGroupId(group.id)}>
+                            <List.Item
+                                className={group.id === selectedGroup?.id ? 'is-active' : ''}
+                                onClick={() => setSelectedGroupId(group.id)}
+                            >
                                 <List.Item.Meta
-                                    avatar={(
-                                        <Avatar icon={<TeamOutlined/>}/>
-                                    )}
-                                    description={`${policyLabel(group.joinPolicy)} · ${group.memberCount ?? 0} 人`}
+                                    avatar={<Avatar icon={<TeamOutlined/>}/>}
+                                    description={`${group.memberCount ?? 0} 位成员`}
                                     title={group.name}
                                 />
-                                {group.membershipStatus && <Tag>{membershipLabel(group.membershipStatus)}</Tag>}
+                                {group.memberRole && <Tag>{group.memberRole}</Tag>}
                             </List.Item>
                         )}
                         rowKey="id"
@@ -118,80 +105,42 @@ export function ImGroupPane(props: ImGroupPaneProps) {
                             <div>
                                 <Typography.Title level={3}>{selectedGroup.name}</Typography.Title>
                                 <Space size={6} wrap>
-                                    <Tag>{policyLabel(selectedGroup.joinPolicy)}</Tag>
+                                    <Tag>邀请制独立群组</Tag>
                                     <Tag>{selectedGroup.memberCount ?? 0} 位成员</Tag>
                                     {selectedGroup.memberRole && <Tag color="blue">{selectedGroup.memberRole}</Tag>}
                                 </Space>
                             </div>
-                            {selectedConversationId && selectedGroup.membershipStatus === 'ACTIVE' && (
-                                <Button
-                                    onClick={() => void props.onOpenConversation(selectedConversationId)}
-                                    type="primary"
-                                >
-                                    进入会话
-                                </Button>
-                            )}
+                            <Space>
+                                {selectedGroup.conversationId && (
+                                    <Button onClick={() => void props.onOpenConversation(selectedGroup.conversationId!)} type="primary">
+                                        进入群聊
+                                    </Button>
+                                )}
+                                {selectedGroup.memberRole !== 'OWNER' && (
+                                    <Button danger onClick={() => void props.onLeave('GROUP', selectedGroup.id)}>退出群组</Button>
+                                )}
+                            </Space>
                         </header>
-                        {selectedGroup.announcement && (
-                            <Alert message={selectedGroup.announcement} showIcon type="info"/>
-                        )}
-                        <div className="platform-im-group-membership">
-                            <ImJoinApplyControls
-                                currentMemberRole={selectedGroup.memberRole}
-                                currentMembershipStatus={selectedGroup.membershipStatus}
-                                joinPolicy={selectedGroup.joinPolicy}
-                                pendingReviewRequests={props.joinRequests.map((request) => ({
-                                    requestId: request.joinRequestId,
-                                    userLabel: `${request.displayName} (${request.accountNo})`,
-                                }))}
-                                surface={{surfaceType: 'GROUP', surfaceId: selectedGroup.id}}
-                                onApply={(surface) => props.onApply({
-                                    surfaceType: surface.surfaceType,
-                                    surfaceId: surface.surfaceId,
-                                })}
-                                onApprove={(id) => props.onApprove('GROUP', selectedGroup.id, id)}
-                                onCancel={props.onCancel}
-                                onLeave={(surface) => props.onLeave(surface.surfaceType, surface.surfaceId)}
-                                onReject={(id) => props.onReject('GROUP', selectedGroup.id, id)}
-                            />
-                        </div>
-                        {reviewer && (
-                            <div className="platform-im-group-management">
-                                <Typography.Title level={5}>成员管理</Typography.Title>
-                                <List
-                                    dataSource={props.members}
-                                    locale={{emptyText: '暂无成员'}}
-                                    renderItem={(member) => (
-                                        <List.Item actions={canRemoveMember(member, selectedGroup, props.currentUser)
-                                            ? [
-                                                <Popconfirm
-                                                    key="remove"
-                                                    onConfirm={() => void run(
-                                                        () => props.onRemoveMember('GROUP', selectedGroup.id, member.userId),
-                                                        '成员已移除',
-                                                    )}
-                                                    title="确认移除该成员？"
-                                                >
-                                                    <Button danger disabled={busy} size="small">移除</Button>
-                                                </Popconfirm>,
-                                            ]
-                                            : []}>
-                                            <List.Item.Meta
-                                                avatar={<Avatar src={member.avatarUrl}>{avatarText(member.displayName)}</Avatar>}
-                                                description={member.accountNo}
-                                                title={member.displayName}
-                                            />
-                                            <Tag>{member.memberRole}</Tag>
-                                        </List.Item>
-                                    )}
-                                    rowKey="membershipId"
-                                    size="small"
-                                />
-                            </div>
-                        )}
+                        {selectedGroup.announcement && <Alert message={selectedGroup.announcement} showIcon type="info"/>}
+                        <ImSurfaceManagement
+                            currentUser={props.currentUser}
+                            joinRequests={props.joinRequests}
+                            memberRole={selectedGroup.memberRole}
+                            members={props.members}
+                            surfaceId={selectedGroup.id}
+                            surfaceType="GROUP"
+                            userResults={props.userResults}
+                            onApprove={props.onApprove}
+                            onInvite={props.onInvite}
+                            onLoad={props.onLoadManagement}
+                            onReject={props.onReject}
+                            onRemoveMember={props.onRemoveMember}
+                            onSearchUsers={props.onSearchUsers}
+                            onTransferOwnership={props.onTransferOwnership}
+                        />
                     </>
                 ) : (
-                    <Empty description="选择一个群组查看详情" image={Empty.PRESENTED_IMAGE_SIMPLE}/>
+                    <Empty description="创建或接受邀请后，独立群组会显示在这里" image={Empty.PRESENTED_IMAGE_SIMPLE}/>
                 )}
             </section>
             <Modal
@@ -201,59 +150,14 @@ export function ImGroupPane(props: ImGroupPaneProps) {
                 onCancel={() => setCreateOpen(false)}
                 onOk={() => void create()}
                 open={createOpen}
-                title="创建群组"
+                title="创建独立群组"
             >
                 <Space className="platform-im-create-group" orientation="vertical" size={14}>
-                    <Input
-                        maxLength={80}
-                        placeholder="群组名称"
-                        value={name}
-                        onChange={(event) => setName(event.target.value)}
-                    />
-                    <Select<ImJoinPolicy>
-                        aria-label="加入方式"
-                        options={[
-                            {label: '开放加入', value: 'OPEN'},
-                            {label: '需要审批', value: 'APPROVAL'},
-                        ]}
-                        value={joinPolicy}
-                        onChange={setJoinPolicy}
-                    />
+                    <Alert message="独立群组不会出现在搜索或发现列表中，只能由所有者或管理员邀请加入。" showIcon type="info"/>
+                    <Input maxLength={80} placeholder="群组名称" value={name}
+                           onChange={(event) => setName(event.target.value)}/>
                 </Space>
             </Modal>
         </>
     )
-}
-
-export function createGroupKey(name: string) {
-    const normalized = name.toLowerCase()
-        .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-')
-        .replace(/^-|-$/g, '')
-        .slice(0, 32) || 'group'
-    const suffix = globalThis.crypto?.randomUUID?.().slice(0, 8) ?? Date.now().toString(36)
-    return `${normalized}-${suffix}`
-}
-
-function canRemoveMember(
-    member: PlatformSurfaceMemberView,
-    group: PlatformGroupView,
-    currentUser?: PlatformUserView,
-) {
-    return member.userId !== currentUser?.userId && member.memberRole !== 'OWNER' && group.memberRole !== 'MEMBER'
-}
-
-function policyLabel(policy: ImJoinPolicy) {
-    return policy === 'OPEN' ? '开放加入' : '需要审批'
-}
-
-function membershipLabel(status: string) {
-    if (status === 'ACTIVE') return '已加入'
-    if (status === 'PENDING') return '待审批'
-    if (status === 'LEFT') return '未加入'
-    if (status === 'BANNED') return '已禁止'
-    return status
-}
-
-function avatarText(name: string) {
-    return name.trim().slice(0, 1).toUpperCase() || 'U'
 }

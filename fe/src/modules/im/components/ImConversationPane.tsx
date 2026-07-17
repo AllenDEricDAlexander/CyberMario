@@ -1,5 +1,5 @@
 import {GlobalOutlined, ReloadOutlined} from '@ant-design/icons'
-import {Avatar, Badge, Button, Empty, Skeleton, Tag, Typography} from 'antd'
+import {Avatar, Badge, Button, Empty, Skeleton, Typography} from 'antd'
 import type {PlatformConversationView} from '../platformImTypes'
 
 export type ImConversationPaneProps = {
@@ -18,7 +18,7 @@ export function ImConversationPane(props: ImConversationPaneProps) {
             <header className="platform-im-pane-header">
                 <div>
                     <Typography.Title level={4}>消息</Typography.Title>
-                    <Typography.Text type="secondary">最近会话与公共频道</Typography.Text>
+                    <Typography.Text type="secondary">按最近活跃时间排列</Typography.Text>
                 </div>
                 <Button aria-label="刷新会话" icon={<ReloadOutlined/>} onClick={props.onRefresh}/>
             </header>
@@ -36,7 +36,7 @@ export function ImConversationPane(props: ImConversationPaneProps) {
                         type="button"
                     >
                         <Badge count={conversation.unreadCount} offset={[-2, 2]} overflowCount={99} size="small">
-                            <Avatar icon={conversation.displayType === 'PUBLIC_CHANNEL' ? <GlobalOutlined/> : undefined}
+                            <Avatar icon={conversation.displayType === 'CHANNEL' ? <GlobalOutlined/> : undefined}
                                     src={conversation.avatarUrl}>
                                 {conversation.title.slice(0, 1)}
                             </Avatar>
@@ -44,7 +44,6 @@ export function ImConversationPane(props: ImConversationPaneProps) {
                         <span className="platform-im-conversation-copy">
                             <span className="platform-im-conversation-title">
                                 <Typography.Text ellipsis>{conversation.title}</Typography.Text>
-                                {conversation.displayType === 'PUBLIC_CHANNEL' && <Tag color="cyan">置顶</Tag>}
                             </span>
                             <Typography.Text ellipsis type="secondary">
                                 {conversationPreview(conversation)}
@@ -62,8 +61,6 @@ export function ImConversationPane(props: ImConversationPaneProps) {
 
 export function sortPlatformConversations(conversations: PlatformConversationView[]) {
     return [...conversations].sort((left, right) => {
-        const pinned = Number(right.displayType === 'PUBLIC_CHANNEL') - Number(left.displayType === 'PUBLIC_CHANNEL')
-        if (pinned !== 0) return pinned
         const active = timestamp(right.lastActiveAt ?? right.lastMessageAt) - timestamp(left.lastActiveAt ?? left.lastMessageAt)
         return active || right.conversationId - left.conversationId
     })

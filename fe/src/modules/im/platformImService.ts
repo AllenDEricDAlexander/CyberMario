@@ -3,6 +3,8 @@ import {buildSearchParams} from '../../services/urlSearch'
 import type {ImSurfaceType} from './imTypes'
 import type {
     PlatformBootstrapView,
+    PlatformChannelGroupCreateRequest,
+    PlatformChannelView,
     PlatformConversationView,
     PlatformFriendDecisionRequest,
     PlatformFriendPage,
@@ -12,10 +14,14 @@ import type {
     PlatformFriendRequestParams,
     PlatformFriendRequestView,
     PlatformFriendView,
-    PlatformGroupCreateRequest,
     PlatformGroupView,
+    PlatformInvitationPage,
+    PlatformInvitationView,
     PlatformJoinRequestPage,
+    PlatformOwnershipTransferRequest,
     PlatformPageParams,
+    PlatformSurfaceCreateRequest,
+    PlatformSurfaceInvitationRequest,
     PlatformSurfaceMemberPage,
     PlatformUserPage,
     PlatformUserSearchParams,
@@ -83,7 +89,18 @@ export function removePlatformFriend(friendUserId: number) {
     return requestJson<void>(`/api/im/platform/friends/${friendUserId}`, {method: 'DELETE'})
 }
 
-export function createPlatformGroup(request: PlatformGroupCreateRequest) {
+export function createPlatformChannel(request: PlatformSurfaceCreateRequest) {
+    return requestJson<PlatformChannelView>('/api/im/platform/channels', {
+        method: 'POST',
+        body: request,
+    })
+}
+
+export function listPlatformChannels() {
+    return requestJson<PlatformChannelView[]>('/api/im/platform/channels')
+}
+
+export function createPlatformGroup(request: PlatformSurfaceCreateRequest) {
     return requestJson<PlatformGroupView>('/api/im/platform/groups', {
         method: 'POST',
         body: request,
@@ -92,6 +109,51 @@ export function createPlatformGroup(request: PlatformGroupCreateRequest) {
 
 export function listPlatformGroups() {
     return requestJson<PlatformGroupView[]>('/api/im/platform/groups')
+}
+
+export function createPlatformChannelGroup(channelId: number, request: PlatformChannelGroupCreateRequest) {
+    return requestJson<PlatformGroupView>(`/api/im/platform/channels/${channelId}/groups`, {
+        method: 'POST',
+        body: request,
+    })
+}
+
+export function listPlatformChannelGroups(channelId: number) {
+    return requestJson<PlatformGroupView[]>(`/api/im/platform/channels/${channelId}/groups`)
+}
+
+export function invitePlatformSurface(
+    surfaceType: ImSurfaceType,
+    surfaceId: number,
+    request: PlatformSurfaceInvitationRequest,
+) {
+    return requestJson<PlatformInvitationView>(
+        `/api/im/platform/surfaces/${surfaceType}/${surfaceId}/invitations`,
+        {method: 'POST', body: request},
+    )
+}
+
+export function listPlatformInvitations(params: PlatformPageParams = {}) {
+    return requestJson<PlatformInvitationPage>(`/api/im/platform/invitations?${pageSearch(params, 50)}`)
+}
+
+export function acceptPlatformInvitation(invitationId: number) {
+    return decidePlatformInvitation(invitationId, 'accept')
+}
+
+export function rejectPlatformInvitation(invitationId: number) {
+    return decidePlatformInvitation(invitationId, 'reject')
+}
+
+export function transferPlatformSurfaceOwnership(
+    surfaceType: ImSurfaceType,
+    surfaceId: number,
+    request: PlatformOwnershipTransferRequest,
+) {
+    return requestJson<void>(`/api/im/platform/surfaces/${surfaceType}/${surfaceId}/owner`, {
+        method: 'POST',
+        body: request,
+    })
 }
 
 export function listPlatformSurfaceMembers(
@@ -124,6 +186,12 @@ function decideFriendRequest(id: number, action: 'accept' | 'reject', request?: 
     return requestJson<PlatformFriendRequestView>(`/api/im/platform/friend-requests/${id}/${action}`, {
         method: 'POST',
         body: request,
+    })
+}
+
+function decidePlatformInvitation(id: number, action: 'accept' | 'reject') {
+    return requestJson<PlatformInvitationView>(`/api/im/platform/invitations/${id}/${action}`, {
+        method: 'POST',
     })
 }
 

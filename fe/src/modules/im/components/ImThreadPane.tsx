@@ -168,13 +168,13 @@ function ReadOnlyExplanation(props: {
 }
 
 function conversationIcon(conversation: PlatformConversationView) {
-    if (conversation.displayType === 'PUBLIC_CHANNEL') return <GlobalOutlined/>
+    if (conversation.displayType === 'CHANNEL') return <GlobalOutlined/>
     if (conversation.displayType === 'GROUP') return <TeamOutlined/>
     return <UserOutlined/>
 }
 
 function displayTypeLabel(displayType: PlatformConversationView['displayType']) {
-    if (displayType === 'PUBLIC_CHANNEL') return '公共频道'
+    if (displayType === 'CHANNEL') return '频道'
     if (displayType === 'GROUP') return '群组'
     return '私聊'
 }
