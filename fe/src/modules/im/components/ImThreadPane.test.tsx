@@ -21,8 +21,11 @@ vi.mock('../../../components/chat-workspace', () => ({
             ))}
         </div>
     ),
-    ChatSender: (props: {disabled?: boolean}) => (
-        <button disabled={props.disabled} type="button">发送消息</button>
+    ChatSender: (props: {disabled?: boolean; input?: string}) => (
+        <div>
+            <output aria-label="消息输入值">{props.input}</output>
+            <button disabled={props.disabled} type="button">发送消息</button>
+        </div>
     ),
 }))
 
@@ -61,6 +64,18 @@ describe('ImThreadPane', () => {
 
         fireEvent.click(screen.getByRole('button', {name: '重试消息'}))
         expect(onRetry).toHaveBeenCalledWith(10, 'client-2')
+    })
+
+    test('opens a categorized emoji picker and appends the selected emoji', () => {
+        renderPane()
+
+        fireEvent.click(screen.getByRole('button', {name: '选择 Emoji 表情'}))
+        expect(screen.getByRole('dialog', {name: 'Emoji 表情选择器'})).toBeTruthy()
+        expect(screen.getAllByRole('tab')).toHaveLength(6)
+        fireEvent.click(screen.getByRole('tab', {name: '动物'}))
+        fireEvent.click(screen.getByRole('button', {name: '插入表情 🐶'}))
+
+        expect(screen.getByLabelText('消息输入值').textContent).toBe('🐶')
     })
 })
 

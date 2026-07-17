@@ -10,9 +10,8 @@ import type {
     PlatformGroupView,
     PlatformUserView,
 } from '../platformImTypes'
+import {ImEmojiPicker} from './ImEmojiPicker'
 import {ImJoinApplyControls} from './ImJoinApplyControls'
-
-const emojiChoices = ['😀', '👍', '🎉', '❤️']
 
 export type ImThreadPaneProps = {
     conversation?: PlatformConversationView
@@ -112,19 +111,12 @@ export function ImThreadPane(props: ImThreadPaneProps) {
                 {!conversation.canPost && (
                     <ReadOnlyExplanation conversation={conversation} onAddFriend={addFriend}/>
                 )}
-                <div className="platform-im-emoji-row" aria-label="快捷表情">
-                    {emojiChoices.map((emoji) => (
-                        <Button
-                            aria-label={`插入 ${emoji}`}
-                            disabled={!conversation.canPost}
-                            key={emoji}
-                            onClick={() => setInput((current) => `${current}${emoji}`)}
-                            size="small"
-                            type="text"
-                        >
-                            {emoji}
-                        </Button>
-                    ))}
+                <div className="platform-im-emoji-row" aria-label="消息表情工具栏">
+                    <ImEmojiPicker
+                        disabled={!conversation.canPost}
+                        key={conversation.conversationId}
+                        onSelect={(emoji) => setInput((current) => `${current}${emoji}`)}
+                    />
                 </div>
                 <ChatSender
                     disabled={!conversation.canPost}

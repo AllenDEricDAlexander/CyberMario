@@ -259,11 +259,61 @@
 
 .platform-im-emoji-row {
     display: flex;
-    gap: 2px;
 }
 
 .platform-im-emoji-row .ant-btn {
-    font-size: 17px;
+    color: #49645b;
+}
+
+.platform-im-emoji-picker {
+    width: min(304px, calc(100vw - 48px));
+    display: grid;
+    gap: 10px;
+}
+
+.platform-im-emoji-categories {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 4px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(200, 221, 214, 0.72);
+}
+
+.platform-im-emoji-category,
+.platform-im-emoji-option {
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+}
+
+.platform-im-emoji-category {
+    min-height: 34px;
+    font-size: 19px;
+}
+
+.platform-im-emoji-category:hover,
+.platform-im-emoji-category[aria-selected='true'],
+.platform-im-emoji-category:focus-visible,
+.platform-im-emoji-option:hover,
+.platform-im-emoji-option:focus-visible {
+    outline: none;
+    background: #e7f5ef;
+}
+
+.platform-im-emoji-grid {
+    max-height: 196px;
+    display: grid;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 2px;
+    overflow-y: auto;
+}
+
+.platform-im-emoji-option {
+    min-height: 34px;
+    font-size: 21px;
 }
 
 .platform-im-tabs {
