@@ -141,6 +141,23 @@ class PlatformImFacadeTests {
     }
 
     @Test
+    void childGroupConversationCarriesItsParentChannelId() {
+        UserPo owner = user("platform-tree-owner", "Tree Owner", null);
+        ImPrincipal ownerPrincipal = principal(owner.getId());
+        ChannelView channel = platformRoomFacade.createChannel(ownerPrincipal, "产品频道", "{}");
+        GroupView childGroup = platformRoomFacade.createChannelGroup(
+                ownerPrincipal, channel.id(), "交付群", "OPEN", "{}");
+
+        assertThat(platformImFacade.listConversations(ownerPrincipal))
+                .filteredOn(view -> childGroup.conversationId().equals(view.conversationId()))
+                .singleElement()
+                .satisfies(view -> {
+                    assertThat(view.displayType()).isEqualTo("GROUP");
+                    assertThat(view.channelId()).isEqualTo(channel.id());
+                });
+    }
+
+    @Test
     void removedFriendKeepsDmHistoryReadableButBlocksRestAndGenericPlatformSend() {
         UserPo alice = user("platform-remove-alice", "Remove Alice", null);
         UserPo bob = user("platform-remove-bob", "Remove Bob", "/avatars/bob.png");

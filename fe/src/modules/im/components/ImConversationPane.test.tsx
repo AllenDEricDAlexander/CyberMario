@@ -1,7 +1,7 @@
 import {fireEvent, render, screen} from '@testing-library/react'
 import {describe, expect, test, vi} from 'vitest'
 import type {PlatformConversationView} from '../platformImTypes'
-import {ImConversationPane, sortPlatformConversations} from './ImConversationPane'
+import {buildPlatformConversationTree, ImConversationPane, sortPlatformConversations} from './ImConversationPane'
 
 describe('ImConversationPane', () => {
     test('orders all conversations by latest activity without pinning a default channel', () => {
@@ -12,22 +12,52 @@ describe('ImConversationPane', () => {
         ]).map((item) => item.title)).toEqual(['Newer', 'Older', 'Channel'])
     })
 
-    test('renders exact unread badges and selects a conversation with a native button', () => {
+    test('renders exact unread badges and selects a tree conversation', () => {
         const onSelect = vi.fn()
         render(
             <ImConversationPane
-                conversations={[conversation({conversationId: 3, title: 'Team', unreadCount: 12})]}
-                selectedConversationId={3}
+                conversations={[
+                    conversation({conversationId: 3, title: 'Team', unreadCount: 12}),
+                    conversation({conversationId: 2, title: 'Selected'}),
+                ]}
+                selectedConversationId={2}
                 onRefresh={vi.fn()}
                 onSelect={onSelect}
             />,
         )
 
         expect(document.querySelector('[title="12"]')).toBeTruthy()
-        const row = screen.getByRole('button', {name: /Team/})
-        expect(row.getAttribute('aria-current')).toBe('true')
+        expect(screen.getByText('Selected').closest('.platform-im-conversation-row')
+            ?.getAttribute('aria-current')).toBe('true')
+        const row = screen.getByText('Team')
         fireEvent.click(row)
         expect(onSelect).toHaveBeenCalledWith(3)
+    })
+
+    test('nests channel groups under their parent channel and keeps standalone conversations at root', () => {
+        const channel = conversation({
+            conversationId: 1,
+            displayType: 'CHANNEL',
+            ownerSurfaceType: 'CHANNEL',
+            surfaceId: 7,
+            title: 'Product',
+        })
+        const childGroup = conversation({
+            conversationId: 2,
+            channelId: 7,
+            surfaceId: 8,
+            title: 'Delivery',
+        })
+        const standaloneGroup = conversation({
+            conversationId: 3,
+            surfaceId: 9,
+            title: 'Book Club',
+        })
+
+        const tree = buildPlatformConversationTree([childGroup, standaloneGroup, channel])
+
+        expect(tree.map((node) => node.conversation.title)).toEqual(['Book Club', 'Product'])
+        expect(tree[1]?.children?.map((node) => node.conversation.title)).toEqual(['Delivery'])
     })
 })
 

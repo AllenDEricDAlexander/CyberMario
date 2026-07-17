@@ -14,6 +14,7 @@ public record PlatformConversationView(
         String ownerSurfaceType,
         Long surfaceId,
         String surfaceKey,
+        Long channelId,
         String membershipStatus,
         String memberRole,
         boolean canRead,

@@ -50,7 +50,7 @@ class PlatformImControllerTests {
         PlatformUserView currentUser = new PlatformUserView(1L, "mario", "Mario", null);
         PlatformConversationView conversation = new PlatformConversationView(
                 11L, "CHANNEL_MAIN", "CHANNEL", "产品频道", null, null,
-                "CHANNEL", 12L, "channel-12", null, null, true, false,
+                "CHANNEL", 12L, "channel-12", null, null, null, true, false,
                 0L, null, null, null, null, null, "ACTIVE", 0L);
         PlatformBootstrapView bootstrap = new PlatformBootstrapView(
                 currentUser, List.of(conversation), 0L, 2L);

@@ -148,6 +148,32 @@
     box-shadow: inset 3px 0 0 #0f766e;
 }
 
+.platform-im-conversation-tree.ant-tree {
+    background: transparent;
+}
+
+.platform-im-conversation-tree .ant-tree-treenode {
+    width: 100%;
+    align-items: center;
+    padding-bottom: 2px;
+}
+
+.platform-im-conversation-tree .ant-tree-node-content-wrapper {
+    min-width: 0;
+    flex: 1;
+    padding: 0;
+}
+
+.platform-im-conversation-tree .ant-tree-node-content-wrapper:hover,
+.platform-im-conversation-tree .ant-tree-node-selected {
+    background: transparent;
+}
+
+.platform-im-conversation-tree .ant-tree-title {
+    display: block;
+    min-width: 0;
+}
+
 .platform-im-conversation-copy,
 .platform-im-conversation-title {
     min-width: 0;
