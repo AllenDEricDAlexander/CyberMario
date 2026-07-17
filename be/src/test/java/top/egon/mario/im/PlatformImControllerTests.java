@@ -9,6 +9,7 @@ import reactor.test.StepVerifier;
 import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.im.platform.PlatformImFacade;
 import top.egon.mario.im.platform.PlatformRoomFacade;
+import top.egon.mario.im.platform.PlatformInvitationFacade;
 import top.egon.mario.im.facade.dto.view.ChannelView;
 import top.egon.mario.im.facade.dto.view.GroupView;
 import top.egon.mario.im.platform.dto.PlatformBootstrapView;
@@ -36,6 +37,7 @@ class PlatformImControllerTests {
     );
     private final PlatformImFacade platformImFacade = mock(PlatformImFacade.class);
     private final PlatformRoomFacade platformRoomFacade = mock(PlatformRoomFacade.class);
+    private final PlatformInvitationFacade platformInvitationFacade = mock(PlatformInvitationFacade.class);
     private final PlatformImController controller = controller();
 
     @AfterEach
@@ -96,7 +98,8 @@ class PlatformImControllerTests {
     }
 
     private PlatformImController controller() {
-        PlatformImController controller = new PlatformImController(platformImFacade, platformRoomFacade);
+        PlatformImController controller = new PlatformImController(
+                platformImFacade, platformRoomFacade, platformInvitationFacade);
         ReflectionTestUtils.invokeMethod(controller, "setBlockingScheduler", scheduler);
         return controller;
     }

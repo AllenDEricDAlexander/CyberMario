@@ -8,6 +8,8 @@ import top.egon.mario.im.po.enums.ImJoinRequestStatus;
 import top.egon.mario.im.po.enums.ImSurfaceType;
 
 import java.util.Optional;
+import java.util.Collection;
+import java.util.List;
 
 public interface ImJoinRequestRepository extends JpaRepository<ImJoinRequestPo, Long> {
 
@@ -18,4 +20,7 @@ public interface ImJoinRequestRepository extends JpaRepository<ImJoinRequestPo, 
 
     Page<ImJoinRequestPo> findBySurfaceTypeAndSurfaceIdAndStatusAndDeletedFalse(
             ImSurfaceType surfaceType, Long surfaceId, ImJoinRequestStatus status, Pageable pageable);
+
+    List<ImJoinRequestPo> findBySurfaceTypeAndSurfaceIdInAndUserIdAndStatusAndDeletedFalse(
+            ImSurfaceType surfaceType, Collection<Long> surfaceIds, Long userId, ImJoinRequestStatus status);
 }

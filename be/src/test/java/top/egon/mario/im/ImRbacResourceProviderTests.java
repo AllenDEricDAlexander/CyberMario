@@ -68,6 +68,7 @@ class ImRbacResourceProviderTests {
         assertMatches(rules, "GET", "/api/im/platform/groups", "api:im:read");
         assertMatches(rules, "GET", "/api/im/platform/channels", "api:im:read");
         assertMatches(rules, "GET", "/api/im/platform/channels/7701/groups", "api:im:read");
+        assertMatches(rules, "GET", "/api/im/platform/invitations", "api:im:read");
         assertMatches(rules, "GET", "/api/im/conversations/7701/messages", "api:im:read");
 
         assertMatches(rules, "POST", "/api/im/messages", "api:im:write");
@@ -75,6 +76,10 @@ class ImRbacResourceProviderTests {
         assertMatches(rules, "POST", "/api/im/platform/groups", "api:im:write");
         assertMatches(rules, "POST", "/api/im/platform/channels", "api:im:write");
         assertMatches(rules, "POST", "/api/im/platform/channels/7701/groups", "api:im:write");
+        assertMatches(rules, "POST", "/api/im/platform/surfaces/CHANNEL/7701/invitations", "api:im:write");
+        assertMatches(rules, "POST", "/api/im/platform/invitations/9901/accept", "api:im:write");
+        assertMatches(rules, "POST", "/api/im/platform/invitations/9901/reject", "api:im:write");
+        assertMatches(rules, "POST", "/api/im/platform/surfaces/GROUP/7702/owner", "api:im:write");
         assertMatches(rules, "POST", "/api/im/platform/friend-requests", "api:im:write");
         assertMatches(rules, "POST", "/api/im/platform/friend-requests/9901/accept", "api:im:write");
         assertMatches(rules, "POST", "/api/im/platform/friend-requests/9901/reject", "api:im:write");

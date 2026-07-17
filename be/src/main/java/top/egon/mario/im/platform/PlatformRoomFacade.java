@@ -9,11 +9,13 @@ import top.egon.mario.im.facade.dto.query.ListGroupsQuery;
 import top.egon.mario.im.facade.dto.view.ChannelView;
 import top.egon.mario.im.facade.dto.view.GroupView;
 import top.egon.mario.im.po.ImMembershipPo;
+import top.egon.mario.im.po.enums.ImSurfaceStatus;
 import top.egon.mario.im.po.enums.ImMembershipRole;
 import top.egon.mario.im.po.enums.ImMembershipStatus;
 import top.egon.mario.im.po.enums.ImSurfaceType;
 import top.egon.mario.im.policy.ImPrincipal;
 import top.egon.mario.im.repository.ImMembershipRepository;
+import top.egon.mario.im.repository.ImChannelRepository;
 import top.egon.mario.im.service.ImException;
 
 import java.util.List;
@@ -29,10 +31,14 @@ public class PlatformRoomFacade {
 
     private final RoomFacade roomFacade;
     private final ImMembershipRepository membershipRepository;
+    private final ImChannelRepository channelRepository;
 
-    public PlatformRoomFacade(RoomFacade roomFacade, ImMembershipRepository membershipRepository) {
+    public PlatformRoomFacade(RoomFacade roomFacade,
+                              ImMembershipRepository membershipRepository,
+                              ImChannelRepository channelRepository) {
         this.roomFacade = roomFacade;
         this.membershipRepository = membershipRepository;
+        this.channelRepository = channelRepository;
     }
 
     public ChannelView createChannel(ImPrincipal principal, String name, String metadataJson) {
@@ -87,6 +93,10 @@ public class PlatformRoomFacade {
         if (channelId == null) {
             throw new ImException("IM_CHANNEL_ID_REQUIRED");
         }
+        channelRepository.findByIdAndDeletedFalse(channelId)
+                .filter(channel -> PLATFORM_CONTEXT_TYPE.equals(channel.getContextType()))
+                .filter(channel -> ImSurfaceStatus.ACTIVE.equals(channel.getStatus()))
+                .orElseThrow(() -> new ImException("IM_CHANNEL_NOT_FOUND"));
         return membershipRepository.findBySurfaceTypeAndSurfaceIdAndUserIdAndStatusAndDeletedFalse(
                         ImSurfaceType.CHANNEL, channelId, principal.userId(), ImMembershipStatus.ACTIVE)
                 .orElseThrow(() -> new ImException("IM_PARENT_CHANNEL_MEMBERSHIP_REQUIRED"));

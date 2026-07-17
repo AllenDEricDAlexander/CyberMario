@@ -25,12 +25,14 @@ import top.egon.mario.im.po.ImConversationMemberPo;
 import top.egon.mario.im.po.ImGroupPo;
 import top.egon.mario.im.po.ImJoinRequestPo;
 import top.egon.mario.im.po.ImMembershipPo;
+import top.egon.mario.im.po.ImSurfaceInvitationPo;
 import top.egon.mario.im.po.enums.ImDeliveryMode;
 import top.egon.mario.im.po.enums.ImJoinPolicy;
 import top.egon.mario.im.po.enums.ImJoinRequestStatus;
 import top.egon.mario.im.po.enums.ImMembershipRole;
 import top.egon.mario.im.po.enums.ImMembershipStatus;
 import top.egon.mario.im.po.enums.ImSurfaceStatus;
+import top.egon.mario.im.po.enums.ImSurfaceInvitationStatus;
 import top.egon.mario.im.po.enums.ImSurfaceType;
 import top.egon.mario.im.policy.ImPrincipal;
 import top.egon.mario.im.repository.ImChannelRepository;
@@ -38,11 +40,13 @@ import top.egon.mario.im.repository.ImConversationMemberRepository;
 import top.egon.mario.im.repository.ImGroupRepository;
 import top.egon.mario.im.repository.ImJoinRequestRepository;
 import top.egon.mario.im.repository.ImMembershipRepository;
+import top.egon.mario.im.repository.ImSurfaceInvitationRepository;
 import top.egon.mario.rbac.application.RbacUserDirectoryFacade;
 import top.egon.mario.rbac.dto.response.UserDirectoryItemResponse;
 
 import java.time.Instant;
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -53,12 +57,14 @@ import java.util.stream.Collectors;
 public class MembershipService {
 
     private static final int MAX_PAGE_SIZE = 100;
+    private static final String PLATFORM_CONTEXT_TYPE = "PLATFORM";
 
     private final ImMembershipRepository membershipRepository;
     private final ImConversationMemberRepository conversationMemberRepository;
     private final ImJoinRequestRepository joinRequestRepository;
     private final ImChannelRepository channelRepository;
     private final ImGroupRepository groupRepository;
+    private final ImSurfaceInvitationRepository surfaceInvitationRepository;
     private final EntityManager entityManager;
     private final RbacUserDirectoryFacade userDirectoryFacade;
 
@@ -67,6 +73,7 @@ public class MembershipService {
                              ImJoinRequestRepository joinRequestRepository,
                              ImChannelRepository channelRepository,
                              ImGroupRepository groupRepository,
+                             ImSurfaceInvitationRepository surfaceInvitationRepository,
                              EntityManager entityManager,
                              RbacUserDirectoryFacade userDirectoryFacade) {
         this.membershipRepository = membershipRepository;
@@ -74,6 +81,7 @@ public class MembershipService {
         this.joinRequestRepository = joinRequestRepository;
         this.channelRepository = channelRepository;
         this.groupRepository = groupRepository;
+        this.surfaceInvitationRepository = surfaceInvitationRepository;
         this.entityManager = entityManager;
         this.userDirectoryFacade = userDirectoryFacade;
     }
@@ -136,6 +144,7 @@ public class MembershipService {
         if (existingMembership.filter(membership -> ImMembershipStatus.BANNED.equals(membership.getStatus())).isPresent()) {
             throw new ImException("IM_MEMBER_BANNED");
         }
+        requirePlatformJoinAllowed(surface, principal.userId());
 
         if (ImJoinPolicy.OPEN.equals(surface.joinPolicy())) {
             ImMembershipPo membership = activateMember(surface, principal.userId(), Instant.now());
@@ -159,6 +168,7 @@ public class MembershipService {
         refreshRequest(request);
         requirePending(request);
         requireDecisionActor(surface, principal.userId());
+        requireActiveParentChannelMembership(surface, request.getUserId());
 
         request.setStatus(ImJoinRequestStatus.APPROVED);
         request.setDecidedBy(principal.userId());
@@ -281,16 +291,10 @@ public class MembershipService {
         if (!ImMembershipRole.MEMBER.equals(membership.getMemberRole())) {
             throw new ImException("IM_MEMBER_REMOVE_ROLE_DENIED");
         }
+        requireNoOwnedPlatformChildGroups(surface, userId);
 
-        membership.setStatus(ImMembershipStatus.LEFT);
-        membershipRepository.saveAndFlush(membership);
-        conversationMemberRepository.findByConversationIdAndUserIdAndDeletedFalse(surface.conversationId(), userId)
-                .filter(member -> ImMembershipStatus.ACTIVE.equals(member.getStatus()))
-                .ifPresent(member -> {
-                    member.setStatus(ImMembershipStatus.LEFT);
-                    conversationMemberRepository.saveAndFlush(member);
-                });
-        decrementMemberCount(surface);
+        deactivateMembership(surface, membership, userId);
+        cascadePlatformChannelDeparture(surface, userId, principal.userId());
     }
 
     @Transactional
@@ -309,16 +313,21 @@ public class MembershipService {
         if (ImMembershipRole.OWNER.equals(membership.getMemberRole()) && !hasReplacementOwner(surface, principal.userId())) {
             throw new ImException("IM_OWNER_REPLACEMENT_REQUIRED");
         }
+        requireNoOwnedPlatformChildGroups(surface, principal.userId());
 
-        membership.setStatus(ImMembershipStatus.LEFT);
-        membershipRepository.saveAndFlush(membership);
-        conversationMemberRepository.findByConversationIdAndUserIdAndDeletedFalse(
-                        surface.conversationId(), principal.userId())
-                .ifPresent(member -> {
-                    member.setStatus(ImMembershipStatus.LEFT);
-                    conversationMemberRepository.saveAndFlush(member);
-                });
-        decrementMemberCount(surface);
+        deactivateMembership(surface, membership, principal.userId());
+        cascadePlatformChannelDeparture(surface, principal.userId(), principal.userId());
+    }
+
+    @Transactional
+    public JoinResultView acceptInvitation(ImSurfaceType surfaceType, Long surfaceId, Long userId) {
+        SurfaceRef surface = requireLockedSurface(surfaceType, surfaceId);
+        if (!PLATFORM_CONTEXT_TYPE.equals(surface.contextType())) {
+            throw new ImException("IM_PLATFORM_SURFACE_REQUIRED");
+        }
+        requireActiveParentChannelMembership(surface, userId);
+        ImMembershipPo membership = activateMember(surface, userId, Instant.now());
+        return activeResult(surface, membership, null);
     }
 
     private ImMembershipPo activateOwner(ImMembershipPo membership, Instant now) {
@@ -389,6 +398,89 @@ public class MembershipService {
             incrementMemberCount(surface);
         }
         return membership;
+    }
+
+    private void requirePlatformJoinAllowed(SurfaceRef surface, Long userId) {
+        if (!PLATFORM_CONTEXT_TYPE.equals(surface.contextType())) {
+            return;
+        }
+        if (ImSurfaceType.CHANNEL.equals(surface.surfaceType()) || surface.parentChannelId() == null) {
+            throw new ImException("IM_PLATFORM_INVITATION_REQUIRED");
+        }
+        requireActiveParentChannelMembership(surface, userId);
+    }
+
+    private void requireActiveParentChannelMembership(SurfaceRef surface, Long userId) {
+        if (!PLATFORM_CONTEXT_TYPE.equals(surface.contextType()) || surface.parentChannelId() == null) {
+            return;
+        }
+        membershipRepository.findBySurfaceTypeAndSurfaceIdAndUserIdAndStatusAndDeletedFalse(
+                        ImSurfaceType.CHANNEL, surface.parentChannelId(), userId, ImMembershipStatus.ACTIVE)
+                .orElseThrow(() -> new ImException("IM_PARENT_CHANNEL_MEMBERSHIP_REQUIRED"));
+    }
+
+    private void requireNoOwnedPlatformChildGroups(SurfaceRef surface, Long userId) {
+        if (!PLATFORM_CONTEXT_TYPE.equals(surface.contextType())
+                || !ImSurfaceType.CHANNEL.equals(surface.surfaceType())) {
+            return;
+        }
+        boolean ownsChildGroup = groupRepository.findActiveByChannelId(surface.surfaceId()).stream()
+                .anyMatch(group -> userId.equals(group.getOwnerUserId()));
+        if (ownsChildGroup) {
+            throw new ImException("IM_CHILD_GROUP_OWNER_TRANSFER_REQUIRED");
+        }
+    }
+
+    private void deactivateMembership(SurfaceRef surface, ImMembershipPo membership, Long userId) {
+        membership.setStatus(ImMembershipStatus.LEFT);
+        membershipRepository.saveAndFlush(membership);
+        conversationMemberRepository.findByConversationIdAndUserIdAndDeletedFalse(surface.conversationId(), userId)
+                .filter(member -> ImMembershipStatus.ACTIVE.equals(member.getStatus()))
+                .ifPresent(member -> {
+                    member.setStatus(ImMembershipStatus.LEFT);
+                    conversationMemberRepository.saveAndFlush(member);
+                });
+        decrementMemberCount(surface);
+    }
+
+    private void cascadePlatformChannelDeparture(SurfaceRef surface, Long userId, Long actorUserId) {
+        if (!PLATFORM_CONTEXT_TYPE.equals(surface.contextType())
+                || !ImSurfaceType.CHANNEL.equals(surface.surfaceType())) {
+            return;
+        }
+        List<ImGroupPo> childGroups = groupRepository.findActiveByChannelId(surface.surfaceId());
+        List<Long> childGroupIds = childGroups.stream().map(ImGroupPo::getId).toList();
+        if (childGroupIds.isEmpty()) {
+            return;
+        }
+        Map<Long, ImGroupPo> childGroupsById = childGroups.stream()
+                .collect(Collectors.toMap(ImGroupPo::getId, Function.identity()));
+        membershipRepository.findBySurfaceTypeAndSurfaceIdInAndUserIdAndDeletedFalse(
+                        ImSurfaceType.GROUP, childGroupIds, userId).stream()
+                .filter(childMembership -> ImMembershipStatus.ACTIVE.equals(childMembership.getStatus()))
+                .forEach(childMembership -> deactivateMembership(
+                        childSurface(childGroupsById.get(childMembership.getSurfaceId())), childMembership, userId));
+        Instant now = Instant.now();
+        joinRequestRepository.findBySurfaceTypeAndSurfaceIdInAndUserIdAndStatusAndDeletedFalse(
+                        ImSurfaceType.GROUP, childGroupIds, userId, ImJoinRequestStatus.PENDING)
+                .forEach(request -> {
+                    request.setStatus(ImJoinRequestStatus.CANCELLED);
+                    request.setDecidedBy(actorUserId);
+                    request.setDecidedAt(now);
+                    joinRequestRepository.save(request);
+                });
+        surfaceInvitationRepository.findBySurfaceTypeAndSurfaceIdInAndInviteeUserIdAndStatusAndDeletedFalse(
+                        ImSurfaceType.GROUP, childGroupIds, userId, ImSurfaceInvitationStatus.PENDING)
+                .forEach(invitation -> {
+                    invitation.setStatus(ImSurfaceInvitationStatus.CANCELLED);
+                    invitation.setRespondedAt(now);
+                    surfaceInvitationRepository.save(invitation);
+                });
+    }
+
+    private SurfaceRef childSurface(ImGroupPo group) {
+        return new SurfaceRef(ImSurfaceType.GROUP, group.getId(), group.getJoinPolicy(),
+                group.getConversationId(), group.getContextType(), group.getChannelId(), null, group);
     }
 
     private Optional<ImJoinRequestPo> findPendingJoinRequest(ImSurfaceType surfaceType, Long surfaceId, Long userId) {
@@ -487,7 +579,7 @@ public class MembershipService {
                 throw new ImException("IM_SURFACE_CONVERSATION_REQUIRED");
             }
             return new SurfaceRef(surfaceType, channel.getId(), channel.getJoinPolicy(),
-                    channel.getMainConversationId(), channel, null);
+                    channel.getMainConversationId(), channel.getContextType(), null, channel, null);
         }
         if (ImSurfaceType.GROUP.equals(surfaceType)) {
             ImGroupPo group = groupRepository.findLockedByIdAndDeletedFalse(surfaceId)
@@ -497,7 +589,7 @@ public class MembershipService {
                 throw new ImException("IM_SURFACE_CONVERSATION_REQUIRED");
             }
             return new SurfaceRef(surfaceType, group.getId(), group.getJoinPolicy(),
-                    group.getConversationId(), null, group);
+                    group.getConversationId(), group.getContextType(), group.getChannelId(), null, group);
         }
         throw new ImException("IM_SURFACE_TYPE_UNSUPPORTED");
     }
@@ -618,6 +710,6 @@ public class MembershipService {
     }
 
     private record SurfaceRef(ImSurfaceType surfaceType, Long surfaceId, ImJoinPolicy joinPolicy, Long conversationId,
-                              ImChannelPo channel, ImGroupPo group) {
+                              String contextType, Long parentChannelId, ImChannelPo channel, ImGroupPo group) {
     }
 }

@@ -48,12 +48,13 @@ public class ImRbacResourceProvider implements RbacResourceProvider {
                 menu(),
                 api(READ, "Platform IM read", "GET",
                         "^/api/im/(conversations|conversations/[^/]+/messages|"
-                                + "platform/(bootstrap|conversations|users|friends|friend-requests|groups|channels|"
+                                + "platform/(bootstrap|conversations|users|friends|friend-requests|groups|channels|invitations|"
                                 + "channels/[^/]+/groups))$",
                         ApiRiskLevel.LOW, 10),
                 api(WRITE, "Platform IM write", "POST",
                         "^/api/im/(messages|conversations/[^/]+/read|platform/(groups|channels|"
-                                + "channels/[^/]+/groups)|platform/friend-requests|"
+                                + "channels/[^/]+/groups|invitations/[^/]+/(accept|reject)|"
+                                + "surfaces/[^/]+/[^/]+/(invitations|owner))|platform/friend-requests|"
                                 + "platform/friend-requests/[^/]+/(accept|reject|cancel)|join-requests|"
                                 + "join-requests/[^/]+/cancel|surfaces/[^/]+/[^/]+/leave|dms|"
                                 + "dms/(block|unblock)|ws-ticket)$",

@@ -12,6 +12,8 @@ import top.egon.mario.im.po.enums.ImSurfaceInvitationStatus;
 import top.egon.mario.im.po.enums.ImSurfaceType;
 
 import java.util.Optional;
+import java.util.Collection;
+import java.util.List;
 
 public interface ImSurfaceInvitationRepository extends JpaRepository<ImSurfaceInvitationPo, Long> {
 
@@ -42,4 +44,8 @@ public interface ImSurfaceInvitationRepository extends JpaRepository<ImSurfaceIn
 
     Page<ImSurfaceInvitationPo> findByInviteeUserIdAndStatusAndDeletedFalseOrderByCreatedAtDescIdDesc(
             Long inviteeUserId, ImSurfaceInvitationStatus status, Pageable pageable);
+
+    List<ImSurfaceInvitationPo> findBySurfaceTypeAndSurfaceIdInAndInviteeUserIdAndStatusAndDeletedFalse(
+            ImSurfaceType surfaceType, Collection<Long> surfaceIds, Long inviteeUserId,
+            ImSurfaceInvitationStatus status);
 }

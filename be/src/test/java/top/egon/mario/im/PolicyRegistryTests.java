@@ -11,6 +11,7 @@ import top.egon.mario.im.policy.DefaultVisibilityPolicy;
 import top.egon.mario.im.policy.ImAccessContext;
 import top.egon.mario.im.policy.ImPrincipal;
 import top.egon.mario.im.policy.PolicyRegistry;
+import top.egon.mario.im.policy.PlatformVisibilityPolicy;
 import top.egon.mario.im.policy.SendPolicy;
 import top.egon.mario.im.policy.VisibilityPolicy;
 
@@ -65,6 +66,23 @@ class PolicyRegistryTests {
                 .build())).isTrue();
         assertThat(visibilityPolicy.canRead(dm()
                 .dmPairParticipant(false)
+                .build())).isFalse();
+    }
+
+    @Test
+    void platformVisibilityRequiresActiveMembershipForChannelsAndGroups() {
+        PlatformVisibilityPolicy platformVisibilityPolicy = new PlatformVisibilityPolicy();
+
+        assertThat(platformVisibilityPolicy.canRead(channelMain().build())).isTrue();
+        assertThat(platformVisibilityPolicy.canRead(channelMain()
+                .membershipStatus(ImMembershipStatus.LEFT)
+                .build())).isFalse();
+        assertThat(platformVisibilityPolicy.canRead(channelMain()
+                .principal(null)
+                .build())).isFalse();
+        assertThat(platformVisibilityPolicy.canRead(group().build())).isTrue();
+        assertThat(platformVisibilityPolicy.canRead(group()
+                .membershipStatus(ImMembershipStatus.LEFT)
                 .build())).isFalse();
     }
 
