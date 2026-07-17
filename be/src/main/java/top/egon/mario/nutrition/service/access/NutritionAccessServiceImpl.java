@@ -18,6 +18,7 @@ import top.egon.mario.nutrition.repository.NutritionFamilyRepository;
 import top.egon.mario.nutrition.repository.NutritionMemberProfileRepository;
 import top.egon.mario.nutrition.repository.NutritionScopedRoleBindingRepository;
 import top.egon.mario.nutrition.service.NutritionException;
+import top.egon.mario.rbac.service.RbacEffectivePermissionService;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -25,7 +26,7 @@ import java.util.EnumSet;
 import java.util.Set;
 
 /**
- * Default nutrition access service backed by scoped bindings and explicit data grants.
+ * Default nutrition access service backed by platform administration, scoped bindings and explicit data grants.
  */
 @Service
 @RequiredArgsConstructor
@@ -36,6 +37,7 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
     private static final String FORBIDDEN_MESSAGE = "Nutrition family access is required";
     private static final String GRANTEE_TYPE_USER = "USER";
     private static final String GRANTEE_TYPE_CLAN = "CLAN";
+    private static final String SUPER_ADMIN_ROLE_CODE = "SUPER_ADMIN";
 
     private static final Set<NutritionRoleCode> READ_FAMILY_ROLES = Set.copyOf(EnumSet.of(
             NutritionRoleCode.FAMILY_ADMIN,
@@ -80,6 +82,7 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
     private final NutritionDataGrantRepository dataGrantRepository;
     private final NutritionClanFamilyRepository clanFamilyRepository;
     private final NutritionMemberProfileRepository memberProfileRepository;
+    private final RbacEffectivePermissionService rbacEffectivePermissionService;
 
     @Override
     @Transactional(readOnly = true)
@@ -109,6 +112,9 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
         if (!isActiveFamily(familyId)) {
             throw forbidden();
         }
+        if (isSuperAdmin(userId)) {
+            return;
+        }
         if (!hasFamilyRole(userId, familyId, MANAGE_FAMILY_ROLES) && !isFamilyOwner(userId, familyId)) {
             throw forbidden();
         }
@@ -134,7 +140,9 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
     @Transactional(readOnly = true)
     public boolean canCookFamily(Long userId, Long familyId) {
         return isActiveFamily(familyId)
-                && (hasFamilyRole(userId, familyId, COOK_FAMILY_ROLES) || isFamilyOwner(userId, familyId));
+                && (isSuperAdmin(userId)
+                || hasFamilyRole(userId, familyId, COOK_FAMILY_ROLES)
+                || isFamilyOwner(userId, familyId));
     }
 
     @Override
@@ -146,6 +154,9 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
         NutritionMemberProfilePo memberProfile = memberProfileRepository
                 .findByIdAndFamilyIdAndStatusAndDeletedFalse(memberProfileId, familyId, NutritionStatus.ACTIVE)
                 .orElseThrow(NutritionAccessServiceImpl::forbidden);
+        if (isSuperAdmin(userId)) {
+            return;
+        }
         if (userId != null && userId.equals(memberProfile.getBoundUserId())) {
             return;
         }
@@ -165,6 +176,9 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
         NutritionMemberProfilePo memberProfile = memberProfileRepository
                 .findByIdAndFamilyIdAndStatusAndDeletedFalse(memberProfileId, familyId, NutritionStatus.ACTIVE)
                 .orElseThrow(NutritionAccessServiceImpl::forbidden);
+        if (isSuperAdmin(userId)) {
+            return;
+        }
         if (userId != null && userId.equals(memberProfile.getBoundUserId())) {
             return;
         }
@@ -186,6 +200,9 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
         if (!isActiveFamily(familyId)) {
             return false;
         }
+        if (isSuperAdmin(userId)) {
+            return true;
+        }
         if (hasFamilyRole(userId, familyId, READ_FAMILY_ROLES) || isFamilyOwner(userId, familyId)) {
             return true;
         }
@@ -203,6 +220,9 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
         if (!validFamilyScopeRequest(userId, familyId, scope)) {
             return false;
         }
+        if (isSuperAdmin(userId)) {
+            return true;
+        }
         if (hasFamilyAdministrativeRole(userId, familyId)
                 || hasActiveDataGrant(familyId, GRANTEE_TYPE_USER, userId, scope, WRITE_GRANT_LEVELS)) {
             return true;
@@ -217,6 +237,9 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
     public boolean canManageFamilyScope(Long userId, Long familyId, NutritionGrantDataScope scope) {
         if (!validFamilyScopeRequest(userId, familyId, scope)) {
             return false;
+        }
+        if (isSuperAdmin(userId)) {
+            return true;
         }
         if (hasFamilyAdministrativeRole(userId, familyId)
                 || hasActiveDataGrant(familyId, GRANTEE_TYPE_USER, userId, scope, MANAGE_GRANT_LEVELS)) {
@@ -305,6 +328,12 @@ public class NutritionAccessServiceImpl implements NutritionAccessService {
 
     private boolean validFamilyScopeRequest(Long userId, Long familyId, NutritionGrantDataScope scope) {
         return userId != null && familyId != null && scope != null && isActiveFamily(familyId);
+    }
+
+    private boolean isSuperAdmin(Long userId) {
+        return userId != null
+                && rbacEffectivePermissionService.getUserEffectivePermissions(userId).roleCodes()
+                .contains(SUPER_ADMIN_ROLE_CODE);
     }
 
     private static NutritionException forbidden() {

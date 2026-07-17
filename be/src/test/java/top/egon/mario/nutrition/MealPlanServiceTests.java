@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import top.egon.mario.nutrition.dto.request.AcknowledgeMealRiskRequest;
 import top.egon.mario.nutrition.dto.request.CreateRecipeRequest;
 import top.egon.mario.nutrition.dto.request.MealPlanItemRequest;
@@ -51,23 +52,29 @@ import top.egon.mario.nutrition.repository.NutritionStandardFoodRepository;
 import top.egon.mario.nutrition.service.MealPlanService;
 import top.egon.mario.nutrition.service.NutritionException;
 import top.egon.mario.nutrition.service.RecipeService;
+import top.egon.mario.rbac.dto.response.EffectivePermissionResponse;
+import top.egon.mario.rbac.service.RbacEffectivePermissionService;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.when;
 
 /**
- * Verifies cook-owned meal plan review state transitions.
+ * Verifies meal plan review authorization and state transitions.
  */
 @SpringBootTest(properties = "spring.ai.dashscope.api-key=test-api-key")
 class MealPlanServiceTests {
 
     private static final Long COOK_USER_ID = 9101L;
     private static final Long MEMBER_USER_ID = 9102L;
+    private static final Long SUPER_ADMIN_USER_ID = 9103L;
 
     @Autowired
     private MealPlanService mealPlanService;
@@ -111,9 +118,13 @@ class MealPlanServiceTests {
     private NutritionStandardFoodRepository standardFoodRepository;
     @Autowired
     private RecipeService recipeService;
+    @MockitoBean
+    private RbacEffectivePermissionService rbacEffectivePermissionService;
 
     @BeforeEach
     void setUp() {
+        when(rbacEffectivePermissionService.getUserEffectivePermissions(anyLong()))
+                .thenReturn(effectivePermissions());
         confirmationItemRepository.deleteAll();
         confirmationRepository.deleteAll();
         operationLogRepository.deleteAll();
@@ -133,6 +144,25 @@ class MealPlanServiceTests {
         memberProfileRepository.deleteAll();
         familyRepository.deleteAll();
         clanRepository.deleteAll();
+    }
+
+    @Test
+    void superAdminCanPublishMenuWithoutFamilyCookBinding() {
+        when(rbacEffectivePermissionService.getUserEffectivePermissions(SUPER_ADMIN_USER_ID))
+                .thenReturn(effectivePermissions("SUPER_ADMIN"));
+        NutritionFamilyPo family = family("Mario Family", COOK_USER_ID);
+        NutritionMealPlanPo mealPlan = mealPlan(family.getId(), NutritionMealPlanStatus.PENDING_REVIEW);
+        makePublishable(family, mealPlan);
+
+        MealPlanResponse response = mealPlanService.publishMealPlan(
+                family.getId(), mealPlan.getId(), SUPER_ADMIN_USER_ID);
+
+        assertThat(response.status()).isEqualTo(NutritionMealPlanStatus.PUBLISHED);
+        assertThat(operationLogRepository.findAll()).singleElement()
+                .satisfies(log -> {
+                    assertThat(log.getOperationType()).isEqualTo("PUBLISH");
+                    assertThat(log.getOperatorUserId()).isEqualTo(SUPER_ADMIN_USER_ID);
+                });
     }
 
     @Test
@@ -560,5 +590,15 @@ class MealPlanServiceTests {
         binding.setScopeId(scopeId);
         binding.setStatus(NutritionStatus.ACTIVE);
         return roleBindingRepository.saveAndFlush(binding);
+    }
+
+    private EffectivePermissionResponse effectivePermissions(String... roleCodes) {
+        return EffectivePermissionResponse.builder()
+                .roleIds(Set.of())
+                .roleCodes(Set.of(roleCodes))
+                .menuCodes(Set.of())
+                .buttonCodes(Set.of())
+                .apiCodes(Set.of())
+                .build();
     }
 }

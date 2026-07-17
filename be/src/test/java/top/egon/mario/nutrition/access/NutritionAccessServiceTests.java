@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import top.egon.mario.nutrition.po.NutritionClanFamilyPo;
 import top.egon.mario.nutrition.po.NutritionClanPo;
 import top.egon.mario.nutrition.po.NutritionDataGrantPo;
@@ -25,18 +26,25 @@ import top.egon.mario.nutrition.repository.NutritionMemberProfileRepository;
 import top.egon.mario.nutrition.repository.NutritionScopedRoleBindingRepository;
 import top.egon.mario.nutrition.service.NutritionException;
 import top.egon.mario.nutrition.service.access.NutritionAccessService;
+import top.egon.mario.rbac.dto.response.EffectivePermissionResponse;
+import top.egon.mario.rbac.service.RbacEffectivePermissionService;
 
 import java.time.Instant;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.when;
 
 /**
- * Verifies family-scoped nutrition access rules stay independent from clan membership.
+ * Verifies platform and family-scoped nutrition access rules stay independent from clan membership.
  */
 @SpringBootTest(properties = "spring.ai.dashscope.api-key=test-api-key")
 class NutritionAccessServiceTests {
+
+    private static final Long SUPER_ADMIN_USER_ID = 9001L;
 
     @Autowired
     private NutritionAccessService accessService;
@@ -52,15 +60,56 @@ class NutritionAccessServiceTests {
     private NutritionDataGrantRepository dataGrantRepository;
     @Autowired
     private NutritionMemberProfileRepository memberProfileRepository;
+    @MockitoBean
+    private RbacEffectivePermissionService rbacEffectivePermissionService;
 
     @BeforeEach
     void setUp() {
+        when(rbacEffectivePermissionService.getUserEffectivePermissions(anyLong()))
+                .thenReturn(effectivePermissions());
         dataGrantRepository.deleteAll();
         roleBindingRepository.deleteAll();
         clanFamilyRepository.deleteAll();
         memberProfileRepository.deleteAll();
         familyRepository.deleteAll();
         clanRepository.deleteAll();
+    }
+
+    @Test
+    void superAdminCanOperateAnyActiveFamilyWithoutScopedNutritionBinding() {
+        when(rbacEffectivePermissionService.getUserEffectivePermissions(SUPER_ADMIN_USER_ID))
+                .thenReturn(effectivePermissions("SUPER_ADMIN"));
+        NutritionFamilyPo family = family("Mario Family", 10L);
+        NutritionMemberProfilePo member = memberProfile(family.getId(), 201L);
+
+        assertThat(accessService.canReadFamily(SUPER_ADMIN_USER_ID, family.getId())).isTrue();
+        assertThat(accessService.canWriteFamilyScope(
+                SUPER_ADMIN_USER_ID, family.getId(), NutritionGrantDataScope.BUDGET)).isTrue();
+        assertThat(accessService.canManageFamilyScope(
+                SUPER_ADMIN_USER_ID, family.getId(), NutritionGrantDataScope.HEALTH_PROFILE)).isTrue();
+        assertThatCode(() -> accessService.requireManageFamily(SUPER_ADMIN_USER_ID, family.getId()))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> accessService.requireCookFamily(SUPER_ADMIN_USER_ID, family.getId()))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> accessService.requireConfirmMemberProfile(
+                SUPER_ADMIN_USER_ID, family.getId(), member.getId())).doesNotThrowAnyException();
+        assertThatCode(() -> accessService.requireWriteMemberProfile(
+                SUPER_ADMIN_USER_ID, family.getId(), member.getId())).doesNotThrowAnyException();
+    }
+
+    @Test
+    void superAdminCannotBypassInactiveFamilyBoundary() {
+        when(rbacEffectivePermissionService.getUserEffectivePermissions(SUPER_ADMIN_USER_ID))
+                .thenReturn(effectivePermissions("SUPER_ADMIN"));
+        NutritionFamilyPo family = family("Archived Family", 10L, NutritionStatus.ARCHIVED);
+
+        assertThat(accessService.canReadFamily(SUPER_ADMIN_USER_ID, family.getId())).isFalse();
+        assertThat(accessService.canWriteFamilyScope(
+                SUPER_ADMIN_USER_ID, family.getId(), NutritionGrantDataScope.BUDGET)).isFalse();
+        assertThatThrownBy(() -> accessService.requireCookFamily(SUPER_ADMIN_USER_ID, family.getId()))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_FORBIDDEN");
     }
 
     @Test
@@ -329,5 +378,15 @@ class NutritionAccessServiceTests {
         member.setMemberType(NutritionMemberType.ADULT);
         member.setStatus(status);
         return memberProfileRepository.save(member);
+    }
+
+    private EffectivePermissionResponse effectivePermissions(String... roleCodes) {
+        return EffectivePermissionResponse.builder()
+                .roleIds(Set.of())
+                .roleCodes(Set.of(roleCodes))
+                .menuCodes(Set.of())
+                .buttonCodes(Set.of())
+                .apiCodes(Set.of())
+                .build();
     }
 }
