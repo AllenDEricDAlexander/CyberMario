@@ -28,7 +28,8 @@ class ImModuleBoundaryTests {
     private static final Pattern VERSIONED_MIGRATION = Pattern.compile("V(\\d+)__.*\\.sql");
     private static final Set<String> ALLOWED_IM_MIGRATIONS = Set.of(
             "V30__create_im_core_schema.sql",
-            "V41__create_im_platform_friendship_schema.sql"
+            "V41__create_im_platform_friendship_schema.sql",
+            "V42__create_im_surface_invitation_schema.sql"
     );
     private static final Path GLOBAL_EXCEPTION_HANDLER = Path.of("config/GlobalExceptionHandler.java");
     private static final String SERVICE_EXCEPTION = "top.egon.mario.im.service.ImException";
