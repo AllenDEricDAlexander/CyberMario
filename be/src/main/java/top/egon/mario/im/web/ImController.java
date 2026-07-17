@@ -49,7 +49,6 @@ import top.egon.mario.im.facade.dto.view.MessageView;
 import top.egon.mario.im.facade.dto.view.UnreadView;
 import top.egon.mario.im.facade.dto.view.WsTicketView;
 import top.egon.mario.im.facade.dto.view.SurfaceMemberView;
-import top.egon.mario.im.platform.PlatformRoomFacade;
 import top.egon.mario.im.platform.PlatformImFacade;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
@@ -64,7 +63,6 @@ public class ImController extends ReactiveImSupport {
     private final ImFacade imFacade;
     private final PlatformImFacade platformImFacade;
     private final RoomFacade roomFacade;
-    private final PlatformRoomFacade platformRoomFacade;
     private final DmFacade dmFacade;
     private final GovFacade govFacade;
 
@@ -154,24 +152,6 @@ public class ImController extends ReactiveImSupport {
                                                          @RequestParam(required = false) Long contextId) {
         return blocking(() -> roomFacade.listGroups(new ListGroupsQuery(
                 imPrincipal(principal), channelId, contextType, contextId)));
-    }
-
-    @PostMapping("/platform/groups")
-    public Mono<ApiResponse<GroupView>> createPlatformGroup(
-            @AuthenticationPrincipal RbacPrincipal principal,
-            @RequestBody PlatformGroupRequest request) {
-        return blocking(() -> platformRoomFacade.createGroup(
-                imPrincipal(principal),
-                request == null ? null : request.groupKey(),
-                request == null ? null : request.name(),
-                request == null ? null : request.joinPolicy(),
-                request == null ? null : request.metadataJson()));
-    }
-
-    @GetMapping("/platform/groups")
-    public Mono<ApiResponse<List<GroupView>>> listPlatformGroups(
-            @AuthenticationPrincipal RbacPrincipal principal) {
-        return blocking(() -> platformRoomFacade.listGroups(imPrincipal(principal)));
     }
 
     @PostMapping("/join-requests")
@@ -354,13 +334,6 @@ public class ImController extends ReactiveImSupport {
             Long channelId,
             String contextType,
             Long contextId,
-            String groupKey,
-            String name,
-            String joinPolicy,
-            String metadataJson) {
-    }
-
-    public record PlatformGroupRequest(
             String groupKey,
             String name,
             String joinPolicy,

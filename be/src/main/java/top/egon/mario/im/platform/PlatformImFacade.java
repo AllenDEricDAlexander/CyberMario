@@ -54,7 +54,7 @@ import java.util.stream.Collectors;
 @Component
 public class PlatformImFacade {
 
-    private static final String DISPLAY_PUBLIC_CHANNEL = "PUBLIC_CHANNEL";
+    private static final String DISPLAY_CHANNEL = "CHANNEL";
     private static final String DISPLAY_GROUP = "GROUP";
     private static final String DISPLAY_DM = "DM";
 
@@ -62,7 +62,6 @@ public class PlatformImFacade {
     private final DmFacade dmFacade;
     private final FriendFacade friendFacade;
     private final PlatformRoomFacade platformRoomFacade;
-    private final PlatformImBootstrapProperties bootstrapProperties;
     private final RbacUserDirectoryFacade userDirectoryFacade;
     private final ImConversationRepository conversationRepository;
     private final ImDmPairRepository dmPairRepository;
@@ -76,7 +75,6 @@ public class PlatformImFacade {
                             DmFacade dmFacade,
                             FriendFacade friendFacade,
                             PlatformRoomFacade platformRoomFacade,
-                            PlatformImBootstrapProperties bootstrapProperties,
                             RbacUserDirectoryFacade userDirectoryFacade,
                             ImConversationRepository conversationRepository,
                             ImDmPairRepository dmPairRepository,
@@ -88,7 +86,6 @@ public class PlatformImFacade {
         this.dmFacade = dmFacade;
         this.friendFacade = friendFacade;
         this.platformRoomFacade = platformRoomFacade;
-        this.bootstrapProperties = bootstrapProperties;
         this.userDirectoryFacade = userDirectoryFacade;
         this.conversationRepository = conversationRepository;
         this.dmPairRepository = dmPairRepository;
@@ -143,11 +140,6 @@ public class PlatformImFacade {
                 .map(this::userView)
                 .orElseThrow(() -> new ImException("IM_PLATFORM_USER_NOT_FOUND"));
         List<PlatformConversationView> conversations = listConversations(caller);
-        PlatformConversationView publicChannel = conversations.stream()
-                .filter(view -> DISPLAY_PUBLIC_CHANNEL.equals(view.displayType()))
-                .filter(view -> bootstrapProperties.channelKey().equals(view.surfaceKey()))
-                .findFirst()
-                .orElse(null);
         long unreadTotal = conversations.stream()
                 .map(PlatformConversationView::unreadCount)
                 .filter(java.util.Objects::nonNull)
@@ -155,7 +147,6 @@ public class PlatformImFacade {
                 .sum();
         return new PlatformBootstrapView(
                 currentUser,
-                publicChannel,
                 conversations,
                 unreadTotal,
                 friendFacade.countIncomingRequests(caller)
@@ -167,16 +158,16 @@ public class PlatformImFacade {
         ImPrincipal caller = requirePrincipal(principal);
         List<ConversationView> coreViews = imFacade.listConversations(new ListConversationsQuery(
                 caller, PlatformRoomFacade.PLATFORM_CONTEXT_TYPE, null));
-        List<ChannelView> publicChannels = platformRoomFacade.listChannels(caller);
+        List<ChannelView> channels = platformRoomFacade.listChannels(caller);
 
         Map<Long, ConversationSeed> seeds = new LinkedHashMap<>();
         coreViews.forEach(view -> seeds.put(view.id(), ConversationSeed.from(view)));
-        Set<Long> missingPublicConversationIds = publicChannels.stream()
+        Set<Long> missingChannelConversationIds = channels.stream()
                 .map(ChannelView::mainConversationId)
                 .filter(java.util.Objects::nonNull)
                 .filter(id -> !seeds.containsKey(id))
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        conversationRepository.findAllById(missingPublicConversationIds).stream()
+        conversationRepository.findAllById(missingChannelConversationIds).stream()
                 .filter(conversation -> !conversation.isDeleted())
                 .filter(conversation -> ImConversationStatus.ACTIVE.equals(conversation.getStatus()))
                 .map(ConversationSeed::from)
@@ -224,8 +215,7 @@ public class PlatformImFacade {
                 activeFriendUserIds,
                 now)));
         views.sort(Comparator
-                .comparing((PlatformConversationView view) -> !DISPLAY_PUBLIC_CHANNEL.equals(view.displayType()))
-                .thenComparing(PlatformConversationView::lastActiveAt,
+                .comparing(PlatformConversationView::lastActiveAt,
                         Comparator.nullsLast(Comparator.reverseOrder()))
                 .thenComparing(PlatformConversationView::conversationId, Comparator.reverseOrder()));
         return List.copyOf(views);
@@ -273,9 +263,9 @@ public class PlatformImFacade {
             boolean activeSurface = channel != null && ImSurfaceStatus.ACTIVE.equals(channel.getStatus());
             return platformView(
                     seed,
-                    DISPLAY_PUBLIC_CHANNEL,
+                    DISPLAY_CHANNEL,
                     surfaceTitle(channel == null ? null : channel.getName(),
-                            channel == null ? null : channel.getChannelKey(), "公共频道"),
+                            channel == null ? null : channel.getChannelKey(), "频道 " + seed.ownerSurfaceId()),
                     null,
                     null,
                     channel == null ? null : channel.getChannelKey(),

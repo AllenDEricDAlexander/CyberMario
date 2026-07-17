@@ -7,6 +7,6 @@ import org.springframework.context.annotation.Configuration;
  * Enables platform Web IM configuration properties.
  */
 @Configuration
-@EnableConfigurationProperties({PlatformImBootstrapProperties.class, ImUserRoleBackfillProperties.class})
+@EnableConfigurationProperties(ImUserRoleBackfillProperties.class)
 public class PlatformImConfiguration {
 }

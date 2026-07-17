@@ -77,14 +77,14 @@ class PlatformImFacadeTests {
     private RbacUserDirectoryFacade userDirectoryFacade;
 
     @Test
-    void readModelBuildsDmGroupAndPublicChannelWithOneBatchedIdentityLookup() {
+    void readModelBuildsDmGroupAndChannelWithOneBatchedIdentityLookup() {
         UserPo alice = user("platform-alice", "Alice", "/avatars/alice.png");
         UserPo bob = user("platform-bob", "Bob", null);
         UserPo charlie = user("platform-charlie", "Charlie", null);
         activateFriendship(alice.getId(), bob.getId());
 
         ImPrincipal alicePrincipal = principal(alice.getId());
-        ChannelView channel = platformRoomFacade.createGeneralChannel(alicePrincipal, "general", "公共频道");
+        ChannelView channel = platformRoomFacade.createChannel(alicePrincipal, "产品频道", "{}");
         GroupView group = platformRoomFacade.createGroup(
                 alicePrincipal, "platform-team", "Platform Team", "OPEN", "{}");
         ConversationView dm = platformImFacade.openDm(new OpenDmCommand(alicePrincipal, bob.getId()));
@@ -98,12 +98,12 @@ class PlatformImFacadeTests {
 
         assertThat(conversations)
                 .extracting(PlatformConversationView::displayType)
-                .containsExactly("PUBLIC_CHANNEL", "DM", "GROUP");
-        assertThat(conversations).filteredOn(view -> "PUBLIC_CHANNEL".equals(view.displayType()))
+                .containsExactly("DM", "GROUP", "CHANNEL");
+        assertThat(conversations).filteredOn(view -> "CHANNEL".equals(view.displayType()))
                 .singleElement()
                 .satisfies(view -> {
-                    assertThat(view.title()).isEqualTo("公共频道");
-                    assertThat(view.surfaceKey()).isEqualTo("general");
+                    assertThat(view.title()).isEqualTo("产品频道");
+                    assertThat(view.surfaceKey()).startsWith("channel-");
                     assertThat(view.canRead()).isTrue();
                     assertThat(view.canPost()).isTrue();
                 });
@@ -134,7 +134,6 @@ class PlatformImFacadeTests {
 
         PlatformBootstrapView bootstrap = platformImFacade.bootstrap(alicePrincipal);
         assertThat(bootstrap.currentUser().displayName()).isEqualTo("Alice");
-        assertThat(bootstrap.publicChannel().surfaceKey()).isEqualTo("general");
         assertThat(bootstrap.pendingFriendRequestCount()).isEqualTo(1);
         assertThat(bootstrap.unreadTotal()).isEqualTo(bootstrap.conversations().stream()
                 .mapToLong(PlatformConversationView::unreadCount)

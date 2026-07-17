@@ -215,11 +215,6 @@ mario:
       broadcast-topic: ${RBAC_CACHE_BROADCAST_TOPIC:rbac:cache:evict}
   im:
     platform:
-      bootstrap:
-        enabled: ${IM_PLATFORM_BOOTSTRAP_ENABLED:true}
-        owner-account-no: ${IM_PLATFORM_BOOTSTRAP_OWNER_ACCOUNT_NO:}
-        channel-key: ${IM_PLATFORM_BOOTSTRAP_CHANNEL_KEY:general}
-        channel-name: ${IM_PLATFORM_BOOTSTRAP_CHANNEL_NAME:公共频道}
       user-role-backfill:
         enabled: ${IM_PLATFORM_USER_ROLE_BACKFILL_ENABLED:true}
   rag:

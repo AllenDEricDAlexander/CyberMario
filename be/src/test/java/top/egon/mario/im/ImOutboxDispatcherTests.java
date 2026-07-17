@@ -17,6 +17,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import top.egon.mario.im.facade.DmFacade;
 import top.egon.mario.im.facade.ImFacade;
 import top.egon.mario.im.facade.RoomFacade;
+import top.egon.mario.im.facade.dto.command.CreateChannelCommand;
 import top.egon.mario.im.facade.dto.command.JoinCommand;
 import top.egon.mario.im.facade.dto.command.OpenDmCommand;
 import top.egon.mario.im.facade.dto.command.SendMessageCommand;
@@ -270,12 +271,13 @@ class ImOutboxDispatcherTests {
     }
 
     @Test
-    void committedPublicChannelEventReachesEveryMemberConnectionButNotNonmemberReader() {
+    void committedChannelEventReachesEveryMemberConnectionButNotNonmemberReader() {
         long ownerUserId = 9341L;
         long memberUserId = 9342L;
         long nonmemberUserId = 9343L;
-        ChannelView channel = platformRoomFacade.createGeneralChannel(
-                platformPrincipal(ownerUserId), "realtime-general-9341", "Realtime General");
+        ChannelView channel = roomFacade.createChannel(new CreateChannelCommand(
+                platformPrincipal(ownerUserId), CONTEXT_TYPE, null, "realtime-channel-9341",
+                "Realtime Channel", "OPEN", "{}"));
         roomFacade.applyJoin(new JoinCommand(
                 platformPrincipal(memberUserId), "CHANNEL", channel.id(), "join realtime test"));
         imFacade.send(new SendMessageCommand(
