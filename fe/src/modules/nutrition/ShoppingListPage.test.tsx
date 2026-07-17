@@ -6,9 +6,9 @@ import {
     createNutritionPriceRecord,
     generateNutritionShoppingList,
     listNutritionFamilies,
+    listNutritionMealPlans,
     listNutritionPriceRecords,
     listNutritionShoppingLists,
-    listTodayNutritionMealPlans,
     previewNutritionShoppingList,
     transitionNutritionShoppingList,
     updateNutritionShoppingListItem,
@@ -24,7 +24,7 @@ vi.mock('../auth/authStore', () => ({
 vi.mock('./nutritionService', () => ({
     listNutritionFamilies: vi.fn(),
     listNutritionPriceRecords: vi.fn(),
-    listTodayNutritionMealPlans: vi.fn(),
+    listNutritionMealPlans: vi.fn(),
     previewNutritionShoppingList: vi.fn(),
     listNutritionShoppingLists: vi.fn(),
     closeNutritionMealPlanConfirmation: vi.fn(),
@@ -78,7 +78,7 @@ describe('ShoppingListPage', () => {
         vi.clearAllMocks()
         vi.mocked(listNutritionFamilies).mockResolvedValue([family])
         vi.mocked(listNutritionPriceRecords).mockResolvedValue([])
-        vi.mocked(listTodayNutritionMealPlans).mockResolvedValue([confirmingPlan])
+        vi.mocked(listNutritionMealPlans).mockResolvedValue([confirmingPlan])
         vi.mocked(previewNutritionShoppingList).mockResolvedValue({...shoppingList, id: 0, status: 'DRAFT'})
         vi.mocked(listNutritionShoppingLists).mockResolvedValue([shoppingList])
         vi.mocked(closeNutritionMealPlanConfirmation).mockResolvedValue({...confirmingPlan, status: 'CONFIRM_CLOSED'})
@@ -112,7 +112,7 @@ describe('ShoppingListPage', () => {
 
     test('updates item state, records a price, and advances shopping state', async () => {
         const user = userEvent.setup()
-        vi.mocked(listTodayNutritionMealPlans).mockResolvedValue([{...confirmingPlan, status: 'CONFIRM_CLOSED'}])
+        vi.mocked(listNutritionMealPlans).mockResolvedValue([{...confirmingPlan, status: 'CONFIRM_CLOSED'}])
         renderNutritionPage(<ShoppingListPage/>)
         await screen.findByText('正式清单')
 

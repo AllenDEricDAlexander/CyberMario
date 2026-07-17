@@ -5,7 +5,7 @@ import {
     closeNutritionMealPlanConfirmation,
     getNutritionMealPlanSummary,
     listNutritionFamilies,
-    listTodayNutritionMealPlans,
+    listNutritionMealPlans,
 } from './nutritionService'
 import {family} from './test/nutritionTestData'
 import {renderNutritionPage} from './test/renderNutritionPage'
@@ -18,7 +18,7 @@ vi.mock('../auth/authStore', () => ({
 }))
 vi.mock('./nutritionService', () => ({
     listNutritionFamilies: vi.fn(),
-    listTodayNutritionMealPlans: vi.fn(),
+    listNutritionMealPlans: vi.fn(),
     getNutritionMealPlanSummary: vi.fn(),
     closeNutritionMealPlanConfirmation: vi.fn(),
 }))
@@ -54,7 +54,7 @@ describe('MealSummaryPage', () => {
         authAccess.canMutate = true
         vi.clearAllMocks()
         vi.mocked(listNutritionFamilies).mockResolvedValue([family])
-        vi.mocked(listTodayNutritionMealPlans).mockResolvedValue([plan])
+        vi.mocked(listNutritionMealPlans).mockResolvedValue([plan])
         vi.mocked(getNutritionMealPlanSummary).mockResolvedValue(summary)
         vi.mocked(closeNutritionMealPlanConfirmation).mockResolvedValue({...plan, status: 'CONFIRM_CLOSED'})
     })

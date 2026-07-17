@@ -6,14 +6,15 @@ import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {CurrentFamilySelect} from './components/CurrentFamilySelect'
 import {MoneyText} from './components/MoneyText'
 import {NutritionAsyncState, nutritionLoadFailure} from './components/NutritionAsyncState'
+import {selectNearestNutritionMealPlan} from './mealPlanSelection'
 import {nutritionApiCodes} from './nutritionPermissionCodes'
 import {
     closeNutritionMealPlanConfirmation,
     createNutritionPriceRecord,
     generateNutritionShoppingList,
+    listNutritionMealPlans,
     listNutritionPriceRecords,
     listNutritionShoppingLists,
-    listTodayNutritionMealPlans,
     previewNutritionShoppingList,
     transitionNutritionShoppingList,
     updateNutritionShoppingListItem,
@@ -51,8 +52,14 @@ function ShoppingListPage() {
         if (!familySelection.currentFamilyId) return
         setState('loading')
         try {
-            const plans = await listTodayNutritionMealPlans(familySelection.currentFamilyId)
-            const currentPlan = plans[0]
+            const plans = await listNutritionMealPlans(familySelection.currentFamilyId)
+            const currentPlan = selectNearestNutritionMealPlan(plans, [
+                'PUBLISHED',
+                'CONFIRMING',
+                'CONFIRM_CLOSED',
+                'PREPARING',
+                'COMPLETED',
+            ])
             if (!currentPlan) {
                 setMealPlan(undefined)
                 setShoppingList(undefined)

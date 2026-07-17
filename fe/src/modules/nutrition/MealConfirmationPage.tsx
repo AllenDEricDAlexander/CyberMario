@@ -6,12 +6,13 @@ import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {CurrentFamilySelect} from './components/CurrentFamilySelect'
 import {NutritionAsyncState, nutritionLoadFailure} from './components/NutritionAsyncState'
 import {RiskTag} from './components/RiskTag'
+import {selectNearestNutritionMealPlan} from './mealPlanSelection'
 import {nutritionApiCodes} from './nutritionPermissionCodes'
 import {
     createNutritionMealConfirmation,
     listNutritionMealConfirmations,
+    listNutritionMealPlans,
     listNutritionMembers,
-    listTodayNutritionMealPlans,
 } from './nutritionService'
 import type {
     NutritionLoadState,
@@ -45,10 +46,10 @@ function MealConfirmationPage() {
         setState('loading')
         try {
             const [plans, memberRows] = await Promise.all([
-                listTodayNutritionMealPlans(familySelection.currentFamilyId),
+                listNutritionMealPlans(familySelection.currentFamilyId),
                 listNutritionMembers(familySelection.currentFamilyId),
             ])
-            const currentPlan = plans[0]
+            const currentPlan = selectNearestNutritionMealPlan(plans, ['PUBLISHED', 'CONFIRMING'])
             const confirmationRows = currentPlan
                 ? await listNutritionMealConfirmations(familySelection.currentFamilyId, currentPlan.id)
                 : []
@@ -131,7 +132,7 @@ function MealConfirmationPage() {
             />
             {mutationError && <Alert closable={{onClose: () => setMutationError(undefined)}} showIcon title={mutationError} type="error"/>}
             <NutritionAsyncState
-                emptyDescription="今天暂无可确认菜单"
+                emptyDescription="暂无可确认菜单"
                 error={familySelection.state === 'ready' ? error : familySelection.error}
                 onRetry={() => void (familySelection.state === 'ready' ? loadData() : familySelection.reload())}
                 state={visibleState}

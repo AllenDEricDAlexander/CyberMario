@@ -6,11 +6,12 @@ import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {CurrentFamilySelect} from './components/CurrentFamilySelect'
 import {MoneyText} from './components/MoneyText'
 import {NutritionAsyncState, nutritionLoadFailure} from './components/NutritionAsyncState'
+import {selectNearestNutritionMealPlan} from './mealPlanSelection'
 import {nutritionApiCodes} from './nutritionPermissionCodes'
 import {
     closeNutritionMealPlanConfirmation,
     getNutritionMealPlanSummary,
-    listTodayNutritionMealPlans,
+    listNutritionMealPlans,
 } from './nutritionService'
 import type {NutritionLoadState, NutritionMealPlanResponse, NutritionMealPlanSummaryResponse} from './nutritionTypes'
 import {NutritionPageGrid, NutritionSection, NutritionStack} from './NutritionPageLayout'
@@ -33,8 +34,14 @@ function MealSummaryPage() {
         if (!familySelection.currentFamilyId) return
         setState('loading')
         try {
-            const plans = await listTodayNutritionMealPlans(familySelection.currentFamilyId)
-            const currentPlan = plans[0]
+            const plans = await listNutritionMealPlans(familySelection.currentFamilyId)
+            const currentPlan = selectNearestNutritionMealPlan(plans, [
+                'PUBLISHED',
+                'CONFIRMING',
+                'CONFIRM_CLOSED',
+                'PREPARING',
+                'COMPLETED',
+            ])
             const currentSummary = currentPlan
                 ? await getNutritionMealPlanSummary(familySelection.currentFamilyId, currentPlan.id)
                 : undefined
@@ -96,7 +103,7 @@ function MealSummaryPage() {
             />
             {mutationError && <Alert closable={{onClose: () => setMutationError(undefined)}} showIcon title={mutationError} type="error"/>}
             <NutritionAsyncState
-                emptyDescription="今天暂无餐食汇总"
+                emptyDescription="暂无餐食汇总"
                 error={familySelection.state === 'ready' ? error : familySelection.error}
                 onRetry={() => void (familySelection.state === 'ready' ? loadData() : familySelection.reload())}
                 state={visibleState}

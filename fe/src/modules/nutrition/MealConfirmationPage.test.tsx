@@ -5,8 +5,8 @@ import {
     createNutritionMealConfirmation,
     listNutritionFamilies,
     listNutritionMealConfirmations,
+    listNutritionMealPlans,
     listNutritionMembers,
-    listTodayNutritionMealPlans,
 } from './nutritionService'
 import {family, member} from './test/nutritionTestData'
 import {renderNutritionPage} from './test/renderNutritionPage'
@@ -19,7 +19,7 @@ vi.mock('../auth/authStore', () => ({
 }))
 vi.mock('./nutritionService', () => ({
     listNutritionFamilies: vi.fn(),
-    listTodayNutritionMealPlans: vi.fn(),
+    listNutritionMealPlans: vi.fn(),
     listNutritionMembers: vi.fn(),
     listNutritionMealConfirmations: vi.fn(),
     createNutritionMealConfirmation: vi.fn(),
@@ -45,7 +45,7 @@ describe('MealConfirmationPage', () => {
         authAccess.canMutate = true
         vi.clearAllMocks()
         vi.mocked(listNutritionFamilies).mockResolvedValue([family])
-        vi.mocked(listTodayNutritionMealPlans).mockResolvedValue([plan])
+        vi.mocked(listNutritionMealPlans).mockResolvedValue([plan])
         vi.mocked(listNutritionMembers).mockResolvedValue([member])
         vi.mocked(listNutritionMealConfirmations).mockResolvedValue([])
         vi.mocked(createNutritionMealConfirmation).mockResolvedValue({
@@ -84,9 +84,26 @@ describe('MealConfirmationPage', () => {
         })
     })
 
+    test('shows a published menu for tomorrow when today only has a draft', async () => {
+        const today = new Date()
+        const tomorrow = new Date(today)
+        tomorrow.setDate(today.getDate() + 1)
+        const tomorrowPlan = {...plan, planDate: tomorrow.toLocaleDateString('en-CA')}
+        vi.mocked(listNutritionMealPlans).mockResolvedValue([
+            tomorrowPlan,
+            {...plan, id: 82, planDate: today.toLocaleDateString('en-CA'), status: 'PENDING_REVIEW'},
+        ])
+
+        renderNutritionPage(<MealConfirmationPage/>)
+
+        await screen.findByText('番茄意面')
+        expect(listNutritionMealConfirmations).toHaveBeenCalledWith(family.id, tomorrowPlan.id)
+        expect(screen.queryByText('暂无可确认菜单')).toBeNull()
+    })
+
     test('high risk and missing mutation permission disable dish submission', async () => {
         authAccess.canMutate = false
-        vi.mocked(listTodayNutritionMealPlans).mockResolvedValue([{
+        vi.mocked(listNutritionMealPlans).mockResolvedValue([{
             ...plan,
             risks: [{id: 302, riskLevel: 'HIGH', riskMessage: '花生过敏', blocking: true, requiresConfirmation: false, acknowledged: false}],
         }])
