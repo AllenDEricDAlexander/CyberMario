@@ -447,6 +447,17 @@ export type NutritionUpdateMealPlanRequest = {
     }>
 }
 
+export type NutritionCreateTodayMealPlanRequest = {
+    title: string
+    confirmationCutoffAt: string
+    items: Array<{
+        mealType: NutritionMealType
+        recipeId: number
+        servingCount: NutritionAmount
+        sortOrder: number
+    }>
+}
+
 export type NutritionAcknowledgeMealRisksRequest = {
     riskIds: number[]
     note: string

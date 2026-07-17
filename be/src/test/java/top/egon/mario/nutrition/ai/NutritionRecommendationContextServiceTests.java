@@ -13,6 +13,7 @@ import top.egon.mario.nutrition.po.NutritionMealPlanItemPo;
 import top.egon.mario.nutrition.po.NutritionMealPlanPo;
 import top.egon.mario.nutrition.po.NutritionMemberProfilePo;
 import top.egon.mario.nutrition.po.NutritionRecipePo;
+import top.egon.mario.nutrition.po.NutritionRecipeIngredientPo;
 import top.egon.mario.nutrition.po.NutritionStandardFoodPo;
 import top.egon.mario.nutrition.po.enums.NutritionAiTriggerType;
 import top.egon.mario.nutrition.po.enums.NutritionMealPlanStatus;
@@ -29,6 +30,7 @@ import top.egon.mario.nutrition.repository.NutritionMealPlanItemRepository;
 import top.egon.mario.nutrition.repository.NutritionMealPlanRepository;
 import top.egon.mario.nutrition.repository.NutritionMemberProfileRepository;
 import top.egon.mario.nutrition.repository.NutritionRecipeRepository;
+import top.egon.mario.nutrition.repository.NutritionRecipeIngredientRepository;
 import top.egon.mario.nutrition.repository.NutritionStandardFoodRepository;
 import top.egon.mario.nutrition.service.ai.NutritionRecommendationContext;
 import top.egon.mario.nutrition.service.ai.NutritionRecommendationContextService;
@@ -54,6 +56,8 @@ class NutritionRecommendationContextServiceTests {
     @Autowired
     private NutritionRecipeRepository recipeRepository;
     @Autowired
+    private NutritionRecipeIngredientRepository recipeIngredientRepository;
+    @Autowired
     private NutritionStandardFoodRepository standardFoodRepository;
     @Autowired
     private NutritionHealthTagRepository healthTagRepository;
@@ -73,6 +77,7 @@ class NutritionRecommendationContextServiceTests {
         priceRepository.deleteAll();
         budgetRuleRepository.deleteAll();
         healthTagRepository.deleteAll();
+        recipeIngredientRepository.deleteAll();
         recipeRepository.deleteAll();
         standardFoodRepository.deleteAll();
         healthProfileRepository.deleteAll();
@@ -175,12 +180,45 @@ class NutritionRecommendationContextServiceTests {
                 .isInstanceOf(UnsupportedOperationException.class);
     }
 
-    private void saveRecipe(Long familyId, NutritionRecipeSourceType sourceType, String name) {
+    @Test
+    void contextExcludesRecipesWithInvalidUnitConversions() {
+        NutritionFamilyPo family = new NutritionFamilyPo();
+        family.setName("Mario Family");
+        family.setOwnerUserId(8801L);
+        family.setStatus(NutritionStatus.ACTIVE);
+        family = familyRepository.saveAndFlush(family);
+        NutritionStandardFoodPo food = new NutritionStandardFoodPo();
+        food.setNameCn("Tomato");
+        food.setCategory("VEGETABLE");
+        food.setDataQuality("TEST");
+        food.setStatus(NutritionStatus.ACTIVE);
+        food = standardFoodRepository.saveAndFlush(food);
+        NutritionRecipePo recipe = saveRecipe(
+                family.getId(), NutritionRecipeSourceType.FAMILY_PRIVATE, "Invalid tomato recipe");
+        NutritionRecipeIngredientPo ingredient = new NutritionRecipeIngredientPo();
+        ingredient.setFamilyId(family.getId());
+        ingredient.setRecipeId(recipe.getId());
+        ingredient.setStandardFoodId(food.getId());
+        ingredient.setRawFoodName("Tomato");
+        ingredient.setAmount(BigDecimal.ONE);
+        ingredient.setUnit("100");
+        ingredient.setMappingStatus("MAPPED");
+        recipeIngredientRepository.saveAndFlush(ingredient);
+
+        NutritionRecommendationContext context = contextService.build(
+                family.getId(), LocalDate.now(), List.of(NutritionMealType.DINNER),
+                8801L, NutritionAiTriggerType.MANUAL);
+
+        assertThat(context.recipes()).extracting(NutritionRecommendationContext.RecipeContext::recipeId)
+                .doesNotContain(recipe.getId());
+    }
+
+    private NutritionRecipePo saveRecipe(Long familyId, NutritionRecipeSourceType sourceType, String name) {
         NutritionRecipePo recipe = new NutritionRecipePo();
         recipe.setFamilyId(familyId);
         recipe.setSourceType(sourceType);
         recipe.setName(name);
         recipe.setStatus(NutritionStatus.ACTIVE);
-        recipeRepository.save(recipe);
+        return recipeRepository.save(recipe);
     }
 }

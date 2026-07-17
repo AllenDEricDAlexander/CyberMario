@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import top.egon.mario.nutrition.dto.request.AcknowledgeMealRiskRequest;
+import top.egon.mario.nutrition.dto.request.CreateTodayMealPlanRequest;
 import top.egon.mario.nutrition.dto.request.MealPlanItemRequest;
 import top.egon.mario.nutrition.dto.request.UpdateMealPlanRequest;
 import top.egon.mario.nutrition.dto.response.MealPlanItemResponse;
@@ -96,6 +97,43 @@ public class MealPlanService {
         accessService.requireReadFamily(userId, familyId);
         return toResponses(familyId, mealPlanRepository
                 .findByFamilyIdAndPlanDateAndDeletedFalseOrderByIdDesc(familyId, LocalDate.now()));
+    }
+
+    @Transactional
+    public MealPlanResponse createTodayMealPlan(@NotNull Long familyId,
+                                                @Valid @NotNull CreateTodayMealPlanRequest request,
+                                                Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireCookFamily(userId, familyId);
+        LocalDate today = LocalDate.now();
+        boolean existing = mealPlanRepository
+                .findByFamilyIdAndPlanDateAndDeletedFalseOrderByIdDesc(familyId, today).stream()
+                .anyMatch(plan -> plan.getStatus() != NutritionMealPlanStatus.CANCELLED);
+        if (existing) {
+            throw new NutritionException(
+                    "NUTRITION_MEAL_PLAN_TODAY_EXISTS", "an active nutrition meal plan already exists for today");
+        }
+
+        NutritionMealPlanPo mealPlan = new NutritionMealPlanPo();
+        mealPlan.setFamilyId(familyId);
+        mealPlan.setPlanDate(today);
+        mealPlan.setStatus(NutritionMealPlanStatus.ADJUSTED);
+        mealPlan.setTitle(request.title().trim());
+        mealPlan.setConfirmationCutoffAt(request.confirmationCutoffAt());
+        mealPlan.setConfirmedMemberCount(0);
+        mealPlan.setNutritionSnapshot("{}");
+        mealPlan.setMetadataJson(writeJson(Map.of("source", "MANUAL")));
+        requireFutureCutoff(mealPlan);
+        NutritionMealPlanPo saved = mealPlanRepository.saveAndFlush(mealPlan);
+        replaceItems(familyId, saved, List.of(), request.items(), userId);
+        MealValidationResult validation = mealValidationService.validateAndPersist(
+                familyId, saved.getId(), userId);
+        mealPlanRepository.flush();
+        List<NutritionMealPlanItemPo> items = activeItems(saved.getId());
+        List<NutritionRiskCheckResultPo> risks = activeRisks(familyId, saved.getId());
+        saveOperation(saved, "CREATE_MANUAL", userId, "{}", snapshot(saved, items, risks), null,
+                Map.of("planDate", today));
+        return toResponse(saved, items, risks, validation.publishable());
     }
 
     @Transactional

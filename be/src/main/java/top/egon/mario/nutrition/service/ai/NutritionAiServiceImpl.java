@@ -163,6 +163,16 @@ public class NutritionAiServiceImpl implements NutritionAiService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<NutritionAiRecommendationJobResponse> listJobs(@NotNull Long familyId, Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireReadFamily(userId, familyId);
+        return aiJobRepository.findTop20ByFamilyIdAndDeletedFalseOrderByIdDesc(familyId).stream()
+                .map(this::responseWithPersistedIds)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<NutritionAiRecommendationResponse> listRecommendations(@NotNull Long familyId, Long actorId) {
         Long userId = requireActor(actorId);
         accessService.requireReadFamily(userId, familyId);
@@ -324,11 +334,13 @@ public class NutritionAiServiceImpl implements NutritionAiService {
         Map<String, Object> metadata = readMetadata(job.getMetadataJson());
         int retryCount = intValue(metadata.get("retryCount"), 0) + 1;
         Instant nextRetryAt = Instant.now().plus(retryDelay(retryCount));
+        boolean retryable = retryable(error);
         metadata.put("retryCount", retryCount);
         metadata.put("maxRetries", MAX_RETRIES);
+        metadata.put("retryable", retryable);
         metadata.put("errorCode", errorCode(error));
         metadata.put("failureType", error == null ? "unknown" : error.getClass().getName());
-        if (retryCount < MAX_RETRIES) {
+        if (retryable && retryCount < MAX_RETRIES) {
             metadata.put("nextRetryAt", nextRetryAt.toString());
         } else {
             metadata.remove("nextRetryAt");
@@ -339,6 +351,11 @@ public class NutritionAiServiceImpl implements NutritionAiService {
         job.setStatus(NutritionAiJobStatus.FAILED);
         job.setMetadataJson(writeJson(metadata));
         aiJobRepository.saveAndFlush(job);
+    }
+
+    private boolean retryable(RuntimeException error) {
+        return !(error instanceof NutritionException nutritionException)
+                || "NUTRITION_AI_EMPTY_OUTPUT".equals(nutritionException.getCode());
     }
 
     private void requeueDueFailedJobs() {

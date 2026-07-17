@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.nutrition.dto.request.AcknowledgeMealRiskRequest;
+import top.egon.mario.nutrition.dto.request.CreateTodayMealPlanRequest;
 import top.egon.mario.nutrition.dto.request.UpdateMealPlanRequest;
 import top.egon.mario.nutrition.dto.response.MealPlanResponse;
 import top.egon.mario.nutrition.dto.response.MealPlanSummaryResponse;
@@ -48,6 +49,14 @@ public class MealPlanController extends ReactiveNutritionSupport {
             @PathVariable @Min(1) Long familyId,
             @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> mealPlanService.listTodayMealPlans(familyId, actorId(principal)));
+    }
+
+    @PostMapping("/today")
+    public Mono<ApiResponse<MealPlanResponse>> createTodayMealPlan(
+            @PathVariable @Min(1) Long familyId,
+            @Valid @RequestBody CreateTodayMealPlanRequest request,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> mealPlanService.createTodayMealPlan(familyId, request, actorId(principal)));
     }
 
     @PostMapping("/{mealPlanId}/publish")

@@ -132,6 +132,13 @@ public class RecipeService {
         return toRecipeResponses(recipes);
     }
 
+    @Transactional(readOnly = true)
+    public List<RecipeResponse> listMealPlanCandidates(@NotNull Long familyId, Long actorId) {
+        return listFamilyRecipes(familyId, actorId).stream()
+                .filter(recipe -> validateRecipe(familyId, recipe.id(), actorId).publishable())
+                .toList();
+    }
+
     @Transactional
     public RecipeResponse createFamilyRecipe(@NotNull Long familyId, @Valid @NotNull CreateRecipeRequest request,
                                              Long actorId) {

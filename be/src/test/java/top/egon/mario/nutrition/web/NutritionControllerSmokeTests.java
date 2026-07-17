@@ -11,6 +11,7 @@ import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.nutrition.dto.request.CreateDataGrantRequest;
+import top.egon.mario.nutrition.dto.request.CreateTodayMealPlanRequest;
 import top.egon.mario.nutrition.dto.request.GenerateAiRecommendationRequest;
 import top.egon.mario.nutrition.dto.request.MealConfirmationItemRequest;
 import top.egon.mario.nutrition.dto.request.MealConfirmationRequest;
@@ -113,15 +114,24 @@ class NutritionControllerSmokeTests {
         RecipeController recipeController = recipeController(recipeService);
         NutritionAiService aiService = mock(NutritionAiService.class);
         AiRecommendationController aiController = immediate(new AiRecommendationController(aiService));
+        AiRecommendationJobController aiJobController = immediate(new AiRecommendationJobController(aiService));
         GenerateAiRecommendationRequest request = new GenerateAiRecommendationRequest(
                 LocalDate.of(2026, 7, 8), List.of(NutritionMealType.DINNER));
 
         StepVerifier.create(recipeController.validateRecipe(42L, 100L, principal(77L))).verifyComplete();
+        StepVerifier.create(recipeController.mealPlanCandidates(42L, principal(77L)))
+                .expectNextCount(1)
+                .verifyComplete();
         StepVerifier.create(aiController.generateRecommendation(42L, request, principal(77L))).verifyComplete();
+        StepVerifier.create(aiJobController.jobs(42L, principal(77L)))
+                .expectNextCount(1)
+                .verifyComplete();
 
         verify(recipeService).validateRecipe(42L, 100L, 77L);
+        verify(recipeService).listMealPlanCandidates(42L, 77L);
         verify(aiService).generateManualRecommendation(
                 42L, request.plannedDate(), request.mealTypes(), 77L);
+        verify(aiService).listJobs(42L, 77L);
     }
 
     @Test
@@ -136,10 +146,16 @@ class NutritionControllerSmokeTests {
         UpdateMealPlanRequest update = new UpdateMealPlanRequest(3L, Instant.parse("2026-07-08T10:00:00Z"),
                 List.of(new MealPlanItemRequest(101L, NutritionMealType.DINNER,
                         201L, new BigDecimal("1.500"), 0)));
+        CreateTodayMealPlanRequest create = new CreateTodayMealPlanRequest(
+                "Today's menu", Instant.parse("2026-07-08T10:00:00Z"),
+                List.of(new MealPlanItemRequest(null, NutritionMealType.DINNER,
+                        201L, new BigDecimal("1.500"), 0)));
         MealConfirmationRequest confirmation = new MealConfirmationRequest(301L, true,
                 List.of(new MealConfirmationItemRequest(
                         101L, true, new BigDecimal("1.500"), false, null)), null);
 
+        StepVerifier.create(mealPlanController.createTodayMealPlan(
+                42L, create, principal(77L))).verifyComplete();
         StepVerifier.create(mealPlanController.updateMealPlan(
                 42L, 100L, update, principal(77L))).verifyComplete();
         StepVerifier.create(mealPlanController.publishMealPlan(
@@ -149,6 +165,7 @@ class NutritionControllerSmokeTests {
         StepVerifier.create(shoppingController.generateShoppingList(
                 42L, 100L, principal(77L))).verifyComplete();
 
+        verify(mealPlanService).createTodayMealPlan(42L, create, 77L);
         verify(mealPlanService).updateMealPlan(42L, 100L, update, 77L);
         verify(mealPlanService).publishMealPlan(42L, 100L, 77L);
         verify(confirmationService).confirmMeal(42L, 100L, confirmation, 77L);
@@ -191,6 +208,7 @@ class NutritionControllerSmokeTests {
                 .contains("/api/nutrition/platform/recipes")
                 .contains("/api/nutrition/platform/recipes/{recipeId}")
                 .contains("/api/nutrition/families/{familyId}/recipes")
+                .contains("/api/nutrition/families/{familyId}/recipes/meal-plan-candidates")
                 .contains("/api/nutrition/families/{familyId}/recipes/{recipeId}")
                 .contains("/api/nutrition/families/{familyId}/recipes/{recipeId}/ingredients/{ingredientId}/mapping")
                 .contains("/api/nutrition/families/{familyId}/recipes/{recipeId}/validation");

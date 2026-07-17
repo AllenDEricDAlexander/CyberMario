@@ -6,15 +6,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import top.egon.mario.nutrition.dto.response.RecipeResponse;
 import top.egon.mario.nutrition.po.NutritionFamilyPo;
 import top.egon.mario.nutrition.po.NutritionHealthProfilePo;
 import top.egon.mario.nutrition.po.NutritionMealPlanItemPo;
 import top.egon.mario.nutrition.po.NutritionMemberProfilePo;
-import top.egon.mario.nutrition.po.NutritionRecipePo;
 import top.egon.mario.nutrition.po.NutritionStandardFoodPo;
 import top.egon.mario.nutrition.po.enums.NutritionAiTriggerType;
 import top.egon.mario.nutrition.po.enums.NutritionMealType;
-import top.egon.mario.nutrition.po.enums.NutritionRecipeSourceType;
 import top.egon.mario.nutrition.po.enums.NutritionStatus;
 import top.egon.mario.nutrition.repository.NutritionBudgetRuleRepository;
 import top.egon.mario.nutrition.repository.NutritionFamilyRepository;
@@ -24,9 +23,9 @@ import top.egon.mario.nutrition.repository.NutritionHealthTagRepository;
 import top.egon.mario.nutrition.repository.NutritionMealPlanItemRepository;
 import top.egon.mario.nutrition.repository.NutritionMealPlanRepository;
 import top.egon.mario.nutrition.repository.NutritionMemberProfileRepository;
-import top.egon.mario.nutrition.repository.NutritionRecipeRepository;
 import top.egon.mario.nutrition.repository.NutritionStandardFoodRepository;
 import top.egon.mario.nutrition.service.NutritionException;
+import top.egon.mario.nutrition.service.RecipeService;
 import top.egon.mario.nutrition.service.calculation.NutritionTotals;
 
 import java.math.BigDecimal;
@@ -36,7 +35,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Builds the complete immutable context consumed by the AI model boundary.
@@ -53,7 +51,7 @@ public class NutritionRecommendationContextService {
     private final NutritionFamilyRepository familyRepository;
     private final NutritionMemberProfileRepository memberProfileRepository;
     private final NutritionHealthProfileRepository healthProfileRepository;
-    private final NutritionRecipeRepository recipeRepository;
+    private final RecipeService recipeService;
     private final NutritionStandardFoodRepository standardFoodRepository;
     private final NutritionHealthTagRepository healthTagRepository;
     private final NutritionMealPlanRepository mealPlanRepository;
@@ -75,12 +73,8 @@ public class NutritionRecommendationContextService {
         Map<Long, NutritionHealthProfilePo> healthByMemberId = healthProfileRepository
                 .findActiveMemberHealthProfiles(familyId, NutritionStatus.ACTIVE).stream()
                 .collect(Collectors.toMap(NutritionHealthProfilePo::getMemberProfileId, Function.identity()));
-        List<NutritionRecipePo> recipes = Stream.concat(
-                        recipeRepository.findByFamilyIdIsNullAndSourceTypeAndStatusAndDeletedFalseOrderByIdDesc(
-                                NutritionRecipeSourceType.PLATFORM_PUBLIC, NutritionStatus.ACTIVE).stream(),
-                        recipeRepository.findByFamilyIdAndStatusAndDeletedFalseOrderByIdDesc(
-                                familyId, NutritionStatus.ACTIVE).stream())
-                .toList();
+        Long candidateReader = actorId == null ? family.getOwnerUserId() : actorId;
+        List<RecipeResponse> recipes = recipeService.listMealPlanCandidates(familyId, candidateReader);
         List<NutritionRecommendationContext.RecentMealContext> recentMeals = recentMeals(familyId, plannedDate);
         return new NutritionRecommendationContext(
                 familyId,
@@ -132,10 +126,10 @@ public class NutritionRecommendationContextService {
                         health.getTargetCarbs(), health.getTargetSugar(), health.getTargetSodium(), null, null));
     }
 
-    private NutritionRecommendationContext.RecipeContext recipeContext(NutritionRecipePo recipe) {
+    private NutritionRecommendationContext.RecipeContext recipeContext(RecipeResponse recipe) {
         return new NutritionRecommendationContext.RecipeContext(
-                recipe.getId(), recipe.getSourceType(), recipe.getName(), recipe.getServingCount(),
-                readTotals(recipe.getNutritionSnapshot()), recipe.getEstimatedCost());
+                recipe.id(), recipe.sourceType(), recipe.name(), recipe.servingCount(),
+                recipe.nutritionSnapshot(), recipe.estimatedCost());
     }
 
     private NutritionRecommendationContext.StandardFoodContext standardFoodContext(NutritionStandardFoodPo food) {
@@ -169,17 +163,6 @@ public class NutritionRecommendationContextService {
             NutritionMealPlanItemPo item, LocalDate planDate) {
         return new NutritionRecommendationContext.RecentMealContext(
                 planDate, item.getMealType(), item.getRecipeId(), item.getDishName());
-    }
-
-    private NutritionTotals readTotals(String json) {
-        if (json == null || json.isBlank() || "{}".equals(json.trim())) {
-            return NutritionTotals.zero();
-        }
-        try {
-            return objectMapper.readValue(json, NutritionTotals.class);
-        } catch (JsonProcessingException ignored) {
-            return NutritionTotals.zero();
-        }
     }
 
     private List<String> readStrings(String json) {

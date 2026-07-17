@@ -7,6 +7,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import top.egon.mario.nutrition.dto.request.AcknowledgeMealRiskRequest;
 import top.egon.mario.nutrition.dto.request.CreateRecipeRequest;
+import top.egon.mario.nutrition.dto.request.CreateTodayMealPlanRequest;
 import top.egon.mario.nutrition.dto.request.MealPlanItemRequest;
 import top.egon.mario.nutrition.dto.request.RecipeIngredientRequest;
 import top.egon.mario.nutrition.dto.request.UpdateMealPlanRequest;
@@ -163,6 +164,46 @@ class MealPlanServiceTests {
                     assertThat(log.getOperationType()).isEqualTo("PUBLISH");
                     assertThat(log.getOperatorUserId()).isEqualTo(SUPER_ADMIN_USER_ID);
                 });
+    }
+
+    @Test
+    void cookCanCreateTodayMenuFromValidatedRecipes() {
+        NutritionFamilyPo family = family("Mario Family", COOK_USER_ID);
+        roleBinding(COOK_USER_ID, NutritionRoleCode.COOK, NutritionScopeType.FAMILY, family.getId());
+        Long recipeId = recipe(family.getId(), "Tomato Soup", "Tomato", "18");
+        CreateTodayMealPlanRequest request = new CreateTodayMealPlanRequest(
+                "Today's family menu", Instant.now().plusSeconds(3600), List.of(
+                new MealPlanItemRequest(null, NutritionMealType.DINNER, recipeId, BigDecimal.valueOf(2), 0)));
+
+        MealPlanResponse response = mealPlanService.createTodayMealPlan(family.getId(), request, COOK_USER_ID);
+
+        assertThat(response.planDate()).isEqualTo(LocalDate.now());
+        assertThat(response.status()).isEqualTo(NutritionMealPlanStatus.ADJUSTED);
+        assertThat(response.aiRecommendationId()).isNull();
+        assertThat(response.items()).singleElement().satisfies(item -> {
+            assertThat(item.recipeId()).isEqualTo(recipeId);
+            assertThat(item.dishName()).isEqualTo("Tomato Soup");
+        });
+        assertThat(operationLogRepository.findAll()).singleElement()
+                .satisfies(log -> assertThat(log.getOperationType()).isEqualTo("CREATE_MANUAL"));
+    }
+
+    @Test
+    void createTodayMenuRejectsDuplicateActivePlan() {
+        NutritionFamilyPo family = family("Mario Family", COOK_USER_ID);
+        roleBinding(COOK_USER_ID, NutritionRoleCode.COOK, NutritionScopeType.FAMILY, family.getId());
+        NutritionMealPlanPo existing = mealPlan(family.getId(), NutritionMealPlanStatus.PUBLISHED);
+        existing.setPlanDate(LocalDate.now());
+        mealPlanRepository.saveAndFlush(existing);
+        Long recipeId = recipe(family.getId(), "Tomato Soup", "Tomato", "18");
+        CreateTodayMealPlanRequest request = new CreateTodayMealPlanRequest(
+                "Duplicate menu", Instant.now().plusSeconds(3600), List.of(
+                new MealPlanItemRequest(null, NutritionMealType.DINNER, recipeId, BigDecimal.ONE, 0)));
+
+        assertThatThrownBy(() -> mealPlanService.createTodayMealPlan(family.getId(), request, COOK_USER_ID))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_MEAL_PLAN_TODAY_EXISTS");
     }
 
     @Test

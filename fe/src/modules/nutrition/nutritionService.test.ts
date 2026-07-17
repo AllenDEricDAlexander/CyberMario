@@ -8,6 +8,7 @@ import {
     createNutritionBudgetRule,
     createNutritionImportJob,
     createNutritionMealConfirmation,
+    createNutritionTodayMealPlan,
     deleteNutritionFamily,
     generateNutritionFamilyMonthlyReport,
     generateNutritionFamilyWeeklyReport,
@@ -16,9 +17,11 @@ import {
     getNutritionHomeOverview,
     getNutritionRecipe,
     getNutritionWeeklyBudget,
+    listNutritionAiRecommendationJobs,
     listNutritionBudgetRules,
     listNutritionFamilyRecipes,
     listNutritionMealConfirmations,
+    listNutritionMealPlanRecipeCandidates,
     listNutritionPriceRecords,
     listNutritionPlatformHealthTags,
     listNutritionShoppingLists,
@@ -185,6 +188,25 @@ describe('nutritionService', () => {
             method: 'POST',
         })
         expect(requestJson).toHaveBeenNthCalledWith(4, '/api/nutrition/families/7/ai-recommendation-jobs/401')
+    })
+
+    test('uses manual today menu, validated recipe candidate, and job history contracts', async () => {
+        const {requestJson} = await import('../../services/request')
+        const request = {
+            title: '今日菜单',
+            confirmationCutoffAt: '2026-07-17T10:00:00.000Z',
+            items: [{mealType: 'DINNER' as const, recipeId: 51, servingCount: '2', sortOrder: 0}],
+        }
+
+        void createNutritionTodayMealPlan(7, request)
+        void listNutritionMealPlanRecipeCandidates(7)
+        void listNutritionAiRecommendationJobs(7)
+
+        expect(requestJson).toHaveBeenNthCalledWith(1, '/api/nutrition/families/7/meal-plans/today', {
+            method: 'POST', body: request,
+        })
+        expect(requestJson).toHaveBeenNthCalledWith(2, '/api/nutrition/families/7/recipes/meal-plan-candidates')
+        expect(requestJson).toHaveBeenNthCalledWith(3, '/api/nutrition/families/7/ai-recommendation-jobs')
     })
 
     test('uses dish-level confirmation and early-close contracts', async () => {

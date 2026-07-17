@@ -25,6 +25,8 @@ public interface NutritionAiService {
 
     NutritionAiRecommendationJobResponse getJob(@NotNull Long familyId, @NotNull Long jobId, Long actorId);
 
+    List<NutritionAiRecommendationJobResponse> listJobs(@NotNull Long familyId, Long actorId);
+
     List<NutritionAiRecommendationResponse> listRecommendations(@NotNull Long familyId, Long actorId);
 
     NutritionAiRecommendationResponse getRecommendation(@NotNull Long familyId, @NotNull Long recommendationId,

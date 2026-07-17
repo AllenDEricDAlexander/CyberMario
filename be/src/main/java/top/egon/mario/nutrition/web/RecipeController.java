@@ -107,6 +107,13 @@ public class RecipeController extends ReactiveNutritionSupport {
         return blocking(() -> recipeService.listFamilyRecipes(familyId, actorId(principal)));
     }
 
+    @GetMapping("/families/{familyId}/recipes/meal-plan-candidates")
+    public Mono<ApiResponse<List<RecipeResponse>>> mealPlanCandidates(
+            @PathVariable @Min(1) Long familyId,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> recipeService.listMealPlanCandidates(familyId, actorId(principal)));
+    }
+
     @PostMapping("/families/{familyId}/recipes")
     public Mono<ApiResponse<RecipeResponse>> createFamilyRecipe(@PathVariable @Min(1) Long familyId,
                                                                 @Valid @RequestBody CreateRecipeRequest request,

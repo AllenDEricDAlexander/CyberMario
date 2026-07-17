@@ -3,11 +3,13 @@ import userEvent from '@testing-library/user-event'
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest'
 import {
     acknowledgeNutritionMealRisks,
+    createNutritionTodayMealPlan,
     generateNutritionAiRecommendation,
     getNutritionAiRecommendationJob,
+    listNutritionAiRecommendationJobs,
     listNutritionAiRecommendations,
     listNutritionFamilies,
-    listNutritionFamilyRecipes,
+    listNutritionMealPlanRecipeCandidates,
     listNutritionMealPlans,
     publishNutritionMealPlan,
     regenerateNutritionMealPlan,
@@ -25,7 +27,9 @@ vi.mock('./nutritionService', () => ({
     listNutritionFamilies: vi.fn(),
     listNutritionMealPlans: vi.fn(),
     listNutritionAiRecommendations: vi.fn(),
-    listNutritionFamilyRecipes: vi.fn(),
+    listNutritionMealPlanRecipeCandidates: vi.fn(),
+    listNutritionAiRecommendationJobs: vi.fn(),
+    createNutritionTodayMealPlan: vi.fn(),
     generateNutritionAiRecommendation: vi.fn(),
     getNutritionAiRecommendationJob: vi.fn(),
     updateNutritionMealPlan: vi.fn(),
@@ -89,7 +93,15 @@ describe('AiMenuPage', () => {
         vi.mocked(listNutritionFamilies).mockResolvedValue([family])
         vi.mocked(listNutritionMealPlans).mockResolvedValue([pendingPlan])
         vi.mocked(listNutritionAiRecommendations).mockResolvedValue([recommendation])
-        vi.mocked(listNutritionFamilyRecipes).mockResolvedValue([recipe])
+        vi.mocked(listNutritionMealPlanRecipeCandidates).mockResolvedValue([recipe])
+        vi.mocked(listNutritionAiRecommendationJobs).mockResolvedValue([])
+        vi.mocked(createNutritionTodayMealPlan).mockResolvedValue({
+            ...pendingPlan,
+            id: 82,
+            planDate: new Date().toLocaleDateString('en-CA'),
+            status: 'ADJUSTED',
+            title: '今日菜单',
+        })
         vi.mocked(updateNutritionMealPlan).mockResolvedValue({...pendingPlan, version: 4})
         vi.mocked(acknowledgeNutritionMealRisks).mockResolvedValue({
             ...pendingPlan,
@@ -106,7 +118,6 @@ describe('AiMenuPage', () => {
         renderNutritionPage(<AiMenuPage/>)
 
         await screen.findByText(pendingPlan.title)
-        await user.click(screen.getByRole('button', {name: '替换菜品 番茄意面'}))
         await user.click(screen.getByRole('button', {name: '保存调整'}))
         await user.click(screen.getByRole('checkbox', {name: /确认中风险/}))
         await user.type(screen.getByLabelText('风险确认说明'), '已核对控钠目标')
@@ -119,6 +130,44 @@ describe('AiMenuPage', () => {
             {riskIds: [mediumRisk.id], note: '已核对控钠目标'},
         )
         expect(publishNutritionMealPlan).toHaveBeenCalledWith(family.id, pendingPlan.id)
+    })
+
+    test('cook creates a menu for today using validated recipes', async () => {
+        const user = userEvent.setup()
+        renderNutritionPage(<AiMenuPage/>)
+        await screen.findByText(pendingPlan.title)
+
+        await user.click(screen.getByRole('button', {name: /人工创建今日菜单/}))
+        await user.clear(screen.getByLabelText('菜单标题'))
+        await user.type(screen.getByLabelText('菜单标题'), '手工今日菜单')
+        await user.click(screen.getByRole('button', {name: '创建今日菜单'}))
+
+        await waitFor(() => expect(createNutritionTodayMealPlan).toHaveBeenCalledWith(
+            family.id,
+            expect.objectContaining({
+                title: '手工今日菜单',
+                items: [expect.objectContaining({recipeId: recipe.id, mealType: 'DINNER', sortOrder: 0})],
+            }),
+        ))
+    })
+
+    test('restores the latest failed AI job and shows its error', async () => {
+        vi.mocked(listNutritionAiRecommendationJobs).mockResolvedValue([{
+            id: 401,
+            familyId: family.id,
+            triggerType: 'MANUAL',
+            status: 'FAILED',
+            plannedDate: '2026-07-15',
+            targetMealTypes: ['DINNER'],
+            errorMessage: '菜谱单位换算缺失',
+            createdAt: pendingPlan.createdAt,
+            updatedAt: pendingPlan.updatedAt,
+        }])
+
+        renderNutritionPage(<AiMenuPage/>)
+
+        expect(await screen.findAllByText('菜谱单位换算缺失')).toHaveLength(2)
+        expect(screen.getByText('FAILED')).toBeTruthy()
     })
 
     test('polls a pending AI job to completion with a bounded timer', async () => {
@@ -134,7 +183,11 @@ describe('AiMenuPage', () => {
             updatedAt: '2026-07-01T00:00:00Z',
         }
         vi.mocked(generateNutritionAiRecommendation).mockResolvedValue(pendingJob)
-        vi.mocked(getNutritionAiRecommendationJob).mockResolvedValue({...pendingJob, status: 'SUCCEEDED', mealPlanId: 81})
+        const succeededJob = {...pendingJob, status: 'SUCCEEDED' as const, mealPlanId: 81}
+        vi.mocked(getNutritionAiRecommendationJob).mockResolvedValue(succeededJob)
+        vi.mocked(listNutritionAiRecommendationJobs)
+            .mockResolvedValueOnce([])
+            .mockResolvedValue([succeededJob])
         renderNutritionPage(<AiMenuPage/>)
         await screen.findByText(pendingPlan.title)
 
@@ -182,7 +235,6 @@ describe('AiMenuPage', () => {
         renderNutritionPage(<AiMenuPage/>)
         await screen.findByText(pendingPlan.title)
 
-        await user.click(screen.getByRole('button', {name: '替换菜品 番茄意面'}))
         await user.click(screen.getByRole('button', {name: '保存调整'}))
 
         expect(await screen.findByText('菜单版本已变化，请重新加载后再编辑')).toBeTruthy()

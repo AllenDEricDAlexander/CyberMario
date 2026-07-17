@@ -185,6 +185,9 @@ class NutritionAiServiceTests {
         assertThat(aiService.runPendingJobs(1)).isEqualTo(1);
         assertThat(aiService.getJob(family.id(), job.id(), 8102L).status())
                 .isEqualTo(NutritionAiJobStatus.FAILED);
+        assertThat(aiService.listJobs(family.id(), 8102L))
+                .extracting(NutritionAiRecommendationJobResponse::id)
+                .containsExactly(job.id());
         assertThat(aiJobRepository.findAll()).singleElement().satisfies(saved -> {
             assertThat(saved.getFamilyId()).isEqualTo(family.id());
             assertThat(saved.getStatus()).isEqualTo(NutritionAiJobStatus.FAILED);
@@ -211,6 +214,8 @@ class NutritionAiServiceTests {
         assertThat(aiJobRepository.findAll()).singleElement().satisfies(saved -> {
             assertThat(saved.getStatus()).isEqualTo(NutritionAiJobStatus.FAILED);
             assertThat(saved.getErrorMessage()).contains("NUTRITION_AI_OUTPUT_INVALID");
+            assertThat(saved.getMetadataJson()).contains("\"retryable\":false");
+            assertThat(saved.getMetadataJson()).doesNotContain("nextRetryAt");
         });
         assertThat(aiRecommendationRepository.findAll()).isEmpty();
         assertThat(mealPlanRepository.findAll()).isEmpty();

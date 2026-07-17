@@ -14,6 +14,8 @@ import top.egon.mario.nutrition.dto.response.NutritionAiRecommendationJobRespons
 import top.egon.mario.nutrition.service.ai.NutritionAiService;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
+import java.util.List;
+
 /**
  * Polling endpoint for asynchronous AI recommendation jobs.
  */
@@ -24,6 +26,13 @@ import top.egon.mario.rbac.service.security.RbacPrincipal;
 public class AiRecommendationJobController extends ReactiveNutritionSupport {
 
     private final NutritionAiService aiService;
+
+    @GetMapping
+    public Mono<ApiResponse<List<NutritionAiRecommendationJobResponse>>> jobs(
+            @PathVariable @Min(1) Long familyId,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> aiService.listJobs(familyId, actorId(principal)));
+    }
 
     @GetMapping("/{jobId}")
     public Mono<ApiResponse<NutritionAiRecommendationJobResponse>> job(

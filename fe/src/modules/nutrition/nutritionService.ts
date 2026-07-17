@@ -20,6 +20,7 @@ import type {
     NutritionCreateRecipeRequest,
     NutritionCreateStandardFoodRequest,
     NutritionCreateScopedRoleBindingRequest,
+    NutritionCreateTodayMealPlanRequest,
     NutritionDataGrantResponse,
     NutritionDailyOverviewResponse,
     NutritionFamilyResponse,
@@ -349,6 +350,10 @@ export function listNutritionFamilyRecipes(familyId: number) {
     return requestJson<NutritionRecipeResponse[]>(familyPath(familyId, '/recipes'))
 }
 
+export function listNutritionMealPlanRecipeCandidates(familyId: number) {
+    return requestJson<NutritionRecipeResponse[]>(familyPath(familyId, '/recipes/meal-plan-candidates'))
+}
+
 export function createNutritionFamilyRecipe(familyId: number, request: NutritionCreateRecipeRequest) {
     return requestJson<NutritionRecipeResponse>(familyPath(familyId, '/recipes'), {
         method: 'POST',
@@ -405,6 +410,16 @@ export function listNutritionMealPlans(familyId: number) {
 
 export function listTodayNutritionMealPlans(familyId: number) {
     return requestJson<NutritionMealPlanResponse[]>(mealPlanPath(familyId, '/today'))
+}
+
+export function createNutritionTodayMealPlan(
+    familyId: number,
+    request: NutritionCreateTodayMealPlanRequest,
+) {
+    return requestJson<NutritionMealPlanResponse>(mealPlanPath(familyId, '/today'), {
+        method: 'POST',
+        body: request,
+    })
 }
 
 export function publishNutritionMealPlan(familyId: number, mealPlanId: number) {
@@ -511,6 +526,12 @@ export function getNutritionAiRecommendation(familyId: number, recommendationId:
 export function getNutritionAiRecommendationJob(familyId: number, jobId: number) {
     return requestJson<NutritionAiRecommendationJobResponse>(
         familyPath(familyId, `/ai-recommendation-jobs/${jobId}`),
+    )
+}
+
+export function listNutritionAiRecommendationJobs(familyId: number) {
+    return requestJson<NutritionAiRecommendationJobResponse[]>(
+        familyPath(familyId, '/ai-recommendation-jobs'),
     )
 }
 

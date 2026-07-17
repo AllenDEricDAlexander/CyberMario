@@ -60,7 +60,9 @@ public class DefaultNutritionAiModelClient implements NutritionAiModelClient {
                 Return only one strict JSON object and no markdown, code fences, commentary, or extra text.
                 JSON shape: {"title":string,"reason":string,"mealTypes":["DINNER"],"recipes":[{"mealType":"DINNER","existingRecipeId":number|null,"name":string|null,"servingCount":number,"ingredients":[{"foodName":string,"category":string,"standardFoodId":number|null,"amount":number,"unit":string,"gramsPerUnit":number|null,"optional":boolean}],"steps":[{"stepNo":number,"instruction":string}],"reason":string}],"costEstimate":number}
                 For every recipe, provide exactly one of an existingRecipeId or a generated body with name and ingredients.
+                Existing recipe ids in the input snapshot are already validated; never invent or reuse any other id.
                 Prefer a visible existing recipe id from the input snapshot. For generated bodies, use standardFoodId when available and mark an ingredient optional only when it can safely be omitted.
+                Generated ingredient units must be mg, g, or kg. For any other unit, gramsPerUnit must be a positive number.
                 Meal plans are drafts only. Never claim that a plan is published, confirmed, or final.
                 Keep the menu practical and reviewable by a human family manager.
                 """;

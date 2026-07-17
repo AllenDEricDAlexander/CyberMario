@@ -34,6 +34,8 @@ public interface NutritionAiRecommendationJobRepository extends JpaRepository<Nu
 
     List<NutritionAiRecommendationJobPo> findByStatusAndDeletedFalseOrderByIdAsc(NutritionAiJobStatus status);
 
+    List<NutritionAiRecommendationJobPo> findTop20ByFamilyIdAndDeletedFalseOrderByIdDesc(Long familyId);
+
     Optional<NutritionAiRecommendationJobPo> findFirstByFamilyIdAndTriggerTypeAndPlannedDateAndStatusInAndDeletedFalseOrderByIdDesc(
             Long familyId, NutritionAiTriggerType triggerType, LocalDate plannedDate,
             Collection<NutritionAiJobStatus> statuses);
