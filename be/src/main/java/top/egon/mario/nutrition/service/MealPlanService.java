@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import top.egon.mario.nutrition.dto.request.AcknowledgeMealRiskRequest;
+import top.egon.mario.nutrition.dto.request.AdjustConfirmedMenuRequest;
 import top.egon.mario.nutrition.dto.request.CreateTodayMealPlanRequest;
 import top.egon.mario.nutrition.dto.request.MealPlanItemRequest;
 import top.egon.mario.nutrition.dto.request.UpdateMealPlanRequest;
@@ -80,6 +81,7 @@ public class MealPlanService {
     private final NutritionRecordService nutritionRecordService;
     private final RecipeService recipeService;
     private final NutritionMealValidationService mealValidationService;
+    private final ShoppingListService shoppingListService;
     private final NutritionAiService aiService;
     private final ObjectMapper objectMapper;
 
@@ -288,7 +290,66 @@ public class MealPlanService {
         mealPlanRepository.saveAndFlush(mealPlan);
         saveOperation(mealPlan, "CLOSE_CONFIRMATION", userId, before, snapshot(mealPlan), null,
                 Map.of("closeEarly", closeEarly));
+        shoppingListService.generateFinalShoppingList(familyId, mealPlanId, userId);
         return toResponse(mealPlan);
+    }
+
+    @Transactional
+    public MealPlanSummaryResponse adjustConfirmedMenu(@NotNull Long familyId, @NotNull Long mealPlanId,
+                                                       @Valid @NotNull AdjustConfirmedMenuRequest request,
+                                                       Long actorId) {
+        Long userId = requireActor(actorId);
+        accessService.requireCookFamily(userId, familyId);
+        NutritionMealPlanPo mealPlan = getLockedMealPlan(familyId, mealPlanId);
+        if (mealPlan.getStatus() != NutritionMealPlanStatus.CONFIRM_CLOSED) {
+            throw new NutritionException(
+                    "NUTRITION_CONFIRMED_MENU_IMMUTABLE", "confirmed nutrition menu is not adjustable");
+        }
+        if (!Objects.equals(mealPlan.getVersion(), request.expectedVersion())) {
+            throw new NutritionException(
+                    "NUTRITION_MEAL_VERSION_CONFLICT", "nutrition meal plan version is stale");
+        }
+        List<NutritionMealPlanItemPo> items = activeItems(mealPlanId);
+        Map<Long, NutritionMealPlanItemPo> itemsById = items.stream()
+                .collect(Collectors.toMap(NutritionMealPlanItemPo::getId, Function.identity()));
+        Set<Long> requestedIds = request.items().stream()
+                .map(adjustment -> adjustment.mealPlanItemId())
+                .collect(Collectors.toSet());
+        if (requestedIds.size() != request.items().size()
+                || requestedIds.size() != itemsById.size()
+                || !itemsById.keySet().equals(requestedIds)) {
+            throw new NutritionException(
+                    "NUTRITION_CONFIRMED_MENU_ITEM_INVALID", "confirmed nutrition menu items are invalid");
+        }
+
+        String before = snapshot(mealPlan, items, activeRisks(familyId, mealPlanId));
+        Instant adjustedAt = Instant.now();
+        request.items().forEach(adjustment -> {
+            NutritionMealPlanItemPo item = itemsById.get(adjustment.mealPlanItemId());
+            ObjectNode metadata = objectNode(item.getMetadataJson());
+            metadata.put("finalServingCount", adjustment.finalServingCount());
+            metadata.put("finalAdjustedBy", userId);
+            metadata.put("finalAdjustedAt", adjustedAt.toString());
+            item.setMetadataJson(writeJson(metadata));
+        });
+        mealPlanItemRepository.saveAllAndFlush(items);
+        ObjectNode planMetadata = objectNode(mealPlan.getMetadataJson());
+        planMetadata.put("confirmedMenuRevision", adjustedAt.toString());
+        planMetadata.put("confirmedMenuAdjustedBy", userId);
+        if (StringUtils.hasText(request.note())) {
+            planMetadata.put("confirmedMenuAdjustmentNote", request.note().trim());
+        } else {
+            planMetadata.remove("confirmedMenuAdjustmentNote");
+        }
+        mealPlan.setMetadataJson(writeJson(planMetadata));
+        mealPlanRepository.saveAndFlush(mealPlan);
+        shoppingListService.generateFinalShoppingList(familyId, mealPlanId, userId);
+        List<NutritionMealPlanItemPo> savedItems = activeItems(mealPlanId);
+        saveOperation(mealPlan, "ADJUST_CONFIRMED_MENU", userId, before,
+                snapshot(mealPlan, savedItems, activeRisks(familyId, mealPlanId)),
+                StringUtils.hasText(request.note()) ? request.note().trim() : null,
+                Map.of("adjustedAt", adjustedAt));
+        return summary(familyId, mealPlanId, userId);
     }
 
     @Transactional
@@ -565,8 +626,15 @@ public class MealPlanService {
         BigDecimal confirmedServingTotal = selections.stream()
                 .map(NutritionMealConfirmationItemPo::getServingCount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal finalServingCount = finalServingCount(item, confirmedServingTotal);
         return new MealPlanSummaryResponse.DishSummary(item.getId(), item.getDishName(), item.getMealType(),
-                item.getServingCount(), selections.size(), confirmedServingTotal);
+                item.getServingCount(), selections.size(), confirmedServingTotal,
+                finalServingCount, readObject(item.getMetadataJson()).has("finalServingCount"));
+    }
+
+    private BigDecimal finalServingCount(NutritionMealPlanItemPo item, BigDecimal confirmedServingTotal) {
+        JsonNode value = readObject(item.getMetadataJson()).get("finalServingCount");
+        return value != null && value.isNumber() ? value.decimalValue() : confirmedServingTotal;
     }
 
     private List<NutritionRiskCheckResultPo> summaryRisks(
@@ -717,6 +785,10 @@ public class MealPlanService {
         snapshot.put("mealType", item.getMealType());
         snapshot.put("recipeId", item.getRecipeId());
         snapshot.put("servingCount", item.getServingCount());
+        JsonNode finalServingCount = readObject(item.getMetadataJson()).get("finalServingCount");
+        if (finalServingCount != null && finalServingCount.isNumber()) {
+            snapshot.put("finalServingCount", finalServingCount.decimalValue());
+        }
         snapshot.put("sortOrder", item.getSortOrder());
         return snapshot;
     }

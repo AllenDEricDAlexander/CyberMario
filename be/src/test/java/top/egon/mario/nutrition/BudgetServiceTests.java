@@ -213,6 +213,8 @@ class BudgetServiceTests {
         confirmationItem(family.getId(), first.getId(), lunch, true, "1.000");
         confirmationItem(family.getId(), first.getId(), dinner, true, "2.000");
         confirmationItem(family.getId(), second.getId(), dinner, true, "2.000");
+        dinner.setMetadataJson("{\"finalServingCount\":5}");
+        mealPlanItemRepository.saveAndFlush(dinner);
 
         BudgetSummaryResponse response = budgetService.weeklyBudget(
                 family.getId(), LocalDate.of(2026, 7, 6), COOK_USER_ID);
@@ -222,7 +224,10 @@ class BudgetServiceTests {
                 .satisfies(dish -> assertThat(dish.confirmedServingCount()).isEqualByComparingTo("1.000"));
         assertThat(response.dishSummaries()).filteredOn(dish -> dish.itemId().equals(dinner.getId()))
                 .singleElement()
-                .satisfies(dish -> assertThat(dish.confirmedServingCount()).isEqualByComparingTo("4.000"));
+                .satisfies(dish -> {
+                    assertThat(dish.confirmedServingCount()).isEqualByComparingTo("4.000");
+                    assertThat(dish.finalServingCount()).isEqualByComparingTo("5.000");
+                });
     }
 
     @Test
@@ -273,6 +278,8 @@ class BudgetServiceTests {
         NutritionMealConfirmationPo confirmation = confirmation(family.getId(), plan.getId(), 101L, "[]");
         confirmationItem(family.getId(), confirmation.getId(), small, true, "2.000");
         confirmationItem(family.getId(), confirmation.getId(), large, true, "1.000");
+        large.setMetadataJson("{\"finalServingCount\":2}");
+        mealPlanItemRepository.saveAndFlush(large);
 
         BudgetSummaryResponse summary = budgetService.weeklyBudget(
                 family.getId(), LocalDate.of(2026, 7, 6), COOK_USER_ID);
@@ -282,7 +289,7 @@ class BudgetServiceTests {
                 .isEqualTo(new BigDecimal("10.00"));
         assertThat(summary.dishSummaries()).filteredOn(dish -> dish.itemId().equals(large.getId()))
                 .singleElement().extracting(BudgetSummaryResponse.DishSummary::amount)
-                .isEqualTo(new BigDecimal("30.00"));
+                .isEqualTo(new BigDecimal("60.00"));
     }
 
     @Test

@@ -1,6 +1,7 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest'
 import {
     acknowledgeNutritionMealRisks,
+    adjustNutritionConfirmedMenu,
     assignNutritionProfileGuardian,
     bindNutritionMemberUser,
     closeNutritionMealPlanConfirmation,
@@ -228,6 +229,22 @@ describe('nutritionService', () => {
         expect(requestJson).toHaveBeenNthCalledWith(3, '/api/nutrition/families/7/meal-plans/81/close-confirmation?closeEarly=true', {
             method: 'POST',
         })
+    })
+
+    test('uses the versioned confirmed-menu adjustment contract', async () => {
+        const {requestJson} = await import('../../services/request')
+        const request = {
+            expectedVersion: 4,
+            note: '多准备半份',
+            items: [{mealPlanItemId: 101, finalServingCount: '2.5'}],
+        }
+
+        void adjustNutritionConfirmedMenu(7, 81, request)
+
+        expect(requestJson).toHaveBeenCalledWith(
+            '/api/nutrition/families/7/meal-plans/81/confirmed-menu',
+            {method: 'PUT', body: request},
+        )
     })
 
     test('uses shopping preview, list, and transition contracts', async () => {

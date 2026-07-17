@@ -75,9 +75,7 @@ public class ShoppingListService {
     private static final String SOURCE_TYPE_SHOPPING_LIST = "SHOPPING_LIST";
     private static final Set<NutritionMealPlanStatus> PREVIEWABLE_MEAL_PLAN_STATUSES = EnumSet.of(
             NutritionMealPlanStatus.PUBLISHED,
-            NutritionMealPlanStatus.CONFIRMING,
-            NutritionMealPlanStatus.CONFIRM_CLOSED,
-            NutritionMealPlanStatus.PREPARING);
+            NutritionMealPlanStatus.CONFIRMING);
 
     private final NutritionShoppingListRepository shoppingListRepository;
     private final NutritionShoppingListItemRepository shoppingListItemRepository;
@@ -133,19 +131,37 @@ public class ShoppingListService {
         List<NutritionShoppingListPo> existingLists = shoppingListRepository
                 .findLockedByFamilyIdAndMealPlanIdAndDeletedFalseOrderByIdAsc(familyId, mealPlan.getId());
         Optional<NutritionShoppingListPo> matchingList = existingLists.stream()
+                .filter(list -> list.getStatus() != NutritionShoppingListStatus.CANCELLED)
                 .filter(list -> Objects.equals(list.getGeneratedSnapshot(), draft.generatedSnapshot()))
                 .findFirst();
         if (matchingList.isPresent()) {
             NutritionShoppingListPo existingList = matchingList.orElseThrow();
+            if (existingList.getStatus() == NutritionShoppingListStatus.DRAFT) {
+                existingList.setStatus(NutritionShoppingListStatus.ACTIVE);
+                shoppingListRepository.saveAndFlush(existingList);
+            }
             return toResponse(existingList, shoppingListItemRepository
                     .findByShoppingListIdAndDeletedFalseOrderByIdAsc(existingList.getId()));
+        }
+        if (existingLists.stream().anyMatch(this::shoppingStarted)) {
+            throw new NutritionException(
+                    "NUTRITION_CONFIRMED_MENU_SHOPPING_STARTED",
+                    "confirmed nutrition menu cannot change after shopping starts");
+        }
+        List<NutritionShoppingListPo> replacedLists = existingLists.stream()
+                .filter(list -> list.getStatus() == NutritionShoppingListStatus.DRAFT
+                        || list.getStatus() == NutritionShoppingListStatus.ACTIVE)
+                .peek(list -> list.setStatus(NutritionShoppingListStatus.CANCELLED))
+                .toList();
+        if (!replacedLists.isEmpty()) {
+            shoppingListRepository.saveAllAndFlush(replacedLists);
         }
 
         NutritionShoppingListPo shoppingList = new NutritionShoppingListPo();
         shoppingList.setFamilyId(familyId);
         shoppingList.setMealPlanId(mealPlan.getId());
         shoppingList.setListDate(mealPlan.getPlanDate());
-        shoppingList.setStatus(NutritionShoppingListStatus.DRAFT);
+        shoppingList.setStatus(NutritionShoppingListStatus.ACTIVE);
         shoppingList.setTitle(mealPlan.getTitle() + " shopping list");
         shoppingList.setGeneratedSnapshot(draft.generatedSnapshot());
         NutritionShoppingListPo savedList = shoppingListRepository.saveAndFlush(shoppingList);
@@ -216,6 +232,11 @@ public class ShoppingListService {
                         confirmationItem.getServingCount(), BigDecimal::add);
             }
         }
+        Map<Long, BigDecimal> finalServingsByItemId = mealItems.stream()
+                .collect(Collectors.toMap(
+                        NutritionMealPlanItemPo::getId,
+                        item -> finalServingCount(
+                                item, confirmedServingsByItemId.getOrDefault(item.getId(), BigDecimal.ZERO))));
 
         Map<IngredientKey, IngredientAccumulator> accumulators = new LinkedHashMap<>();
         for (NutritionMealPlanItemPo mealItem : mealItems) {
@@ -226,8 +247,7 @@ public class ShoppingListService {
             if (recipe == null) {
                 throw new NutritionException("NUTRITION_RECIPE_NOT_FOUND", "nutrition recipe not found");
             }
-            BigDecimal effectiveServings = confirmedServingsByItemId
-                    .getOrDefault(mealItem.getId(), BigDecimal.ZERO);
+            BigDecimal effectiveServings = finalServingsByItemId.getOrDefault(mealItem.getId(), BigDecimal.ZERO);
             if (effectiveServings.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
@@ -255,7 +275,7 @@ public class ShoppingListService {
         }
 
         return new ShoppingDraft(accumulators.values().stream().toList(),
-                generatedSnapshot(mealPlan, confirmations, confirmationItems));
+                generatedSnapshot(mealPlan, confirmations, confirmationItems, finalServingsByItemId));
     }
 
     @Transactional(readOnly = true)
@@ -463,6 +483,17 @@ public class ShoppingListService {
         }
     }
 
+    private boolean shoppingStarted(NutritionShoppingListPo shoppingList) {
+        return shoppingList.getStatus() == NutritionShoppingListStatus.PURCHASING
+                || shoppingList.getStatus() == NutritionShoppingListStatus.PURCHASED
+                || shoppingList.getStatus() == NutritionShoppingListStatus.CLOSED;
+    }
+
+    private BigDecimal finalServingCount(NutritionMealPlanItemPo item, BigDecimal confirmedServingCount) {
+        BigDecimal adjusted = readDecimal(item.getMetadataJson(), "finalServingCount");
+        return adjusted == null ? confirmedServingCount : adjusted;
+    }
+
     private NutritionShoppingListItemPo createShoppingListItem(Long familyId, Long shoppingListId,
                                                                IngredientAccumulator accumulator) {
         NutritionShoppingListItemPo item = new NutritionShoppingListItemPo();
@@ -584,10 +615,19 @@ public class ShoppingListService {
 
     private String generatedSnapshot(NutritionMealPlanPo mealPlan,
                                      List<NutritionMealConfirmationPo> confirmations,
-                                     List<NutritionMealConfirmationItemPo> confirmationItems) {
+                                     List<NutritionMealConfirmationItemPo> confirmationItems,
+                                     Map<Long, BigDecimal> finalServingsByItemId) {
         ObjectNode node = objectMapper.createObjectNode();
         node.put("mealPlanId", mealPlan.getId());
         node.put("mealPlanVersion", mealPlan.getVersion());
+        ArrayNode finalMenuNodes = node.putArray("finalMenu");
+        finalServingsByItemId.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> {
+                    ObjectNode itemNode = finalMenuNodes.addObject();
+                    itemNode.put("mealPlanItemId", entry.getKey());
+                    itemNode.put("servingCount", entry.getValue());
+                });
         ArrayNode confirmationNodes = node.putArray("confirmations");
         for (NutritionMealConfirmationPo confirmation : confirmations) {
             ObjectNode confirmationNode = confirmationNodes.addObject();

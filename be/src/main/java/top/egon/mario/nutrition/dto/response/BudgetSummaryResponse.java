@@ -49,6 +49,7 @@ public record BudgetSummaryResponse(
             String dishName,
             BigDecimal servingCount,
             BigDecimal confirmedServingCount,
+            BigDecimal finalServingCount,
             BigDecimal amount
     ) {
     }

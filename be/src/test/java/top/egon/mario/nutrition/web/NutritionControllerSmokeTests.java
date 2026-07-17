@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 import top.egon.mario.common.api.TraceContext;
+import top.egon.mario.nutrition.dto.request.AdjustConfirmedMenuRequest;
+import top.egon.mario.nutrition.dto.request.ConfirmedMenuItemAdjustmentRequest;
 import top.egon.mario.nutrition.dto.request.CreateDataGrantRequest;
 import top.egon.mario.nutrition.dto.request.CreateTodayMealPlanRequest;
 import top.egon.mario.nutrition.dto.request.GenerateAiRecommendationRequest;
@@ -153,6 +155,9 @@ class NutritionControllerSmokeTests {
         MealConfirmationRequest confirmation = new MealConfirmationRequest(301L, true,
                 List.of(new MealConfirmationItemRequest(
                         101L, true, new BigDecimal("1.500"), false, null)), null);
+        AdjustConfirmedMenuRequest confirmedMenu = new AdjustConfirmedMenuRequest(
+                4L, "final servings", List.of(
+                new ConfirmedMenuItemAdjustmentRequest(101L, new BigDecimal("2.000"))));
 
         StepVerifier.create(mealPlanController.createTodayMealPlan(
                 42L, create, principal(77L))).verifyComplete();
@@ -160,6 +165,8 @@ class NutritionControllerSmokeTests {
                 42L, 100L, update, principal(77L))).verifyComplete();
         StepVerifier.create(mealPlanController.publishMealPlan(
                 42L, 100L, principal(77L))).verifyComplete();
+        StepVerifier.create(mealPlanController.adjustConfirmedMenu(
+                42L, 100L, confirmedMenu, principal(77L))).verifyComplete();
         StepVerifier.create(confirmationController.confirmMeal(
                 42L, 100L, confirmation, principal(77L))).verifyComplete();
         StepVerifier.create(shoppingController.generateShoppingList(
@@ -168,6 +175,7 @@ class NutritionControllerSmokeTests {
         verify(mealPlanService).createTodayMealPlan(42L, create, 77L);
         verify(mealPlanService).updateMealPlan(42L, 100L, update, 77L);
         verify(mealPlanService).publishMealPlan(42L, 100L, 77L);
+        verify(mealPlanService).adjustConfirmedMenu(42L, 100L, confirmedMenu, 77L);
         verify(confirmationService).confirmMeal(42L, 100L, confirmation, 77L);
         verify(shoppingListService).generateFinalShoppingList(42L, 100L, 77L);
     }

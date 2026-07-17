@@ -33,7 +33,20 @@ const weekly = {
     totalAmount: '420', totalActualAmount: '300', totalEstimatedAmount: '120',
     mealPlanCount: 3, mealCount: 6, confirmedMemberCount: 4, perPersonCost: '75',
     budgetLimit: '700', usageRate: '60', shoppingCompletionRate: '40',
-    dailySummaries: [], dishSummaries: [], ingredientSummaries: [], channelSummaries: [],
+    dailySummaries: [{
+        date: '2026-07-14', totalAmount: '120', actualAmount: '80', estimatedAmount: '40',
+        mealPlanCount: 1, mealCount: 2, confirmedMemberCount: 4, perPersonCost: '20',
+    }],
+    dishSummaries: [{
+        mealPlanId: 81, itemId: 101, planDate: '2026-07-14', mealType: 'DINNER' as const,
+        dishName: '番茄意面', servingCount: '2', confirmedServingCount: '2.5',
+        finalServingCount: '3', amount: '45',
+    }],
+    ingredientSummaries: [{
+        standardFoodId: 41, rawFoodName: '番茄', unit: 'g',
+        plannedAmount: '500', purchasedAmount: '400', totalAmount: '18',
+    }],
+    channelSummaries: [{channel: '菜市场', totalAmount: '80', itemCount: 3}],
 }
 const monthly = {...weekly, periodType: 'MONTHLY', periodStart: '2026-07-01', periodEnd: '2026-07-31', budgetLimit: '2600', usageRate: '35', shoppingCompletionRate: '80'}
 const rule = {
@@ -71,6 +84,9 @@ describe('BudgetPage', () => {
         expect(screen.getAllByText('采购完成率').length).toBeGreaterThan(0)
         expect(screen.getByText('60%')).toBeTruthy()
         expect(screen.getByText('40%')).toBeTruthy()
+        expect(screen.getByText('本周确认后菜单成本')).toBeTruthy()
+        expect(screen.getByText('番茄意面')).toBeTruthy()
+        expect(screen.getByText('菜市场')).toBeTruthy()
     })
 
     test('creates, updates, and deactivates budget rules', async () => {
@@ -99,5 +115,13 @@ describe('BudgetPage', () => {
 
         await user.click(screen.getByRole('button', {name: '停用预算规则 801'}))
         expect(deactivateNutritionBudgetRule).toHaveBeenCalledWith(family.id, rule.id)
+    })
+
+    test('explains that cost analysis remains available before a budget rule is configured', async () => {
+        vi.mocked(listNutritionBudgetRules).mockResolvedValue([])
+        renderNutritionPage(<BudgetPage/>)
+
+        expect(await screen.findByText(/尚未设置预算规则/)).toBeTruthy()
+        expect(screen.getByText('本周每日成本')).toBeTruthy()
     })
 })

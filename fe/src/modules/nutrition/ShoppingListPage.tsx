@@ -1,6 +1,6 @@
-import {PlayCircleOutlined, SaveOutlined, ShoppingCartOutlined} from '@ant-design/icons'
-import {Alert, App, Button, Checkbox, Descriptions, Drawer, Form, Input, InputNumber, Space, Table, Tag} from 'antd'
-import {useCallback, useEffect, useState} from 'react'
+import {CheckCircleOutlined, PlayCircleOutlined, SaveOutlined, ShoppingCartOutlined} from '@ant-design/icons'
+import {Alert, App, Button, Checkbox, Descriptions, Drawer, Form, Input, InputNumber, Select, Space, Table, Tag} from 'antd'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import {PageToolbar} from '../../components/PageToolbar'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {CurrentFamilySelect} from './components/CurrentFamilySelect'
@@ -27,6 +27,7 @@ import type {
     NutritionMealPlanResponse,
     NutritionShoppingListItemResponse,
     NutritionShoppingListResponse,
+    NutritionShoppingListStatus,
 } from './nutritionTypes'
 import {NutritionSection, NutritionStack} from './NutritionPageLayout'
 import {useNutritionFamilySelection} from './useNutritionFamilySelection'
@@ -36,7 +37,9 @@ function ShoppingListPage() {
     const {message} = App.useApp()
     const familySelection = useNutritionFamilySelection()
     const [priceForm] = Form.useForm<NutritionCreateFoodPriceRecordRequest>()
+    const [mealPlans, setMealPlans] = useState<NutritionMealPlanResponse[]>([])
     const [mealPlan, setMealPlan] = useState<NutritionMealPlanResponse>()
+    const [shoppingLists, setShoppingLists] = useState<NutritionShoppingListResponse[]>([])
     const [shoppingList, setShoppingList] = useState<NutritionShoppingListResponse>()
     const [priceRecords, setPriceRecords] = useState<NutritionFoodPriceRecordResponse[]>([])
     const [preview, setPreview] = useState(false)
@@ -45,46 +48,71 @@ function ShoppingListPage() {
     const [error, setError] = useState<string>()
     const [mutationError, setMutationError] = useState<string>()
     const [saving, setSaving] = useState(false)
+    const selectedMealPlanId = useRef<number | undefined>(undefined)
     const canManage = canUseRbacButton(auth, 'btn:nutrition:shopping-list:manage')
         || auth.hasPermission(nutritionApiCodes.family)
+
+    const loadPlanView = useCallback(async (
+        plan: NutritionMealPlanResponse | undefined,
+        lists: NutritionShoppingListResponse[],
+    ) => {
+        if (!familySelection.currentFamilyId || !plan) {
+            setMealPlan(undefined)
+            setShoppingList(undefined)
+            setPreview(false)
+            setState('empty')
+            return
+        }
+        selectedMealPlanId.current = plan.id
+        setMealPlan(plan)
+        if (['PUBLISHED', 'CONFIRMING'].includes(plan.status)) {
+            setShoppingList(await previewNutritionShoppingList(familySelection.currentFamilyId, plan.id))
+            setPreview(true)
+            setState('ready')
+            return
+        }
+        const finalList = lists
+            .filter((list) => list.mealPlanId === plan.id && list.status !== 'CANCELLED')
+            .sort((left, right) => right.id - left.id)[0]
+        if (finalList) {
+            setShoppingList(finalList)
+            setPreview(false)
+            setState('ready')
+            return
+        }
+        setShoppingList(undefined)
+        setPreview(false)
+        setState('empty')
+    }, [familySelection.currentFamilyId])
 
     const loadData = useCallback(async () => {
         if (!familySelection.currentFamilyId) return
         setState('loading')
         try {
-            const plans = await listNutritionMealPlans(familySelection.currentFamilyId)
-            const currentPlan = selectNearestNutritionMealPlan(plans, [
+            const [plans, lists, prices] = await Promise.all([
+                listNutritionMealPlans(familySelection.currentFamilyId),
+                listNutritionShoppingLists(familySelection.currentFamilyId),
+                listNutritionPriceRecords(familySelection.currentFamilyId),
+            ])
+            const currentPlan = plans.find((plan) => plan.id === selectedMealPlanId.current)
+                ?? selectNearestNutritionMealPlan(plans, [
                 'PUBLISHED',
                 'CONFIRMING',
                 'CONFIRM_CLOSED',
                 'PREPARING',
                 'COMPLETED',
             ])
-            if (!currentPlan) {
-                setMealPlan(undefined)
-                setShoppingList(undefined)
-                setState('empty')
-                return
-            }
-            const isPreview = ['PUBLISHED', 'CONFIRMING'].includes(currentPlan.status)
-            const [lists, prices] = await Promise.all([
-                isPreview
-                    ? previewNutritionShoppingList(familySelection.currentFamilyId, currentPlan.id).then((value) => [value])
-                    : listNutritionShoppingLists(familySelection.currentFamilyId, currentPlan.id),
-                listNutritionPriceRecords(familySelection.currentFamilyId),
-            ])
-            setMealPlan(currentPlan)
-            setShoppingList(lists[0])
+            setMealPlans(plans)
+            setShoppingLists(lists)
             setPriceRecords(prices)
-            setPreview(isPreview)
-            setState(lists[0] ? 'ready' : 'empty')
+            await loadPlanView(currentPlan, lists)
             setError(undefined)
         } catch (reason) {
             const failure = nutritionLoadFailure(reason)
             setState(failure.state)
             setError(failure.error)
         }
-    }, [familySelection.currentFamilyId])
+    }, [familySelection.currentFamilyId, loadPlanView])
 
     useEffect(() => {
         void loadData()
@@ -100,6 +128,32 @@ function ShoppingListPage() {
             setPreview(false)
             await loadData()
         }, '正式采购清单已生成')
+    }
+
+    async function generateFormalList() {
+        if (!familySelection.currentFamilyId || !mealPlan) return
+        await mutate(async () => {
+            const generated = await generateNutritionShoppingList(
+                familySelection.currentFamilyId!, mealPlan.id,
+            )
+            setShoppingList(generated)
+            setPreview(false)
+            await loadData()
+        }, '正式采购清单已生成')
+    }
+
+    async function selectMealPlan(mealPlanId: number) {
+        const selected = mealPlans.find((plan) => plan.id === mealPlanId)
+        if (!selected) return
+        setState('loading')
+        try {
+            await loadPlanView(selected, shoppingLists)
+            setError(undefined)
+        } catch (reason) {
+            const failure = nutritionLoadFailure(reason)
+            setState(failure.state)
+            setError(failure.error)
+        }
     }
 
     async function toggleItem(item: NutritionShoppingListItemResponse, checked: boolean) {
@@ -154,14 +208,14 @@ function ShoppingListPage() {
         }, '价格记录已保存')
     }
 
-    async function startShopping() {
+    async function transitionShopping(targetStatus: NutritionShoppingListStatus, success: string) {
         if (!familySelection.currentFamilyId || !shoppingList) return
         await mutate(async () => {
             setShoppingList(await transitionNutritionShoppingList(
-                familySelection.currentFamilyId!, shoppingList.id, {targetStatus: 'PURCHASING'},
+                familySelection.currentFamilyId!, shoppingList.id, {targetStatus},
             ))
             await loadData()
-        }, '采购已开始')
+        }, success)
     }
 
     async function mutate(operation: () => Promise<void>, success: string) {
@@ -179,6 +233,7 @@ function ShoppingListPage() {
     }
 
     const visibleState = familySelection.state === 'ready' ? state : familySelection.state
+    const shoppingEditable = !preview && ['ACTIVE', 'PURCHASING'].includes(shoppingList?.status ?? '')
 
     return (
         <NutritionStack>
@@ -191,19 +246,46 @@ function ShoppingListPage() {
                             onChange={familySelection.setCurrentFamilyId}
                             value={familySelection.currentFamilyId}
                         />
-                        {preview ? (
+                        {mealPlans.length > 0 && (
+                            <Select
+                                aria-label="选择采购菜单"
+                                onChange={(value) => void selectMealPlan(value)}
+                                options={mealPlans.map((plan) => ({
+                                    label: `${plan.planDate} · ${plan.title} · ${plan.status}`,
+                                    value: plan.id,
+                                }))}
+                                style={{minWidth: 280}}
+                                value={mealPlan?.id}
+                            />
+                        )}
+                        {preview && (
                             <Button disabled={!canManage} icon={<ShoppingCartOutlined/>} loading={saving} onClick={() => void closeAndGenerate()} type="primary">关闭确认并生成正式清单</Button>
-                        ) : (
-                            <Button disabled={!canManage || shoppingList?.status !== 'ACTIVE'} icon={<PlayCircleOutlined/>} loading={saving} onClick={() => void startShopping()} type="primary">开始采购</Button>
+                        )}
+                        {!preview && !shoppingList && mealPlan?.status === 'CONFIRM_CLOSED' && (
+                            <Button disabled={!canManage} icon={<ShoppingCartOutlined/>} loading={saving} onClick={() => void generateFormalList()} type="primary">生成正式采购清单</Button>
+                        )}
+                        {!preview && shoppingList?.status === 'DRAFT' && (
+                            <Button disabled={!canManage} icon={<CheckCircleOutlined/>} loading={saving} onClick={() => void transitionShopping('ACTIVE', '正式采购清单已启用')} type="primary">启用正式采购清单</Button>
+                        )}
+                        {!preview && shoppingList?.status === 'ACTIVE' && (
+                            <Button disabled={!canManage} icon={<PlayCircleOutlined/>} loading={saving} onClick={() => void transitionShopping('PURCHASING', '采购已开始')} type="primary">开始采购</Button>
+                        )}
+                        {!preview && shoppingList?.status === 'PURCHASING' && (
+                            <Button disabled={!canManage} icon={<CheckCircleOutlined/>} loading={saving} onClick={() => void transitionShopping('PURCHASED', '采购已完成')} type="primary">完成采购</Button>
+                        )}
+                        {!preview && shoppingList?.status === 'PURCHASED' && (
+                            <Button disabled={!canManage} loading={saving} onClick={() => void transitionShopping('CLOSED', '采购清单已关闭')}>关闭采购清单</Button>
                         )}
                     </Space>
                 )}
-                description="确认关闭前查看预览，关闭后跟踪正式采购项、渠道和价格。"
+                description="确认中可查看采购预览；确认关闭后仍可回查正式清单，并持续记录采购项、渠道和价格。"
                 title="采购清单"
             />
             {mutationError && <Alert closable={{onClose: () => setMutationError(undefined)}} showIcon title={mutationError} type="error"/>}
             <NutritionAsyncState
-                emptyDescription="暂无采购清单"
+                emptyDescription={mealPlan?.status === 'CONFIRM_CLOSED'
+                    ? '确认已关闭，但尚未生成正式采购清单'
+                    : '暂无采购清单'}
                 error={familySelection.state === 'ready' ? error : familySelection.error}
                 onRetry={() => void (familySelection.state === 'ready' ? loadData() : familySelection.reload())}
                 state={visibleState}
@@ -229,10 +311,10 @@ function ShoppingListPage() {
                                         <Checkbox
                                             aria-label={`勾选${row.rawFoodName}`}
                                             checked={row.itemStatus === 'CHECKED'}
-                                            disabled={preview || !canManage}
+                                            disabled={!shoppingEditable || !canManage}
                                             onChange={(event) => void toggleItem(row, event.target.checked)}
                                         />
-                                        <Button aria-label={`记录${row.rawFoodName}价格`} disabled={preview || !canManage} onClick={() => openPrice(row)} size="small">记录价格</Button>
+                                        <Button aria-label={`记录${row.rawFoodName}价格`} disabled={!shoppingEditable || !canManage} onClick={() => openPrice(row)} size="small">记录价格</Button>
                                     </Space>
                                 )},
                             ]}

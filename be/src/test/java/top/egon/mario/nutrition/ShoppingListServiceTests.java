@@ -205,14 +205,71 @@ class ShoppingListServiceTests {
                 family.getId(), mealPlan.getId(), COOK_USER_ID);
 
         assertThat(second.id()).isEqualTo(first.id());
-        assertThat(second.status()).isEqualTo(NutritionShoppingListStatus.DRAFT);
-        assertThat(second.generatedSnapshot()).contains("mealPlanVersion", "confirmations");
+        assertThat(second.status()).isEqualTo(NutritionShoppingListStatus.ACTIVE);
+        assertThat(second.generatedSnapshot()).contains("mealPlanVersion", "finalMenu", "confirmations");
         assertThat(second.items()).hasSize(1);
         assertThat(shoppingListRepository.findAll()).hasSize(1);
         assertThat(shoppingListItemRepository.findAll()).hasSize(1);
         assertThat(shoppingListService.listShoppingLists(
                 family.getId(), mealPlan.getId(), COOK_USER_ID)).singleElement()
                 .extracting(ShoppingListResponse::id).isEqualTo(first.id());
+    }
+
+    @Test
+    void confirmedMenuAdjustmentReplacesActiveListBeforeShoppingStarts() {
+        NutritionFamilyPo family = family("Mario Family", COOK_USER_ID);
+        roleBinding(COOK_USER_ID, NutritionRoleCode.COOK, NutritionScopeType.FAMILY, family.getId());
+        NutritionStandardFoodPo tomato = standardFood("Tomato", "VEGETABLE");
+        NutritionRecipePo soup = recipe(family.getId(), "Tomato Soup", 1);
+        recipeIngredient(family.getId(), soup.getId(), tomato.getId(), "Tomato",
+                new BigDecimal("100.000"), "g");
+        NutritionMealPlanPo mealPlan = mealPlan(family.getId(), NutritionMealPlanStatus.CONFIRM_CLOSED);
+        NutritionMealPlanItemPo item = mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.LUNCH,
+                soup.getId(), "Tomato Soup", BigDecimal.ONE, 0);
+        NutritionMealConfirmationPo confirmation = confirmation(family.getId(), mealPlan.getId(), 101L, "[]");
+        confirmationItem(family.getId(), confirmation.getId(), item, true, "1.000");
+        ShoppingListResponse first = shoppingListService.generateFinalShoppingList(
+                family.getId(), mealPlan.getId(), COOK_USER_ID);
+        item.setMetadataJson("{\"finalServingCount\":2}");
+        mealPlanItemRepository.saveAndFlush(item);
+
+        ShoppingListResponse replacement = shoppingListService.generateFinalShoppingList(
+                family.getId(), mealPlan.getId(), COOK_USER_ID);
+
+        assertThat(replacement.id()).isNotEqualTo(first.id());
+        assertThat(replacement.status()).isEqualTo(NutritionShoppingListStatus.ACTIVE);
+        assertThat(replacement.items()).singleElement()
+                .satisfies(shoppingItem -> assertThat(shoppingItem.plannedAmount())
+                        .isEqualByComparingTo("200.000"));
+        assertThat(shoppingListRepository.findById(first.id()).orElseThrow().getStatus())
+                .isEqualTo(NutritionShoppingListStatus.CANCELLED);
+    }
+
+    @Test
+    void confirmedMenuCannotRegenerateAfterShoppingStarts() {
+        NutritionFamilyPo family = family("Mario Family", COOK_USER_ID);
+        roleBinding(COOK_USER_ID, NutritionRoleCode.COOK, NutritionScopeType.FAMILY, family.getId());
+        NutritionStandardFoodPo tomato = standardFood("Tomato", "VEGETABLE");
+        NutritionRecipePo soup = recipe(family.getId(), "Tomato Soup", 1);
+        recipeIngredient(family.getId(), soup.getId(), tomato.getId(), "Tomato",
+                new BigDecimal("100.000"), "g");
+        NutritionMealPlanPo mealPlan = mealPlan(family.getId(), NutritionMealPlanStatus.CONFIRM_CLOSED);
+        NutritionMealPlanItemPo item = mealPlanItem(family.getId(), mealPlan.getId(), NutritionMealType.LUNCH,
+                soup.getId(), "Tomato Soup", BigDecimal.ONE, 0);
+        NutritionMealConfirmationPo confirmation = confirmation(family.getId(), mealPlan.getId(), 101L, "[]");
+        confirmationItem(family.getId(), confirmation.getId(), item, true, "1.000");
+        ShoppingListResponse list = shoppingListService.generateFinalShoppingList(
+                family.getId(), mealPlan.getId(), COOK_USER_ID);
+        shoppingListService.transitionShoppingList(family.getId(), list.id(),
+                new TransitionShoppingListRequest(NutritionShoppingListStatus.PURCHASING), COOK_USER_ID);
+        item.setMetadataJson("{\"finalServingCount\":2}");
+        mealPlanItemRepository.saveAndFlush(item);
+
+        assertThatThrownBy(() -> shoppingListService.generateFinalShoppingList(
+                family.getId(), mealPlan.getId(), COOK_USER_ID))
+                .isInstanceOf(NutritionException.class)
+                .extracting("code")
+                .isEqualTo("NUTRITION_CONFIRMED_MENU_SHOPPING_STARTED");
     }
 
     @Test

@@ -140,4 +140,40 @@ describe('ShoppingListPage', () => {
             {targetStatus: 'PURCHASING'},
         )
     })
+
+    test('lets a cook generate a missing formal list for an already closed confirmation', async () => {
+        const user = userEvent.setup()
+        vi.mocked(listNutritionMealPlans).mockResolvedValue([{
+            ...confirmingPlan,
+            status: 'CONFIRM_CLOSED',
+        }])
+        vi.mocked(listNutritionShoppingLists).mockResolvedValue([])
+        renderNutritionPage(<ShoppingListPage/>)
+
+        await screen.findByText('确认已关闭，但尚未生成正式采购清单')
+        await user.click(screen.getByRole('button', {name: /生成正式采购清单/}))
+
+        expect(generateNutritionShoppingList).toHaveBeenCalledWith(family.id, confirmingPlan.id)
+    })
+
+    test('lets a cook activate a legacy draft formal list', async () => {
+        const user = userEvent.setup()
+        vi.mocked(listNutritionMealPlans).mockResolvedValue([{
+            ...confirmingPlan,
+            status: 'CONFIRM_CLOSED',
+        }])
+        vi.mocked(listNutritionShoppingLists).mockResolvedValue([{
+            ...shoppingList,
+            status: 'DRAFT',
+        }])
+        renderNutritionPage(<ShoppingListPage/>)
+
+        await user.click(await screen.findByRole('button', {name: /启用正式采购清单/}))
+
+        expect(transitionNutritionShoppingList).toHaveBeenCalledWith(
+            family.id,
+            shoppingList.id,
+            {targetStatus: 'ACTIVE'},
+        )
+    })
 })

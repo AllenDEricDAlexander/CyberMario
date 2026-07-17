@@ -432,6 +432,17 @@ export type NutritionMealPlanSummaryResponse = {
         servingCount: NutritionAmount
         selectedMemberCount: number
         confirmedServingTotal: NutritionAmount
+        finalServingCount: NutritionAmount
+        adjusted: boolean
+    }>
+}
+
+export type NutritionAdjustConfirmedMenuRequest = {
+    expectedVersion: number
+    note?: string
+    items: Array<{
+        mealPlanItemId: number
+        finalServingCount: NutritionAmount
     }>
 }
 
@@ -652,6 +663,7 @@ export type NutritionBudgetDishSummaryResponse = {
     dishName: string
     servingCount: NutritionAmount
     confirmedServingCount: NutritionAmount
+    finalServingCount: NutritionAmount
     amount: NutritionAmount
 }
 

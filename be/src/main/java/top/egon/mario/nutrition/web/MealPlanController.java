@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.nutrition.dto.request.AcknowledgeMealRiskRequest;
+import top.egon.mario.nutrition.dto.request.AdjustConfirmedMenuRequest;
 import top.egon.mario.nutrition.dto.request.CreateTodayMealPlanRequest;
 import top.egon.mario.nutrition.dto.request.UpdateMealPlanRequest;
 import top.egon.mario.nutrition.dto.response.MealPlanResponse;
@@ -104,6 +105,16 @@ public class MealPlanController extends ReactiveNutritionSupport {
             @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> mealPlanService.closeConfirmation(
                 familyId, mealPlanId, closeEarly, actorId(principal)));
+    }
+
+    @PutMapping("/{mealPlanId}/confirmed-menu")
+    public Mono<ApiResponse<MealPlanSummaryResponse>> adjustConfirmedMenu(
+            @PathVariable @Min(1) Long familyId,
+            @PathVariable @Min(1) Long mealPlanId,
+            @Valid @RequestBody AdjustConfirmedMenuRequest request,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> mealPlanService.adjustConfirmedMenu(
+                familyId, mealPlanId, request, actorId(principal)));
     }
 
     @PostMapping("/{mealPlanId}/start-preparing")

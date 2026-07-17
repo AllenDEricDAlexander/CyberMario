@@ -6,12 +6,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import top.egon.mario.nutrition.dto.request.AcknowledgeMealRiskRequest;
+import top.egon.mario.nutrition.dto.request.AdjustConfirmedMenuRequest;
+import top.egon.mario.nutrition.dto.request.ConfirmedMenuItemAdjustmentRequest;
 import top.egon.mario.nutrition.dto.request.CreateRecipeRequest;
 import top.egon.mario.nutrition.dto.request.CreateTodayMealPlanRequest;
 import top.egon.mario.nutrition.dto.request.MealPlanItemRequest;
 import top.egon.mario.nutrition.dto.request.RecipeIngredientRequest;
 import top.egon.mario.nutrition.dto.request.UpdateMealPlanRequest;
 import top.egon.mario.nutrition.dto.response.MealPlanResponse;
+import top.egon.mario.nutrition.dto.response.MealPlanSummaryResponse;
 import top.egon.mario.nutrition.dto.response.NutritionAiRecommendationJobResponse;
 import top.egon.mario.nutrition.po.NutritionAiRecommendationJobPo;
 import top.egon.mario.nutrition.po.NutritionAiRecommendationPo;
@@ -29,6 +32,7 @@ import top.egon.mario.nutrition.po.enums.NutritionMealType;
 import top.egon.mario.nutrition.po.enums.NutritionMemberType;
 import top.egon.mario.nutrition.po.enums.NutritionRoleCode;
 import top.egon.mario.nutrition.po.enums.NutritionScopeType;
+import top.egon.mario.nutrition.po.enums.NutritionShoppingListStatus;
 import top.egon.mario.nutrition.po.enums.NutritionStatus;
 import top.egon.mario.nutrition.po.enums.NutritionSubjectType;
 import top.egon.mario.nutrition.repository.NutritionClanFamilyRepository;
@@ -46,6 +50,8 @@ import top.egon.mario.nutrition.repository.NutritionMealOperationLogRepository;
 import top.egon.mario.nutrition.repository.NutritionMemberProfileRepository;
 import top.egon.mario.nutrition.repository.NutritionRiskCheckResultRepository;
 import top.egon.mario.nutrition.repository.NutritionScopedRoleBindingRepository;
+import top.egon.mario.nutrition.repository.NutritionShoppingListItemRepository;
+import top.egon.mario.nutrition.repository.NutritionShoppingListRepository;
 import top.egon.mario.nutrition.repository.NutritionRecipeIngredientRepository;
 import top.egon.mario.nutrition.repository.NutritionRecipeRepository;
 import top.egon.mario.nutrition.repository.NutritionRecipeStepRepository;
@@ -110,6 +116,10 @@ class MealPlanServiceTests {
     @Autowired
     private NutritionMealConfirmationItemRepository confirmationItemRepository;
     @Autowired
+    private NutritionShoppingListRepository shoppingListRepository;
+    @Autowired
+    private NutritionShoppingListItemRepository shoppingListItemRepository;
+    @Autowired
     private NutritionRecipeStepRepository recipeStepRepository;
     @Autowired
     private NutritionRecipeIngredientRepository recipeIngredientRepository;
@@ -126,6 +136,8 @@ class MealPlanServiceTests {
     void setUp() {
         when(rbacEffectivePermissionService.getUserEffectivePermissions(anyLong()))
                 .thenReturn(effectivePermissions());
+        shoppingListItemRepository.deleteAll();
+        shoppingListRepository.deleteAll();
         confirmationItemRepository.deleteAll();
         confirmationRepository.deleteAll();
         operationLogRepository.deleteAll();
@@ -256,6 +268,40 @@ class MealPlanServiceTests {
             assertThat(saved.getStatus()).isEqualTo(NutritionMealPlanStatus.CONFIRM_CLOSED);
             assertThat(saved.getConfirmedMemberCount()).isZero();
         });
+        assertThat(shoppingListRepository.findAll()).singleElement()
+                .satisfies(list -> {
+                    assertThat(list.getMealPlanId()).isEqualTo(mealPlan.getId());
+                    assertThat(list.getStatus()).isEqualTo(NutritionShoppingListStatus.ACTIVE);
+                });
+    }
+
+    @Test
+    void cookCanAdjustConfirmedMenuAndRegenerateShoppingList() {
+        NutritionFamilyPo family = family("Mario Family", COOK_USER_ID);
+        roleBinding(COOK_USER_ID, NutritionRoleCode.COOK, NutritionScopeType.FAMILY, family.getId());
+        Long recipeId = recipe(family.getId(), "Tomato Soup", "Tomato", "18");
+        NutritionMealPlanPo plan = mealPlan(family.getId(), NutritionMealPlanStatus.CONFIRM_CLOSED);
+        NutritionMealPlanItemPo item = mealPlanItem(
+                plan.getId(), family.getId(), recipeId, "Tomato Soup", 0);
+
+        MealPlanSummaryResponse response = mealPlanService.adjustConfirmedMenu(
+                family.getId(), plan.getId(),
+                new AdjustConfirmedMenuRequest(plan.getVersion(), "Add one serving", List.of(
+                        new ConfirmedMenuItemAdjustmentRequest(item.getId(), new BigDecimal("3")))),
+                COOK_USER_ID);
+
+        assertThat(response.dishes()).singleElement().satisfies(dish -> {
+            assertThat(dish.confirmedServingTotal()).isZero();
+            assertThat(dish.finalServingCount()).isEqualByComparingTo("3");
+            assertThat(dish.adjusted()).isTrue();
+        });
+        assertThat(shoppingListRepository.findAll()).singleElement()
+                .satisfies(list -> assertThat(list.getStatus()).isEqualTo(NutritionShoppingListStatus.ACTIVE));
+        assertThat(shoppingListItemRepository.findAll()).singleElement()
+                .satisfies(shoppingItem -> assertThat(shoppingItem.getPlannedAmount())
+                        .isEqualByComparingTo("300.000"));
+        assertThat(operationLogRepository.findAll()).singleElement()
+                .satisfies(log -> assertThat(log.getOperationType()).isEqualTo("ADJUST_CONFIRMED_MENU"));
     }
 
     @Test

@@ -16,8 +16,13 @@ import {
     updateNutritionBudgetRule,
 } from './nutritionService'
 import type {
+    NutritionBudgetChannelSummaryResponse,
+    NutritionBudgetDailySummaryResponse,
+    NutritionBudgetDishSummaryResponse,
+    NutritionBudgetIngredientSummaryResponse,
     NutritionBudgetRuleResponse,
     NutritionBudgetSummaryResponse,
+    NutritionAmount,
     NutritionLoadState,
     NutritionUpsertBudgetRuleRequest,
 } from './nutritionTypes'
@@ -148,10 +153,82 @@ function BudgetPage() {
                 state={visibleState}
             >
                 <NutritionStack>
+                    {rules.length === 0 && (
+                        <Alert
+                            showIcon
+                            title="尚未设置预算规则；当前仍会展示菜单、采购清单和价格形成的成本分析"
+                            type="info"
+                        />
+                    )}
                     <NutritionPageGrid>
                         {weekly && <BudgetSummary title="周预算概览" value={weekly}/>}
                         {monthly && <BudgetSummary title="月预算概览" value={monthly}/>}
                     </NutritionPageGrid>
+                    {weekly && (
+                        <>
+                            <NutritionSection title="本周每日成本">
+                                <Table<NutritionBudgetDailySummaryResponse>
+                                    columns={[
+                                        {title: '日期', dataIndex: 'date'},
+                                        {title: '总成本', dataIndex: 'totalAmount', render: (value: NutritionAmount) => <MoneyText value={value}/>},
+                                        {title: '实际支出', dataIndex: 'actualAmount', render: (value: NutritionAmount) => <MoneyText value={value}/>},
+                                        {title: '预估成本', dataIndex: 'estimatedAmount', render: (value: NutritionAmount) => <MoneyText value={value}/>},
+                                        {title: '确认人数', dataIndex: 'confirmedMemberCount'},
+                                        {title: '人均成本', dataIndex: 'perPersonCost', render: (value: NutritionAmount) => <MoneyText value={value}/>},
+                                    ]}
+                                    dataSource={weekly.dailySummaries}
+                                    pagination={false}
+                                    rowKey="date"
+                                    size="small"
+                                />
+                            </NutritionSection>
+                            <NutritionSection title="本周确认后菜单成本">
+                                <Table<NutritionBudgetDishSummaryResponse>
+                                    columns={[
+                                        {title: '日期', dataIndex: 'planDate'},
+                                        {title: '菜品', dataIndex: 'dishName'},
+                                        {title: '餐次', dataIndex: 'mealType'},
+                                        {title: '确认份数', dataIndex: 'confirmedServingCount'},
+                                        {title: '最终份数', dataIndex: 'finalServingCount'},
+                                        {title: '成本', dataIndex: 'amount', render: (value: NutritionAmount) => <MoneyText value={value}/>},
+                                    ]}
+                                    dataSource={weekly.dishSummaries}
+                                    pagination={false}
+                                    rowKey="itemId"
+                                    size="small"
+                                />
+                            </NutritionSection>
+                            <NutritionPageGrid>
+                                <NutritionSection title="本周食材成本">
+                                    <Table<NutritionBudgetIngredientSummaryResponse>
+                                        columns={[
+                                            {title: '食材', dataIndex: 'rawFoodName'},
+                                            {title: '计划数量', render: (_, row) => `${row.plannedAmount}${row.unit ?? ''}`},
+                                            {title: '已购数量', render: (_, row) => `${row.purchasedAmount}${row.unit ?? ''}`},
+                                            {title: '成本', dataIndex: 'totalAmount', render: (value: NutritionAmount) => <MoneyText value={value}/>},
+                                        ]}
+                                        dataSource={weekly.ingredientSummaries}
+                                        pagination={false}
+                                        rowKey={(row) => `${row.standardFoodId ?? 'raw'}-${row.rawFoodName}`}
+                                        size="small"
+                                    />
+                                </NutritionSection>
+                                <NutritionSection title="本周渠道成本">
+                                    <Table<NutritionBudgetChannelSummaryResponse>
+                                        columns={[
+                                            {title: '渠道', dataIndex: 'channel', render: (value: string | null | undefined) => value || '未记录渠道'},
+                                            {title: '采购项数', dataIndex: 'itemCount'},
+                                            {title: '成本', dataIndex: 'totalAmount', render: (value: NutritionAmount) => <MoneyText value={value}/>},
+                                        ]}
+                                        dataSource={weekly.channelSummaries}
+                                        pagination={false}
+                                        rowKey={(row) => row.channel ?? 'unassigned'}
+                                        size="small"
+                                    />
+                                </NutritionSection>
+                            </NutritionPageGrid>
+                        </>
+                    )}
                     <NutritionSection title="预算规则">
                         <Table<NutritionBudgetRuleResponse>
                             columns={[
@@ -197,6 +274,10 @@ function BudgetSummary({title, value}: {title: string; value: NutritionBudgetSum
         <NutritionSection title={title}>
             <Descriptions bordered column={1} size="small">
                 <Descriptions.Item label="预算上限"><MoneyText value={value.budgetLimit}/></Descriptions.Item>
+                <Descriptions.Item label="菜单数量">{value.mealPlanCount}</Descriptions.Item>
+                <Descriptions.Item label="菜品数量">{value.mealCount}</Descriptions.Item>
+                <Descriptions.Item label="确认人数">{value.confirmedMemberCount}</Descriptions.Item>
+                <Descriptions.Item label="预估成本"><MoneyText value={value.totalEstimatedAmount}/></Descriptions.Item>
                 <Descriptions.Item label="实际支出"><MoneyText value={value.totalActualAmount}/></Descriptions.Item>
                 <Descriptions.Item label="预算使用率">{value.usageRate}%</Descriptions.Item>
                 <Descriptions.Item label="采购完成率">{value.shoppingCompletionRate}%</Descriptions.Item>

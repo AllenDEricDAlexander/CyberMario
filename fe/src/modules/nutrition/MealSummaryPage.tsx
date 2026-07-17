@@ -1,6 +1,6 @@
-import {StopOutlined} from '@ant-design/icons'
-import {Alert, App, Button, Descriptions, Space, Table, Tag} from 'antd'
-import {useCallback, useEffect, useState} from 'react'
+import {SaveOutlined, StopOutlined} from '@ant-design/icons'
+import {Alert, App, Button, Descriptions, Input, InputNumber, Select, Space, Table, Tag} from 'antd'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import {PageToolbar} from '../../components/PageToolbar'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {CurrentFamilySelect} from './components/CurrentFamilySelect'
@@ -9,11 +9,17 @@ import {NutritionAsyncState, nutritionLoadFailure} from './components/NutritionA
 import {selectNearestNutritionMealPlan} from './mealPlanSelection'
 import {nutritionApiCodes} from './nutritionPermissionCodes'
 import {
+    adjustNutritionConfirmedMenu,
     closeNutritionMealPlanConfirmation,
     getNutritionMealPlanSummary,
     listNutritionMealPlans,
 } from './nutritionService'
-import type {NutritionLoadState, NutritionMealPlanResponse, NutritionMealPlanSummaryResponse} from './nutritionTypes'
+import type {
+    NutritionAmount,
+    NutritionLoadState,
+    NutritionMealPlanResponse,
+    NutritionMealPlanSummaryResponse,
+} from './nutritionTypes'
 import {NutritionPageGrid, NutritionSection, NutritionStack} from './NutritionPageLayout'
 import {useNutritionFamilySelection} from './useNutritionFamilySelection'
 
@@ -21,12 +27,16 @@ function MealSummaryPage() {
     const auth = useAuth()
     const {message} = App.useApp()
     const familySelection = useNutritionFamilySelection()
+    const [mealPlans, setMealPlans] = useState<NutritionMealPlanResponse[]>([])
     const [mealPlan, setMealPlan] = useState<NutritionMealPlanResponse>()
     const [summary, setSummary] = useState<NutritionMealPlanSummaryResponse>()
+    const [finalServings, setFinalServings] = useState<Record<number, NutritionAmount>>({})
+    const [adjustmentNote, setAdjustmentNote] = useState('')
     const [state, setState] = useState<NutritionLoadState>('idle')
     const [error, setError] = useState<string>()
     const [mutationError, setMutationError] = useState<string>()
     const [saving, setSaving] = useState(false)
+    const selectedMealPlanId = useRef<number | undefined>(undefined)
     const canClose = canUseRbacButton(auth, 'btn:nutrition:meal-confirmation:close')
         || auth.hasPermission(nutritionApiCodes.family)
 
@@ -35,7 +45,8 @@ function MealSummaryPage() {
         setState('loading')
         try {
             const plans = await listNutritionMealPlans(familySelection.currentFamilyId)
-            const currentPlan = selectNearestNutritionMealPlan(plans, [
+            const currentPlan = plans.find((plan) => plan.id === selectedMealPlanId.current)
+                ?? selectNearestNutritionMealPlan(plans, [
                 'PUBLISHED',
                 'CONFIRMING',
                 'CONFIRM_CLOSED',
@@ -45,8 +56,13 @@ function MealSummaryPage() {
             const currentSummary = currentPlan
                 ? await getNutritionMealPlanSummary(familySelection.currentFamilyId, currentPlan.id)
                 : undefined
+            selectedMealPlanId.current = currentPlan?.id
+            setMealPlans(plans)
             setMealPlan(currentPlan)
             setSummary(currentSummary)
+            setFinalServings(Object.fromEntries(
+                (currentSummary?.dishes ?? []).map((dish) => [dish.itemId, dish.finalServingCount]),
+            ))
             setState(currentPlan && currentSummary ? 'ready' : 'empty')
             setError(undefined)
         } catch (reason) {
@@ -76,7 +92,36 @@ function MealSummaryPage() {
         }
     }
 
+    async function selectMealPlan(mealPlanId: number) {
+        selectedMealPlanId.current = mealPlanId
+        await loadData()
+    }
+
+    async function saveConfirmedMenu() {
+        if (!familySelection.currentFamilyId || !mealPlan || !summary) return
+        setSaving(true)
+        setMutationError(undefined)
+        try {
+            await adjustNutritionConfirmedMenu(familySelection.currentFamilyId, mealPlan.id, {
+                expectedVersion: mealPlan.version,
+                note: adjustmentNote.trim() || undefined,
+                items: summary.dishes.map((dish) => ({
+                    mealPlanItemId: dish.itemId,
+                    finalServingCount: finalServings[dish.itemId] ?? dish.finalServingCount,
+                })),
+            })
+            await loadData()
+            void message.success('确认后菜单已调整，采购清单已同步更新')
+        } catch (reason) {
+            setMutationError(nutritionLoadFailure(reason).error)
+            void message.error(nutritionLoadFailure(reason).error)
+        } finally {
+            setSaving(false)
+        }
+    }
+
     const visibleState = familySelection.state === 'ready' ? state : familySelection.state
+    const confirmedMenuEditable = canClose && mealPlan?.status === 'CONFIRM_CLOSED'
 
     return (
         <NutritionStack>
@@ -89,6 +134,18 @@ function MealSummaryPage() {
                             onChange={familySelection.setCurrentFamilyId}
                             value={familySelection.currentFamilyId}
                         />
+                        {mealPlans.length > 0 && (
+                            <Select
+                                aria-label="选择餐食汇总菜单"
+                                onChange={(value) => void selectMealPlan(value)}
+                                options={mealPlans.map((plan) => ({
+                                    label: `${plan.planDate} · ${plan.title} · ${plan.status}`,
+                                    value: plan.id,
+                                }))}
+                                style={{minWidth: 280}}
+                                value={mealPlan?.id}
+                            />
+                        )}
                         <Button
                             disabled={!canClose || mealPlan?.status !== 'CONFIRMING'}
                             icon={<StopOutlined/>}
@@ -132,7 +189,25 @@ function MealSummaryPage() {
                                 : '-'}
                         </NutritionSection>
                     </NutritionPageGrid>
-                    <NutritionSection title="菜品份数汇总">
+                    <NutritionSection
+                        extra={confirmedMenuEditable && (
+                            <Space wrap>
+                                <Input
+                                    aria-label="确认后菜单调整说明"
+                                    onChange={(event) => setAdjustmentNote(event.target.value)}
+                                    placeholder="调整说明（可选）"
+                                    value={adjustmentNote}
+                                />
+                                <Button
+                                    icon={<SaveOutlined/>}
+                                    loading={saving}
+                                    onClick={() => void saveConfirmedMenu()}
+                                    type="primary"
+                                >保存确认后菜单调整</Button>
+                            </Space>
+                        )}
+                        title={mealPlan?.status === 'CONFIRM_CLOSED' ? '确认后菜单' : '菜品份数汇总'}
+                    >
                         <Table
                             columns={[
                                 {title: '菜品', dataIndex: 'dishName'},
@@ -140,6 +215,18 @@ function MealSummaryPage() {
                                 {title: '原菜单份数', dataIndex: 'servingCount'},
                                 {title: '选择人数', dataIndex: 'selectedMemberCount'},
                                 {title: '确认份数', dataIndex: 'confirmedServingTotal'},
+                                {title: '最终采购份数', render: (_, dish) => confirmedMenuEditable ? (
+                                    <InputNumber
+                                        aria-label={`最终采购份数 ${dish.dishName}`}
+                                        min={0}
+                                        onChange={(value) => setFinalServings((current) => ({
+                                            ...current,
+                                            [dish.itemId]: value ?? 0,
+                                        }))}
+                                        step={0.5}
+                                        value={finalServings[dish.itemId]}
+                                    />
+                                ) : dish.finalServingCount},
                             ]}
                             dataSource={summary?.dishes ?? []}
                             pagination={false}

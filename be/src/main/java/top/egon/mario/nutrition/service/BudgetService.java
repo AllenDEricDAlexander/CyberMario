@@ -190,12 +190,16 @@ public class BudgetService {
                             .add(cost, 1, mealItems.size(), mealPlan.getConfirmedMemberCount());
                     List<NutritionShoppingListItemPo> planShoppingItems = latestShoppingItems(
                             planLists, shoppingItemsByListId);
-                    return mealItems.stream().map(item -> new BudgetSummaryResponse.DishSummary(
-                            mealPlan.getId(), item.getId(), mealPlan.getPlanDate(), item.getMealType(),
-                            item.getDishName(), item.getServingCount(),
-                            amount(servingsByMealItemId.getOrDefault(item.getId(), BigDecimal.ZERO)),
-                            dishCost(familyId, item, servingsByMealItemId.getOrDefault(item.getId(), BigDecimal.ZERO),
-                                    recipesById, ingredientsByRecipeId, planShoppingItems)));
+                    return mealItems.stream().map(item -> {
+                        BigDecimal confirmedServings = servingsByMealItemId
+                                .getOrDefault(item.getId(), BigDecimal.ZERO);
+                        BigDecimal finalServings = finalServingCount(item, confirmedServings);
+                        return new BudgetSummaryResponse.DishSummary(
+                                mealPlan.getId(), item.getId(), mealPlan.getPlanDate(), item.getMealType(),
+                                item.getDishName(), item.getServingCount(), amount(confirmedServings),
+                                amount(finalServings), dishCost(familyId, item, finalServings,
+                                recipesById, ingredientsByRecipeId, planShoppingItems));
+                    });
                 })
                 .toList();
 
@@ -305,6 +309,11 @@ public class BudgetService {
         confirmationItems.stream().filter(NutritionMealConfirmationItemPo::isSelected)
                 .forEach(item -> servings.merge(item.getMealPlanItemId(), item.getServingCount(), BigDecimal::add));
         return servings;
+    }
+
+    private BigDecimal finalServingCount(NutritionMealPlanItemPo item, BigDecimal confirmedServingCount) {
+        BigDecimal adjusted = readDecimal(item.getMetadataJson(), "finalServingCount");
+        return adjusted == null ? confirmedServingCount : adjusted;
     }
 
     private Map<Long, NutritionRecipePo> recipes(Map<Long, List<NutritionMealPlanItemPo>> mealItemsByPlanId) {

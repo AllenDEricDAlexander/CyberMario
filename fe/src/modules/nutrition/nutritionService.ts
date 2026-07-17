@@ -1,6 +1,7 @@
 import {requestJson} from '../../services/request'
 import {buildSearchParams} from '../../services/urlSearch'
 import type {
+    NutritionAdjustConfirmedMenuRequest,
     NutritionAiRecommendationJobResponse,
     NutritionAiRecommendationResponse,
     NutritionAcknowledgeMealRisksRequest,
@@ -473,6 +474,17 @@ export function completeNutritionMealPlan(familyId: number, mealPlanId: number) 
 
 export function getNutritionMealPlanSummary(familyId: number, mealPlanId: number) {
     return requestJson<NutritionMealPlanSummaryResponse>(mealPlanPath(familyId, `/${mealPlanId}/summary`))
+}
+
+export function adjustNutritionConfirmedMenu(
+    familyId: number,
+    mealPlanId: number,
+    request: NutritionAdjustConfirmedMenuRequest,
+) {
+    return requestJson<NutritionMealPlanSummaryResponse>(
+        mealPlanPath(familyId, `/${mealPlanId}/confirmed-menu`),
+        {method: 'PUT', body: request},
+    )
 }
 
 export function createNutritionMealConfirmation(

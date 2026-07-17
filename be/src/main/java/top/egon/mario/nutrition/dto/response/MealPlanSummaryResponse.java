@@ -28,7 +28,9 @@ public record MealPlanSummaryResponse(
             NutritionMealType mealType,
             BigDecimal servingCount,
             int selectedMemberCount,
-            BigDecimal confirmedServingTotal
+            BigDecimal confirmedServingTotal,
+            BigDecimal finalServingCount,
+            boolean adjusted
     ) {
     }
 }
