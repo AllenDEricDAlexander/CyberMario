@@ -328,17 +328,21 @@
 ## 14. 平台 Web 即时通讯（IM）
 
 - 已在现有 Web 管理端提供 `/im` 工作区，不再依赖原桌面客户端，也没有拆分新的 IM 项目或服务。
-- 工作区包含消息、联系人、群组和公共频道入口，并复用现有登录态、`AdminLayout`、菜单树与 RBAC。
+- 工作区包含消息、联系人、频道、独立群组和邀请入口，并复用现有登录态、`AdminLayout`、菜单树与 RBAC。
 - 支持安全用户搜索、好友申请、接受、拒绝、取消、双向删除和调用方私有好友备注。
 - 平台私聊只允许 ACTIVE 好友；REST 私聊打开/发送和 WebSocket 发送使用同一好友门禁。
 - 删除好友后不会删除历史私聊：双方仍可读取并标记已读，但会显示为只读且不能继续发送。
-- 支持用户创建独立群组，入群策略仅有 `OPEN` 和 `APPROVAL`；群主可审核入群申请、查看成员并移除普通成员。
-- 启动时幂等初始化 `PLATFORM/general` 公共频道。非成员可读取历史；加入后才可发送、累计未读并接收实时推送。
+- 不再初始化默认 `PLATFORM/general`；频道由用户自行创建。已有 `general` 数据不会自动删除，只按普通频道和现有成员关系展示。
+- 频道和独立群组均不提供搜索/发现加入，只允许所有者或管理员直接邀请，受邀用户接受或拒绝。
+- 频道成员可查看频道下的群组；频道所有者或管理员可创建子群组，子群组对频道成员支持 `OPEN` 或 `APPROVAL`。
+- 退出或被移出频道会级联退出其子群组并取消待处理的子群组申请/邀请；离开后不可读取平台频道/群组历史，重新加入后恢复。
+- 所有者离开前必须先转让频道及其仍持有的子群组；前任所有者转为管理员。
 - 消息统一使用 conversation + sequence 模型，支持精确未读、单调已读游标、稳定 `clientMsgId` 幂等、乐观发送状态和失败重试。
 - 单节点实时链路使用现有 WebSocket、事务 Outbox dispatcher 和本地路由；断线或 `RESYNC` 后按 REST 历史与消息序号恢复。
 - V1 消息类型为 `TEXT` / `SYSTEM`，支持普通 Unicode emoji 输入；不包含上传、图片、搜索、reaction、thread、typing、presence 或回执。
 - RBAC 新增 `menu:im`、`IM_USER`、`IM_ADMIN`。新注册用户获得 `IM_USER`；可配置回填仅为现有启用且未删除用户幂等授予 `IM_USER`，不会自动授予 `IM_ADMIN`。
 - 好友关系通过 `im_friendship` 的规范化用户对和 `im_contact` 的双向联系人记录持久化；本次数据库变更仅新增 `V41__create_im_platform_friendship_schema.sql`。
+- 频道/群组邀请通过 `V42__create_im_surface_invitation_schema.sql` 持久化；未修改或重算任何已有 Flyway 迁移。
 - Clocktower 仍只依赖通用 `ImFacade` / `RoomFacade` 和自身策略适配器，不依赖平台好友门禁或平台展示模型。
 
 ## Clocktower Phase 1
@@ -408,6 +412,7 @@
 - `V30__create_im_core_schema.sql`：统一 Channel、Group、DM、Conversation、Message、Inbox、Outbox 与治理基础 schema。
 - `V31__create_nutrition_mvp_schema.sql`：营养管理持久化基线；恢复实现未修改该历史迁移。
 - `V41__create_im_platform_friendship_schema.sql`：平台好友关系和双向联系人 schema；未修改任何历史迁移。
+- `V42__create_im_surface_invitation_schema.sql`：平台频道/群组直接邀请 schema；未修改任何历史迁移。
 
 ## 17. 已有测试覆盖线索
 
@@ -421,8 +426,8 @@
 - `NutritionVerticalFlowTests` 包含 10 条持久化纵向验收，覆盖家庭与 clan 授权、AI 草案、风险复核、菜单编辑、精确份数确认、关单采购、预算指标、完成幂等、记录修正和首页投影。
 - controller smoke 测试会实际调用设置/授权、食谱校验、AI 入队、菜单编辑/发布、菜品确认、购物清单生成、预算规则和营养记录 Controller 方法；路径反射仅作为补充。
 - 前端 nutrition 测试覆盖 service 请求契约、家庭切换和核心页面的加载/失败/提交刷新行为；当前仓库没有声明浏览器或人工验收结果。
-- 后端 IM 测试覆盖迁移/映射、好友状态机、群组与入群审核、公共频道 bootstrap、好友门禁私聊、精确未读、Outbox/WebSocket 恢复、RBAC 资源和 Clocktower 边界。
-- 前端 IM 测试覆盖 service 请求契约、workspace reducer、乐观发送与同 `clientMsgId` 重试、未读合并、实时恢复、路由/菜单和消息/联系人/群组 UI 状态。
+- 后端 IM 测试覆盖迁移/映射、好友状态机、成员范围频道/群组、直接邀请、父子成员约束与退出级联、好友门禁私聊、精确未读、Outbox/WebSocket 恢复、RBAC 资源和 Clocktower 边界。
+- 前端 IM 测试覆盖 service 请求契约、workspace reducer、乐观发送与同 `clientMsgId` 重试、未读合并、实时恢复、路由/菜单和消息/联系人/频道/群组/邀请 UI 状态。
 - PostgreSQL 锁、并发序号和 filtered-index 语义必须使用显式 `IM_POSTGRES_TEST_*` 一次性测试库验证；H2 测试不能替代该门禁。
 
 ## 18. 目前需要注意的实现细节

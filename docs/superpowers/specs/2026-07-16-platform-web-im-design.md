@@ -1,7 +1,12 @@
 # Platform Web IM Productization — Design Document
 
 Date: 2026-07-16
-Status: Confirmed — all proposed defaults approved; implementation has not started
+Status: Historical — implemented, then partially superseded on 2026-07-17
+
+> 2026-07-17 correction: the public `PLATFORM/general`, discovery, and global
+> join rules in this document are superseded by
+> `2026-07-17-platform-web-im-membership-correction.md`. The friendship, DM,
+> realtime, RBAC, and Clocktower boundaries remain applicable.
 Related baseline:
 
 - docs/superpowers/specs/2026-06-27-im-system-redesign-design.md
