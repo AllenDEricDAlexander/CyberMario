@@ -58,7 +58,7 @@ public class InvestmentJobCompletionService {
                 """.formatted(resultExpression);
         return jdbcTemplate.update(sql, fenceParameters(claim)
                 .addValue("resultJson", jsonSupport.normalize(resultJson, "resultJson"))
-                .addValue("now", now)) == 1;
+                .addValue("now", InvestmentJobJdbcSupport.instantParameter(now))) == 1;
     }
 
     @Transactional
@@ -80,8 +80,8 @@ public class InvestmentJobCompletionService {
                         where id = :id and status = 'RUNNING'
                           and locked_by = :workerId and claim_token = :claimToken
                         """, fenceParameters(claim)
-                        .addValue("nextAvailableAt", nextAvailableAt)
-                        .addValue("now", now)) == 1;
+                        .addValue("nextAvailableAt", InvestmentJobJdbcSupport.instantParameter(nextAvailableAt))
+                        .addValue("now", InvestmentJobJdbcSupport.instantParameter(now))) == 1;
     }
 
     @Transactional
@@ -119,11 +119,12 @@ public class InvestmentJobCompletionService {
                         """, fenceParameters(claim)
                         .addValue("status", terminal ? "FAILED" : "PENDING")
                         .addValue("attempts", nextAttempts)
-                        .addValue("availableAt", terminal ? now : now.plus(delay))
+                        .addValue("availableAt", InvestmentJobJdbcSupport.instantParameter(
+                                terminal ? now : now.plus(delay)))
                         .addValue("errorCode", truncate(errorCode, MAX_ERROR_CODE_LENGTH, "JOB_RETRY"))
                         .addValue("errorMessage", truncate(errorMessage, MAX_ERROR_MESSAGE_LENGTH, "job retry failed"))
-                        .addValue("finishedAt", terminal ? now : null)
-                        .addValue("now", now));
+                        .addValue("finishedAt", InvestmentJobJdbcSupport.instantParameter(terminal ? now : null))
+                        .addValue("now", InvestmentJobJdbcSupport.instantParameter(now)));
         if (updated == 0) {
             return InvestmentJobTransition.REJECTED;
         }
@@ -153,7 +154,7 @@ public class InvestmentJobCompletionService {
                         .addValue("attempts", nextAttempts)
                         .addValue("errorCode", truncate(errorCode, MAX_ERROR_CODE_LENGTH, "JOB_FAILED"))
                         .addValue("errorMessage", truncate(errorMessage, MAX_ERROR_MESSAGE_LENGTH, "job failed"))
-                        .addValue("now", now)) == 1;
+                        .addValue("now", InvestmentJobJdbcSupport.instantParameter(now))) == 1;
     }
 
     private Duration exponentialBackoff(int attempt) {

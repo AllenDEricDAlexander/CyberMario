@@ -62,12 +62,12 @@ public class InvestmentJobEnqueueService {
                 .addValue("workspaceId", command.workspaceId())
                 .addValue("jobType", command.jobType().name())
                 .addValue("priority", command.priority())
-                .addValue("availableAt", command.availableAt())
+                .addValue("availableAt", InvestmentJobJdbcSupport.instantParameter(command.availableAt()))
                 .addValue("maxAttempts", command.maxAttempts())
                 .addValue("idempotencyKey", command.idempotencyKey())
                 .addValue("inputJson", jsonSupport.normalize(command.inputJson(), "inputJson"))
                 .addValue("emptyResultJson", "{}")
-                .addValue("now", now);
+                .addValue("now", InvestmentJobJdbcSupport.instantParameter(now));
         jdbcTemplate.update(insertSql, parameters);
         return jdbcTemplate.queryForObject("""
                         select id from investment_job where idempotency_key = :idempotencyKey
@@ -94,7 +94,7 @@ public class InvestmentJobEnqueueService {
                   and available_at > :availableAt
                 """, new MapSqlParameterSource()
                 .addValue("idempotencyKey", idempotencyKey)
-                .addValue("availableAt", availableAt)
-                .addValue("now", now)) == 1;
+                .addValue("availableAt", InvestmentJobJdbcSupport.instantParameter(availableAt))
+                .addValue("now", InvestmentJobJdbcSupport.instantParameter(now))) == 1;
     }
 }

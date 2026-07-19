@@ -165,7 +165,7 @@ public class InvestmentMarketJobPlanner implements SmartLifecycle {
             tick();
         } catch (RuntimeException ex) {
             LogUtil.warn(log).log("investment market planner tick failed, error={}",
-                    ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage());
+                    ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage(), ex);
         }
     }
 

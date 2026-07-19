@@ -22,6 +22,7 @@ import top.egon.mario.investment.common.model.InvestmentJobType;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Arrays;
@@ -309,6 +310,13 @@ class InvestmentJobRuntimeTests {
 
         assertThat(leaseFence.candidateTimeExpression()).isEqualTo("statement_timestamp()");
         assertThat(leaseFence.authoritativeNow()).isEqualTo(databaseNow);
+    }
+
+    @Test
+    void durableJobInstantsUseThePostgresqlSupportedJdbcType() {
+        assertThat(InvestmentJobJdbcSupport.instantParameter(TEST_NOW))
+                .isEqualTo(OffsetDateTime.ofInstant(TEST_NOW, ZoneOffset.UTC));
+        assertThat(InvestmentJobJdbcSupport.instantParameter(null)).isNull();
     }
 
     private InvestmentJobEnqueueCommand command(String idempotencyKey, String inputJson,

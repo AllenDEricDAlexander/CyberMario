@@ -139,8 +139,9 @@ public class InvestmentJobClaimService {
         Assert.isTrue(claimToken.length() <= 64, "claimToken must not exceed 64 characters");
         Instant now = leaseFence.authoritativeNow();
         MapSqlParameterSource parameters = fenceParameters(candidateId, workerId, claimToken)
-                .addValue("now", now)
-                .addValue("leaseExpiresAt", now.plus(properties.leaseDuration()));
+                .addValue("now", InvestmentJobJdbcSupport.instantParameter(now))
+                .addValue("leaseExpiresAt",
+                        InvestmentJobJdbcSupport.instantParameter(now.plus(properties.leaseDuration())));
         String claimSql = recoveringExpiredLease ? CLAIM_EXPIRED : CLAIM_PENDING;
         if (jdbcTemplate.update(claimSql, parameters) != 1) {
             return Optional.empty();
@@ -169,8 +170,9 @@ public class InvestmentJobClaimService {
                         where id = :id and status = 'RUNNING'
                           and locked_by = :workerId and claim_token = :claimToken
                         """, fenceParameters(claim.id(), claim.workerId(), claim.claimToken())
-                        .addValue("now", now)
-                        .addValue("leaseExpiresAt", now.plus(leaseDuration))) == 1;
+                        .addValue("now", InvestmentJobJdbcSupport.instantParameter(now))
+                        .addValue("leaseExpiresAt",
+                                InvestmentJobJdbcSupport.instantParameter(now.plus(leaseDuration)))) == 1;
     }
 
     private void failExhaustedLeases() {
@@ -183,7 +185,7 @@ public class InvestmentJobClaimService {
             Instant now = leaseFence.authoritativeNow();
             jdbcTemplate.update(FAIL_EXHAUSTED_LEASES, new MapSqlParameterSource()
                     .addValue("ids", candidateIds)
-                    .addValue("now", now));
+                    .addValue("now", InvestmentJobJdbcSupport.instantParameter(now)));
         }
     }
 
@@ -195,7 +197,9 @@ public class InvestmentJobClaimService {
     }
 
     private Map<String, ?> candidateParameters() {
-        return leaseFence.usesDatabaseClock() ? Map.of() : Map.of("now", leaseFence.authoritativeNow());
+        return leaseFence.usesDatabaseClock()
+                ? Map.of()
+                : Map.of("now", InvestmentJobJdbcSupport.instantParameter(leaseFence.authoritativeNow()));
     }
 
     private MapSqlParameterSource fenceParameters(long id, String workerId, String claimToken) {
