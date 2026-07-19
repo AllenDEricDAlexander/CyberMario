@@ -235,6 +235,11 @@ mario:
       broadcast-enabled: ${RBAC_CACHE_BROADCAST_ENABLED:true}
       broadcast-topic: ${RBAC_CACHE_BROADCAST_TOPIC:rbac:cache:evict}
   im:
+    surface-join-key-cache:
+      enabled: ${IM_SURFACE_JOIN_KEY_CACHE_ENABLED:true}
+      redis-ttl: ${IM_SURFACE_JOIN_KEY_CACHE_REDIS_TTL:PT24H}
+      local-ttl: ${IM_SURFACE_JOIN_KEY_CACHE_LOCAL_TTL:PT10M}
+      local-maximum-size: ${IM_SURFACE_JOIN_KEY_CACHE_LOCAL_MAXIMUM_SIZE:10000}
     platform:
       user-role-backfill:
         enabled: ${IM_PLATFORM_USER_ROLE_BACKFILL_ENABLED:true}

@@ -14,6 +14,7 @@ import top.egon.mario.im.facade.dto.command.CancelJoinCommand;
 import top.egon.mario.im.facade.dto.command.CreateChannelCommand;
 import top.egon.mario.im.facade.dto.command.CreateGroupCommand;
 import top.egon.mario.im.facade.dto.command.JoinCommand;
+import top.egon.mario.im.facade.dto.command.JoinByKeyCommand;
 import top.egon.mario.im.facade.dto.command.LeaveCommand;
 import top.egon.mario.im.facade.dto.command.RejectJoinCommand;
 import top.egon.mario.im.facade.dto.view.ChannelView;
@@ -101,6 +102,24 @@ class ImMembershipWorkflowTests {
                 channel.mainConversationId(), 3002L)).isPresent();
         assertThat(joinRequestRepository.findBySurfaceTypeAndSurfaceIdAndUserIdAndStatusAndDeletedFalse(
                 ImSurfaceType.CHANNEL, channel.id(), 3002L, ImJoinRequestStatus.PENDING)).isEmpty();
+    }
+
+    @Test
+    void publicJoinKeyResolvesSurfaceWithoutExposingDatabaseId() {
+        GroupView group = standaloneGroup(3051L, "join-key-group", "OPEN");
+
+        JoinResultView result = roomFacade.applyJoinByKey(new JoinByKeyCommand(
+                principal(3052L), group.joinKey(), "joining by public key"));
+
+        assertThat(group.joinKey()).matches("^grp_[A-Za-z0-9_-]{22}$");
+        assertThat(result.status()).isEqualTo("ACTIVE");
+        assertThat(result.surfaceType()).isEqualTo("GROUP");
+        assertThat(result.surfaceId()).isEqualTo(group.id());
+        assertThatThrownBy(() -> roomFacade.applyJoinByKey(new JoinByKeyCommand(
+                principal(3053L), group.id().toString(), null)))
+                .isInstanceOf(ImException.class)
+                .extracting("code")
+                .isEqualTo("IM_SURFACE_JOIN_KEY_INVALID");
     }
 
     @Test

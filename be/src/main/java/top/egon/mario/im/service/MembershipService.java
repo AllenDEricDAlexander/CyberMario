@@ -12,6 +12,7 @@ import top.egon.mario.im.service.ImException;
 import top.egon.mario.im.facade.dto.command.ApproveCommand;
 import top.egon.mario.im.facade.dto.command.CancelJoinCommand;
 import top.egon.mario.im.facade.dto.command.JoinCommand;
+import top.egon.mario.im.facade.dto.command.JoinByKeyCommand;
 import top.egon.mario.im.facade.dto.command.LeaveCommand;
 import top.egon.mario.im.facade.dto.command.RejectJoinCommand;
 import top.egon.mario.im.facade.dto.command.RemoveMemberCommand;
@@ -41,6 +42,7 @@ import top.egon.mario.im.repository.ImGroupRepository;
 import top.egon.mario.im.repository.ImJoinRequestRepository;
 import top.egon.mario.im.repository.ImMembershipRepository;
 import top.egon.mario.im.repository.ImSurfaceInvitationRepository;
+import top.egon.mario.im.cache.ImSurfaceJoinKeyRef;
 import top.egon.mario.rbac.application.RbacUserDirectoryFacade;
 import top.egon.mario.rbac.dto.response.UserDirectoryItemResponse;
 
@@ -67,6 +69,7 @@ public class MembershipService {
     private final ImSurfaceInvitationRepository surfaceInvitationRepository;
     private final EntityManager entityManager;
     private final RbacUserDirectoryFacade userDirectoryFacade;
+    private final ImSurfaceJoinKeyService surfaceJoinKeyService;
 
     public MembershipService(ImMembershipRepository membershipRepository,
                              ImConversationMemberRepository conversationMemberRepository,
@@ -75,7 +78,8 @@ public class MembershipService {
                              ImGroupRepository groupRepository,
                              ImSurfaceInvitationRepository surfaceInvitationRepository,
                              EntityManager entityManager,
-                             RbacUserDirectoryFacade userDirectoryFacade) {
+                             RbacUserDirectoryFacade userDirectoryFacade,
+                             ImSurfaceJoinKeyService surfaceJoinKeyService) {
         this.membershipRepository = membershipRepository;
         this.conversationMemberRepository = conversationMemberRepository;
         this.joinRequestRepository = joinRequestRepository;
@@ -84,6 +88,7 @@ public class MembershipService {
         this.surfaceInvitationRepository = surfaceInvitationRepository;
         this.entityManager = entityManager;
         this.userDirectoryFacade = userDirectoryFacade;
+        this.surfaceJoinKeyService = surfaceJoinKeyService;
     }
 
     @Transactional
@@ -134,6 +139,25 @@ public class MembershipService {
         ImPrincipal principal = requirePrincipal(command.principal());
         ImSurfaceType surfaceType = surfaceType(command.surfaceType());
         Long surfaceId = requireId(command.surfaceId(), "IM_SURFACE_ID_REQUIRED");
+        return applyJoin(principal, surfaceType, surfaceId, false);
+    }
+
+    @Transactional
+    public JoinResultView applyJoinByKey(JoinByKeyCommand command) {
+        if (command == null) {
+            throw new ImException("IM_JOIN_COMMAND_REQUIRED");
+        }
+        ImPrincipal principal = requirePrincipal(command.principal());
+        ImSurfaceJoinKeyRef surface = surfaceJoinKeyService.resolve(command.joinKey());
+        return applyJoin(principal, surface.surfaceType(), surface.surfaceId(), true);
+    }
+
+    private JoinResultView applyJoin(
+            ImPrincipal principal,
+            ImSurfaceType surfaceType,
+            Long surfaceId,
+            boolean joinedByKey
+    ) {
         SurfaceRef surface = requireLockedSurface(surfaceType, surfaceId);
 
         Optional<ImMembershipPo> existingMembership = membershipRepository
@@ -144,7 +168,7 @@ public class MembershipService {
         if (existingMembership.filter(membership -> ImMembershipStatus.BANNED.equals(membership.getStatus())).isPresent()) {
             throw new ImException("IM_MEMBER_BANNED");
         }
-        requirePlatformJoinAllowed(surface, principal.userId());
+        requirePlatformJoinAllowed(surface, principal.userId(), joinedByKey);
 
         if (ImJoinPolicy.OPEN.equals(surface.joinPolicy())) {
             ImMembershipPo membership = activateMember(surface, principal.userId(), Instant.now());
@@ -400,12 +424,15 @@ public class MembershipService {
         return membership;
     }
 
-    private void requirePlatformJoinAllowed(SurfaceRef surface, Long userId) {
+    private void requirePlatformJoinAllowed(SurfaceRef surface, Long userId, boolean joinedByKey) {
         if (!PLATFORM_CONTEXT_TYPE.equals(surface.contextType())) {
             return;
         }
         if (ImSurfaceType.CHANNEL.equals(surface.surfaceType()) || surface.parentChannelId() == null) {
-            throw new ImException("IM_PLATFORM_INVITATION_REQUIRED");
+            if (!joinedByKey) {
+                throw new ImException("IM_PLATFORM_JOIN_KEY_REQUIRED");
+            }
+            return;
         }
         requireActiveParentChannelMembership(surface, userId);
     }

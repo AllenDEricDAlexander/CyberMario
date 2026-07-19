@@ -5,6 +5,7 @@ import type {ImJoinPolicy, ImJoinResultStatus, ImMemberRole, ImMembershipStatus,
 type SurfaceIdentity = {
     surfaceType: ImSurfaceType
     surfaceId: number
+    joinKey: string
 }
 
 export type PendingReviewRequest = {

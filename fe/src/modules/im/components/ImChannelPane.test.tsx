@@ -24,6 +24,21 @@ describe('ImChannelPane', () => {
         expect(screen.getByText('仅频道成员可加入此群组')).toBeTruthy()
         expect(screen.getByRole('button', {name: /创建子群组/})).toBeTruthy()
     })
+
+    test('joins a channel by its generated key', async () => {
+        const props = createProps()
+        render(<App><ImChannelPane {...props}/></App>)
+
+        fireEvent.click(screen.getByRole('button', {name: '使用 Key 加入频道'}))
+        fireEvent.change(screen.getByRole('textbox', {name: '频道唯一 Key'}), {
+            target: {value: 'chn_0123456789abcdefghijkl'},
+        })
+        fireEvent.click(screen.getByRole('button', {name: /^加.*入$/}))
+
+        await waitFor(() => expect(props.onApply).toHaveBeenCalledWith({
+            joinKey: 'chn_0123456789abcdefghijkl',
+        }))
+    })
 })
 
 function createProps(overrides: Partial<ImChannelPaneProps> = {}): ImChannelPaneProps {
@@ -33,6 +48,7 @@ function createProps(overrides: Partial<ImChannelPaneProps> = {}): ImChannelPane
         contextType: 'PLATFORM',
         contextId: null,
         groupKey: 'delivery',
+        joinKey: 'grp_delivery0000000000000',
         name: 'Delivery',
         ownerUserId: 1,
         joinPolicy: 'OPEN',
@@ -55,7 +71,12 @@ function createProps(overrides: Partial<ImChannelPaneProps> = {}): ImChannelPane
         onOpenConversation: vi.fn().mockResolvedValue(undefined),
         onSearchUsers: vi.fn().mockResolvedValue(undefined),
         onInvite: vi.fn().mockResolvedValue(undefined),
-        onApply: vi.fn(),
+        onApply: vi.fn().mockResolvedValue({
+            status: 'ACTIVE',
+            surfaceType: 'CHANNEL',
+            surfaceId: 7,
+            membershipId: 17,
+        }),
         onCancel: vi.fn(),
         onLeave: vi.fn().mockResolvedValue(undefined),
         onLoadManagement: vi.fn().mockResolvedValue(undefined),
@@ -73,6 +94,7 @@ function channel(): PlatformChannelView {
         contextType: 'PLATFORM',
         contextId: null,
         channelKey: 'product',
+        joinKey: 'chn_product00000000000000',
         name: 'Product',
         ownerUserId: 1,
         joinPolicy: 'APPROVAL',

@@ -69,6 +69,8 @@ class ImSurfaceServiceTests {
         assertThat(second.contextType()).isEqualTo(CONTEXT_TYPE);
         assertThat(second.contextId()).isNull();
         assertThat(second.channelKey()).isEqualTo("announcements");
+        assertThat(second.joinKey()).isEqualTo(first.joinKey())
+                .matches("^chn_[A-Za-z0-9_-]{22}$");
         assertThat(second.name()).isEqualTo("Announcements");
         assertThat(second.ownerUserId()).isEqualTo(1001L);
         assertThat(second.visibility()).isEqualTo("PUBLIC");
@@ -131,6 +133,8 @@ class ImSurfaceServiceTests {
         assertThat(second.contextType()).isEqualTo(CONTEXT_TYPE);
         assertThat(second.contextId()).isEqualTo(9001L);
         assertThat(second.groupKey()).isEqualTo("general");
+        assertThat(second.joinKey()).isEqualTo(first.joinKey())
+                .matches("^grp_[A-Za-z0-9_-]{22}$");
         assertThat(second.name()).isEqualTo("General");
         assertThat(second.ownerUserId()).isEqualTo(1101L);
         assertThat(second.joinPolicy()).isEqualTo("OPEN");
@@ -172,6 +176,8 @@ class ImSurfaceServiceTests {
         assertThat(second.contextId()).isNull();
         assertThat(second.conversationId()).isNotNull();
         assertThat(second.joinPolicy()).isEqualTo("APPROVAL");
+        assertThat(second.joinKey()).isEqualTo(first.joinKey())
+                .matches("^grp_[A-Za-z0-9_-]{22}$");
         assertThat(groupRepository.findAll())
                 .filteredOn(group -> group.getChannelId() == null)
                 .filteredOn(group -> CONTEXT_TYPE.equals(group.getContextType()))
@@ -184,6 +190,10 @@ class ImSurfaceServiceTests {
                 .isInstanceOf(ImException.class)
                 .extracting("code")
                 .isEqualTo("IM_CONTEXT_TYPE_REQUIRED");
+        assertThatThrownBy(() -> groupRepository.findById(first.id()).orElseThrow()
+                .assignJoinKey("grp_0000000000000000000000"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("immutable");
     }
 
     @Test

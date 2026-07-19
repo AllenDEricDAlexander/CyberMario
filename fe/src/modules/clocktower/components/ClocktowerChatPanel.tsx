@@ -56,6 +56,7 @@ type ClocktowerChatMessageState = {
 type SurfaceIdentity = {
     surfaceType: ImSurfaceType
     surfaceId: number
+    joinKey: string
 }
 
 type DiscoverableSurfaces = {
@@ -386,7 +387,7 @@ export function ClocktowerChatPanel({
     }
 
     async function applyToSurface(surface: SurfaceIdentity) {
-        const result = await createImJoinRequest(surface)
+        const result = await createImJoinRequest({joinKey: surface.joinKey})
         await loadImState()
         return result
     }
@@ -537,8 +538,18 @@ function DiscoverableSurfaceList({
     onReject: (requestId: number) => Promise<JoinResultView>
 }) {
     const surfaces = [
-        ...channels.map((channel) => ({surfaceType: 'CHANNEL' as const, surfaceId: channel.id, surface: channel})),
-        ...groups.map((group) => ({surfaceType: 'GROUP' as const, surfaceId: group.id, surface: group})),
+        ...channels.map((channel) => ({
+            surfaceType: 'CHANNEL' as const,
+            surfaceId: channel.id,
+            joinKey: channel.joinKey,
+            surface: channel,
+        })),
+        ...groups.map((group) => ({
+            surfaceType: 'GROUP' as const,
+            surfaceId: group.id,
+            joinKey: group.joinKey,
+            surface: group,
+        })),
     ]
     return (
         <List
@@ -564,7 +575,11 @@ function DiscoverableSurfaceList({
                             onReject={onReject}
                             pendingRequestId={pendingRequestId(item.surface)}
                             pendingReviewRequests={pendingReviewRequests(item.surface)}
-                            surface={{surfaceType: item.surfaceType, surfaceId: item.surfaceId}}
+                            surface={{
+                                surfaceType: item.surfaceType,
+                                surfaceId: item.surfaceId,
+                                joinKey: item.joinKey,
+                            }}
                         />
                     </Space>
                 </List.Item>

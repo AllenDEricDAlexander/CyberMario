@@ -22,6 +22,7 @@ export type PlatformConversationView = {
     ownerSurfaceType?: ImSurfaceType | null
     surfaceId?: number | null
     surfaceKey?: string | null
+    joinKey?: string | null
     channelId?: number | null
     membershipStatus?: ImMembershipStatus | null
     memberRole?: string | null

@@ -6,7 +6,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 import top.egon.mario.im.facade.ImFacade;
 import top.egon.mario.im.facade.RoomFacade;
+import top.egon.mario.im.facade.dto.command.ApproveCommand;
 import top.egon.mario.im.facade.dto.command.JoinCommand;
+import top.egon.mario.im.facade.dto.command.JoinByKeyCommand;
 import top.egon.mario.im.facade.dto.command.LeaveCommand;
 import top.egon.mario.im.facade.dto.command.SendMessageCommand;
 import top.egon.mario.im.facade.dto.query.HistoryQuery;
@@ -72,7 +74,7 @@ class PlatformInvitationFacadeTests {
     private ImSurfaceInvitationRepository invitationRepository;
 
     @Test
-    void channelUsesInvitationInsteadOfSearchJoinAndRejoinRestoresHistory() {
+    void channelUsesJoinKeyInsteadOfDatabaseIdAndRejoinRestoresHistory() {
         UserPo owner = user("channel-owner", "Channel Owner");
         UserPo member = user("channel-member", "Channel Member");
         ImPrincipal ownerPrincipal = principal(owner.getId());
@@ -83,14 +85,11 @@ class PlatformInvitationFacadeTests {
                 memberPrincipal, "CHANNEL", channel.id(), "search join")))
                 .isInstanceOf(ImException.class)
                 .extracting("code")
-                .isEqualTo("IM_PLATFORM_INVITATION_REQUIRED");
+                .isEqualTo("IM_PLATFORM_JOIN_KEY_REQUIRED");
 
-        PlatformInvitationView invitation = invitationFacade.invite(
-                ownerPrincipal, "CHANNEL", channel.id(), member.getId(), "欢迎加入");
-        assertThat(invitationFacade.listIncoming(memberPrincipal, 0, 20).getContent())
-                .extracting(PlatformInvitationView::invitationId)
-                .containsExactly(invitation.invitationId());
-        invitationFacade.accept(memberPrincipal, invitation.invitationId());
+        JoinResultView pending = roomFacade.applyJoinByKey(new JoinByKeyCommand(
+                memberPrincipal, channel.joinKey(), "申请加入"));
+        roomFacade.approveJoin(new ApproveCommand(ownerPrincipal, pending.joinRequestId()));
 
         assertThat(platformRoomFacade.listChannels(memberPrincipal))
                 .extracting(ChannelView::id)
@@ -109,9 +108,9 @@ class PlatformInvitationFacadeTests {
                 .extracting("code")
                 .isEqualTo("IM_HISTORY_FORBIDDEN");
 
-        PlatformInvitationView rejoin = invitationFacade.invite(
-                ownerPrincipal, "CHANNEL", channel.id(), member.getId(), "再次加入");
-        invitationFacade.accept(memberPrincipal, rejoin.invitationId());
+        JoinResultView rejoin = roomFacade.applyJoinByKey(new JoinByKeyCommand(
+                memberPrincipal, channel.joinKey(), "再次加入"));
+        roomFacade.approveJoin(new ApproveCommand(ownerPrincipal, rejoin.joinRequestId()));
         assertThat(imFacade.history(new HistoryQuery(
                 memberPrincipal, channel.mainConversationId(), 0, 20, null, null)).getContent())
                 .extracting(message -> message.content())

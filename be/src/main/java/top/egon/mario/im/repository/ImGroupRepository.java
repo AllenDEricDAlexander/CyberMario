@@ -15,6 +15,10 @@ public interface ImGroupRepository extends JpaRepository<ImGroupPo, Long> {
 
     Optional<ImGroupPo> findByIdAndDeletedFalse(Long id);
 
+    Optional<ImGroupPo> findByJoinKeyAndDeletedFalse(String joinKey);
+
+    boolean existsByJoinKey(String joinKey);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select imGroup from ImGroupPo imGroup where imGroup.id = :id and imGroup.deleted = false")
     Optional<ImGroupPo> findLockedByIdAndDeletedFalse(Long id);

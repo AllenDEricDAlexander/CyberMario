@@ -12,6 +12,7 @@ export type ChannelView = {
     contextType: string
     contextId: number | null
     channelKey: string
+    joinKey: string
     name: string
     ownerUserId: number
     visibility?: string | null
@@ -34,6 +35,7 @@ export type GroupView = {
     contextType: string
     contextId: number | null
     groupKey: string
+    joinKey: string
     name: string
     ownerUserId: number
     joinPolicy: ImJoinPolicy
@@ -157,8 +159,7 @@ export type ListGroupsParams = {
 }
 
 export type JoinRequestCreateRequest = {
-    surfaceType: ImSurfaceType
-    surfaceId: number
+    joinKey: string
     reason?: string | null
 }
 

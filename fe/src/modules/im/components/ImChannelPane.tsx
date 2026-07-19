@@ -1,4 +1,4 @@
-import {GlobalOutlined, PlusOutlined, ReloadOutlined, TeamOutlined} from '@ant-design/icons'
+import {GlobalOutlined, KeyOutlined, PlusOutlined, ReloadOutlined, TeamOutlined} from '@ant-design/icons'
 import {Alert, App, Avatar, Button, Empty, Input, List, Modal, Select, Space, Tag, Typography} from 'antd'
 import {useEffect, useState} from 'react'
 import type {ImJoinPolicy, ImSurfaceType, JoinRequestCreateRequest, JoinResultView} from '../imTypes'
@@ -49,6 +49,8 @@ export function ImChannelPane(props: ImChannelPaneProps) {
     const [groups, setGroups] = useState<PlatformGroupView[]>([])
     const [createChannelOpen, setCreateChannelOpen] = useState(false)
     const [createGroupOpen, setCreateGroupOpen] = useState(false)
+    const [joinOpen, setJoinOpen] = useState(false)
+    const [surfaceJoinKey, setSurfaceJoinKey] = useState('')
     const [name, setName] = useState('')
     const [joinPolicy, setJoinPolicy] = useState<ImJoinPolicy>('OPEN')
     const [busy, setBusy] = useState(false)
@@ -121,6 +123,16 @@ export function ImChannelPane(props: ImChannelPaneProps) {
         }
     }
 
+    async function joinChannel() {
+        const joinKey = surfaceJoinKey.trim()
+        if (!joinKey) return
+        const result = await run(() => props.onApply({joinKey}), '加入请求已提交')
+        if (result) {
+            setSurfaceJoinKey('')
+            setJoinOpen(false)
+        }
+    }
+
     return (
         <>
             <aside aria-label="频道列表" className="platform-im-list-pane">
@@ -130,6 +142,7 @@ export function ImChannelPane(props: ImChannelPaneProps) {
                         <Typography.Text type="secondary">仅显示你已加入的频道</Typography.Text>
                     </div>
                     <Space.Compact>
+                        <Button aria-label="使用 Key 加入频道" icon={<KeyOutlined/>} onClick={() => setJoinOpen(true)}/>
                         <Button aria-label="创建频道" icon={<PlusOutlined/>} onClick={() => setCreateChannelOpen(true)}/>
                         <Button aria-label="刷新频道" icon={<ReloadOutlined/>} onClick={() => void props.onRefresh()}/>
                     </Space.Compact>
@@ -166,6 +179,9 @@ export function ImChannelPane(props: ImChannelPaneProps) {
                                     <Tag>{selectedChannel.memberCount ?? 0} 位频道成员</Tag>
                                     {selectedChannel.memberRole && <Tag color="blue">{selectedChannel.memberRole}</Tag>}
                                 </Space>
+                                <Typography.Text code copyable={{text: selectedChannel.joinKey}}>
+                                    {selectedChannel.joinKey}
+                                </Typography.Text>
                             </div>
                             <Space>
                                 {selectedChannel.mainConversationId && (
@@ -209,6 +225,9 @@ export function ImChannelPane(props: ImChannelPaneProps) {
                                     <div>
                                         <Typography.Title level={5}>{selectedGroup.name}</Typography.Title>
                                         <Typography.Text type="secondary">仅频道成员可加入此群组</Typography.Text>
+                                        <Typography.Text code copyable={{text: selectedGroup.joinKey}}>
+                                            {selectedGroup.joinKey}
+                                        </Typography.Text>
                                     </div>
                                     {selectedGroup.conversationId && selectedGroup.membershipStatus === 'ACTIVE' && (
                                         <Button onClick={() => void props.onOpenConversation(selectedGroup.conversationId!)} type="primary">
@@ -224,9 +243,13 @@ export function ImChannelPane(props: ImChannelPaneProps) {
                                         requestId: request.joinRequestId,
                                         userLabel: `${request.displayName} (${request.accountNo})`,
                                     }))}
-                                    surface={{surfaceType: 'GROUP', surfaceId: selectedGroup.id}}
+                                    surface={{
+                                        surfaceType: 'GROUP',
+                                        surfaceId: selectedGroup.id,
+                                        joinKey: selectedGroup.joinKey,
+                                    }}
                                     onApply={async (surface) => {
-                                        const result = await props.onApply(surface)
+                                        const result = await props.onApply({joinKey: surface.joinKey})
                                         await loadGroups(selectedChannel.id)
                                         return result
                                     }}
@@ -288,6 +311,23 @@ export function ImChannelPane(props: ImChannelPaneProps) {
                 onCreate={() => void createGroup()}
                 onJoinPolicyChange={setJoinPolicy}
             />
+            <Modal
+                confirmLoading={busy}
+                okButtonProps={{disabled: !surfaceJoinKey.trim()}}
+                okText="加入"
+                onCancel={() => setJoinOpen(false)}
+                onOk={() => void joinChannel()}
+                open={joinOpen}
+                title="使用唯一 Key 加入频道"
+            >
+                <Input
+                    aria-label="频道唯一 Key"
+                    maxLength={32}
+                    placeholder="chn_..."
+                    value={surfaceJoinKey}
+                    onChange={(event) => setSurfaceJoinKey(event.target.value)}
+                />
+            </Modal>
         </>
     )
 }

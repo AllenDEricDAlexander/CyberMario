@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -30,6 +31,10 @@ public class ImChannelPo extends BaseAuditablePo {
 
     @Column(name = "channel_key", nullable = false, length = 128)
     private String channelKey;
+
+    @Setter(AccessLevel.NONE)
+    @Column(name = "join_key", nullable = false, length = 32, updatable = false)
+    private String joinKey;
 
     @Column(name = "name", nullable = false, length = 128)
     private String name;
@@ -71,5 +76,12 @@ public class ImChannelPo extends BaseAuditablePo {
 
     public void setStatus(ImSurfaceStatus status) {
         this.status = status;
+    }
+
+    public void assignJoinKey(String joinKey) {
+        if (this.joinKey != null) {
+            throw new IllegalStateException("IM channel join key is immutable");
+        }
+        this.joinKey = joinKey;
     }
 }

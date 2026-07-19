@@ -125,8 +125,16 @@ describe('surface-scoped local state', () => {
             surfaceKey: 'CHANNEL:1',
         }
 
-        expect(resolveScopedJoinResult(scopedResult, {surfaceType: 'CHANNEL', surfaceId: 1})).toBe(activeResult)
-        expect(resolveScopedJoinResult(scopedResult, {surfaceType: 'GROUP', surfaceId: 2})).toBeUndefined()
+        expect(resolveScopedJoinResult(scopedResult, {
+            surfaceType: 'CHANNEL',
+            surfaceId: 1,
+            joinKey: 'chn_channel0000000000000',
+        })).toBe(activeResult)
+        expect(resolveScopedJoinResult(scopedResult, {
+            surfaceType: 'GROUP',
+            surfaceId: 2,
+            joinKey: 'grp_group000000000000000',
+        })).toBeUndefined()
     })
 
     test('uses reviewed request ids only for the matching surface', () => {
@@ -135,8 +143,16 @@ describe('surface-scoped local state', () => {
             surfaceKey: 'GROUP:2',
         }
 
-        expect(resolveScopedReviewedRequestIds(reviewedRequestIds, {surfaceType: 'GROUP', surfaceId: 2})).toEqual([3])
-        expect(resolveScopedReviewedRequestIds(reviewedRequestIds, {surfaceType: 'CHANNEL', surfaceId: 1})).toEqual([])
+        expect(resolveScopedReviewedRequestIds(reviewedRequestIds, {
+            surfaceType: 'GROUP',
+            surfaceId: 2,
+            joinKey: 'grp_group000000000000000',
+        })).toEqual([3])
+        expect(resolveScopedReviewedRequestIds(reviewedRequestIds, {
+            surfaceType: 'CHANNEL',
+            surfaceId: 1,
+            joinKey: 'chn_channel0000000000000',
+        })).toEqual([])
     })
 })
 
@@ -152,7 +168,7 @@ describe('ImJoinApplyControls', () => {
                 onLeave={vi.fn()}
                 onApprove={vi.fn()}
                 onReject={vi.fn()}
-                surface={{surfaceType: 'CHANNEL', surfaceId: 1}}
+                surface={{surfaceType: 'CHANNEL', surfaceId: 1, joinKey: 'chn_channel0000000000000'}}
             />,
         )
         const pendingMarkup = renderToStaticMarkup(
@@ -166,7 +182,7 @@ describe('ImJoinApplyControls', () => {
                 onApprove={vi.fn()}
                 onReject={vi.fn()}
                 pendingRequestId={9}
-                surface={{surfaceType: 'GROUP', surfaceId: 2}}
+                surface={{surfaceType: 'GROUP', surfaceId: 2, joinKey: 'grp_group000000000000000'}}
             />,
         )
 
@@ -188,7 +204,7 @@ describe('ImJoinApplyControls', () => {
                 onApprove={vi.fn()}
                 onReject={vi.fn()}
                 pendingReviewRequests={[{requestId: 3, userLabel: 'Mario'}]}
-                surface={{surfaceType: 'GROUP', surfaceId: 2}}
+                surface={{surfaceType: 'GROUP', surfaceId: 2, joinKey: 'grp_group000000000000000'}}
             />,
         )
         const leaveMarkup = renderToStaticMarkup(
@@ -201,7 +217,7 @@ describe('ImJoinApplyControls', () => {
                 onLeave={vi.fn()}
                 onApprove={vi.fn()}
                 onReject={vi.fn()}
-                surface={{surfaceType: 'CHANNEL', surfaceId: 1}}
+                surface={{surfaceType: 'CHANNEL', surfaceId: 1, joinKey: 'chn_channel0000000000000'}}
             />,
         )
 

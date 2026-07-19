@@ -16,6 +16,10 @@ public interface ImChannelRepository extends JpaRepository<ImChannelPo, Long> {
 
     Optional<ImChannelPo> findByIdAndDeletedFalse(Long id);
 
+    Optional<ImChannelPo> findByJoinKeyAndDeletedFalse(String joinKey);
+
+    boolean existsByJoinKey(String joinKey);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select channel from ImChannelPo channel where channel.id = :id and channel.deleted = false")
     Optional<ImChannelPo> findLockedByIdAndDeletedFalse(Long id);

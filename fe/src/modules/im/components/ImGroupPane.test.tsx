@@ -13,12 +13,22 @@ describe('ImGroupPane', () => {
         await waitFor(() => expect(props.onApprove).toHaveBeenCalledWith('GROUP', 4, 9))
     })
 
-    test('shows only the caller groups and explains that standalone groups are invitation only', () => {
-        render(<App><ImGroupPane {...createProps()}/></App>)
+    test('shows only caller groups and supports joining by the generated key', async () => {
+        const props = createProps()
+        render(<App><ImGroupPane {...props}/></App>)
 
         expect(screen.getByText('仅显示你已加入的独立群组')).toBeTruthy()
         fireEvent.click(screen.getByRole('button', {name: '创建独立群组'}))
-        expect(screen.getByText(/不会出现在搜索或发现列表中/)).toBeTruthy()
+        expect(screen.getByText(/可通过系统生成的唯一 Key/)).toBeTruthy()
+        fireEvent.click(screen.getByRole('button', {name: 'Cancel'}))
+        fireEvent.click(screen.getByRole('button', {name: '使用 Key 加入群组'}))
+        fireEvent.change(screen.getByRole('textbox', {name: '群组唯一 Key'}), {
+            target: {value: 'grp_0123456789abcdefghijkl'},
+        })
+        fireEvent.click(screen.getByRole('button', {name: /^加.*入$/}))
+        await waitFor(() => expect(props.onJoin).toHaveBeenCalledWith({
+            joinKey: 'grp_0123456789abcdefghijkl',
+        }))
     })
 })
 
@@ -30,6 +40,7 @@ function createProps(): ImGroupPaneProps {
             contextType: 'PLATFORM',
             contextId: null,
             groupKey: 'team',
+            joinKey: 'grp_team0000000000000000',
             name: 'Team',
             ownerUserId: 1,
             joinPolicy: 'APPROVAL',
@@ -54,6 +65,12 @@ function createProps(): ImGroupPaneProps {
         }],
         onRefresh: vi.fn().mockResolvedValue(undefined),
         onCreate: vi.fn().mockResolvedValue({id: 4}),
+        onJoin: vi.fn().mockResolvedValue({
+            status: 'ACTIVE',
+            surfaceType: 'GROUP',
+            surfaceId: 4,
+            membershipId: 11,
+        }),
         onInvite: vi.fn().mockResolvedValue(undefined),
         onLeave: vi.fn().mockResolvedValue(undefined),
         onLoadManagement: vi.fn().mockResolvedValue(undefined),

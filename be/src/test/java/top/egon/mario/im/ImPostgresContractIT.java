@@ -43,6 +43,8 @@ class ImPostgresContractIT {
             "src/main/resources/db/migration/V46__create_im_platform_friendship_schema.sql");
     private static final Path IM_SURFACE_INVITATION_MIGRATION = Path.of(
             "src/main/resources/db/migration/V48__create_im_surface_invitation_schema.sql");
+    private static final Path IM_SURFACE_JOIN_KEY_MIGRATION = Path.of(
+            "src/main/resources/db/migration/V49__add_im_surface_join_keys.sql");
     private static final Path IM_POSTGRESQL_INDEX_MIGRATION = Path.of(
             "src/main/resources/db/postgresql/R__create_im_core_postgresql_indexes.sql");
 
@@ -78,11 +80,11 @@ class ImPostgresContractIT {
 
     private static final Map<String, List<String>> REQUIRED_COLUMNS = Map.ofEntries(
             Map.entry("im_channel", List.of(
-                    "id", "context_type", "context_id", "channel_key", "name", "owner_user_id", "visibility",
+                    "id", "context_type", "context_id", "channel_key", "join_key", "name", "owner_user_id", "visibility",
                     "join_policy", "status", "announcement", "main_conversation_id", "member_count",
                     "last_active_at")),
             Map.entry("im_group", List.of(
-                    "id", "channel_id", "context_type", "context_id", "group_key", "name", "owner_user_id",
+                    "id", "channel_id", "context_type", "context_id", "group_key", "join_key", "name", "owner_user_id",
                     "join_policy", "status", "announcement", "conversation_id", "member_count", "last_active_at")),
             Map.entry("im_dm_pair", List.of(
                     "id", "user_lo_id", "user_hi_id", "conversation_id", "frozen")),
@@ -205,6 +207,14 @@ class ImPostgresContractIT {
                 """.formatted(schemaName), Integer.class);
         assertThat(v42Count).as("V42 surface invitation migration must be applied").isEqualTo(1);
 
+        Integer v49Count = jdbcTemplate.queryForObject("""
+                select count(*)
+                from %s.flyway_schema_history
+                where version = '49'
+                  and script = 'V49__add_im_surface_join_keys.sql'
+                """.formatted(schemaName), Integer.class);
+        assertThat(v49Count).as("V49 surface join-key migration must be applied").isEqualTo(1);
+
         Integer repeatableCount = jdbcTemplate.queryForObject("""
                 select count(*)
                 from %s.flyway_schema_history
@@ -259,6 +269,9 @@ class ImPostgresContractIT {
                 .unique()
                 .columns("context_type", "channel_key")
                 .predicateContains("context_id", "is null");
+        assertIndex("im_channel", "uk_im_channel_join_key")
+                .unique()
+                .columns("join_key");
         assertIndex("im_group", "uk_im_group_standalone_context_key")
                 .unique()
                 .columns("context_type", "context_id", "group_key")
@@ -267,6 +280,9 @@ class ImPostgresContractIT {
                 .unique()
                 .columns("context_type", "group_key")
                 .predicateContains("channel_id", "is null", "context_id", "is null");
+        assertIndex("im_group", "uk_im_group_join_key")
+                .unique()
+                .columns("join_key");
         assertIndex("im_message", "uk_im_message_client_msg")
                 .unique()
                 .columns("conversation_id", "sender_user_id", "client_msg_id")
@@ -471,6 +487,9 @@ class ImPostgresContractIT {
         assertThat(Files.exists(IM_SURFACE_INVITATION_MIGRATION))
                 .as("V42 surface invitation migration exists")
                 .isTrue();
+        assertThat(Files.exists(IM_SURFACE_JOIN_KEY_MIGRATION))
+                .as("V49 surface join-key migration exists")
+                .isTrue();
         assertThat(Files.exists(IM_POSTGRESQL_INDEX_MIGRATION)).as("IM PostgreSQL index migration exists").isTrue();
 
         Path location = Files.createTempDirectory("im-postgres-contract-flyway-");
@@ -479,6 +498,8 @@ class ImPostgresContractIT {
                 location.resolve(IM_PLATFORM_FRIENDSHIP_MIGRATION.getFileName()));
         Files.copy(IM_SURFACE_INVITATION_MIGRATION,
                 location.resolve(IM_SURFACE_INVITATION_MIGRATION.getFileName()));
+        Files.copy(IM_SURFACE_JOIN_KEY_MIGRATION,
+                location.resolve(IM_SURFACE_JOIN_KEY_MIGRATION.getFileName()));
         Files.copy(IM_POSTGRESQL_INDEX_MIGRATION, location.resolve(IM_POSTGRESQL_INDEX_MIGRATION.getFileName()));
         return "filesystem:" + location.toAbsolutePath();
     }

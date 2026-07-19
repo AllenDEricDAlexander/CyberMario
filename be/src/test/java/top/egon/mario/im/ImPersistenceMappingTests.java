@@ -397,6 +397,7 @@ class ImPersistenceMappingTests {
         channel.setContextType(contextType);
         channel.setContextId(contextId);
         channel.setChannelKey(channelKey);
+        channel.assignJoinKey("chn_0000000000000000000001");
         channel.setName("Channel " + channelKey);
         channel.setOwnerUserId(3001L);
         channel.setVisibility(ImChannelVisibility.PUBLIC);
@@ -415,6 +416,7 @@ class ImPersistenceMappingTests {
         group.setContextType(contextType);
         group.setContextId(contextId);
         group.setGroupKey(groupKey);
+        group.assignJoinKey("grp_0000000000000000000001");
         group.setName("Group " + groupKey);
         group.setOwnerUserId(3001L);
         group.setJoinPolicy(ImJoinPolicy.OPEN);

@@ -8,6 +8,7 @@ public record GroupView(
         String contextType,
         Long contextId,
         String groupKey,
+        String joinKey,
         String name,
         Long ownerUserId,
         String joinPolicy,
@@ -36,5 +37,27 @@ public record GroupView(
                      Instant lastActiveAt) {
         this(id, channelId, contextType, contextId, groupKey, name, ownerUserId, joinPolicy, status,
                 announcement, conversationId, memberCount, lastActiveAt, null, null, false, false);
+    }
+
+    public GroupView(Long id,
+                     Long channelId,
+                     String contextType,
+                     Long contextId,
+                     String groupKey,
+                     String name,
+                     Long ownerUserId,
+                     String joinPolicy,
+                     String status,
+                     String announcement,
+                     Long conversationId,
+                     Integer memberCount,
+                     Instant lastActiveAt,
+                     String membershipStatus,
+                     String memberRole,
+                     Boolean canRead,
+                     Boolean canPost) {
+        this(id, channelId, contextType, contextId, groupKey, null, name, ownerUserId, joinPolicy, status,
+                announcement, conversationId, memberCount, lastActiveAt, membershipStatus, memberRole,
+                canRead, canPost);
     }
 }

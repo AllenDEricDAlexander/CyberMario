@@ -7,6 +7,7 @@ import top.egon.mario.im.facade.dto.command.CancelJoinCommand;
 import top.egon.mario.im.facade.dto.command.CreateChannelCommand;
 import top.egon.mario.im.facade.dto.command.CreateGroupCommand;
 import top.egon.mario.im.facade.dto.command.JoinCommand;
+import top.egon.mario.im.facade.dto.command.JoinByKeyCommand;
 import top.egon.mario.im.facade.dto.command.LeaveCommand;
 import top.egon.mario.im.facade.dto.command.RejectJoinCommand;
 import top.egon.mario.im.facade.dto.command.RemoveMemberCommand;
@@ -45,6 +46,10 @@ public class RoomFacade {
 
     public JoinResultView applyJoin(JoinCommand command) {
         return membershipService.applyJoin(command);
+    }
+
+    public JoinResultView applyJoinByKey(JoinByKeyCommand command) {
+        return membershipService.applyJoinByKey(command);
     }
 
     public JoinResultView approveJoin(ApproveCommand command) {

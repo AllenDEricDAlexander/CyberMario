@@ -24,6 +24,8 @@ class ImCoreSchemaMigrationTests {
             "src/main/resources/db/migration/V46__create_im_platform_friendship_schema.sql");
     private static final Path IM_SURFACE_INVITATION_MIGRATION = Path.of(
             "src/main/resources/db/migration/V48__create_im_surface_invitation_schema.sql");
+    private static final Path IM_SURFACE_JOIN_KEY_MIGRATION = Path.of(
+            "src/main/resources/db/migration/V49__add_im_surface_join_keys.sql");
     private static final Path IM_POSTGRESQL_INDEX_MIGRATION = Path.of(
             "src/main/resources/db/postgresql/R__create_im_core_postgresql_indexes.sql");
 
@@ -262,6 +264,24 @@ class ImCoreSchemaMigrationTests {
     }
 
     @Test
+    void surfaceJoinKeyMigrationAddsBackfilledImmutableKeyColumnsAndUniqueIndexes() throws IOException {
+        String sql = readSurfaceJoinKeyMigration();
+
+        assertThat(sql).doesNotContain("DROP TABLE");
+        assertThat(sql)
+                .contains("ALTER TABLE im_channel")
+                .contains("ADD COLUMN join_key VARCHAR(32)")
+                .contains("SET join_key = 'chn_'")
+                .contains("ALTER COLUMN join_key SET NOT NULL")
+                .contains("CREATE UNIQUE INDEX uk_im_channel_join_key")
+                .contains("ON im_channel (join_key)")
+                .contains("ALTER TABLE im_group")
+                .contains("SET join_key = 'grp_'")
+                .contains("CREATE UNIQUE INDEX uk_im_group_join_key")
+                .contains("ON im_group (join_key)");
+    }
+
+    @Test
     void migrationClasspathRunsOnH2AndCreatesReplacementTables() {
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setDriverClassName("org.h2.Driver");
@@ -295,6 +315,17 @@ class ImCoreSchemaMigrationTests {
                     """, Integer.class, table);
             assertThat(tableCount).as(table + " exists after Flyway migration").isEqualTo(1);
         }
+        for (String table : List.of("im_channel", "im_group")) {
+            Integer joinKeyColumnCount = jdbcTemplate.queryForObject("""
+                    select count(*)
+                    from information_schema.columns
+                    where table_schema = 'public'
+                      and table_name = ?
+                      and column_name = 'join_key'
+                      and is_nullable = 'NO'
+                    """, Integer.class, table);
+            assertThat(joinKeyColumnCount).as(table + ".join_key exists and is required").isEqualTo(1);
+        }
     }
 
     private static String readMigration() throws IOException {
@@ -315,6 +346,11 @@ class ImCoreSchemaMigrationTests {
     private static String readSurfaceInvitationMigration() throws IOException {
         assertThat(Files.exists(IM_SURFACE_INVITATION_MIGRATION)).isTrue();
         return Files.readString(IM_SURFACE_INVITATION_MIGRATION);
+    }
+
+    private static String readSurfaceJoinKeyMigration() throws IOException {
+        assertThat(Files.exists(IM_SURFACE_JOIN_KEY_MIGRATION)).isTrue();
+        return Files.readString(IM_SURFACE_JOIN_KEY_MIGRATION);
     }
 
     private static String tableDefinition(String sql, String table) {

@@ -29,7 +29,8 @@ class ImModuleBoundaryTests {
     private static final Set<String> ALLOWED_IM_MIGRATIONS = Set.of(
             "V30__create_im_core_schema.sql",
             "V46__create_im_platform_friendship_schema.sql",
-            "V48__create_im_surface_invitation_schema.sql"
+            "V48__create_im_surface_invitation_schema.sql",
+            "V49__add_im_surface_join_keys.sql"
     );
     private static final Path GLOBAL_EXCEPTION_HANDLER = Path.of("config/GlobalExceptionHandler.java");
     private static final String SERVICE_EXCEPTION = "top.egon.mario.im.service.ImException";

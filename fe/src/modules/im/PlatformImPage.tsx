@@ -89,7 +89,7 @@ export function PlatformImWorkspaceView({workspace}: {workspace: PlatformImWorks
                             group={selectedGroup}
                             messages={workspace.messages}
                             onAddFriend={(userId) => workspace.requestFriend({targetUserId: userId})}
-                            onApplyJoin={(surfaceType, surfaceId) => workspace.applyJoin({surfaceType, surfaceId})}
+                            onApplyJoin={(joinKey) => workspace.applyJoin({joinKey})}
                             onCancelJoin={workspace.cancelJoin}
                             onLeave={workspace.leaveSurface}
                             onRetry={workspace.retryMessage}
@@ -127,6 +127,7 @@ export function PlatformImWorkspaceView({workspace}: {workspace: PlatformImWorks
                             await workspace.inviteSurface(surfaceType, surfaceId, request)
                         }}
                         onLeave={workspace.leaveSurface}
+                        onJoin={workspace.applyJoin}
                         onLoadManagement={workspace.refreshSurfaceAdmin}
                         onOpenConversation={openConversation}
                         onRefresh={workspace.refreshGroups}

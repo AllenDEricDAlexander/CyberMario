@@ -104,6 +104,7 @@ class PlatformImFacadeTests {
                 .satisfies(view -> {
                     assertThat(view.title()).isEqualTo("产品频道");
                     assertThat(view.surfaceKey()).startsWith("channel-");
+                    assertThat(view.joinKey()).isEqualTo(channel.joinKey());
                     assertThat(view.canRead()).isTrue();
                     assertThat(view.canPost()).isTrue();
                 });
@@ -112,6 +113,7 @@ class PlatformImFacadeTests {
                 .satisfies(view -> {
                     assertThat(view.title()).isEqualTo("Platform Team");
                     assertThat(view.surfaceKey()).isEqualTo("platform-team");
+                    assertThat(view.joinKey()).isEqualTo(group.joinKey());
                     assertThat(view.membershipStatus()).isEqualTo("ACTIVE");
                     assertThat(view.canPost()).isTrue();
                 });
@@ -121,6 +123,7 @@ class PlatformImFacadeTests {
                     assertThat(view.title()).isEqualTo("Bob");
                     assertThat(view.avatarUrl()).isNull();
                     assertThat(view.peerUserId()).isEqualTo(bob.getId());
+                    assertThat(view.joinKey()).isNull();
                     assertThat(view.canRead()).isTrue();
                     assertThat(view.canPost()).isTrue();
                 });

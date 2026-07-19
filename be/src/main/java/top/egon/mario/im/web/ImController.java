@@ -25,7 +25,7 @@ import top.egon.mario.im.facade.dto.command.CancelJoinCommand;
 import top.egon.mario.im.facade.dto.command.CreateChannelCommand;
 import top.egon.mario.im.facade.dto.command.CreateGroupCommand;
 import top.egon.mario.im.facade.dto.command.GlobalMuteCommand;
-import top.egon.mario.im.facade.dto.command.JoinCommand;
+import top.egon.mario.im.facade.dto.command.JoinByKeyCommand;
 import top.egon.mario.im.facade.dto.command.LeaveCommand;
 import top.egon.mario.im.facade.dto.command.MarkReadCommand;
 import top.egon.mario.im.facade.dto.command.MintWsTicketCommand;
@@ -157,10 +157,9 @@ public class ImController extends ReactiveImSupport {
     @PostMapping("/join-requests")
     public Mono<ApiResponse<JoinResultView>> applyJoin(@AuthenticationPrincipal RbacPrincipal principal,
                                                        @RequestBody JoinRequest request) {
-        return blocking(() -> roomFacade.applyJoin(new JoinCommand(
+        return blocking(() -> roomFacade.applyJoinByKey(new JoinByKeyCommand(
                 imPrincipal(principal),
-                request == null ? null : request.surfaceType(),
-                request == null ? null : request.surfaceId(),
+                request == null ? null : request.joinKey(),
                 request == null ? null : request.reason()
         )));
     }
@@ -340,7 +339,7 @@ public class ImController extends ReactiveImSupport {
             String metadataJson) {
     }
 
-    public record JoinRequest(String surfaceType, Long surfaceId, String reason) {
+    public record JoinRequest(String joinKey, String reason) {
     }
 
     public record RejectJoinRequest(String reason) {

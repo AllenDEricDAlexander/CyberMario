@@ -86,7 +86,7 @@ describe('imService', () => {
             name: 'Storytellers',
             joinPolicy: 'APPROVAL',
         })
-        void createImJoinRequest({surfaceType: 'GROUP', surfaceId: 4, reason: 'Need access'})
+        void createImJoinRequest({joinKey: 'grp_storytellers000000000', reason: 'Need access'})
 
         expect(requestJson).toHaveBeenNthCalledWith(1, '/api/im/messages', {
             method: 'POST',
@@ -127,7 +127,7 @@ describe('imService', () => {
         })
         expect(requestJson).toHaveBeenNthCalledWith(5, '/api/im/join-requests', {
             method: 'POST',
-            body: {surfaceType: 'GROUP', surfaceId: 4, reason: 'Need access'},
+            body: {joinKey: 'grp_storytellers000000000', reason: 'Need access'},
         })
     })
 

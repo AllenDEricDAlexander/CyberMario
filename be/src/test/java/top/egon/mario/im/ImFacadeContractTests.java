@@ -66,6 +66,7 @@ class ImFacadeContractTests {
             COMMAND_PACKAGE + ".CreateChannelCommand",
             COMMAND_PACKAGE + ".CreateGroupCommand",
             COMMAND_PACKAGE + ".JoinCommand",
+            COMMAND_PACKAGE + ".JoinByKeyCommand",
             COMMAND_PACKAGE + ".ApproveCommand",
             COMMAND_PACKAGE + ".RejectJoinCommand",
             COMMAND_PACKAGE + ".CancelJoinCommand",
@@ -216,6 +217,8 @@ class ImFacadeContractTests {
                 VIEW_PACKAGE + ".GroupView", COMMAND_PACKAGE + ".CreateGroupCommand");
         assertMethod(FACADE_PACKAGE + ".RoomFacade", "applyJoin",
                 VIEW_PACKAGE + ".JoinResultView", COMMAND_PACKAGE + ".JoinCommand");
+        assertMethod(FACADE_PACKAGE + ".RoomFacade", "applyJoinByKey",
+                VIEW_PACKAGE + ".JoinResultView", COMMAND_PACKAGE + ".JoinByKeyCommand");
         assertMethod(FACADE_PACKAGE + ".RoomFacade", "approveJoin",
                 VIEW_PACKAGE + ".JoinResultView", COMMAND_PACKAGE + ".ApproveCommand");
         assertMethod(FACADE_PACKAGE + ".RoomFacade", "rejectJoin",

@@ -16,11 +16,13 @@ import top.egon.mario.im.facade.DmFacade;
 import top.egon.mario.im.facade.GovFacade;
 import top.egon.mario.im.facade.ImFacade;
 import top.egon.mario.im.facade.RoomFacade;
+import top.egon.mario.im.facade.dto.command.JoinByKeyCommand;
 import top.egon.mario.im.facade.dto.command.MintWsTicketCommand;
 import top.egon.mario.im.facade.dto.command.OpenDmCommand;
 import top.egon.mario.im.facade.dto.command.SendMessageCommand;
 import top.egon.mario.im.facade.dto.query.ListConversationsQuery;
 import top.egon.mario.im.facade.dto.view.ConversationView;
+import top.egon.mario.im.facade.dto.view.JoinResultView;
 import top.egon.mario.im.facade.dto.view.MessageView;
 import top.egon.mario.im.facade.dto.view.SurfaceMemberView;
 import top.egon.mario.im.facade.dto.view.WsTicketView;
@@ -152,6 +154,22 @@ class ImControllerTests {
                 .verifyComplete();
         verify(platformImFacade).openDm(argThat((OpenDmCommand command) ->
                 command.targetUserId().equals(12002L) && isBoundaryPrincipal(command.principal())));
+    }
+
+    @Test
+    void joinEndpointDelegatesOnlyThePublicJoinKey() {
+        JoinResultView result = new JoinResultView("ACTIVE", "CHANNEL", 12L, 21L, null);
+        when(roomFacade.applyJoinByKey(any())).thenReturn(result);
+
+        StepVerifier.create(controller.applyJoin(
+                        principal(), new ImController.JoinRequest("chn_0123456789abcdefghijkl", "join")))
+                .assertNext(body -> assertThat(body.data()).isSameAs(result))
+                .verifyComplete();
+
+        verify(roomFacade).applyJoinByKey(argThat((JoinByKeyCommand command) ->
+                command.joinKey().equals("chn_0123456789abcdefghijkl")
+                        && command.reason().equals("join")
+                        && isBoundaryPrincipal(command.principal())));
     }
 
     @Test

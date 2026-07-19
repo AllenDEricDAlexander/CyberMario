@@ -1,7 +1,7 @@
-import {PlusOutlined, ReloadOutlined, TeamOutlined} from '@ant-design/icons'
+import {KeyOutlined, PlusOutlined, ReloadOutlined, TeamOutlined} from '@ant-design/icons'
 import {Alert, App, Avatar, Button, Empty, Input, List, Modal, Space, Tag, Typography} from 'antd'
 import {useState} from 'react'
-import type {ImSurfaceType} from '../imTypes'
+import type {ImSurfaceType, JoinRequestCreateRequest, JoinResultView} from '../imTypes'
 import type {
     PlatformGroupView,
     PlatformJoinRequestView,
@@ -20,6 +20,7 @@ export type ImGroupPaneProps = {
     userResults: PlatformUserView[]
     onRefresh: () => Promise<void>
     onCreate: (request: PlatformSurfaceCreateRequest) => Promise<PlatformGroupView>
+    onJoin: (request: JoinRequestCreateRequest) => Promise<JoinResultView>
     onLeave: (surfaceType: ImSurfaceType, surfaceId: number) => Promise<void>
     onOpenConversation: (conversationId: number) => Promise<void>
     onSearchUsers: (keyword: string) => Promise<void>
@@ -39,7 +40,9 @@ export function ImGroupPane(props: ImGroupPaneProps) {
     const {message} = App.useApp()
     const [selectedGroupId, setSelectedGroupId] = useState<number>()
     const [createOpen, setCreateOpen] = useState(false)
+    const [joinOpen, setJoinOpen] = useState(false)
     const [name, setName] = useState('')
+    const [surfaceJoinKey, setSurfaceJoinKey] = useState('')
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string>()
     const selectedGroup = props.groups.find((group) => group.id === selectedGroupId) ?? props.groups[0]
@@ -62,6 +65,23 @@ export function ImGroupPane(props: ImGroupPaneProps) {
         }
     }
 
+    async function join() {
+        const joinKey = surfaceJoinKey.trim()
+        if (!joinKey) return
+        setBusy(true)
+        setError(undefined)
+        try {
+            const result = await props.onJoin({joinKey})
+            setSurfaceJoinKey('')
+            setJoinOpen(false)
+            void message.success(result.status === 'ACTIVE' ? '已加入群组' : '加入申请已提交')
+        } catch (reason) {
+            setError(reason instanceof Error ? reason.message : '群组加入失败')
+        } finally {
+            setBusy(false)
+        }
+    }
+
     return (
         <>
             <aside aria-label="群组列表" className="platform-im-list-pane">
@@ -71,6 +91,7 @@ export function ImGroupPane(props: ImGroupPaneProps) {
                         <Typography.Text type="secondary">仅显示你已加入的独立群组</Typography.Text>
                     </div>
                     <Space.Compact>
+                        <Button aria-label="使用 Key 加入群组" icon={<KeyOutlined/>} onClick={() => setJoinOpen(true)}/>
                         <Button aria-label="创建独立群组" icon={<PlusOutlined/>} onClick={() => setCreateOpen(true)}/>
                         <Button aria-label="刷新群组" icon={<ReloadOutlined/>} onClick={() => void props.onRefresh()}/>
                     </Space.Compact>
@@ -105,10 +126,13 @@ export function ImGroupPane(props: ImGroupPaneProps) {
                             <div>
                                 <Typography.Title level={3}>{selectedGroup.name}</Typography.Title>
                                 <Space size={6} wrap>
-                                    <Tag>邀请制独立群组</Tag>
+                                    <Tag>唯一 Key 或邀请加入</Tag>
                                     <Tag>{selectedGroup.memberCount ?? 0} 位成员</Tag>
                                     {selectedGroup.memberRole && <Tag color="blue">{selectedGroup.memberRole}</Tag>}
                                 </Space>
+                                <Typography.Text code copyable={{text: selectedGroup.joinKey}}>
+                                    {selectedGroup.joinKey}
+                                </Typography.Text>
                             </div>
                             <Space>
                                 {selectedGroup.conversationId && (
@@ -140,7 +164,8 @@ export function ImGroupPane(props: ImGroupPaneProps) {
                         />
                     </>
                 ) : (
-                    <Empty description="创建或接受邀请后，独立群组会显示在这里" image={Empty.PRESENTED_IMAGE_SIMPLE}/>
+                    <Empty description="创建、使用 Key 加入或接受邀请后，独立群组会显示在这里"
+                           image={Empty.PRESENTED_IMAGE_SIMPLE}/>
                 )}
             </section>
             <Modal
@@ -153,10 +178,28 @@ export function ImGroupPane(props: ImGroupPaneProps) {
                 title="创建独立群组"
             >
                 <Space className="platform-im-create-group" orientation="vertical" size={14}>
-                    <Alert message="独立群组不会出现在搜索或发现列表中，只能由所有者或管理员邀请加入。" showIcon type="info"/>
+                    <Alert message="独立群组不会出现在搜索列表中，可通过系统生成的唯一 Key 或管理员邀请加入。"
+                           showIcon type="info"/>
                     <Input maxLength={80} placeholder="群组名称" value={name}
                            onChange={(event) => setName(event.target.value)}/>
                 </Space>
+            </Modal>
+            <Modal
+                confirmLoading={busy}
+                okButtonProps={{disabled: !surfaceJoinKey.trim()}}
+                okText="加入"
+                onCancel={() => setJoinOpen(false)}
+                onOk={() => void join()}
+                open={joinOpen}
+                title="使用唯一 Key 加入群组"
+            >
+                <Input
+                    aria-label="群组唯一 Key"
+                    maxLength={32}
+                    placeholder="grp_..."
+                    value={surfaceJoinKey}
+                    onChange={(event) => setSurfaceJoinKey(event.target.value)}
+                />
             </Modal>
         </>
     )

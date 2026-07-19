@@ -52,6 +52,7 @@ public class ConversationService {
     private final ImConversationMemberRepository conversationMemberRepository;
     private final ImMessageRepository messageRepository;
     private final MembershipService membershipService;
+    private final ImSurfaceJoinKeyService surfaceJoinKeyService;
     private final ImFacadeMapper mapper = new ImFacadeMapper();
 
     public ConversationService(ImChannelRepository channelRepository,
@@ -59,13 +60,15 @@ public class ConversationService {
                                ImConversationRepository conversationRepository,
                                ImConversationMemberRepository conversationMemberRepository,
                                ImMessageRepository messageRepository,
-                               MembershipService membershipService) {
+                               MembershipService membershipService,
+                               ImSurfaceJoinKeyService surfaceJoinKeyService) {
         this.channelRepository = channelRepository;
         this.groupRepository = groupRepository;
         this.conversationRepository = conversationRepository;
         this.conversationMemberRepository = conversationMemberRepository;
         this.messageRepository = messageRepository;
         this.membershipService = membershipService;
+        this.surfaceJoinKeyService = surfaceJoinKeyService;
     }
 
     @Transactional
@@ -92,6 +95,7 @@ public class ConversationService {
         channel.setContextType(contextType);
         channel.setContextId(command.contextId());
         channel.setChannelKey(channelKey);
+        channel.assignJoinKey(surfaceJoinKeyService.generate(ImSurfaceType.CHANNEL));
         channel.setName(name);
         channel.setOwnerUserId(principal.userId());
         channel.setVisibility(ImChannelVisibility.PUBLIC);
@@ -137,6 +141,7 @@ public class ConversationService {
         group.setContextType(context.contextType());
         group.setContextId(context.contextId());
         group.setGroupKey(groupKey);
+        group.assignJoinKey(surfaceJoinKeyService.generate(ImSurfaceType.GROUP));
         group.setName(name);
         group.setOwnerUserId(principal.userId());
         group.setJoinPolicy(joinPolicy);

@@ -1,9 +1,15 @@
 # Platform Web IM Membership and Invitation Correction
 
 Date: 2026-07-17
-Status: Confirmed and implemented
+Status: Historical — join-entry rules superseded on 2026-07-19
 Supersedes: the public `PLATFORM/general`, surface discovery, and global join
 rules in `2026-07-16-platform-web-im-design.md`
+
+> 2026-07-19 correction: member-scoped listing, parent-channel membership,
+> cascade, ownership, and invitation rules remain active. The invitation-only
+> join entry is superseded by
+> `2026-07-19-platform-im-immutable-join-key.md`: channels and groups may also
+> be joined through their system-generated immutable key.
 
 ## Decision
 

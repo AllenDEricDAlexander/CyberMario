@@ -21,7 +21,7 @@ export type ImThreadPaneProps = {
     onSend: (content: string) => Promise<boolean>
     onRetry: (conversationId: number, clientMsgId: string) => Promise<boolean>
     onAddFriend: (userId: number) => Promise<void>
-    onApplyJoin: (surfaceType: ImSurfaceType, surfaceId: number) => Promise<JoinResultView>
+    onApplyJoin: (joinKey: string) => Promise<JoinResultView>
     onCancelJoin: (requestId: number) => Promise<JoinResultView>
     onLeave: (surfaceType: ImSurfaceType, surfaceId: number) => Promise<void>
 }
@@ -45,7 +45,8 @@ export function ImThreadPane(props: ImThreadPaneProps) {
     const conversation = props.conversation
     const surfaceType = conversation.ownerSurfaceType
     const surfaceId = conversation.surfaceId
-    const isSurface = Boolean(surfaceType && surfaceId)
+    const joinKey = conversation.joinKey
+    const isSurface = Boolean(surfaceType && surfaceId && joinKey)
     const canManageMembership = isSurface && conversation.membershipStatus !== 'BANNED'
     const sending = props.messages.some((message) => message.status === 'PENDING')
 
@@ -78,14 +79,14 @@ export function ImThreadPane(props: ImThreadPaneProps) {
                         {!conversation.canPost && <Tag icon={<LockOutlined/>}>只读</Tag>}
                     </Space>
                 </div>
-                {canManageMembership && surfaceType && surfaceId && (
+                {canManageMembership && surfaceType && surfaceId && joinKey && (
                     <div className="platform-im-thread-membership">
                         <ImJoinApplyControls
                             currentMemberRole={conversation.memberRole}
                             currentMembershipStatus={conversation.membershipStatus}
                             joinPolicy={props.group?.joinPolicy ?? 'OPEN'}
-                            surface={{surfaceType, surfaceId}}
-                            onApply={(surface) => props.onApplyJoin(surface.surfaceType, surface.surfaceId)}
+                            surface={{surfaceType, surfaceId, joinKey}}
+                            onApply={(surface) => props.onApplyJoin(surface.joinKey)}
                             onApprove={() => undefined}
                             onCancel={props.onCancelJoin}
                             onLeave={(surface) => props.onLeave(surface.surfaceType, surface.surfaceId)}
