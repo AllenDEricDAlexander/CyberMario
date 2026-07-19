@@ -45,14 +45,22 @@ public class InvestmentJobRunner implements SmartLifecycle {
                 properties.getRunner().initialDelay().toMillis(),
                 properties.getRunner().pollInterval().toMillis(), TimeUnit.MILLISECONDS);
         running = true;
+        LogUtil.info(log).log(
+                "investment job runner started, workerId={}, batchSize={}, initialDelayMs={}, pollIntervalMs={}",
+                workerId, properties.batchSize(), properties.getRunner().initialDelay().toMillis(),
+                properties.getRunner().pollInterval().toMillis());
     }
 
     @Override
     public synchronized void stop() {
+        boolean wasRunning = running;
         running = false;
         if (executorService != null) {
             executorService.shutdownNow();
             executorService = null;
+        }
+        if (wasRunning) {
+            LogUtil.info(log).log("investment job runner stopped, workerId={}", workerId);
         }
     }
 
@@ -79,7 +87,11 @@ public class InvestmentJobRunner implements SmartLifecycle {
 
     private void processSafely() {
         try {
-            worker.processBatch(workerId, properties.batchSize());
+            int processed = worker.processBatch(workerId, properties.batchSize());
+            if (processed > 0) {
+                LogUtil.info(log).log("investment job batch processed, workerId={}, processedCount={}",
+                        workerId, processed);
+            }
         } catch (RuntimeException ex) {
             LogUtil.warn(log).log("investment job worker batch failed, error={}",
                     ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage());
