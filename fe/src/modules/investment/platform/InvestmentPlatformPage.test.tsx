@@ -115,8 +115,12 @@ describe('InvestmentPlatformPage', () => {
 
         await userEvent.click(screen.getAllByRole('combobox')[2])
         expect(await screen.findByRole('option', {name: 'M1'})).toBeTruthy()
+        expect(await screen.findByRole('option', {name: 'M5'})).toBeTruthy()
+        expect(await screen.findByRole('option', {name: 'M15'})).toBeTruthy()
+        expect(await screen.findByRole('option', {name: 'M30'})).toBeTruthy()
+        expect(await screen.findByRole('option', {name: 'H1'})).toBeTruthy()
+        expect(await screen.findByRole('option', {name: 'H4'})).toBeTruthy()
         expect(await screen.findByRole('option', {name: 'D1'})).toBeTruthy()
-        expect(screen.queryByRole('option', {name: 'M5'})).toBeNull()
     })
 
     test('submits funding without an interval once, then switches to refreshed job history', async () => {
@@ -350,13 +354,13 @@ const btcSubscription = {
     status: 'ACTIVE',
     capabilities: ['MARKET_CANDLE', 'FUNDING_RATE'],
     priceTypes: ['MARKET'],
-    intervals: ['M1', 'D1', 'M5'],
+    intervals: ['M1', 'M5', 'M15', 'M30', 'H1', 'H4', 'D1'],
     refreshIntervals: {},
     backfillWindows: {},
     retention: {},
 }
 
-const solSubscription = {...btcSubscription, symbol: 'SOLUSDT', intervals: ['M1', 'D1']}
+const solSubscription = {...btcSubscription, symbol: 'SOLUSDT'}
 
 const pullResponse = {
     jobId: 21,

@@ -43,7 +43,7 @@ export type InvestmentMarketDataPullSymbol = 'BTCUSDT' | 'SOLUSDT'
 
 export type InvestmentMarketDataPullCapability = 'MARKET_CANDLE' | 'FUNDING_RATE'
 
-export type InvestmentMarketDataPullInterval = 'M1' | 'D1'
+export type InvestmentMarketDataPullInterval = 'M1' | 'M5' | 'M15' | 'M30' | 'H1' | 'H4' | 'D1'
 
 export type InvestmentMarketDataPullRequest = {
     symbol: InvestmentMarketDataPullSymbol

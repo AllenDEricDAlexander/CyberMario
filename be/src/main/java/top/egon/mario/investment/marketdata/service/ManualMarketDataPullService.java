@@ -36,7 +36,9 @@ public class ManualMarketDataPullService {
     private static final int PAGE_SIZE = 100;
     private static final Duration MAX_WINDOW = Duration.ofDays(730);
     private static final Set<String> SYMBOLS = Set.of("BTCUSDT", "SOLUSDT");
-    private static final Set<BarInterval> CANDLE_INTERVALS = Set.of(BarInterval.M1, BarInterval.D1);
+    private static final Set<BarInterval> CANDLE_INTERVALS = Set.of(
+            BarInterval.M1, BarInterval.M5, BarInterval.M15, BarInterval.M30,
+            BarInterval.H1, BarInterval.H4, BarInterval.D1);
 
     private final InvestmentMarketSubscriptionRegistry subscriptionRegistry;
     private final InvestmentJobEnqueueService enqueueService;
@@ -103,7 +105,7 @@ public class ManualMarketDataPullService {
     private Shape shape(DataCapability capability, BarInterval interval) {
         if (capability == DataCapability.MARKET_CANDLE) {
             if (interval == null || !CANDLE_INTERVALS.contains(interval)) {
-                throw invalid("MARKET_CANDLE requires interval M1 or D1");
+                throw invalid("MARKET_CANDLE requires interval M1, M5, M15, M30, H1, H4, or D1");
             }
             return new Shape(capability, PriceType.MARKET, interval, InvestmentJobType.BAR_BACKFILL);
         }

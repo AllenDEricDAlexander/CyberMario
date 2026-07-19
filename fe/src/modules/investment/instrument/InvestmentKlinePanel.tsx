@@ -23,6 +23,7 @@ type InvestmentKlinePanelProps = {
     availablePriceTypes: InvestmentPriceType[]
     availableIntervals: InvestmentBarInterval[]
     now?: () => number
+    refreshIntervalMs?: number
 }
 
 type InvestmentRange = '1H' | '24H' | '7D'
@@ -39,6 +40,7 @@ export function InvestmentKlinePanel({
     availablePriceTypes,
     availableIntervals,
     now = Date.now,
+    refreshIntervalMs = 30_000,
 }: InvestmentKlinePanelProps) {
     const [priceType, setPriceType] = useState<InvestmentPriceType>(availablePriceTypes[0] ?? 'MARKET')
     const [interval, setInterval] = useState<InvestmentBarInterval>(availableIntervals[0] ?? 'M1')
@@ -64,13 +66,15 @@ export function InvestmentKlinePanel({
         }
     }, [availableIntervals, interval])
 
-    const load = useCallback(async () => {
+    const load = useCallback(async (background = false) => {
         const generation = ++generationRef.current
         const query = candleQuery(instrumentId, priceType, interval, range, now())
-        setLoadState('loading')
-        setLoadError(undefined)
-        setIndicatorError(undefined)
-        setIndicators(undefined)
+        if (!background) {
+            setLoadState('loading')
+            setLoadError(undefined)
+            setIndicatorError(undefined)
+            setIndicators(undefined)
+        }
         try {
             const response = await listInvestmentCandles(query)
             if (generation !== generationRef.current) {
@@ -78,9 +82,13 @@ export function InvestmentKlinePanel({
             }
             const closed = response.filter(({isClosed}) => isClosed)
             setCandles(closed)
+            setLoadError(undefined)
             setLoadState(closed.length === 0 ? 'empty' : 'ready')
         } catch (reason) {
             if (generation !== generationRef.current) {
+                return
+            }
+            if (background) {
                 return
             }
             setCandles([])
@@ -92,6 +100,7 @@ export function InvestmentKlinePanel({
             const response = await getInvestmentIndicators(query)
             if (generation === generationRef.current) {
                 setIndicators(response)
+                setIndicatorError(undefined)
             }
         } catch (reason) {
             if (generation === generationRef.current) {
@@ -101,11 +110,19 @@ export function InvestmentKlinePanel({
     }, [instrumentId, interval, now, priceType, range])
 
     useEffect(() => {
-        void load()
+        void load(false)
         return () => {
             generationRef.current += 1
         }
     }, [load])
+
+    useEffect(() => {
+        if (refreshIntervalMs <= 0) {
+            return
+        }
+        const timer = window.setInterval(() => void load(true), refreshIntervalMs)
+        return () => window.clearInterval(timer)
+    }, [load, refreshIntervalMs])
 
     useEffect(() => {
         const generation = ++tradeGenerationRef.current
@@ -192,7 +209,7 @@ export function InvestmentKlinePanel({
             <InvestmentAsyncState
                 emptyDescription="当前范围暂无已关闭 K 线"
                 error={loadError}
-                onRetry={() => void load()}
+                onRetry={() => void load(false)}
                 state={loadState}
             >
                 <InvestmentCandlestickChart data={chartData} markers={tradeMarkers}/>

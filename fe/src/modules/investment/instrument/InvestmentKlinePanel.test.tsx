@@ -1,4 +1,4 @@
-import {render, screen, waitFor} from '@testing-library/react'
+import {act, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {App} from 'antd'
 import {beforeEach, describe, expect, test, vi} from 'vitest'
@@ -116,6 +116,39 @@ describe('InvestmentKlinePanel', () => {
         expect(screen.getByText('65000.000000000000000001')).toBeTruthy()
     })
 
+    test('refreshes candles in the background without clearing the visible chart', async () => {
+        vi.useFakeTimers()
+        try {
+            const next = deferred<InvestmentCandleResponse[]>()
+            mocks.candles.mockResolvedValueOnce([candle('2026-07-15T23:58:00.000Z', true)])
+                .mockReturnValueOnce(next.promise)
+            const view = renderPanel(undefined, 30_000)
+            await act(async () => {
+                await Promise.resolve()
+                await Promise.resolve()
+            })
+            expect(screen.getByText('1 points')).toBeTruthy()
+
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(30_000)
+            })
+            expect(mocks.candles).toHaveBeenCalledTimes(2)
+            expect(screen.getByText('1 points')).toBeTruthy()
+
+            next.resolve([
+                candle('2026-07-15T23:58:00.000Z', true),
+                candle('2026-07-15T23:59:00.000Z', true),
+            ])
+            await act(async () => {
+                await Promise.resolve()
+            })
+            expect(screen.getByText('2 points')).toBeTruthy()
+            view.unmount()
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
     test('keeps public candles visible when the private marker request fails', async () => {
         mocks.fills.mockRejectedValue(new Error('private activity unavailable'))
         renderPanel(21)
@@ -150,11 +183,11 @@ describe('InvestmentKlinePanel', () => {
     })
 })
 
-function renderPanel(accountId?: number) {
-    return render(panel(accountId))
+function renderPanel(accountId?: number, refreshIntervalMs = 0) {
+    return render(panel(accountId, refreshIntervalMs))
 }
 
-function panel(accountId?: number) {
+function panel(accountId?: number, refreshIntervalMs = 0) {
     return (
         <App>
             <InvestmentKlinePanel
@@ -163,6 +196,7 @@ function panel(accountId?: number) {
                 availablePriceTypes={['MARKET', 'MARK']}
                 instrumentId={11}
                 now={now}
+                refreshIntervalMs={refreshIntervalMs}
             />
         </App>
     )

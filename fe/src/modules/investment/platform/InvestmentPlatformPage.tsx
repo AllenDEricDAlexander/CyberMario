@@ -44,7 +44,7 @@ const STALE_RUNNING_MILLIS = 5 * 60 * 1000
 const MAX_PULL_RANGE_MILLIS = 730 * 24 * 60 * 60 * 1000
 const PULL_SYMBOLS: InvestmentMarketDataPullSymbol[] = ['BTCUSDT', 'SOLUSDT']
 const PULL_CAPABILITIES: InvestmentMarketDataPullCapability[] = ['MARKET_CANDLE', 'FUNDING_RATE']
-const PULL_INTERVALS: InvestmentMarketDataPullInterval[] = ['M1', 'D1']
+const PULL_INTERVALS: InvestmentMarketDataPullInterval[] = ['M1', 'M5', 'M15', 'M30', 'H1', 'H4', 'D1']
 const {RangePicker} = DatePicker
 type RangeValue = Parameters<NonNullable<RangePickerProps['onChange']>>[0]
 type MarketDataPullFormValues = {
@@ -558,7 +558,7 @@ export default function InvestmentPlatformPage() {
                             name="interval"
                             rules={[{required: true, message: '请选择 K 线周期'}]}
                         >
-                            <Select options={intervalOptions} placeholder="请选择 K 线周期"/>
+                            <Select options={intervalOptions} placeholder="请选择 K 线周期" virtual={false}/>
                         </Form.Item>
                     )}
                     <Form.Item

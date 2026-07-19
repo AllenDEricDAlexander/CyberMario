@@ -22,6 +22,9 @@ import java.util.Set;
 public class BitgetInvestmentMarketSubscriptionProvider implements InvestmentMarketSubscriptionProvider {
 
     private static final Duration TWO_YEARS = Duration.ofDays(730);
+    private static final Set<BarInterval> CANDLE_INTERVALS = Set.of(
+            BarInterval.M1, BarInterval.M5, BarInterval.M15, BarInterval.M30,
+            BarInterval.H1, BarInterval.H4, BarInterval.D1);
     private static final Set<DataCapability> CAPABILITIES = Set.of(
             DataCapability.MARKET_CANDLE, DataCapability.FUNDING_RATE, DataCapability.CURRENT_FUNDING_RATE);
 
@@ -32,7 +35,7 @@ public class BitgetInvestmentMarketSubscriptionProvider implements InvestmentMar
 
     private MarketSubscription subscription(String symbol) {
         return new MarketSubscription("BITGET", ProductType.USDT_FUTURES, symbol,
-                Set.of(BarInterval.M1, BarInterval.D1), Set.of(PriceType.MARKET), CAPABILITIES,
+                CANDLE_INTERVALS, Set.of(PriceType.MARKET), CAPABILITIES,
                 new SubscriptionSchedule(Map.of(
                         DataCapability.MARKET_CANDLE, Duration.ofMinutes(1),
                         DataCapability.FUNDING_RATE, Duration.ofHours(8),
@@ -41,6 +44,12 @@ public class BitgetInvestmentMarketSubscriptionProvider implements InvestmentMar
                         DataCapability.MARKET_CANDLE, TWO_YEARS,
                         DataCapability.FUNDING_RATE, TWO_YEARS
                 )),
-                new RetentionPolicy(Set.of(BarInterval.D1), Map.of(BarInterval.M1, TWO_YEARS)));
+                new RetentionPolicy(Set.of(BarInterval.D1), Map.of(
+                        BarInterval.M1, TWO_YEARS,
+                        BarInterval.M5, TWO_YEARS,
+                        BarInterval.M15, TWO_YEARS,
+                        BarInterval.M30, TWO_YEARS,
+                        BarInterval.H1, TWO_YEARS,
+                        BarInterval.H4, TWO_YEARS)));
     }
 }

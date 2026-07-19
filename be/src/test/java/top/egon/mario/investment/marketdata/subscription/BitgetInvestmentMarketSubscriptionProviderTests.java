@@ -43,10 +43,14 @@ class BitgetInvestmentMarketSubscriptionProviderTests {
                     DataCapability.MARKET_CANDLE, DataCapability.FUNDING_RATE,
                     DataCapability.CURRENT_FUNDING_RATE);
             assertThat(subscription.capabilities()).doesNotContain(DataCapability.LATEST_TICKER);
-            assertThat(subscription.intervals()).containsExactlyInAnyOrder(BarInterval.M1, BarInterval.D1);
+            assertThat(subscription.intervals()).containsExactlyInAnyOrder(
+                    BarInterval.M1, BarInterval.M5, BarInterval.M15, BarInterval.M30,
+                    BarInterval.H1, BarInterval.H4, BarInterval.D1);
             assertThat(subscription.retentionPolicy().permanentIntervals()).containsExactly(BarInterval.D1);
-            assertThat(subscription.retentionPolicy().retainedFor().get(BarInterval.M1))
-                    .isEqualTo(Duration.ofDays(730));
+            assertThat(subscription.retentionPolicy().retainedFor()).allSatisfy((interval, retention) -> {
+                assertThat(interval).isNotEqualTo(BarInterval.D1);
+                assertThat(retention).isEqualTo(Duration.ofDays(730));
+            }).hasSize(6);
         });
     }
 
@@ -56,11 +60,11 @@ class BitgetInvestmentMarketSubscriptionProviderTests {
         InvestmentMarketJobPlanner planner = new InvestmentMarketJobPlanner(true, registry(), enqueueService,
                 objectMapper, Clock.fixed(now, ZoneOffset.UTC), Duration.ofSeconds(30));
 
-        assertThat(planner.tick()).isEqualTo(226);
+        assertThat(planner.tick()).isEqualTo(316);
 
         ArgumentCaptor<InvestmentJobEnqueueCommand> captor =
                 ArgumentCaptor.forClass(InvestmentJobEnqueueCommand.class);
-        verify(enqueueService, times(226)).enqueue(captor.capture());
+        verify(enqueueService, times(316)).enqueue(captor.capture());
         List<InvestmentJobEnqueueCommand> commands = captor.getAllValues();
         List<MarketDataJobInput> inputs = commands.stream()
                 .filter(command -> command.jobType() == InvestmentJobType.BAR_INCREMENTAL)
@@ -69,9 +73,30 @@ class BitgetInvestmentMarketSubscriptionProviderTests {
         assertThat(inputs).filteredOn(input -> input.interval() == BarInterval.M1)
                 .allSatisfy(input -> assertThat(input.endExclusive())
                         .isEqualTo(Instant.parse("2026-07-19T12:34:00Z")));
+        assertThat(inputs).filteredOn(input -> input.interval() == BarInterval.M30)
+                .allSatisfy(input -> assertThat(input.endExclusive())
+                        .isEqualTo(Instant.parse("2026-07-19T12:30:00Z")));
+        assertThat(inputs).filteredOn(input -> input.interval() == BarInterval.H4)
+                .allSatisfy(input -> assertThat(input.endExclusive())
+                        .isEqualTo(Instant.parse("2026-07-19T12:00:00Z")));
         assertThat(inputs).filteredOn(input -> input.interval() == BarInterval.D1)
                 .allSatisfy(input -> assertThat(input.endExclusive())
                         .isEqualTo(Instant.parse("2026-07-19T00:00:00Z")));
+        List<MarketDataJobInput> recentBackfills = commands.stream()
+                .filter(command -> command.jobType() == InvestmentJobType.BAR_BACKFILL)
+                .map(command -> read(command.inputJson()))
+                .filter(input -> input.interval() != BarInterval.D1)
+                .filter(input -> Duration.between(input.startInclusive(), input.endExclusive())
+                        .equals(Duration.ofDays(1)))
+                .toList();
+        assertThat(recentBackfills)
+                .hasSize(12)
+                .extracting(MarketDataJobInput::interval)
+                .containsOnly(BarInterval.M1, BarInterval.M5, BarInterval.M15, BarInterval.M30,
+                        BarInterval.H1, BarInterval.H4);
+        assertThat(recentBackfills)
+                .allSatisfy(input -> assertThat(Duration.between(input.startInclusive(), input.endExclusive()))
+                        .isEqualTo(Duration.ofDays(1)));
         assertThat(commands).filteredOn(command -> command.jobType() == InvestmentJobType.QUOTE_REFRESH)
                 .extracting(command -> read(command.inputJson()).capability())
                 .containsExactly(DataCapability.CURRENT_FUNDING_RATE, DataCapability.CURRENT_FUNDING_RATE);

@@ -10,7 +10,7 @@ import java.time.Duration;
 public final class MarketDataBackfillWindowPolicy {
 
     private static final int MAX_PAGES_PER_JOB = 100;
-    private static final Duration RECENT_MINUTE_WINDOW = Duration.ofDays(1);
+    private static final Duration RECENT_INTRADAY_WINDOW = Duration.ofDays(1);
 
     private MarketDataBackfillWindowPolicy() {
     }
@@ -24,8 +24,8 @@ public final class MarketDataBackfillWindowPolicy {
 
     public static Duration initialJobWindow(BarInterval interval, int pageSize) {
         Duration maximum = maximumJobWindow(interval, pageSize);
-        return interval == BarInterval.M1 && RECENT_MINUTE_WINDOW.compareTo(maximum) < 0
-                ? RECENT_MINUTE_WINDOW : maximum;
+        return interval != BarInterval.D1 && RECENT_INTRADAY_WINDOW.compareTo(maximum) < 0
+                ? RECENT_INTRADAY_WINDOW : maximum;
     }
 
     private static Duration intervalDuration(BarInterval interval) {

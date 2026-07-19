@@ -52,7 +52,7 @@ class ManualMarketDataPullServiceTests {
     void enqueuesAUniqueManualBackfillWithoutCallingProvider() throws Exception {
         Instant start = now.minus(Duration.ofDays(7));
         var response = service.enqueue(new ManualMarketDataPullRequest("btcusdt",
-                DataCapability.MARKET_CANDLE, BarInterval.M1, start, now));
+                DataCapability.MARKET_CANDLE, BarInterval.H4, start, now));
 
         assertThat(response.jobId()).isEqualTo(42L);
         assertThat(response.jobType()).isEqualTo("BAR_BACKFILL");
@@ -68,10 +68,11 @@ class ManualMarketDataPullServiceTests {
         assertThat(input.productType()).isEqualTo(ProductType.USDT_FUTURES);
         assertThat(input.symbol()).isEqualTo("BTCUSDT");
         assertThat(input.priceType()).isEqualTo(PriceType.MARKET);
+        assertThat(input.interval()).isEqualTo(BarInterval.H4);
         assertThat(input.pageSize()).isEqualTo(100);
         assertThat(input.triggerSource()).isEqualTo("MANUAL");
         verify(registry).requireCandle("BITGET", ProductType.USDT_FUTURES, "BTCUSDT",
-                BarInterval.M1, PriceType.MARKET);
+                BarInterval.H4, PriceType.MARKET);
     }
 
     @Test
