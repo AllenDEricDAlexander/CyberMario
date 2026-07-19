@@ -34,6 +34,7 @@ import top.egon.mario.investment.marketdata.ingest.MarketDataDimension;
 import top.egon.mario.investment.marketdata.ingest.MarketDataChecksum;
 import top.egon.mario.investment.marketdata.ingest.MarketDataCursorService;
 import top.egon.mario.investment.marketdata.ingest.MarketDataJobInput;
+import top.egon.mario.investment.marketdata.ingest.handler.BarBackfillJobHandler;
 import top.egon.mario.investment.marketdata.ingest.handler.ContractMetadataSyncJobHandler;
 import top.egon.mario.investment.marketdata.ingest.handler.CandleSyncJobHandler;
 import top.egon.mario.investment.marketdata.ingest.handler.FundingRateSyncJobHandler;
@@ -196,6 +197,37 @@ class InvestmentMarketDataIngestTests {
         verify(qualityService).persist(org.mockito.ArgumentMatchers.eq(11L),
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.argThat(findings ->
                         findings.size() == 1 && findings.getFirst().code().name().equals("OHLC_INVALID")));
+    }
+
+    @Test
+    void boundsLegacyScheduledMinuteBackfillsButPreservesManualRanges() throws Exception {
+        Instant end = Instant.parse("2026-07-16T00:00:00Z");
+        Instant start = end.minus(Duration.ofDays(30));
+        ProviderRegistry providerRegistry = mock(ProviderRegistry.class);
+        ContractCandleProvider provider = mock(ContractCandleProvider.class);
+        when(providerRegistry.require("TEST", DataCapability.MARKET_CANDLE, ContractCandleProvider.class))
+                .thenReturn(provider);
+        when(provider.candles(org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
+        BarBackfillJobHandler handler = new BarBackfillJobHandler(objectMapper, subscriptionRegistry,
+                new TransactionTemplate(new RecordingTransactionManager()), providerRegistry,
+                mock(MarketDataDimensionResolver.class), mock(MarketBarJdbcRepository.class),
+                mock(MarketDataQualityService.class), mock(MarketDataAfterCommitPublisher.class),
+                Clock.fixed(end.plusSeconds(60), ZoneOffset.UTC));
+
+        MarketDataJobInput scheduled = new MarketDataJobInput("TEST", ProductType.USDT_FUTURES, "BTCUSDT",
+                DataCapability.MARKET_CANDLE, PriceType.MARKET, BarInterval.M1, start, end, 100);
+        MarketDataJobInput manual = new MarketDataJobInput("TEST", ProductType.USDT_FUTURES, "BTCUSDT",
+                DataCapability.MARKET_CANDLE, PriceType.MARKET, BarInterval.M1, start, end, 100, "MANUAL");
+        handler.execute(claim(InvestmentJobType.BAR_BACKFILL, scheduled));
+        handler.execute(claim(InvestmentJobType.BAR_BACKFILL, manual));
+
+        ArgumentCaptor<CandleQuery> queries = ArgumentCaptor.forClass(CandleQuery.class);
+        verify(provider, times(2)).candles(queries.capture());
+        assertThat(queries.getAllValues().getFirst().startInclusive())
+                .isEqualTo(end.minus(Duration.ofDays(1)));
+        assertThat(queries.getAllValues().get(1).startInclusive()).isEqualTo(start);
+        assertThat(queries.getAllValues()).allSatisfy(query ->
+                assertThat(query.endExclusive()).isEqualTo(end));
     }
 
     @Test

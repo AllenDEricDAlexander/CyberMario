@@ -78,12 +78,17 @@ public abstract class AbstractMarketDataJobHandler<T> implements InvestmentJobHa
             recordSubscriptionRejection(claim, input);
             throw new InvestmentJobNonRetryableException("MARKET_OUT_OF_SUBSCRIPTION", ex.getMessage(), ex);
         }
+        input = executionInput(input);
         return providerPaged(input) ? executePaged(claim, input) : executeSingle(claim, input);
     }
 
     protected abstract List<T> fetch(MarketDataJobInput input);
 
     protected abstract void validateSubscription(MarketDataJobInput input);
+
+    protected MarketDataJobInput executionInput(MarketDataJobInput input) {
+        return input;
+    }
 
     protected void validatePage(MarketDataJobInput input, List<T> page) {
         // Provider models perform structural validation; handlers add cross-record validation when needed.

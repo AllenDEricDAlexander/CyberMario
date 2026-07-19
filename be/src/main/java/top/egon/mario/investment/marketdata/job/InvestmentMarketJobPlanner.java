@@ -13,6 +13,7 @@ import top.egon.mario.investment.common.model.BarInterval;
 import top.egon.mario.investment.common.model.DataCapability;
 import top.egon.mario.investment.common.model.InvestmentJobType;
 import top.egon.mario.investment.common.model.PriceType;
+import top.egon.mario.investment.marketdata.ingest.MarketDataBackfillWindowPolicy;
 import top.egon.mario.investment.marketdata.ingest.MarketDataJobInput;
 import top.egon.mario.investment.marketdata.subscription.InvestmentMarketSubscriptionRegistry;
 import top.egon.mario.investment.marketdata.subscription.MarketSubscription;
@@ -39,6 +40,7 @@ public class InvestmentMarketJobPlanner implements SmartLifecycle {
 
     private static final int PRIORITY = 100;
     private static final int MAX_ATTEMPTS = 5;
+    private static final int PAGE_SIZE = 100;
 
     private final boolean enabled;
     private final InvestmentMarketSubscriptionRegistry subscriptionRegistry;
@@ -47,6 +49,7 @@ public class InvestmentMarketJobPlanner implements SmartLifecycle {
     private final Clock clock;
     private final Duration plannerDelay;
     private volatile boolean running;
+    private boolean backfillsPlanned;
     private ScheduledExecutorService executorService;
 
     public InvestmentMarketJobPlanner(
@@ -74,6 +77,7 @@ public class InvestmentMarketJobPlanner implements SmartLifecycle {
             return 0;
         }
         Instant now = clock.instant();
+        boolean planBackfills = !backfillsPlanned;
         int planned = 0;
         for (MarketSubscription subscription : subscriptions) {
             for (DataCapability capability : subscription.capabilities().stream().sorted().toList()) {
@@ -87,14 +91,16 @@ public class InvestmentMarketJobPlanner implements SmartLifecycle {
                     planned++;
                 }
             }
-            for (var entry : subscription.schedule().backfillWindows().entrySet().stream()
-                    .sorted(Map.Entry.comparingByKey()).toList()) {
-                Duration refresh = subscription.schedule().refreshIntervals().get(entry.getKey());
-                for (MarketDataJobInput input : backfillInputs(subscription, entry.getKey(), entry.getValue(),
-                        refresh, now)) {
-                    enqueueService.enqueue(command(input, backfillJobType(entry.getKey()),
-                            "backfill:" + entry.getValue().toSeconds(), now));
-                    planned++;
+            if (planBackfills) {
+                for (var entry : subscription.schedule().backfillWindows().entrySet().stream()
+                        .sorted(Map.Entry.comparingByKey()).toList()) {
+                    Duration refresh = subscription.schedule().refreshIntervals().get(entry.getKey());
+                    for (PlannedBackfill plannedInput : backfillInputs(subscription, entry.getKey(), entry.getValue(),
+                            refresh, now)) {
+                        enqueueService.enqueue(command(plannedInput.input(), backfillJobType(entry.getKey()),
+                                plannedInput.scheduleKey(), plannedInput.availableAt()));
+                        planned++;
+                    }
                 }
             }
             Duration qualityRefresh = subscription.schedule().refreshIntervals().values().stream()
@@ -106,6 +112,9 @@ public class InvestmentMarketJobPlanner implements SmartLifecycle {
             enqueueService.enqueue(command(qualityInput, InvestmentJobType.DATA_QUALITY_CHECK,
                     "quality:" + qualitySlot.number(), qualitySlot.start()));
             planned++;
+        }
+        if (planBackfills) {
+            backfillsPlanned = true;
         }
         return planned;
     }
@@ -165,7 +174,7 @@ public class InvestmentMarketJobPlanner implements SmartLifecycle {
             tick();
         } catch (RuntimeException ex) {
             LogUtil.warn(log).log("investment market planner tick failed, error={}",
-                    ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage(), ex);
+                    ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage());
         }
     }
 
@@ -190,21 +199,39 @@ public class InvestmentMarketJobPlanner implements SmartLifecycle {
                 input(subscription, capability, PriceType.NONE, BarInterval.NONE, start, end), capabilitySlot));
     }
 
-    private List<MarketDataJobInput> backfillInputs(MarketSubscription subscription, DataCapability capability,
-                                                    Duration window, Duration refresh, Instant now) {
+    private List<PlannedBackfill> backfillInputs(MarketSubscription subscription, DataCapability capability,
+                                                Duration window, Duration refresh, Instant now) {
+        String scheduleKey = "backfill:" + window.toSeconds();
         if (isCandle(capability)) {
             PriceType priceType = priceType(capability);
-            return subscription.intervals().stream().sorted()
-                    .map(interval -> {
-                        Instant alignedEnd = slot(max(refresh, intervalDuration(interval)), now).start();
-                        return input(subscription, capability, priceType, interval,
-                                alignedEnd.minus(window), alignedEnd);
-                    }).toList();
+            List<PlannedBackfill> inputs = new ArrayList<>();
+            for (BarInterval interval : subscription.intervals().stream().sorted().toList()) {
+                Instant alignedEnd = slot(max(refresh, intervalDuration(interval)), now).start();
+                Instant configuredStart = alignedEnd.minus(window);
+                Duration maximumJobWindow = MarketDataBackfillWindowPolicy.maximumJobWindow(interval, PAGE_SIZE);
+                Duration initialJobWindow = MarketDataBackfillWindowPolicy.initialJobWindow(interval, PAGE_SIZE);
+                Instant chunkEnd = alignedEnd;
+                int chunkIndex = 0;
+                while (configuredStart.isBefore(chunkEnd)) {
+                    Duration jobWindow = chunkIndex == 0 ? initialJobWindow : maximumJobWindow;
+                    Instant chunkStart = later(configuredStart, chunkEnd.minus(jobWindow));
+                    String chunkKey = chunkIndex == 0
+                            ? scheduleKey : scheduleKey + ":chunk:" + chunkIndex;
+                    inputs.add(new PlannedBackfill(
+                            input(subscription, capability, priceType, interval, chunkStart, chunkEnd),
+                            chunkKey, now.plusSeconds(chunkIndex)));
+                    chunkEnd = chunkStart;
+                    chunkIndex++;
+                }
+            }
+            return List.copyOf(inputs);
         }
         if (capability == DataCapability.FUNDING_RATE) {
             Instant alignedEnd = slot(refresh, now).start();
-            return List.of(input(subscription, capability, PriceType.NONE, BarInterval.NONE,
-                    alignedEnd.minus(window), alignedEnd));
+            return List.of(new PlannedBackfill(
+                    input(subscription, capability, PriceType.NONE, BarInterval.NONE,
+                            alignedEnd.minus(window), alignedEnd),
+                    scheduleKey, now));
         }
         throw new IllegalArgumentException("Backfill is supported only for candle and funding capabilities: "
                 + capability);
@@ -214,7 +241,7 @@ public class InvestmentMarketJobPlanner implements SmartLifecycle {
                                      PriceType priceType, BarInterval interval,
                                      Instant startInclusive, Instant endExclusive) {
         return new MarketDataJobInput(subscription.sourceCode(), subscription.productType(), subscription.symbol(),
-                capability, priceType, interval, startInclusive, endExclusive, 100);
+                capability, priceType, interval, startInclusive, endExclusive, PAGE_SIZE);
     }
 
     private InvestmentJobEnqueueCommand command(MarketDataJobInput input, InvestmentJobType jobType,
@@ -277,6 +304,10 @@ public class InvestmentMarketJobPlanner implements SmartLifecycle {
         return left.compareTo(right) >= 0 ? left : right;
     }
 
+    private Instant later(Instant left, Instant right) {
+        return left.isAfter(right) ? left : right;
+    }
+
     private Duration intervalDuration(BarInterval interval) {
         return switch (interval) {
             case M1 -> Duration.ofMinutes(1);
@@ -294,5 +325,8 @@ public class InvestmentMarketJobPlanner implements SmartLifecycle {
     }
 
     private record PlannedInput(MarketDataJobInput input, Slot slot) {
+    }
+
+    private record PlannedBackfill(MarketDataJobInput input, String scheduleKey, Instant availableAt) {
     }
 }

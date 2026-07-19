@@ -68,17 +68,17 @@ class InvestmentMarketJobPlannerTests {
         InvestmentMarketJobPlanner first = planner(true, registry, enqueueService);
         InvestmentMarketJobPlanner restarted = planner(true, registry, enqueueService);
 
-        assertThat(first.tick()).isEqualTo(10);
-        assertThat(restarted.tick()).isEqualTo(10);
+        assertThat(first.tick()).isEqualTo(15);
+        assertThat(restarted.tick()).isEqualTo(15);
 
         ArgumentCaptor<InvestmentJobEnqueueCommand> captor = ArgumentCaptor.forClass(
                 InvestmentJobEnqueueCommand.class);
-        verify(enqueueService, times(20)).enqueue(captor.capture());
+        verify(enqueueService, times(30)).enqueue(captor.capture());
         List<String> keys = captor.getAllValues().stream().map(InvestmentJobEnqueueCommand::idempotencyKey).toList();
-        assertThat(keys.subList(0, 10)).containsExactlyInAnyOrderElementsOf(keys.subList(10, 20));
+        assertThat(keys.subList(0, 15)).containsExactlyInAnyOrderElementsOf(keys.subList(15, 30));
         assertThat(keys).allSatisfy(key -> assertThat(key).startsWith("market:TEST:USDT_FUTURES:BTCUSDT:"));
         assertThat(captor.getAllValues()).filteredOn(command -> command.jobType() == InvestmentJobType.BAR_BACKFILL)
-                .hasSize(4);
+                .hasSize(14);
         assertThat(captor.getAllValues()).filteredOn(command -> command.jobType()
                 == InvestmentJobType.FUNDING_RATE_BACKFILL).hasSize(2);
         assertThat(captor.getAllValues()).filteredOn(command -> command.jobType()
@@ -105,7 +105,7 @@ class InvestmentMarketJobPlannerTests {
         CompletableFuture.allOf(CompletableFuture.runAsync(first::tick),
                 CompletableFuture.runAsync(second::tick)).join();
 
-        assertThat(persistedKeys).hasSize(10);
+        assertThat(persistedKeys).hasSize(15);
     }
 
     @Test
@@ -118,7 +118,7 @@ class InvestmentMarketJobPlannerTests {
 
         planner(true, registry, enqueueService, now).tick();
         planner(true, registry, enqueueService, now.plus(Duration.ofMinutes(1))).tick();
-        verify(enqueueService, times(20)).enqueue(captor.capture());
+        verify(enqueueService, times(30)).enqueue(captor.capture());
 
         List<MarketDataJobInput> m1 = inputs(captor.getAllValues(), InvestmentJobType.BAR_INCREMENTAL,
                 BarInterval.M1);
@@ -136,18 +136,50 @@ class InvestmentMarketJobPlannerTests {
         InvestmentMarketSubscriptionRegistry registry = mock(InvestmentMarketSubscriptionRegistry.class);
         InvestmentJobEnqueueService enqueueService = mock(InvestmentJobEnqueueService.class);
         when(registry.subscriptions()).thenReturn(List.of(subscription(Duration.ofDays(30))));
-        InvestmentMarketJobPlanner planner = planner(true, registry, enqueueService);
-        planner.tick();
+        planner(true, registry, enqueueService).tick();
         when(registry.subscriptions()).thenReturn(List.of(subscription(Duration.ofDays(60))));
-        planner.tick();
+        planner(true, registry, enqueueService).tick();
         ArgumentCaptor<InvestmentJobEnqueueCommand> captor = ArgumentCaptor.forClass(
                 InvestmentJobEnqueueCommand.class);
-        verify(enqueueService, times(20)).enqueue(captor.capture());
+        verify(enqueueService, times(34)).enqueue(captor.capture());
         assertThat(captor.getAllValues().stream()
                 .filter(command -> command.jobType() == InvestmentJobType.BAR_BACKFILL)
                 .map(InvestmentJobEnqueueCommand::idempotencyKey).toList())
                 .anySatisfy(key -> assertThat(key).contains("backfill:2592000"))
                 .anySatisfy(key -> assertThat(key).contains("backfill:5184000"));
+    }
+
+    @Test
+    void splitsLongMinuteBackfillsIntoNewestFirstBoundedJobs() {
+        InvestmentMarketSubscriptionRegistry registry = mock(InvestmentMarketSubscriptionRegistry.class);
+        InvestmentJobEnqueueService enqueueService = mock(InvestmentJobEnqueueService.class);
+        when(registry.subscriptions()).thenReturn(List.of(subscription()));
+        ArgumentCaptor<InvestmentJobEnqueueCommand> captor = ArgumentCaptor.forClass(
+                InvestmentJobEnqueueCommand.class);
+        InvestmentMarketJobPlanner planner = planner(true, registry, enqueueService);
+
+        assertThat(planner.tick()).isEqualTo(15);
+        assertThat(planner.tick()).isEqualTo(7);
+
+        verify(enqueueService, times(22)).enqueue(captor.capture());
+        List<InvestmentJobEnqueueCommand> commands = captor.getAllValues().stream()
+                .filter(command -> command.jobType() == InvestmentJobType.BAR_BACKFILL)
+                .filter(command -> read(command.inputJson()).interval() == BarInterval.M1)
+                .toList();
+        assertThat(commands).hasSize(6);
+        List<MarketDataJobInput> inputs = commands.stream().map(command -> read(command.inputJson())).toList();
+        assertThat(inputs.getFirst().endExclusive()).isEqualTo(now);
+        assertThat(Duration.between(inputs.getFirst().startInclusive(), inputs.getFirst().endExclusive()))
+                .isEqualTo(Duration.ofDays(1));
+        assertThat(inputs).allSatisfy(input -> assertThat(
+                        Duration.between(input.startInclusive(), input.endExclusive()))
+                .isLessThanOrEqualTo(Duration.ofMinutes(10_000)));
+        for (int index = 1; index < inputs.size(); index++) {
+            assertThat(inputs.get(index).endExclusive()).isEqualTo(inputs.get(index - 1).startInclusive());
+        }
+        assertThat(commands.getFirst().idempotencyKey()).endsWith("backfill:2592000");
+        assertThat(commands.get(1).idempotencyKey()).endsWith("backfill:2592000:chunk:1");
+        assertThat(commands.get(1).availableAt()).isAfter(commands.getFirst().availableAt());
     }
 
     private InvestmentMarketJobPlanner planner(boolean enabled, InvestmentMarketSubscriptionRegistry registry,

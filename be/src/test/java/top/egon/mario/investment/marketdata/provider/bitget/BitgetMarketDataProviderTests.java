@@ -52,8 +52,8 @@ class BitgetMarketDataProviderTests {
         assertThat(candles).allSatisfy(value -> assertThat(value.closed()).isTrue());
         assertThat(transport.uris).singleElement().satisfies(uri -> {
             assertThat(uri.getPath()).isEqualTo("/api/v3/market/history-candles");
-            assertThat(uri.getQuery()).contains("startTime=" + (start.toEpochMilli() - 1L))
-                    .contains("endTime=" + (end.toEpochMilli() - 1L))
+            assertThat(uri.getQuery()).contains("startTime=" + start.toEpochMilli())
+                    .contains("endTime=" + end.toEpochMilli())
                     .contains("limit=100");
         });
     }
@@ -73,12 +73,13 @@ class BitgetMarketDataProviderTests {
                         .mapToObj(day -> start.plus(Duration.ofDays(day))).toList());
         assertThat(transport.uris).hasSize(2);
         assertThat(queryLong(transport.uris.get(0), "endTime"))
-                .isEqualTo(start.plus(Duration.ofDays(90)).toEpochMilli() - 1L);
+                .isEqualTo(start.plus(Duration.ofDays(90)).toEpochMilli());
         assertThat(queryLong(transport.uris.get(1), "startTime"))
-                .isEqualTo(start.plus(Duration.ofDays(90)).toEpochMilli() - 1L);
+                .isEqualTo(start.plus(Duration.ofDays(90)).toEpochMilli());
         assertThat(queryLong(transport.uris.get(1), "endTime"))
-                .isEqualTo(start.plus(Duration.ofDays(100)).toEpochMilli() - 1L);
+                .isEqualTo(start.plus(Duration.ofDays(100)).toEpochMilli());
         assertThat(queryLong(transport.uris.get(1), "limit")).isEqualTo(10L);
+        assertThat(transport.uris).allSatisfy(uri -> assertThat(uri.getQuery()).contains("interval=1Dutc"));
     }
 
     @Test
@@ -199,8 +200,8 @@ class BitgetMarketDataProviderTests {
         @Override
         public Response get(URI uri, Duration timeout) {
             uris.add(uri);
-            Instant start = Instant.ofEpochMilli(queryLong(uri, "startTime") + 1L);
-            Instant end = Instant.ofEpochMilli(queryLong(uri, "endTime") + 1L);
+            Instant start = Instant.ofEpochMilli(queryLong(uri, "startTime"));
+            Instant end = Instant.ofEpochMilli(queryLong(uri, "endTime"));
             int limit = Math.toIntExact(queryLong(uri, "limit"));
             List<Instant> available = java.util.stream.Stream.iterate(start, value -> value.isBefore(end),
                     value -> value.plus(Duration.ofDays(1))).toList();

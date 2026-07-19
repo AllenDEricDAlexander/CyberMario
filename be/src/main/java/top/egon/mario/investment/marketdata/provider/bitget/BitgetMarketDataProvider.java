@@ -212,8 +212,8 @@ public class BitgetMarketDataProvider
                 "category", CATEGORY,
                 "symbol", query.symbol(),
                 "interval", interval(query.interval()),
-                "startTime", Long.toString(startInclusive.toEpochMilli() - 1L),
-                "endTime", Long.toString(endExclusive.toEpochMilli() - 1L),
+                "startTime", Long.toString(startInclusive.toEpochMilli()),
+                "endTime", Long.toString(endExclusive.toEpochMilli()),
                 "type", "market",
                 "limit", Integer.toString(apiLimit))));
         if (!data.isArray()) {
@@ -353,7 +353,7 @@ public class BitgetMarketDataProvider
             case M30 -> "30m";
             case H1 -> "1H";
             case H4 -> "4H";
-            case D1 -> "1D";
+            case D1 -> "1Dutc";
             case NONE -> throw invalidRequest("Concrete Bitget candle interval is required");
         };
     }

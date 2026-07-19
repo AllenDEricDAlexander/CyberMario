@@ -56,11 +56,11 @@ class BitgetInvestmentMarketSubscriptionProviderTests {
         InvestmentMarketJobPlanner planner = new InvestmentMarketJobPlanner(true, registry(), enqueueService,
                 objectMapper, Clock.fixed(now, ZoneOffset.UTC), Duration.ofSeconds(30));
 
-        assertThat(planner.tick()).isEqualTo(16);
+        assertThat(planner.tick()).isEqualTo(226);
 
         ArgumentCaptor<InvestmentJobEnqueueCommand> captor =
                 ArgumentCaptor.forClass(InvestmentJobEnqueueCommand.class);
-        verify(enqueueService, times(16)).enqueue(captor.capture());
+        verify(enqueueService, times(226)).enqueue(captor.capture());
         List<InvestmentJobEnqueueCommand> commands = captor.getAllValues();
         List<MarketDataJobInput> inputs = commands.stream()
                 .filter(command -> command.jobType() == InvestmentJobType.BAR_INCREMENTAL)
