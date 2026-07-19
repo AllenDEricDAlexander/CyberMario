@@ -26,7 +26,17 @@ type InvestmentKlinePanelProps = {
     refreshIntervalMs?: number
 }
 
-type InvestmentRange = '1H' | '24H' | '7D'
+const HOUR_MILLIS = 60 * 60 * 1_000
+const DAY_MILLIS = 24 * HOUR_MILLIS
+const CANDLE_WINDOW_CONFIG: Record<InvestmentBarInterval, {millis: number; label: string}> = {
+    M1: {millis: 12 * HOUR_MILLIS, label: '12 小时'},
+    M5: {millis: 60 * HOUR_MILLIS, label: '60 小时'},
+    M15: {millis: 180 * HOUR_MILLIS, label: '7.5 天'},
+    M30: {millis: 360 * HOUR_MILLIS, label: '15 天'},
+    H1: {millis: 720 * HOUR_MILLIS, label: '30 天'},
+    H4: {millis: 720 * 4 * HOUR_MILLIS, label: '120 天'},
+    D1: {millis: 720 * DAY_MILLIS, label: '720 天'},
+}
 
 type TradeActivityState = {
     scope: string
@@ -44,15 +54,21 @@ export function InvestmentKlinePanel({
 }: InvestmentKlinePanelProps) {
     const [priceType, setPriceType] = useState<InvestmentPriceType>(availablePriceTypes[0] ?? 'MARKET')
     const [interval, setInterval] = useState<InvestmentBarInterval>(availableIntervals[0] ?? 'M1')
-    const [range, setRange] = useState<InvestmentRange>('24H')
     const [candles, setCandles] = useState<InvestmentCandleResponse[]>([])
+    const [loadedFrom, setLoadedFrom] = useState<string>()
+    const [loadedTo, setLoadedTo] = useState<string>()
+    const [canLoadEarlier, setCanLoadEarlier] = useState(true)
+    const [loadingEarlier, setLoadingEarlier] = useState(false)
+    const [loadEarlierError, setLoadEarlierError] = useState<string>()
     const [indicators, setIndicators] = useState<InvestmentIndicatorSnapshot>()
     const [indicatorError, setIndicatorError] = useState<string>()
     const [tradeActivityState, setTradeActivityState] = useState<TradeActivityState>()
     const [loadState, setLoadState] = useState<InvestmentLoadState>('loading')
     const [loadError, setLoadError] = useState<string>()
     const generationRef = useRef(0)
+    const latestRequestRef = useRef(0)
     const tradeGenerationRef = useRef(0)
+    const loadingEarlierRef = useRef(false)
 
     useEffect(() => {
         if (!availablePriceTypes.includes(priceType)) {
@@ -66,26 +82,35 @@ export function InvestmentKlinePanel({
         }
     }, [availableIntervals, interval])
 
-    const load = useCallback(async (background = false) => {
-        const generation = ++generationRef.current
-        const query = candleQuery(instrumentId, priceType, interval, range, now())
+    const loadLatest = useCallback(async (background: boolean, generation: number) => {
+        const request = ++latestRequestRef.current
+        const query = candleQuery(instrumentId, priceType, interval, now())
         if (!background) {
             setLoadState('loading')
             setLoadError(undefined)
+            setLoadEarlierError(undefined)
             setIndicatorError(undefined)
             setIndicators(undefined)
+            setCandles([])
+            setLoadedFrom(undefined)
+            setLoadedTo(undefined)
+            setCanLoadEarlier(true)
         }
         try {
             const response = await listInvestmentCandles(query)
-            if (generation !== generationRef.current) {
+            if (generation !== generationRef.current || request !== latestRequestRef.current) {
                 return
             }
             const closed = response.filter(({isClosed}) => isClosed)
-            setCandles(closed)
+            setCandles((current) => background ? mergeCandles(current, closed) : closed)
+            setLoadedFrom((current) => background && current && current < query.from ? current : query.from)
+            setLoadedTo(query.to)
             setLoadError(undefined)
-            setLoadState(closed.length === 0 ? 'empty' : 'ready')
+            setLoadState((current) => background && current === 'ready'
+                ? current
+                : closed.length === 0 ? 'empty' : 'ready')
         } catch (reason) {
-            if (generation !== generationRef.current) {
+            if (generation !== generationRef.current || request !== latestRequestRef.current) {
                 return
             }
             if (background) {
@@ -98,42 +123,86 @@ export function InvestmentKlinePanel({
         }
         try {
             const response = await getInvestmentIndicators(query)
-            if (generation === generationRef.current) {
+            if (generation === generationRef.current && request === latestRequestRef.current) {
                 setIndicators(response)
                 setIndicatorError(undefined)
             }
         } catch (reason) {
-            if (generation === generationRef.current) {
+            if (generation === generationRef.current && request === latestRequestRef.current) {
                 setIndicatorError(errorMessage(reason, '指标暂不可用'))
             }
         }
-    }, [instrumentId, interval, now, priceType, range])
+    }, [instrumentId, interval, now, priceType])
+
+    const reload = useCallback(() => {
+        const generation = ++generationRef.current
+        loadingEarlierRef.current = false
+        setLoadingEarlier(false)
+        void loadLatest(false, generation)
+    }, [loadLatest])
 
     useEffect(() => {
-        void load(false)
+        reload()
         return () => {
             generationRef.current += 1
         }
-    }, [load])
+    }, [reload])
 
     useEffect(() => {
         if (refreshIntervalMs <= 0) {
             return
         }
-        const timer = window.setInterval(() => void load(true), refreshIntervalMs)
+        const timer = window.setInterval(
+            () => void loadLatest(true, generationRef.current),
+            refreshIntervalMs,
+        )
         return () => window.clearInterval(timer)
-    }, [load, refreshIntervalMs])
+    }, [loadLatest, refreshIntervalMs])
+
+    const loadEarlier = useCallback(async () => {
+        if (!loadedFrom || !canLoadEarlier || loadingEarlierRef.current) {
+            return
+        }
+        const generation = generationRef.current
+        const query = earlierCandleQuery(instrumentId, priceType, interval, loadedFrom, now())
+        loadingEarlierRef.current = true
+        setLoadingEarlier(true)
+        setLoadEarlierError(undefined)
+        try {
+            const response = await listInvestmentCandles(query)
+            if (generation !== generationRef.current) {
+                return
+            }
+            const closed = response.filter(({isClosed}) => isClosed)
+            if (closed.length === 0) {
+                setCanLoadEarlier(false)
+                return
+            }
+            setCandles((current) => mergeCandles(current, closed))
+            setLoadedFrom(query.from)
+        } catch (reason) {
+            if (generation === generationRef.current) {
+                setLoadEarlierError(errorMessage(reason, '更早 K 线加载失败'))
+            }
+        } finally {
+            if (generation === generationRef.current) {
+                loadingEarlierRef.current = false
+                setLoadingEarlier(false)
+            }
+        }
+    }, [canLoadEarlier, instrumentId, interval, loadedFrom, now, priceType])
 
     useEffect(() => {
         const generation = ++tradeGenerationRef.current
-        const activityScope = tradeActivityScope(accountId, instrumentId, priceType, interval, range)
+        const activityScope = tradeActivityScope(
+            accountId, instrumentId, priceType, interval, loadedFrom, loadedTo,
+        )
         setTradeActivityState(undefined)
-        if (accountId === undefined) {
+        if (accountId === undefined || !loadedFrom || !loadedTo) {
             return
         }
-        const query = candleQuery(instrumentId, priceType, interval, range, now())
         void listInvestmentPaperFills(
-            accountId, instrumentId, query.from, query.to, 1, 100,
+            accountId, instrumentId, loadedFrom, loadedTo, 1, 100,
         ).then((response) => {
             if (generation === tradeGenerationRef.current) {
                 setTradeActivityState({scope: activityScope, records: response.records})
@@ -150,14 +219,16 @@ export function InvestmentKlinePanel({
         return () => {
             tradeGenerationRef.current += 1
         }
-    }, [accountId, instrumentId, interval, now, priceType, range])
+    }, [accountId, instrumentId, interval, loadedFrom, loadedTo, priceType])
 
     const chartData = useMemo<CandlestickData<UTCTimestamp>[]>(
         () => toInvestmentCandlestickData(candles),
         [candles],
     )
     const latestIndicator = indicators?.points.at(-1)
-    const currentActivityScope = tradeActivityScope(accountId, instrumentId, priceType, interval, range)
+    const currentActivityScope = tradeActivityScope(
+        accountId, instrumentId, priceType, interval, loadedFrom, loadedTo,
+    )
     const visibleTradeActivity = useMemo(
         () => tradeActivityState?.scope === currentActivityScope ? tradeActivityState.records : [],
         [currentActivityScope, tradeActivityState],
@@ -188,17 +259,9 @@ export function InvestmentKlinePanel({
                         style={{minWidth: 120}}
                         value={interval}
                     />
-                    <Select
-                        aria-label="K 线范围"
-                        onChange={setRange}
-                        options={[
-                            {label: '1 小时', value: '1H'},
-                            {label: '24 小时', value: '24H'},
-                            {label: '7 天', value: '7D'},
-                        ]}
-                        style={{minWidth: 120}}
-                        value={range}
-                    />
+                    <Typography.Text type="secondary">
+                        初始及每次向左加载 {candleWindowLabel(interval)}
+                    </Typography.Text>
                 </Flex>
                 <Typography.Text type="secondary">
                     {candles.length > 0
@@ -209,10 +272,27 @@ export function InvestmentKlinePanel({
             <InvestmentAsyncState
                 emptyDescription="当前范围暂无已关闭 K 线"
                 error={loadError}
-                onRetry={() => void load(false)}
+                onRetry={reload}
                 state={loadState}
             >
-                <InvestmentCandlestickChart data={chartData} markers={tradeMarkers}/>
+                <InvestmentCandlestickChart
+                    canLoadEarlier={canLoadEarlier}
+                    data={chartData}
+                    loadingEarlier={loadingEarlier}
+                    markers={tradeMarkers}
+                    onLoadEarlier={() => void loadEarlier()}
+                    resetKey={`${instrumentId}:${priceType}:${interval}`}
+                />
+                {loadingEarlier && <Typography.Text type="secondary">正在加载更早的 K 线…</Typography.Text>}
+                {!canLoadEarlier && <Typography.Text type="secondary">已到达当前可用历史数据起点</Typography.Text>}
+                {loadEarlierError && (
+                    <Alert
+                        description={loadEarlierError}
+                        showIcon
+                        title="历史 K 线分片加载失败"
+                        type="warning"
+                    />
+                )}
                 <Table
                     columns={[
                         {title: '开盘时间', dataIndex: 'openTime'},
@@ -259,6 +339,9 @@ export function InvestmentKlinePanel({
             {indicatorError && <Alert description={indicatorError} showIcon title="技术指标独立加载失败" type="warning"/>}
             {latestIndicator && (
                 <Flex gap={16} wrap>
+                    <Typography.Text type="secondary">
+                        指标按最新 {candleWindowLabel(interval)}计算
+                    </Typography.Text>
                     <Typography.Text>SMA20：<InvestmentDecimalText value={latestIndicator.sma20}/></Typography.Text>
                     <Typography.Text>EMA20：<InvestmentDecimalText value={latestIndicator.ema20}/></Typography.Text>
                     <Typography.Text>RSI14：<InvestmentDecimalText value={latestIndicator.rsi14}/></Typography.Text>
@@ -274,17 +357,41 @@ export function candleQuery(
     instrumentId: number,
     priceType: InvestmentPriceType,
     interval: InvestmentBarInterval,
-    range: InvestmentRange,
     nowMillis: number,
 ) {
     const dataAsOf = new Date(nowMillis)
-    const to = interval === 'D1'
-        ? new Date(Date.UTC(dataAsOf.getUTCFullYear(), dataAsOf.getUTCMonth(), dataAsOf.getUTCDate()))
-        : dataAsOf
-    const rangeMillis = range === '1H' ? 60 * 60 * 1_000
-        : range === '24H' ? 24 * 60 * 60 * 1_000 : 7 * 24 * 60 * 60 * 1_000
-    const minimumDailyRange = 24 * 60 * 60 * 1_000
-    const from = new Date(to.getTime() - (interval === 'D1' ? Math.max(rangeMillis, minimumDailyRange) : rangeMillis))
+    const to = candleQueryEnd(interval, dataAsOf)
+    return candleWindowQuery(instrumentId, priceType, interval, to, dataAsOf)
+}
+
+export function earlierCandleQuery(
+    instrumentId: number,
+    priceType: InvestmentPriceType,
+    interval: InvestmentBarInterval,
+    currentFrom: string,
+    nowMillis: number,
+) {
+    return candleWindowQuery(
+        instrumentId,
+        priceType,
+        interval,
+        new Date(currentFrom),
+        new Date(nowMillis),
+    )
+}
+
+export function candleWindowLabel(interval: InvestmentBarInterval) {
+    return CANDLE_WINDOW_CONFIG[interval].label
+}
+
+function candleWindowQuery(
+    instrumentId: number,
+    priceType: InvestmentPriceType,
+    interval: InvestmentBarInterval,
+    to: Date,
+    dataAsOf: Date,
+) {
+    const from = new Date(to.getTime() - CANDLE_WINDOW_CONFIG[interval].millis)
     return {
         instrumentId,
         priceType,
@@ -296,6 +403,21 @@ export function candleQuery(
     }
 }
 
+function candleQueryEnd(interval: InvestmentBarInterval, dataAsOf: Date) {
+    return interval === 'D1'
+        ? new Date(Date.UTC(dataAsOf.getUTCFullYear(), dataAsOf.getUTCMonth(), dataAsOf.getUTCDate()))
+        : dataAsOf
+}
+
+function mergeCandles(
+    current: InvestmentCandleResponse[],
+    incoming: InvestmentCandleResponse[],
+) {
+    const merged = new Map(current.map((candle) => [candle.openTime, candle]))
+    incoming.forEach((candle) => merged.set(candle.openTime, candle))
+    return [...merged.values()].sort((left, right) => left.openTime.localeCompare(right.openTime))
+}
+
 function errorMessage(reason: unknown, fallback: string) {
     return reason instanceof Error ? reason.message : fallback
 }
@@ -305,7 +427,8 @@ function tradeActivityScope(
     instrumentId: number,
     priceType: InvestmentPriceType,
     interval: InvestmentBarInterval,
-    range: InvestmentRange,
+    loadedFrom?: string,
+    loadedTo?: string,
 ) {
-    return `${accountId ?? 'none'}:${instrumentId}:${priceType}:${interval}:${range}`
+    return `${accountId ?? 'none'}:${instrumentId}:${priceType}:${interval}:${loadedFrom ?? 'none'}:${loadedTo ?? 'none'}`
 }

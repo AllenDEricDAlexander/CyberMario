@@ -133,6 +133,26 @@ class InvestmentMarketQueryServiceTests {
     }
 
     @Test
+    void acceptsOneHundredTwentyDayH4StreamingWindowButKeepsFineIntervalsBounded() {
+        seedInstrument(10, "BTCUSDT", "BTCUSDT");
+        Instant from = CUTOFF.minus(Duration.ofDays(120));
+        when(subscriptionRegistry.requireCandle("TEST", ProductType.USDT_FUTURES, "BTCUSDT",
+                BarInterval.H4, PriceType.MARKET)).thenReturn(subscription);
+        when(barRepository.findCurrentIntraday(1L, 10L, PriceType.MARKET, BarInterval.H4,
+                from, CUTOFF, 0, 720)).thenReturn(List.of());
+
+        assertThat(service.candles(10, PriceType.MARKET, BarInterval.H4,
+                from, CUTOFF, null, 720)).isEmpty();
+        assertThatThrownBy(() -> service.candles(10, PriceType.MARKET, BarInterval.M1,
+                from, CUTOFF, null, 720))
+                .isInstanceOf(InvestmentException.class)
+                .satisfies(exception -> assertThat(((InvestmentException) exception).getErrorCode())
+                        .isEqualTo(InvestmentErrorCode.INVALID_REQUEST));
+        verify(barRepository).findCurrentIntraday(1L, 10L, PriceType.MARKET, BarInterval.H4,
+                from, CUTOFF, 0, 720);
+    }
+
+    @Test
     void emptyProductionRegistryReturnsEmptyWithoutQueryingStorageOrStartingImport() {
         when(subscriptionRegistry.subscriptions()).thenReturn(List.of());
         NamedParameterJdbcTemplate untouchedJdbc = mock(NamedParameterJdbcTemplate.class);

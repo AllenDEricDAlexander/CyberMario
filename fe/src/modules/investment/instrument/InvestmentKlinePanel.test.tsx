@@ -7,7 +7,12 @@ import type {
     InvestmentCandleResponse,
     InvestmentIndicatorSnapshot,
 } from '../types/investmentMarketTypes'
-import {InvestmentKlinePanel} from './InvestmentKlinePanel'
+import {
+    candleQuery,
+    candleWindowLabel,
+    earlierCandleQuery,
+    InvestmentKlinePanel,
+} from './InvestmentKlinePanel'
 
 const mocks = vi.hoisted(() => ({
     candles: vi.fn(),
@@ -25,10 +30,28 @@ vi.mock('../services/investmentPortfolioService', () => ({
 }))
 
 vi.mock('../components/InvestmentCandlestickChart', () => ({
-    InvestmentCandlestickChart: ({data, markers}: {data: unknown[]; markers: unknown[]}) => (
+    InvestmentCandlestickChart: ({
+        data,
+        markers,
+        canLoadEarlier,
+        loadingEarlier,
+        onLoadEarlier,
+    }: {
+        data: unknown[]
+        markers: unknown[]
+        canLoadEarlier: boolean
+        loadingEarlier: boolean
+        onLoadEarlier: () => void
+    }) => (
         <div aria-label="测试 K 线图">
             <span>{data.length} points</span>
             <span>{markers.length} markers</span>
+            <button
+                disabled={!canLoadEarlier || loadingEarlier}
+                onClick={onLoadEarlier}
+            >
+                向左滑动
+            </button>
         </div>
     ),
 }))
@@ -40,6 +63,19 @@ describe('InvestmentKlinePanel', () => {
         mocks.fills.mockReset().mockResolvedValue({records: [], page: 1, size: 100, total: 0, totalPages: 0})
         mocks.candles.mockResolvedValue([candle('2026-07-15T23:59:00.000Z', true)])
         mocks.indicators.mockResolvedValue(indicatorSnapshot())
+    })
+
+    test('uses aligned 720-day D1 segments for initial and earlier history', () => {
+        const nowMillis = Date.parse('2026-07-16T10:30:00.000Z')
+        const latest = candleQuery(11, 'MARKET', 'D1', nowMillis)
+        const earlier = earlierCandleQuery(11, 'MARKET', 'D1', latest.from, nowMillis)
+
+        expect(latest.to).toBe('2026-07-16T00:00:00.000Z')
+        expect(Date.parse(latest.to) - Date.parse(latest.from)).toBe(720 * 24 * 60 * 60 * 1_000)
+        expect(earlier.to).toBe(latest.from)
+        expect(Date.parse(earlier.to) - Date.parse(earlier.from)).toBe(720 * 24 * 60 * 60 * 1_000)
+        expect(earlier.dataAsOf).toBe('2026-07-16T10:30:00.000Z')
+        expect(candleWindowLabel('D1')).toBe('720 天')
     })
 
     test('uses one frozen cutoff and renders only closed candles with an accessible table fallback', async () => {
@@ -60,7 +96,7 @@ describe('InvestmentKlinePanel', () => {
             instrumentId: 11,
             priceType: 'MARKET',
             interval: 'M1',
-            from: '2026-07-15T00:00:00.000Z',
+            from: '2026-07-15T12:00:00.000Z',
             to: '2026-07-16T00:00:00.000Z',
             dataAsOf: '2026-07-16T00:00:00.000Z',
             limit: 2_000,
@@ -69,7 +105,7 @@ describe('InvestmentKlinePanel', () => {
         expect(screen.queryByText('66000.000000000000000001')).toBeNull()
     })
 
-    test('reloads the server boundary when price type, interval or range changes', async () => {
+    test('reloads the interval-specific streaming window when price type or interval changes', async () => {
         renderPanel()
         await screen.findByText('1 points')
 
@@ -77,15 +113,35 @@ describe('InvestmentKlinePanel', () => {
         await waitFor(() => expect(mocks.candles).toHaveBeenLastCalledWith(expect.objectContaining({priceType: 'MARK'})))
 
         await selectOption('K 线周期', 'H1')
-        await waitFor(() => expect(mocks.candles).toHaveBeenLastCalledWith(expect.objectContaining({interval: 'H1'})))
-
-        await selectOption('K 线范围', '7 天')
         await waitFor(() => expect(mocks.candles).toHaveBeenLastCalledWith(expect.objectContaining({
             priceType: 'MARK',
             interval: 'H1',
-            from: '2026-07-09T00:00:00.000Z',
+            from: '2026-06-16T00:00:00.000Z',
             to: '2026-07-16T00:00:00.000Z',
         })))
+        expect(screen.getByText('初始及每次向左加载 30 天')).toBeTruthy()
+    })
+
+    test('prepends one M1 twelve-hour segment when the chart reaches the left edge', async () => {
+        mocks.candles.mockReset()
+            .mockResolvedValueOnce([candle('2026-07-15T23:59:00.000Z', true)])
+            .mockResolvedValueOnce([candle('2026-07-15T11:59:00.000Z', true)])
+        renderPanel()
+        await screen.findByText('1 points')
+
+        await userEvent.click(screen.getByRole('button', {name: '向左滑动'}))
+
+        expect(await screen.findByText('2 points')).toBeTruthy()
+        expect(mocks.candles).toHaveBeenNthCalledWith(2, {
+            instrumentId: 11,
+            priceType: 'MARKET',
+            interval: 'M1',
+            from: '2026-07-15T00:00:00.000Z',
+            to: '2026-07-15T12:00:00.000Z',
+            dataAsOf: '2026-07-16T00:00:00.000Z',
+            limit: 2_000,
+        })
+        expect(mocks.indicators).toHaveBeenCalledTimes(1)
     })
 
     test('suppresses an older candle response after the selected price type changes', async () => {
@@ -168,7 +224,7 @@ describe('InvestmentKlinePanel', () => {
         expect(await screen.findByText('1 markers')).toBeTruthy()
         expect(screen.getByText('AGENT')).toBeTruthy()
         expect(mocks.fills).toHaveBeenCalledWith(
-            21, 11, '2026-07-15T00:00:00.000Z', '2026-07-16T00:00:00.000Z', 1, 100,
+            21, 11, '2026-07-15T12:00:00.000Z', '2026-07-16T00:00:00.000Z', 1, 100,
         )
 
         view.rerender(panel(22))
@@ -178,7 +234,7 @@ describe('InvestmentKlinePanel', () => {
         expect(screen.queryByText('AGENT')).toBeNull()
         expect(await screen.findByText('0 markers')).toBeTruthy()
         await waitFor(() => expect(mocks.fills).toHaveBeenLastCalledWith(
-            22, 11, '2026-07-15T00:00:00.000Z', '2026-07-16T00:00:00.000Z', 1, 100,
+            22, 11, '2026-07-15T12:00:00.000Z', '2026-07-16T00:00:00.000Z', 1, 100,
         ))
     })
 })

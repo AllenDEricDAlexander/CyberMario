@@ -65,6 +65,7 @@ public class InvestmentMarketQueryService {
     private static final int MAX_SERIES_PAGE_SIZE = 200;
     private static final Duration QUOTE_FRESHNESS = Duration.ofMinutes(1);
     private static final Duration MAX_INTRADAY_SPAN = Duration.ofDays(31);
+    private static final Duration MAX_H4_SPAN = Duration.ofDays(120);
     private static final Duration MAX_DAILY_SPAN = Duration.ofDays(3_660);
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
@@ -550,8 +551,11 @@ public class InvestmentMarketQueryService {
         if (limit < 1 || limit > MAX_CANDLE_POINTS) {
             throw invalid("Candle limit must be between 1 and " + MAX_CANDLE_POINTS);
         }
-        validateTimeWindow(fromInclusive, toExclusive,
-                interval == BarInterval.D1 ? MAX_DAILY_SPAN : MAX_INTRADAY_SPAN);
+        validateTimeWindow(fromInclusive, toExclusive, switch (interval) {
+            case D1 -> MAX_DAILY_SPAN;
+            case H4 -> MAX_H4_SPAN;
+            default -> MAX_INTRADAY_SPAN;
+        });
         validateCutoff(dataAsOf);
     }
 

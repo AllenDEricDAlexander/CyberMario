@@ -20,6 +20,18 @@ const workspaceOne = workspace(1, '研究一号')
 const workspaceTwo = workspace(2, '研究二号')
 
 describe('useInvestmentWorkspace', () => {
+    test('selects the earliest created workspace by default', async () => {
+        service.list.mockReset().mockResolvedValue(page([
+            workspace(3, '最新工作区', '2026-07-18T00:00:00Z'),
+            workspace(1, '最早工作区', '2026-07-16T00:00:00Z'),
+            workspace(2, '中间工作区', '2026-07-17T00:00:00Z'),
+        ]))
+
+        render(<InvestmentWorkspaceProvider><WorkspaceProbe/></InvestmentWorkspaceProvider>)
+
+        expect((await screen.findByTestId('current')).textContent).toBe('最早工作区')
+    })
+
     test('ignores a stale refresh response that arrives after a newer request', async () => {
         const first = deferred<ReturnType<typeof page>>()
         const second = deferred<ReturnType<typeof page>>()
@@ -30,11 +42,11 @@ describe('useInvestmentWorkspace', () => {
         await userEvent.click(screen.getByRole('button', {name: '刷新'}))
         await waitFor(() => expect(service.list).toHaveBeenCalledTimes(2))
         act(() => second.resolve(page([workspaceTwo])))
-        expect(await screen.findByText('研究二号')).toBeTruthy()
+        expect((await screen.findByTestId('current')).textContent).toBe('研究二号')
 
         act(() => first.resolve(page([workspaceOne])))
         expect(screen.queryByText('研究一号')).toBeNull()
-        expect(screen.getByText('研究二号')).toBeTruthy()
+        expect(screen.getByTestId('current').textContent).toBe('研究二号')
     })
 
     test('selects a created workspace and clears the paper account when workspace changes', async () => {
@@ -79,14 +91,14 @@ function WorkspaceProbe() {
     )
 }
 
-function workspace(id: number, name: string) {
+function workspace(id: number, name: string, createdAt = '2026-07-16T00:00:00Z') {
     return {
         id,
         name,
         baseCurrency: 'USDT',
         timezone: 'UTC',
         status: 'ACTIVE',
-        createdAt: '2026-07-16T00:00:00Z',
+        createdAt,
     }
 }
 

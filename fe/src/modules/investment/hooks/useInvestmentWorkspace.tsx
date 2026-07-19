@@ -55,11 +55,12 @@ export function InvestmentWorkspaceProvider({children}: {children: ReactNode}) {
             }
             setWorkspaces(page.records)
             setCurrentWorkspaceId((currentId) => {
-                if (currentId === null || page.records.some(({id}) => id === currentId)) {
+                if (currentId !== null && page.records.some(({id}) => id === currentId)) {
                     return currentId
                 }
+                const earliestWorkspaceId = earliestWorkspace(page.records)?.id ?? null
                 setCurrentPaperAccount(null)
-                return null
+                return earliestWorkspaceId
             })
             setLoadState(page.records.length === 0 ? 'empty' : 'ready')
         } catch (reason) {
@@ -163,4 +164,17 @@ function isForbidden(reason: unknown) {
 
 function errorMessage(reason: unknown, fallback: string) {
     return reason instanceof Error ? reason.message : fallback
+}
+
+function earliestWorkspace(workspaces: InvestmentWorkspaceResponse[]) {
+    return workspaces.reduce<InvestmentWorkspaceResponse | undefined>((earliest, workspace) => {
+        if (!earliest) {
+            return workspace
+        }
+        const createdAtOrder = Date.parse(workspace.createdAt) - Date.parse(earliest.createdAt)
+        if (createdAtOrder < 0 || (createdAtOrder === 0 && workspace.id < earliest.id)) {
+            return workspace
+        }
+        return earliest
+    }, undefined)
 }

@@ -49,8 +49,8 @@ public class InvestmentWorkspaceController extends ReactiveInvestmentSupport {
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
             @AuthenticationPrincipal RbacPrincipal principal) {
         return blocking(() -> pageResult(workspaceService.list(
-                actorId(principal), PageRequest.of(page - 1, size, Sort.by("createdAt").descending()
-                        .and(Sort.by("id").descending())))));
+                actorId(principal), PageRequest.of(page - 1, size, Sort.by("createdAt").ascending()
+                        .and(Sort.by("id").ascending())))));
     }
 
     @PostMapping("/workspaces")

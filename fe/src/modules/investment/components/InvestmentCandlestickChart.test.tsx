@@ -1,13 +1,24 @@
-import {render, screen} from '@testing-library/react'
+import {fireEvent, render, screen} from '@testing-library/react'
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest'
-import type {CandlestickData, UTCTimestamp} from 'lightweight-charts'
+import type {
+    CandlestickData,
+    LogicalRange,
+    LogicalRangeChangeEventHandler,
+    UTCTimestamp,
+} from 'lightweight-charts'
 import {applyChartWidth, InvestmentCandlestickChart} from './InvestmentCandlestickChart'
+
+let visibleRangeHandler: LogicalRangeChangeEventHandler | undefined
 
 const mocks = vi.hoisted(() => ({
     createChart: vi.fn(),
     addSeries: vi.fn(),
     applyOptions: vi.fn(),
     fitContent: vi.fn(),
+    getVisibleLogicalRange: vi.fn(),
+    setVisibleLogicalRange: vi.fn(),
+    subscribeVisibleLogicalRangeChange: vi.fn(),
+    unsubscribeVisibleLogicalRangeChange: vi.fn(),
     remove: vi.fn(),
     setData: vi.fn(),
     setMarkers: vi.fn(),
@@ -31,11 +42,23 @@ describe('InvestmentCandlestickChart', () => {
             }
         })
         mocks.addSeries.mockReturnValue({setData: mocks.setData})
+        visibleRangeHandler = undefined
+        mocks.subscribeVisibleLogicalRangeChange.mockImplementation(
+            (handler: LogicalRangeChangeEventHandler) => {
+                visibleRangeHandler = handler
+            },
+        )
         mocks.createChart.mockReturnValue({
             addSeries: mocks.addSeries,
             applyOptions: mocks.applyOptions,
             remove: mocks.remove,
-            timeScale: () => ({fitContent: mocks.fitContent}),
+            timeScale: () => ({
+                fitContent: mocks.fitContent,
+                getVisibleLogicalRange: mocks.getVisibleLogicalRange,
+                setVisibleLogicalRange: mocks.setVisibleLogicalRange,
+                subscribeVisibleLogicalRangeChange: mocks.subscribeVisibleLogicalRangeChange,
+                unsubscribeVisibleLogicalRangeChange: mocks.unsubscribeVisibleLogicalRangeChange,
+            }),
         })
         vi.spyOn(ResizeObserver.prototype, 'disconnect').mockImplementation(mocks.disconnect)
         vi.spyOn(ResizeObserver.prototype, 'observe').mockImplementation(mocks.observe)
@@ -67,12 +90,46 @@ describe('InvestmentCandlestickChart', () => {
         expect(mocks.addSeries).toHaveBeenCalledTimes(1)
         expect(mocks.setData).toHaveBeenLastCalledWith(second)
         expect(mocks.setMarkers).toHaveBeenLastCalledWith(secondMarkers)
-        expect(mocks.fitContent).toHaveBeenCalledTimes(2)
+        expect(mocks.fitContent).toHaveBeenCalledTimes(1)
 
         unmount()
         expect(mocks.disconnect).toHaveBeenCalledTimes(1)
         expect(mocks.detachMarkers).toHaveBeenCalledTimes(1)
+        expect(mocks.unsubscribeVisibleLogicalRangeChange).toHaveBeenCalledTimes(1)
         expect(mocks.remove).toHaveBeenCalledTimes(1)
+    })
+
+    test('loads an earlier segment only after the user reaches the left edge', () => {
+        const onLoadEarlier = vi.fn()
+        render(
+            <InvestmentCandlestickChart
+                canLoadEarlier
+                data={[bar(1, 100), bar(2, 101)]}
+                onLoadEarlier={onLoadEarlier}
+            />,
+        )
+        const target = screen.getByRole('img', {name: '合约 K 线图'})
+        const leftEdge = {from: 0, to: 2} as LogicalRange
+
+        visibleRangeHandler?.(leftEdge)
+        expect(onLoadEarlier).not.toHaveBeenCalled()
+
+        fireEvent.pointerDown(target)
+        visibleRangeHandler?.(leftEdge)
+        expect(onLoadEarlier).toHaveBeenCalledTimes(1)
+
+        visibleRangeHandler?.(leftEdge)
+        expect(onLoadEarlier).toHaveBeenCalledTimes(1)
+    })
+
+    test('keeps the visible logical range stable when earlier data is prepended', () => {
+        mocks.getVisibleLogicalRange.mockReturnValue({from: 0, to: 1})
+        const view = render(<InvestmentCandlestickChart data={[bar(2, 101), bar(3, 102)]}/>)
+
+        view.rerender(<InvestmentCandlestickChart data={[bar(1, 100), bar(2, 101), bar(3, 102)]}/>)
+
+        expect(mocks.fitContent).toHaveBeenCalledTimes(1)
+        expect(mocks.setVisibleLogicalRange).toHaveBeenCalledWith({from: 1, to: 2})
     })
 
     test('resizes the existing chart without recreating it', () => {

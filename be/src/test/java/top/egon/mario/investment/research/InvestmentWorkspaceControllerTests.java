@@ -61,7 +61,9 @@ class InvestmentWorkspaceControllerTests {
                 .verifyComplete();
 
         verify(workspaceService).list(org.mockito.ArgumentMatchers.eq(101L),
-                argThat(pageable -> pageable.getPageNumber() == 0 && pageable.getPageSize() == 20));
+                argThat(pageable -> pageable.getPageNumber() == 0 && pageable.getPageSize() == 20
+                        && pageable.getSort().getOrderFor("createdAt").isAscending()
+                        && pageable.getSort().getOrderFor("id").isAscending()));
     }
 
     @Test
