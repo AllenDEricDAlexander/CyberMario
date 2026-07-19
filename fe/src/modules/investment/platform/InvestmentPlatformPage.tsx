@@ -41,6 +41,7 @@ import type {
 
 const PAGE_SIZE = 20
 const STALE_RUNNING_MILLIS = 5 * 60 * 1000
+const MAX_PULL_RANGE_MILLIS = 730 * 24 * 60 * 60 * 1000
 const PULL_SYMBOLS: InvestmentMarketDataPullSymbol[] = ['BTCUSDT', 'SOLUSDT']
 const PULL_CAPABILITIES: InvestmentMarketDataPullCapability[] = ['MARKET_CANDLE', 'FUNDING_RATE']
 const PULL_INTERVALS: InvestmentMarketDataPullInterval[] = ['M1', 'D1']
@@ -239,22 +240,25 @@ export default function InvestmentPlatformPage() {
         if (pullingRef.current) {
             return
         }
-        let values: MarketDataPullFormValues
-        try {
-            values = await pullForm.validateFields()
-        } catch {
-            return
-        }
-        const result = createMarketDataPullRequest(values)
-        if (!result.request) {
-            setPullError(result.error)
-            return
-        }
-        const generation = ++pullGenerationRef.current
         pullingRef.current = true
+        const generation = ++pullGenerationRef.current
         setPulling(true)
         setPullError(undefined)
         try {
+            let values: MarketDataPullFormValues
+            try {
+                values = await pullForm.validateFields()
+            } catch {
+                return
+            }
+            if (generation !== pullGenerationRef.current) {
+                return
+            }
+            const result = createMarketDataPullRequest(values)
+            if (!result.request) {
+                setPullError(result.error)
+                return
+            }
             const response = await createInvestmentMarketDataPull(result.request)
             if (generation !== pullGenerationRef.current) {
                 return
@@ -597,10 +601,8 @@ export function createMarketDataPullRequest(
     if (endTime > now) {
         return {request: null, error: '拉取结束时间不能晚于当前时间'}
     }
-    const maxEnd = new Date(startTime)
-    maxEnd.setUTCFullYear(maxEnd.getUTCFullYear() + 2)
-    if (endTime > maxEnd.getTime()) {
-        return {request: null, error: '单次拉取时间跨度不能超过 2 年'}
+    if (endTime - startTime > MAX_PULL_RANGE_MILLIS) {
+        return {request: null, error: '单次拉取时间跨度不能超过 2 年（730 天）'}
     }
     if (values.capability === 'MARKET_CANDLE'
         && (!values.interval || !isPullInterval(values.interval))) {

@@ -1,4 +1,4 @@
-import {act, render, screen, waitFor} from '@testing-library/react'
+import {act, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {App} from 'antd'
 import {beforeEach, describe, expect, test, vi} from 'vitest'
@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
     retry: vi.fn(),
     issues: vi.fn(),
     resolve: vi.fn(),
+    rangeStart: '2026-07-18T00:00:00.000Z',
+    rangeEnd: '2026-07-19T00:00:00.000Z',
 }))
 
 vi.mock('antd', async (importOriginal) => {
@@ -29,8 +31,8 @@ vi.mock('antd', async (importOriginal) => {
                 <button
                     aria-label="拉取时间范围"
                     onClick={() => props.onChange?.([
-                        testDate('2026-07-18T00:00:00.000Z'),
-                        testDate('2026-07-19T00:00:00.000Z'),
+                        testDate(mocks.rangeStart),
+                        testDate(mocks.rangeEnd),
                     ], ['', ''])}
                     type="button"
                 >
@@ -70,6 +72,8 @@ describe('InvestmentPlatformPage', () => {
         mocks.retry.mockReset().mockResolvedValue(undefined)
         mocks.issues.mockReset().mockResolvedValue(page([openIssue]))
         mocks.resolve.mockReset().mockResolvedValue(undefined)
+        mocks.rangeStart = '2026-07-18T00:00:00.000Z'
+        mocks.rangeEnd = '2026-07-19T00:00:00.000Z'
     })
 
     test('renders an empty code registry as an explicit read-only state without subscription forms', async () => {
@@ -149,6 +153,54 @@ describe('InvestmentPlatformPage', () => {
         expect(screen.queryByRole('dialog', {name: '手动拉取 Bitget 行情数据'})).toBeNull()
     })
 
+    test('suppresses a second same-tick submit while form validation is pending', async () => {
+        const pending = deferred<typeof pullResponse>()
+        mocks.subscriptions.mockResolvedValue([btcSubscription])
+        mocks.createPull.mockReturnValue(pending.promise)
+        renderPage()
+        const openButton = await screen.findByRole('button', {name: '手动拉取'})
+        await waitFor(() => expect(openButton.hasAttribute('disabled')).toBe(false))
+        await userEvent.click(openButton)
+        await userEvent.click(screen.getByRole('button', {name: '拉取时间范围'}))
+
+        const submitButton = screen.getByRole('button', {name: '创建拉取任务'})
+        fireEvent.click(submitButton)
+        fireEvent.click(submitButton)
+        expect(mocks.createPull).not.toHaveBeenCalled()
+
+        await waitFor(() => expect(mocks.createPull).toHaveBeenCalledTimes(1))
+        act(() => pending.resolve(pullResponse))
+        await waitFor(() => expect(screen.queryByRole(
+            'dialog',
+            {name: '手动拉取 Bitget 行情数据'},
+        )).toBeNull())
+    })
+
+    test('releases the submit guard after validation and local request failures', async () => {
+        mocks.subscriptions.mockResolvedValue([btcSubscription])
+        renderPage()
+        const openButton = await screen.findByRole('button', {name: '手动拉取'})
+        await waitFor(() => expect(openButton.hasAttribute('disabled')).toBe(false))
+        await userEvent.click(openButton)
+
+        const submitButton = screen.getByRole('button', {name: '创建拉取任务'})
+        await userEvent.click(submitButton)
+        expect(mocks.createPull).not.toHaveBeenCalled()
+
+        mocks.rangeStart = '2023-03-01T00:00:00.000Z'
+        mocks.rangeEnd = '2025-03-01T00:00:00.000Z'
+        await userEvent.click(screen.getByRole('button', {name: '拉取时间范围'}))
+        await userEvent.click(submitButton)
+        expect(await screen.findByText(/730 天/)).toBeTruthy()
+        expect(mocks.createPull).not.toHaveBeenCalled()
+
+        mocks.rangeStart = '2026-07-18T00:00:00.000Z'
+        mocks.rangeEnd = '2026-07-19T00:00:00.000Z'
+        await userEvent.click(screen.getByRole('button', {name: '拉取时间范围'}))
+        await userEvent.click(submitButton)
+        await waitFor(() => expect(mocks.createPull).toHaveBeenCalledTimes(1))
+    })
+
     test('shows structured manual job history without rendering raw job JSON', async () => {
         mocks.jobs.mockResolvedValue(page([{
             ...failedJob,
@@ -170,7 +222,7 @@ describe('InvestmentPlatformPage', () => {
     })
 
     test('validates range boundaries and serializes UTC request timestamps', () => {
-        const valid = createMarketDataPullRequest({
+        const exactly730Days = createMarketDataPullRequest({
             symbol: 'SOLUSDT',
             capability: 'MARKET_CANDLE',
             interval: 'D1',
@@ -179,7 +231,7 @@ describe('InvestmentPlatformPage', () => {
                 testDate('2026-07-19T01:02:03.000Z'),
             ] as never,
         }, Date.parse('2026-07-19T02:00:00.000Z'))
-        expect(valid.request).toEqual({
+        expect(exactly730Days.request).toEqual({
             symbol: 'SOLUSDT',
             capability: 'MARKET_CANDLE',
             interval: 'D1',
@@ -187,6 +239,15 @@ describe('InvestmentPlatformPage', () => {
             endExclusive: '2026-07-19T01:02:03.000Z',
         })
 
+        expect(createMarketDataPullRequest({
+            symbol: 'BTCUSDT',
+            capability: 'FUNDING_RATE',
+            interval: null,
+            range: [
+                testDate('2023-03-01T00:00:00.000Z'),
+                testDate('2025-03-01T00:00:00.000Z'),
+            ] as never,
+        }, Date.parse('2025-03-02T00:00:00.000Z')).error).toContain('730 天')
         expect(createMarketDataPullRequest({
             symbol: 'BTCUSDT',
             capability: 'MARKET_CANDLE',
