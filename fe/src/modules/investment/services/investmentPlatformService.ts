@@ -2,6 +2,8 @@ import {requestJson} from '../../../services/request'
 import {buildSearchParams} from '../../../services/urlSearch'
 import type {
     InvestmentDataQualityIssueResponse,
+    InvestmentMarketDataPullRequest,
+    InvestmentMarketDataPullResponse,
     InvestmentPlatformJobResponse,
     InvestmentPlatformPage,
     InvestmentPlatformSubscriptionResponse,
@@ -18,6 +20,13 @@ export function listInvestmentPlatformJobs(query: PlatformJobQuery) {
     return requestJson<InvestmentPlatformPage<InvestmentPlatformJobResponse>>(
         `/api/investment/platform/jobs?${search}`,
     )
+}
+
+export function createInvestmentMarketDataPull(request: InvestmentMarketDataPullRequest) {
+    return requestJson<InvestmentMarketDataPullResponse>('/api/investment/platform/market-data/pulls', {
+        method: 'POST',
+        body: request,
+    })
 }
 
 export function retryInvestmentPlatformJob(jobId: number) {

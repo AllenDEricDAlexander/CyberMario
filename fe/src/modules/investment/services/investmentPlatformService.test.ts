@@ -1,5 +1,6 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest'
 import {
+    createInvestmentMarketDataPull,
     listInvestmentDataQualityIssues,
     listInvestmentPlatformJobs,
     listInvestmentPlatformSubscriptions,
@@ -45,7 +46,31 @@ describe('investmentPlatformService', () => {
         )
     })
 
-    test('exposes exactly the two approved platform mutations', async () => {
+    test('posts a manual market-data pull with the frozen request body', async () => {
+        const {requestJson} = await import('../../../services/request')
+        vi.mocked(requestJson).mockResolvedValue({
+            jobId: 12,
+            jobType: 'BAR_BACKFILL',
+            status: 'PENDING',
+            createdAt: '2026-07-19T02:00:00Z',
+        })
+        const request = {
+            symbol: 'BTCUSDT' as const,
+            capability: 'MARKET_CANDLE' as const,
+            interval: 'M1' as const,
+            startInclusive: '2026-07-18T00:00:00.000Z',
+            endExclusive: '2026-07-19T00:00:00.000Z',
+        }
+
+        await createInvestmentMarketDataPull(request)
+
+        expect(requestJson).toHaveBeenCalledWith(
+            '/api/investment/platform/market-data/pulls',
+            {method: 'POST', body: request},
+        )
+    })
+
+    test('keeps platform mutations outside private workspace routes', async () => {
         const {requestJson} = await import('../../../services/request')
         vi.mocked(requestJson).mockResolvedValue(undefined)
 

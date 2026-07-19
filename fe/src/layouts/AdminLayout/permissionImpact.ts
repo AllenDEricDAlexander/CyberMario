@@ -33,7 +33,11 @@ const routeButtonPermissions: RouteButtonPermission[] = [
     },
     {
         path: '/investment/platform',
-        buttonCodes: [investmentButtonCodes.platformRetryJob, investmentButtonCodes.platformResolveQuality],
+        buttonCodes: [
+            investmentButtonCodes.platformPullMarketData,
+            investmentButtonCodes.platformRetryJob,
+            investmentButtonCodes.platformResolveQuality,
+        ],
     },
     {path: '/rag/knowledge-bases', buttonCodes: Object.values(ragButtonCodes.kb)},
     {

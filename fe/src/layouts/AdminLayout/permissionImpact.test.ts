@@ -22,6 +22,9 @@ describe('isCurrentPathAffectedByLostButtons', () => {
         expect(isCurrentPathAffectedByLostButtons(
             '/investment/platform', [investmentButtonCodes.platformRetryJob],
         )).toBe(true)
+        expect(isCurrentPathAffectedByLostButtons(
+            '/investment/platform', [investmentButtonCodes.platformPullMarketData],
+        )).toBe(true)
     })
 
     test('ignores unrelated routes and empty permission changes', () => {

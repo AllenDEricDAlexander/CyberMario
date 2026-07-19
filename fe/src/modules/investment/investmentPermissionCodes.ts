@@ -11,6 +11,7 @@ export const investmentButtonCodes = {
     backtestCreate: 'btn:investment:backtest:create',
     paperTrade: 'btn:investment:paper:trade',
     agentRun: 'btn:investment:agent:run',
+    platformPullMarketData: 'btn:investment:platform:pull-market-data',
     platformRetryJob: 'btn:investment:platform:retry-job',
     platformResolveQuality: 'btn:investment:platform:resolve-quality',
 }
