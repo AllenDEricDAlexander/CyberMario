@@ -49,6 +49,7 @@ class InvestmentPlatformControllerTests {
 
     private InvestmentPlatformController controller;
     private RbacPrincipal admin;
+    private RbacPrincipal superAdmin;
     private RbacPrincipal user;
 
     @BeforeEach
@@ -56,6 +57,7 @@ class InvestmentPlatformControllerTests {
         controller = new InvestmentPlatformController(queryService);
         ReflectionTestUtils.setField(controller, "blockingScheduler", Schedulers.immediate());
         admin = new RbacPrincipal(1L, "admin", Set.of("INVESTMENT_PLATFORM_ADMIN"), Set.of(), "v1");
+        superAdmin = new RbacPrincipal(3L, "super-admin", Set.of("SUPER_ADMIN"), Set.of(), "v1");
         user = new RbacPrincipal(2L, "user", Set.of("INVESTMENT_USER"), Set.of(), "v1");
     }
 
@@ -75,6 +77,17 @@ class InvestmentPlatformControllerTests {
                 .filter(method -> method.isAnnotationPresent(PostMapping.class))
                 .flatMap(method -> Arrays.stream(method.getAnnotation(PostMapping.class).value())))
                 .noneMatch(path -> path.contains("subscription"));
+    }
+
+    @Test
+    void superAdminCanReadPlatformOperations() {
+        when(queryService.subscriptions()).thenReturn(List.of());
+
+        StepVerifier.create(controller.subscriptions(superAdmin))
+                .assertNext(response -> assertThat(response.data()).isEmpty())
+                .verifyComplete();
+
+        verify(queryService).subscriptions();
     }
 
     @Test

@@ -35,6 +35,7 @@ import java.util.List;
 public class InvestmentPlatformController extends ReactiveInvestmentSupport {
 
     private static final String PLATFORM_ADMIN = "INVESTMENT_PLATFORM_ADMIN";
+    private static final String SUPER_ADMIN = "SUPER_ADMIN";
 
     private final InvestmentPlatformQueryService queryService;
 
@@ -84,7 +85,9 @@ public class InvestmentPlatformController extends ReactiveInvestmentSupport {
     }
 
     private void requirePlatformAdmin(RbacPrincipal principal) {
-        if (principal == null || principal.roleCodes() == null || !principal.roleCodes().contains(PLATFORM_ADMIN)) {
+        if (principal == null || principal.roleCodes() == null
+                || (!principal.roleCodes().contains(PLATFORM_ADMIN)
+                && !principal.roleCodes().contains(SUPER_ADMIN))) {
             throw new InvestmentException(InvestmentErrorCode.FORBIDDEN,
                     "Investment platform administrator role required");
         }
