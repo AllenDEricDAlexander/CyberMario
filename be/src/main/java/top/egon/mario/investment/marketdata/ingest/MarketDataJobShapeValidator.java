@@ -19,8 +19,9 @@ public final class MarketDataJobShapeValidator {
             case QUOTE_REFRESH -> {
                 requireNone(input);
                 if (input.capability() != DataCapability.LATEST_TICKER
+                        && input.capability() != DataCapability.CURRENT_FUNDING_RATE
                         && input.capability() != DataCapability.OPEN_INTEREST) {
-                    invalid("QUOTE_REFRESH requires LATEST_TICKER or OPEN_INTEREST");
+                    invalid("QUOTE_REFRESH requires LATEST_TICKER, CURRENT_FUNDING_RATE, or OPEN_INTEREST");
                 }
                 require(!ranged, "QUOTE_REFRESH must not carry a time range");
             }

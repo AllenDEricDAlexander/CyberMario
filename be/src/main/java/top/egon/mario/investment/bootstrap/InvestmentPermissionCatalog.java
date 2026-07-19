@@ -49,6 +49,9 @@ public class InvestmentPermissionCatalog {
                 new ButtonPermissionSeed("btn:investment:platform:retry-job", "重试任务",
                         "menu:investment:platform", "investment.platform.retry-job",
                         "api:investment:platform:*", 70),
+                new ButtonPermissionSeed("btn:investment:platform:pull-market-data", "手动拉取行情",
+                        "menu:investment:platform", "investment.platform.pull-market-data",
+                        "api:investment:platform:*", 75),
                 new ButtonPermissionSeed("btn:investment:platform:resolve-quality", "处理质量问题",
                         "menu:investment:platform", "investment.platform.resolve-quality",
                         "api:investment:platform:*", 80)

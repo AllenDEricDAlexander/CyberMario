@@ -1,5 +1,7 @@
 package top.egon.mario.investment.marketdata.query;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -44,19 +46,29 @@ public class InvestmentPlatformQueryService {
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final InvestmentMarketSubscriptionRegistry subscriptionRegistry;
     private final Clock clock;
+    private final ObjectMapper objectMapper;
 
     @Autowired
     public InvestmentPlatformQueryService(NamedParameterJdbcTemplate jdbcTemplate,
-                                          InvestmentMarketSubscriptionRegistry subscriptionRegistry) {
-        this(jdbcTemplate, subscriptionRegistry, Clock.systemUTC());
+                                          InvestmentMarketSubscriptionRegistry subscriptionRegistry,
+                                          ObjectMapper objectMapper) {
+        this(jdbcTemplate, subscriptionRegistry, Clock.systemUTC(), objectMapper);
     }
 
     public InvestmentPlatformQueryService(NamedParameterJdbcTemplate jdbcTemplate,
                                           InvestmentMarketSubscriptionRegistry subscriptionRegistry,
                                           Clock clock) {
+        this(jdbcTemplate, subscriptionRegistry, clock, new ObjectMapper().findAndRegisterModules());
+    }
+
+    public InvestmentPlatformQueryService(NamedParameterJdbcTemplate jdbcTemplate,
+                                          InvestmentMarketSubscriptionRegistry subscriptionRegistry,
+                                          Clock clock,
+                                          ObjectMapper objectMapper) {
         this.jdbcTemplate = Objects.requireNonNull(jdbcTemplate, "jdbcTemplate");
         this.subscriptionRegistry = Objects.requireNonNull(subscriptionRegistry, "subscriptionRegistry");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
     }
 
     public List<InvestmentPlatformSubscriptionResponse> subscriptions() {
@@ -86,7 +98,8 @@ public class InvestmentPlatformQueryService {
                 """.formatted(filters), parameters);
         List<InvestmentPlatformJobResponse> records = total == 0 ? List.of() : jdbcTemplate.query("""
                 select id, job_type, status, priority, attempts, max_attempts, available_at,
-                       last_error_code, last_error_message, created_at, updated_at
+                       last_error_code, last_error_message, input_json, result_json,
+                       started_at, finished_at, created_at, updated_at
                 from investment_job
                 where workspace_id is null
                   and job_type in (
@@ -198,12 +211,20 @@ public class InvestmentPlatformQueryService {
     }
 
     private InvestmentPlatformJobResponse mapJob(ResultSet resultSet, int rowNumber) throws SQLException {
+        JsonNode input = json(resultSet.getString("input_json"));
+        JsonNode result = json(resultSet.getString("result_json"));
         return new InvestmentPlatformJobResponse(
                 resultSet.getLong("id"), resultSet.getString("job_type"), resultSet.getString("status"),
                 resultSet.getInt("priority"), resultSet.getInt("attempts"), resultSet.getInt("max_attempts"),
                 instant(resultSet, "available_at"), resultSet.getString("last_error_code"),
                 resultSet.getString("last_error_message"), instant(resultSet, "created_at"),
-                instant(resultSet, "updated_at"));
+                instant(resultSet, "updated_at"), text(input, "triggerSource", "SCHEDULED"),
+                text(input, "sourceCode", null), text(input, "symbol", null),
+                text(input, "capability", null), text(input, "priceType", null),
+                text(input, "interval", null), instant(input, "startInclusive"),
+                instant(input, "endExclusive"), instant(resultSet, "started_at"),
+                instant(resultSet, "finished_at"), integer(result, "fetched"),
+                integer(result, "written"));
     }
 
     private InvestmentDataQualityIssueResponse mapQualityIssue(ResultSet resultSet, int rowNumber)
@@ -293,6 +314,40 @@ public class InvestmentPlatformQueryService {
             return timestamp.toInstant();
         }
         return resultSet.getTimestamp(column).toInstant();
+    }
+
+    private JsonNode json(String value) {
+        if (value == null || value.isBlank()) {
+            return objectMapper.createObjectNode();
+        }
+        try {
+            JsonNode node = objectMapper.readTree(value);
+            return node != null && node.isObject() ? node : objectMapper.createObjectNode();
+        } catch (Exception exception) {
+            return objectMapper.createObjectNode();
+        }
+    }
+
+    private String text(JsonNode node, String field, String fallback) {
+        JsonNode value = node.get(field);
+        return value == null || value.isNull() || !value.isTextual() ? fallback : value.textValue();
+    }
+
+    private Integer integer(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        return value == null || !value.canConvertToInt() ? null : value.intValue();
+    }
+
+    private Instant instant(JsonNode node, String field) {
+        String value = text(node, field, null);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Instant.parse(value);
+        } catch (RuntimeException exception) {
+            return null;
+        }
     }
 
     private static InvestmentException invalid(String message) {

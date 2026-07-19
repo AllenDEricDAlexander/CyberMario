@@ -183,8 +183,12 @@ agent:
 
 mario:
   investment:
-    # 生产订阅代码尚未配置时 planner 保持关闭；任务 runner 只消费已持久化的幂等任务。
-    market-data-planner-enabled: ${INVESTMENT_MARKET_DATA_PLANNER_ENABLED:false}
+    # Bitget UTA 公共行情只接入 BTCUSDT 与 SOLUSDT，可通过配置整体关闭。
+    bitget:
+      enabled: ${INVESTMENT_BITGET_ENABLED:true}
+      base-url: ${INVESTMENT_BITGET_BASE_URL:https://api.bitget.com}
+      timeout: ${INVESTMENT_BITGET_TIMEOUT:PT10S}
+    market-data-planner-enabled: ${INVESTMENT_MARKET_DATA_PLANNER_ENABLED:true}
     job:
       batch-size: ${INVESTMENT_JOB_BATCH_SIZE:10}
       lease-duration: ${INVESTMENT_JOB_LEASE_DURATION:PT30S}

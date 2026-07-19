@@ -19,8 +19,18 @@ public record ExternalContractTicker(
         BigDecimal bidPrice,
         BigDecimal askPrice,
         BigDecimal openInterest,
+        BigDecimal fundingRate,
+        Instant nextFundingTime,
         Instant observedAt
 ) {
+    public ExternalContractTicker(String sourceCode, ProductType productType, String symbol,
+                                  BigDecimal lastPrice, BigDecimal markPrice, BigDecimal indexPrice,
+                                  BigDecimal bidPrice, BigDecimal askPrice, BigDecimal openInterest,
+                                  Instant observedAt) {
+        this(sourceCode, productType, symbol, lastPrice, markPrice, indexPrice, bidPrice, askPrice,
+                openInterest, null, null, observedAt);
+    }
+
     public ExternalContractTicker {
         sourceCode = ProviderModelValidation.sourceCode(sourceCode);
         Objects.requireNonNull(productType, "productType");
@@ -40,6 +50,12 @@ public record ExternalContractTicker(
         }
         if (openInterest != null) {
             ProviderModelValidation.nonNegative(openInterest, "openInterest");
+        }
+        if ((fundingRate == null) != (nextFundingTime == null)) {
+            throw new IllegalArgumentException("fundingRate and nextFundingTime must be supplied together");
+        }
+        if (nextFundingTime != null) {
+            ProviderModelValidation.instant(nextFundingTime, "nextFundingTime");
         }
         if (bidPrice != null && askPrice != null && bidPrice.compareTo(askPrice) > 0) {
             throw new IllegalArgumentException("bidPrice must not exceed askPrice");

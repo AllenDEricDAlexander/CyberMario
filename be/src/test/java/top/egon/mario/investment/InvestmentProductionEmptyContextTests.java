@@ -12,7 +12,6 @@ import top.egon.mario.investment.marketdata.job.InvestmentMarketJobPlanner;
 import top.egon.mario.investment.marketdata.provider.MarketDataProvider;
 import top.egon.mario.investment.marketdata.provider.ProviderRegistry;
 import top.egon.mario.investment.marketdata.subscription.InvestmentMarketSubscriptionRegistry;
-import top.egon.mario.investment.marketdata.web.InvestmentMarketController;
 import top.egon.mario.investment.quant.strategy.InvestmentStrategyRegistry;
 import top.egon.mario.investment.quant.web.InvestmentStrategyController;
 import top.egon.mario.investment.trading.job.PaperMaintenanceJobPlanner;
@@ -22,7 +21,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
- * Proves the production module has a supported no-provider, no-subscription and no-strategy state.
+ * Proves the production module registers Bitget without performing provider I/O during context creation.
  */
 @SpringBootTest(properties = {
         "spring.ai.dashscope.api-key=test-api-key",
@@ -47,8 +46,6 @@ class InvestmentProductionEmptyContextTests {
     @Autowired
     private InvestmentJobRepository jobRepository;
     @Autowired
-    private InvestmentMarketController marketController;
-    @Autowired
     private InvestmentStrategyController strategyController;
 
     @MockitoBean
@@ -57,20 +54,18 @@ class InvestmentProductionEmptyContextTests {
     private StringRedisTemplate redisTemplate;
 
     @Test
-    void emptyProductionRegistriesReturnEmptyApisAndScheduleNoWork() {
+    void productionRegistersBitgetButDisabledPlannerSchedulesNoWork() {
         reset(chatModel, redisTemplate);
         long jobsBefore = jobRepository.count();
 
-        var marketResponse = marketController.instruments(1, 20, null, "SYMBOL_ASC").block();
         var strategyResponse = strategyController.list().block();
 
-        assertThat(applicationContext.getBeansOfType(MarketDataProvider.class)).isEmpty();
-        assertThat(providerRegistry.providers()).isEmpty();
-        assertThat(subscriptionRegistry.subscriptions()).isEmpty();
+        assertThat(applicationContext.getBeansOfType(MarketDataProvider.class)).hasSize(1);
+        assertThat(providerRegistry.providers()).extracting(MarketDataProvider::providerCode)
+                .containsExactly("BITGET");
+        assertThat(subscriptionRegistry.subscriptions()).extracting(subscription -> subscription.symbol())
+                .containsExactly("BTCUSDT", "SOLUSDT");
         assertThat(strategyRegistry.descriptors()).isEmpty();
-        assertThat(marketResponse).isNotNull();
-        assertThat(marketResponse.data().records()).isEmpty();
-        assertThat(marketResponse.data().total()).isZero();
         assertThat(strategyResponse).isNotNull();
         assertThat(strategyResponse.data()).isEmpty();
         assertThat(marketPlanner.tick()).isZero();

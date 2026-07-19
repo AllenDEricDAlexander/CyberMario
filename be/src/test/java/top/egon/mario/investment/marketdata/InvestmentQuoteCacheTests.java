@@ -142,9 +142,10 @@ class InvestmentQuoteCacheTests {
         when(providerRegistry.require("TEST", DataCapability.LATEST_TICKER, ContractTickerProvider.class))
                 .thenReturn(provider);
         Instant now = Instant.parse("2026-07-16T00:00:00Z");
+        Instant nextFundingTime = now.plus(Duration.ofHours(8));
         when(provider.tickers(ProductType.USDT_FUTURES, Set.of("BTCUSDT"))).thenReturn(List.of(
                 new ExternalContractTicker("TEST", ProductType.USDT_FUTURES, "BTCUSDT", decimal("100"),
-                        null, null, null, null, null, now)));
+                        null, null, null, null, null, decimal("0.0001"), nextFundingTime, now)));
         MarketDataDimensionResolver resolver = mock(MarketDataDimensionResolver.class);
         when(resolver.resolve(org.mockito.ArgumentMatchers.any())).thenReturn(new MarketDataDimension(10, 20));
         QuoteRepositoryFixture repositoryFixture = quoteRepositoryFixture();
@@ -191,9 +192,10 @@ class InvestmentQuoteCacheTests {
         when(providerRegistry.require("TEST", DataCapability.LATEST_TICKER, ContractTickerProvider.class))
                 .thenReturn(provider);
         Instant now = Instant.parse("2026-07-16T00:00:00Z");
+        Instant nextFundingTime = now.plus(Duration.ofHours(8));
         when(provider.tickers(ProductType.USDT_FUTURES, Set.of("BTCUSDT"))).thenReturn(List.of(
                 new ExternalContractTicker("TEST", ProductType.USDT_FUTURES, "BTCUSDT", decimal("100"),
-                        null, null, null, null, null, now)));
+                        null, null, null, null, null, decimal("0.0001"), nextFundingTime, now)));
         MarketDataDimensionResolver resolver = mock(MarketDataDimensionResolver.class);
         when(resolver.resolve(org.mockito.ArgumentMatchers.any())).thenReturn(new MarketDataDimension(10, 20));
         ContractQuoteJdbcRepository repository = mock(ContractQuoteJdbcRepository.class);
@@ -212,6 +214,8 @@ class InvestmentQuoteCacheTests {
 
         verify(repository).writeLatest(org.mockito.ArgumentMatchers.argThat(quote ->
                 quote.markPrice() == null && quote.openInterest() == null
+                        && quote.fundingRate().compareTo(decimal("0.0001")) == 0
+                        && quote.nextFundingTime().equals(nextFundingTime)
                         && quote.receivedAt().equals(completedAt)));
         verify(issueRepository).save(org.mockito.ArgumentMatchers.argThat(issue ->
                 issue.getIssueCode().equals("MISSING_MARK_PRICE")));
@@ -219,6 +223,49 @@ class InvestmentQuoteCacheTests {
                 issue.getIssueCode().equals("MISSING_OPEN_INTEREST")));
         verify(cache).refreshAfterCommit(org.mockito.ArgumentMatchers.argThat(quote ->
                 quote.markPrice() == null && quote.openInterest() == null));
+    }
+
+    @Test
+    void currentFundingRateWritesLatestQuoteWithoutCreatingMissingMarkIssue() throws Exception {
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        InvestmentMarketSubscriptionRegistry registry = mock(InvestmentMarketSubscriptionRegistry.class);
+        when(registry.requireCapability("TEST", ProductType.USDT_FUTURES, "BTCUSDT",
+                DataCapability.CURRENT_FUNDING_RATE))
+                .thenReturn(subscription(Set.of(DataCapability.CURRENT_FUNDING_RATE)));
+        ProviderRegistry providerRegistry = mock(ProviderRegistry.class);
+        ContractTickerProvider provider = mock(ContractTickerProvider.class);
+        when(providerRegistry.require("TEST", DataCapability.CURRENT_FUNDING_RATE,
+                ContractTickerProvider.class)).thenReturn(provider);
+        Instant now = Instant.parse("2026-07-16T00:00:00Z");
+        Instant nextFundingTime = now.plus(Duration.ofHours(8));
+        when(provider.tickers(ProductType.USDT_FUTURES, Set.of("BTCUSDT"))).thenReturn(List.of(
+                new ExternalContractTicker("TEST", ProductType.USDT_FUTURES, "BTCUSDT", decimal("100"),
+                        null, null, null, null, null, decimal("0.0001"), nextFundingTime, now)));
+        MarketDataDimensionResolver resolver = mock(MarketDataDimensionResolver.class);
+        when(resolver.resolve(org.mockito.ArgumentMatchers.any())).thenReturn(new MarketDataDimension(10, 20));
+        ContractQuoteJdbcRepository repository = mock(ContractQuoteJdbcRepository.class);
+        when(repository.writeLatest(org.mockito.ArgumentMatchers.any())).thenReturn(1);
+        InvestmentDataQualityIssueRepository issueRepository = mock(InvestmentDataQualityIssueRepository.class);
+        QuoteCacheService cache = mock(QuoteCacheService.class);
+        MarketDataCursorService cursorService = mock(MarketDataCursorService.class);
+        Instant completedAt = now.plusSeconds(1);
+        when(cursorService.lock(new MarketDataDimension(10, 20), "QUOTE", PriceType.NONE, BarInterval.NONE))
+                .thenReturn(new MarketDataCursorService.LockedCursor(new InvestmentIngestCursorPo(), completedAt));
+        QuoteRefreshJobHandler handler = new QuoteRefreshJobHandler(mapper, registry,
+                new TransactionTemplate(new NoOpTransactionManager()), providerRegistry, resolver, repository,
+                cursorService, new MarketDataQualityService(issueRepository, mapper), cache);
+
+        handler.execute(quoteClaim(mapper, DataCapability.CURRENT_FUNDING_RATE, now));
+
+        verify(repository).writeLatest(org.mockito.ArgumentMatchers.argThat(quote ->
+                quote.lastPrice().compareTo(decimal("100")) == 0
+                        && quote.markPrice() == null
+                        && quote.fundingRate().compareTo(decimal("0.0001")) == 0
+                        && quote.nextFundingTime().equals(nextFundingTime)
+                        && quote.receivedAt().equals(completedAt)));
+        verify(issueRepository, never()).save(org.mockito.ArgumentMatchers.any());
+        verify(cache).refreshAfterCommit(org.mockito.ArgumentMatchers.argThat(quote ->
+                quote.lastPrice().compareTo(decimal("100")) == 0 && quote.markPrice() == null));
     }
 
     @Test

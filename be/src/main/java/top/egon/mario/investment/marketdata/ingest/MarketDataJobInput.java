@@ -20,8 +20,16 @@ public record MarketDataJobInput(
         BarInterval interval,
         Instant startInclusive,
         Instant endExclusive,
-        int pageSize
+        int pageSize,
+        String triggerSource
 ) {
+    public MarketDataJobInput(String sourceCode, ProductType productType, String symbol,
+                              DataCapability capability, PriceType priceType, BarInterval interval,
+                              Instant startInclusive, Instant endExclusive, int pageSize) {
+        this(sourceCode, productType, symbol, capability, priceType, interval, startInclusive, endExclusive,
+                pageSize, "SCHEDULED");
+    }
+
     public MarketDataJobInput {
         Objects.requireNonNull(sourceCode, "sourceCode");
         Objects.requireNonNull(productType, "productType");
@@ -36,10 +44,14 @@ public record MarketDataJobInput(
         if (pageSize < 1 || pageSize > 1000) {
             throw new IllegalArgumentException("pageSize must be between 1 and 1000");
         }
+        triggerSource = triggerSource == null ? "SCHEDULED" : triggerSource;
+        if (!triggerSource.equals("SCHEDULED") && !triggerSource.equals("MANUAL")) {
+            throw new IllegalArgumentException("triggerSource must be SCHEDULED or MANUAL");
+        }
     }
 
     public MarketDataJobInput withRange(Instant start, Instant end) {
         return new MarketDataJobInput(sourceCode, productType, symbol, capability, priceType, interval,
-                start, end, pageSize);
+                start, end, pageSize, triggerSource);
     }
 }

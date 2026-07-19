@@ -34,7 +34,8 @@ class InvestmentRbacResourceProviderTests {
                         "btn:investment:watchlist:manage",
                         "btn:investment:paper:trade",
                         "btn:investment:agent:run",
-                        "btn:investment:platform:retry-job");
+                        "btn:investment:platform:retry-job",
+                        "btn:investment:platform:pull-market-data");
         assertThat(resources)
                 .filteredOn(seed -> seed.type() == PermissionType.MENU)
                 .extracting(RbacResourceSeed::code)
@@ -66,7 +67,8 @@ class InvestmentRbacResourceProviderTests {
                 .filteredOn(role -> "INVESTMENT_PLATFORM_ADMIN".equals(role.roleCode()))
                 .singleElement()
                 .satisfies(role -> assertThat(role.permissionCodes())
-                        .contains("menu:investment:platform", "api:investment:platform:*")
+                        .contains("menu:investment:platform", "api:investment:platform:*",
+                                "btn:investment:platform:pull-market-data")
                         .doesNotContain("menu:investment:workspace", "api:investment:workspace:*",
                                 "api:investment:private-detail:*"));
     }

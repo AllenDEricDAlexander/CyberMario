@@ -228,7 +228,7 @@ public class ContractMetadataSyncJobHandler extends AbstractMarketDataJobHandler
         return switch (capability) {
             case CONTRACT_METADATA -> "CONTRACT_METADATA";
             case POSITION_TIER -> "POSITION_TIER";
-            case LATEST_TICKER, OPEN_INTEREST -> "QUOTE";
+            case LATEST_TICKER, CURRENT_FUNDING_RATE, OPEN_INTEREST -> "QUOTE";
             case FUNDING_RATE -> "FUNDING_RATE";
             case MARKET_CANDLE, MARK_CANDLE, INDEX_CANDLE -> throw new IllegalArgumentException("Candle data type");
         };

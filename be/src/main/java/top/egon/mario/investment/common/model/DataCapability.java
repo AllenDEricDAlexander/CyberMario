@@ -9,6 +9,7 @@ public enum DataCapability implements InvestmentWireEnum {
     INDEX_CANDLE,
     LATEST_TICKER,
     FUNDING_RATE,
+    CURRENT_FUNDING_RATE,
     POSITION_TIER,
     OPEN_INTEREST;
 

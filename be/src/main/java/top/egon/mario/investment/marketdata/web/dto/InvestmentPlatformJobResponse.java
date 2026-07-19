@@ -16,6 +16,18 @@ public record InvestmentPlatformJobResponse(
         String lastErrorCode,
         String lastErrorMessage,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        String triggerSource,
+        String sourceCode,
+        String symbol,
+        String capability,
+        String priceType,
+        String interval,
+        Instant startInclusive,
+        Instant endExclusive,
+        Instant startedAt,
+        Instant finishedAt,
+        Integer fetchedCount,
+        Integer writtenCount
 ) {
 }

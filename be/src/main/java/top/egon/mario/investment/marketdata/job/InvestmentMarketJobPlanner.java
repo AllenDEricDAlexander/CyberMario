@@ -81,18 +81,17 @@ public class InvestmentMarketJobPlanner implements SmartLifecycle {
                 if (refresh == null) {
                     continue;
                 }
-                Slot slot = slot(refresh, now);
-                for (MarketDataJobInput input : refreshInputs(subscription, capability, refresh, slot.start())) {
-                    enqueueService.enqueue(command(input, jobType(capability), "refresh:" + slot.number(),
-                            slot.start()));
+                for (PlannedInput plannedInput : refreshInputs(subscription, capability, refresh, now)) {
+                    enqueueService.enqueue(command(plannedInput.input(), jobType(capability),
+                            "refresh:" + plannedInput.slot().number(), plannedInput.slot().start()));
                     planned++;
                 }
             }
             for (var entry : subscription.schedule().backfillWindows().entrySet().stream()
                     .sorted(Map.Entry.comparingByKey()).toList()) {
                 Duration refresh = subscription.schedule().refreshIntervals().get(entry.getKey());
-                Instant end = slot(refresh, now).start();
-                for (MarketDataJobInput input : backfillInputs(subscription, entry.getKey(), entry.getValue(), end)) {
+                for (MarketDataJobInput input : backfillInputs(subscription, entry.getKey(), entry.getValue(),
+                        refresh, now)) {
                     enqueueService.enqueue(command(input, backfillJobType(entry.getKey()),
                             "backfill:" + entry.getValue().toSeconds(), now));
                     planned++;
@@ -170,31 +169,40 @@ public class InvestmentMarketJobPlanner implements SmartLifecycle {
         }
     }
 
-    private List<MarketDataJobInput> refreshInputs(MarketSubscription subscription, DataCapability capability,
-                                                   Duration refresh, Instant alignedEnd) {
+    private List<PlannedInput> refreshInputs(MarketSubscription subscription, DataCapability capability,
+                                             Duration refresh, Instant now) {
         if (isCandle(capability)) {
             PriceType priceType = priceType(capability);
-            List<MarketDataJobInput> inputs = new ArrayList<>();
+            List<PlannedInput> inputs = new ArrayList<>();
             for (BarInterval interval : subscription.intervals().stream().sorted().toList()) {
                 Duration width = max(refresh, intervalDuration(interval));
-                inputs.add(input(subscription, capability, priceType, interval, alignedEnd.minus(width), alignedEnd));
+                Slot intervalSlot = slot(width, now);
+                inputs.add(new PlannedInput(input(subscription, capability, priceType, interval,
+                        intervalSlot.start().minus(width), intervalSlot.start()), intervalSlot));
             }
             return inputs;
         }
+        Slot capabilitySlot = slot(refresh, now);
+        Instant alignedEnd = capabilitySlot.start();
         Instant start = capability == DataCapability.FUNDING_RATE ? alignedEnd.minus(refresh) : null;
         Instant end = start == null ? null : alignedEnd;
-        return List.of(input(subscription, capability, PriceType.NONE, BarInterval.NONE, start, end));
+        return List.of(new PlannedInput(
+                input(subscription, capability, PriceType.NONE, BarInterval.NONE, start, end), capabilitySlot));
     }
 
     private List<MarketDataJobInput> backfillInputs(MarketSubscription subscription, DataCapability capability,
-                                                    Duration window, Instant alignedEnd) {
+                                                    Duration window, Duration refresh, Instant now) {
         if (isCandle(capability)) {
             PriceType priceType = priceType(capability);
             return subscription.intervals().stream().sorted()
-                    .map(interval -> input(subscription, capability, priceType, interval,
-                            alignedEnd.minus(window), alignedEnd)).toList();
+                    .map(interval -> {
+                        Instant alignedEnd = slot(max(refresh, intervalDuration(interval)), now).start();
+                        return input(subscription, capability, priceType, interval,
+                                alignedEnd.minus(window), alignedEnd);
+                    }).toList();
         }
         if (capability == DataCapability.FUNDING_RATE) {
+            Instant alignedEnd = slot(refresh, now).start();
             return List.of(input(subscription, capability, PriceType.NONE, BarInterval.NONE,
                     alignedEnd.minus(window), alignedEnd));
         }
@@ -206,7 +214,7 @@ public class InvestmentMarketJobPlanner implements SmartLifecycle {
                                      PriceType priceType, BarInterval interval,
                                      Instant startInclusive, Instant endExclusive) {
         return new MarketDataJobInput(subscription.sourceCode(), subscription.productType(), subscription.symbol(),
-                capability, priceType, interval, startInclusive, endExclusive, 1000);
+                capability, priceType, interval, startInclusive, endExclusive, 100);
     }
 
     private InvestmentJobEnqueueCommand command(MarketDataJobInput input, InvestmentJobType jobType,
@@ -232,7 +240,7 @@ public class InvestmentMarketJobPlanner implements SmartLifecycle {
             case CONTRACT_METADATA -> InvestmentJobType.CONTRACT_SYNC;
             case POSITION_TIER -> InvestmentJobType.POSITION_TIER_SYNC;
             case MARKET_CANDLE, MARK_CANDLE, INDEX_CANDLE -> InvestmentJobType.BAR_INCREMENTAL;
-            case LATEST_TICKER, OPEN_INTEREST -> InvestmentJobType.QUOTE_REFRESH;
+            case LATEST_TICKER, CURRENT_FUNDING_RATE, OPEN_INTEREST -> InvestmentJobType.QUOTE_REFRESH;
             case FUNDING_RATE -> InvestmentJobType.FUNDING_RATE_INCREMENTAL;
         };
     }
@@ -283,5 +291,8 @@ public class InvestmentMarketJobPlanner implements SmartLifecycle {
     }
 
     private record Slot(long number, Instant start) {
+    }
+
+    private record PlannedInput(MarketDataJobInput input, Slot slot) {
     }
 }

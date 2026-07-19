@@ -23,6 +23,8 @@ public class ProviderRegistry {
     private static final Pattern PROVIDER_CODE = Pattern.compile("[A-Z0-9][A-Z0-9_.:-]*");
     private static final Set<DataCapability> CANDLE_CAPABILITIES = Set.of(
             DataCapability.MARKET_CANDLE, DataCapability.MARK_CANDLE, DataCapability.INDEX_CANDLE);
+    private static final Set<DataCapability> TICKER_CAPABILITIES = Set.of(
+            DataCapability.LATEST_TICKER, DataCapability.CURRENT_FUNDING_RATE, DataCapability.OPEN_INTEREST);
 
     private final Map<String, RegisteredProvider> providers;
 
@@ -94,9 +96,11 @@ public class ProviderRegistry {
             supportedBySpis.add(DataCapability.CONTRACT_METADATA);
         }
         if (provider instanceof ContractTickerProvider) {
-            requireCapability(providerCode, capabilities, DataCapability.LATEST_TICKER);
-            supportedBySpis.add(DataCapability.LATEST_TICKER);
-            supportedBySpis.add(DataCapability.OPEN_INTEREST);
+            if (capabilities.stream().noneMatch(TICKER_CAPABILITIES::contains)) {
+                throw new IllegalStateException("ContractTickerProvider requires a ticker capability: "
+                        + providerCode);
+            }
+            supportedBySpis.addAll(TICKER_CAPABILITIES);
         }
         if (provider instanceof ContractCandleProvider) {
             if (capabilities.stream().noneMatch(CANDLE_CAPABILITIES::contains)) {

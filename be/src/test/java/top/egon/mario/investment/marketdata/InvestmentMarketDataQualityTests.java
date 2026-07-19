@@ -177,6 +177,7 @@ class InvestmentMarketDataQualityTests {
         verify(issueRepository).save(org.mockito.ArgumentMatchers.argThat(issue ->
                 issue.getIssueCode().equals("MISSING_OPEN_INTEREST")));
         assertThat(service.requiresQuoteMarkPrice(Set.of(DataCapability.LATEST_TICKER))).isTrue();
+        assertThat(service.requiresQuoteMarkPrice(Set.of(DataCapability.CURRENT_FUNDING_RATE))).isFalse();
         assertThat(service.requiresQuoteMarkPrice(Set.of(DataCapability.MARK_CANDLE))).isFalse();
         assertThat(service.requiresQuoteOpenInterest(Set.of(DataCapability.OPEN_INTEREST))).isTrue();
         assertThat(service.requiresQuoteOpenInterest(Set.of(DataCapability.LATEST_TICKER))).isFalse();

@@ -19,9 +19,14 @@ import reactor.test.StepVerifier;
 import top.egon.mario.investment.common.InvestmentErrorCode;
 import top.egon.mario.investment.common.InvestmentException;
 import top.egon.mario.investment.marketdata.query.InvestmentPlatformQueryService;
+import top.egon.mario.investment.marketdata.service.ManualMarketDataPullService;
 import top.egon.mario.investment.marketdata.subscription.InvestmentMarketSubscriptionRegistry;
 import top.egon.mario.investment.marketdata.web.InvestmentPlatformController;
 import top.egon.mario.investment.marketdata.web.dto.InvestmentPlatformSubscriptionResponse;
+import top.egon.mario.investment.marketdata.web.dto.ManualMarketDataPullRequest;
+import top.egon.mario.investment.marketdata.web.dto.ManualMarketDataPullResponse;
+import top.egon.mario.investment.common.model.DataCapability;
+import top.egon.mario.investment.common.model.BarInterval;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.time.Clock;
@@ -46,6 +51,8 @@ class InvestmentPlatformControllerTests {
 
     @Mock
     private InvestmentPlatformQueryService queryService;
+    @Mock
+    private ManualMarketDataPullService manualPullService;
 
     private InvestmentPlatformController controller;
     private RbacPrincipal admin;
@@ -54,7 +61,7 @@ class InvestmentPlatformControllerTests {
 
     @BeforeEach
     void setUp() {
-        controller = new InvestmentPlatformController(queryService);
+        controller = new InvestmentPlatformController(queryService, manualPullService);
         ReflectionTestUtils.setField(controller, "blockingScheduler", Schedulers.immediate());
         admin = new RbacPrincipal(1L, "admin", Set.of("INVESTMENT_PLATFORM_ADMIN"), Set.of(), "v1");
         superAdmin = new RbacPrincipal(3L, "super-admin", Set.of("SUPER_ADMIN"), Set.of(), "v1");
@@ -95,7 +102,26 @@ class InvestmentPlatformControllerTests {
         assertForbidden(() -> controller.subscriptions(user));
         assertForbidden(() -> controller.retryJob(9L, user));
         assertForbidden(() -> controller.resolveQualityIssue(10L, user));
-        verifyNoInteractions(queryService);
+        assertForbidden(() -> controller.pullMarketData(new ManualMarketDataPullRequest(
+                "BTCUSDT", DataCapability.MARKET_CANDLE, BarInterval.M1,
+                Instant.parse("2026-01-01T00:00:00Z"), Instant.parse("2026-01-02T00:00:00Z")), user));
+        verifyNoInteractions(queryService, manualPullService);
+    }
+
+    @Test
+    void platformAdminCanEnqueueManualMarketDataPull() {
+        ManualMarketDataPullRequest request = new ManualMarketDataPullRequest(
+                "BTCUSDT", DataCapability.MARKET_CANDLE, BarInterval.M1,
+                Instant.parse("2026-01-01T00:00:00Z"), Instant.parse("2026-01-02T00:00:00Z"));
+        ManualMarketDataPullResponse result = new ManualMarketDataPullResponse(
+                9L, "BAR_BACKFILL", "PENDING", Instant.parse("2026-07-19T00:00:00Z"));
+        when(manualPullService.enqueue(request)).thenReturn(result);
+
+        StepVerifier.create(controller.pullMarketData(request, admin))
+                .assertNext(response -> assertThat(response.data()).isEqualTo(result))
+                .verifyComplete();
+
+        verify(manualPullService).enqueue(request);
     }
 
     @Test
@@ -205,6 +231,42 @@ class InvestmentPlatformControllerTests {
         verifyNoInteractions(jdbcTemplate);
     }
 
+    @Test
+    void jobHistoryProjectsOnlyWhitelistedInputAndResultFields() {
+        EmbeddedDatabase database = platformDatabase();
+        try {
+            JdbcTemplate jdbc = new JdbcTemplate(database);
+            seedPlatformRows(jdbc);
+            jdbc.update("""
+                    update investment_job
+                    set input_json = ?, result_json = ?, started_at = ?, finished_at = ?
+                    where id = 1
+                    """, """
+                    {"triggerSource":"MANUAL","sourceCode":"BITGET","symbol":"BTCUSDT",
+                     "capability":"MARKET_CANDLE","priceType":"MARKET","interval":"M1",
+                     "startInclusive":"2026-01-01T00:00:00Z","endExclusive":"2026-01-02T00:00:00Z",
+                     "secret":"must-not-leak"}
+                    """, "{\"fetched\":100,\"written\":98,\"raw\":\"must-not-leak\"}",
+                    Instant.parse("2026-01-02T00:01:00Z").atOffset(ZoneOffset.UTC),
+                    Instant.parse("2026-01-02T00:02:00Z").atOffset(ZoneOffset.UTC));
+
+            var job = platformService(database).jobs(null, null, 1, 20).records().stream()
+                    .filter(value -> value.id() == 1L).findFirst().orElseThrow();
+
+            assertThat(job.triggerSource()).isEqualTo("MANUAL");
+            assertThat(job.sourceCode()).isEqualTo("BITGET");
+            assertThat(job.symbol()).isEqualTo("BTCUSDT");
+            assertThat(job.startInclusive()).isEqualTo(Instant.parse("2026-01-01T00:00:00Z"));
+            assertThat(job.fetchedCount()).isEqualTo(100);
+            assertThat(job.writtenCount()).isEqualTo(98);
+            assertThat(Arrays.stream(job.getClass().getRecordComponents())
+                    .map(java.lang.reflect.RecordComponent::getName))
+                    .doesNotContain("inputJson", "resultJson", "secret", "raw");
+        } finally {
+            database.shutdown();
+        }
+    }
+
     private void assertForbidden(Runnable invocation) {
         assertThatThrownBy(invocation::run)
                 .isInstanceOf(InvestmentException.class)
@@ -225,7 +287,8 @@ class InvestmentPlatformControllerTests {
                     heartbeat_at timestamp with time zone, last_error_code varchar(64),
                     last_error_message varchar(255), started_at timestamp with time zone,
                     finished_at timestamp with time zone, created_at timestamp with time zone,
-                    updated_at timestamp with time zone)
+                    updated_at timestamp with time zone, input_json varchar default '{}',
+                    result_json varchar default '{}')
                 """);
         jdbc.execute("""
                 create table investment_data_quality_issue (

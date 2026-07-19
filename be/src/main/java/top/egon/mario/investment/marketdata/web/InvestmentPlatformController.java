@@ -2,6 +2,7 @@ package top.egon.mario.investment.marketdata.web;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
@@ -9,6 +10,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
@@ -18,9 +20,12 @@ import top.egon.mario.investment.common.InvestmentErrorCode;
 import top.egon.mario.investment.common.InvestmentException;
 import top.egon.mario.investment.common.web.ReactiveInvestmentSupport;
 import top.egon.mario.investment.marketdata.query.InvestmentPlatformQueryService;
+import top.egon.mario.investment.marketdata.service.ManualMarketDataPullService;
 import top.egon.mario.investment.marketdata.web.dto.InvestmentDataQualityIssueResponse;
 import top.egon.mario.investment.marketdata.web.dto.InvestmentPlatformJobResponse;
 import top.egon.mario.investment.marketdata.web.dto.InvestmentPlatformSubscriptionResponse;
+import top.egon.mario.investment.marketdata.web.dto.ManualMarketDataPullRequest;
+import top.egon.mario.investment.marketdata.web.dto.ManualMarketDataPullResponse;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.util.List;
@@ -38,6 +43,7 @@ public class InvestmentPlatformController extends ReactiveInvestmentSupport {
     private static final String SUPER_ADMIN = "SUPER_ADMIN";
 
     private final InvestmentPlatformQueryService queryService;
+    private final ManualMarketDataPullService manualPullService;
 
     @GetMapping("/subscriptions")
     public Mono<ApiResponse<List<InvestmentPlatformSubscriptionResponse>>> subscriptions(
@@ -63,6 +69,14 @@ public class InvestmentPlatformController extends ReactiveInvestmentSupport {
             @AuthenticationPrincipal RbacPrincipal principal) {
         requirePlatformAdmin(principal);
         return blockingVoid(() -> queryService.retryFailedJob(jobId));
+    }
+
+    @PostMapping("/market-data/pulls")
+    public Mono<ApiResponse<ManualMarketDataPullResponse>> pullMarketData(
+            @Valid @RequestBody ManualMarketDataPullRequest request,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        requirePlatformAdmin(principal);
+        return blocking(() -> manualPullService.enqueue(request));
     }
 
     @GetMapping("/data-quality-issues")

@@ -73,9 +73,10 @@ public class QuoteRefreshJobHandler extends AbstractMarketDataJobHandler<Externa
     @Override
     protected void validateSubscription(MarketDataJobInput input) {
         if (input.capability() != DataCapability.LATEST_TICKER
+                && input.capability() != DataCapability.CURRENT_FUNDING_RATE
                 && input.capability() != DataCapability.OPEN_INTEREST) {
             throw new InvestmentJobNonRetryableException("MARKET_JOB_CAPABILITY_INVALID",
-                    "Quote handler requires LATEST_TICKER or OPEN_INTEREST");
+                    "Quote handler requires LATEST_TICKER, CURRENT_FUNDING_RATE, or OPEN_INTEREST");
         }
         subscriptionRegistry().requireCapability(input.sourceCode(), input.productType(), input.symbol(),
                 input.capability());
@@ -110,7 +111,8 @@ public class QuoteRefreshJobHandler extends AbstractMarketDataJobHandler<Externa
         for (ExternalContractTicker ticker : page) {
             ContractQuoteWrite quote = new ContractQuoteWrite(dimension.sourceId(), dimension.instrumentId(),
                     ticker.lastPrice(), ticker.markPrice(), ticker.indexPrice(), ticker.bidPrice(), ticker.askPrice(),
-                    null, null, null, null, null, null, null, null, null, null, ticker.openInterest(),
+                    null, null, null, null, null, null, null, null, ticker.fundingRate(),
+                    ticker.nextFundingTime(), ticker.openInterest(),
                     ticker.observedAt(), cursor.completedAt());
             int affected = quoteRepository.writeLatest(quote);
             written += affected;
@@ -122,7 +124,9 @@ public class QuoteRefreshJobHandler extends AbstractMarketDataJobHandler<Externa
                 cursorService.completeLocked(cursor, null,
                         MarketDataChecksum.sha256(ticker.observedAt() + "|"
                                 + MarketDataChecksum.decimal(ticker.lastPrice()) + "|"
-                                + nullableDecimal(ticker.openInterest())));
+                                + nullableDecimal(ticker.openInterest()) + "|"
+                                + nullableDecimal(ticker.fundingRate()) + "|"
+                                + (ticker.nextFundingTime() == null ? "NONE" : ticker.nextFundingTime())));
                 quoteCacheService.refreshAfterCommit(quote);
             }
         }

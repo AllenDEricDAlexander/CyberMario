@@ -69,6 +69,7 @@ public class InvestmentRbacResourceProvider implements RbacResourceProvider {
                                 "menu:investment", "menu:investment:platform",
                                 "api:investment:market:*", "api:investment:platform:*",
                                 "btn:investment:platform:retry-job",
+                                "btn:investment:platform:pull-market-data",
                                 "btn:investment:platform:resolve-quality",
                                 AUTH_SELF_API_PERMISSION_CODE, ME_SELF_API_PERMISSION_CODE
                         ),

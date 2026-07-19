@@ -43,7 +43,7 @@ class InvestmentCommonContractTests {
         assertEnumWireValues(BarInterval.class, "M1", "M5", "M15", "M30", "H1", "H4", "D1", "NONE");
         assertEnumWireValues(DataCapability.class,
                 "CONTRACT_METADATA", "MARKET_CANDLE", "MARK_CANDLE", "INDEX_CANDLE", "LATEST_TICKER",
-                "FUNDING_RATE", "POSITION_TIER", "OPEN_INTEREST");
+                "FUNDING_RATE", "CURRENT_FUNDING_RATE", "POSITION_TIER", "OPEN_INTEREST");
         assertEnumWireValues(InvestmentJobType.class,
                 "CONTRACT_SYNC", "POSITION_TIER_SYNC", "BAR_BACKFILL", "BAR_INCREMENTAL", "QUOTE_REFRESH",
                 "FUNDING_RATE_BACKFILL", "FUNDING_RATE_INCREMENTAL", "DATA_QUALITY_CHECK", "REPORT_BUILD",

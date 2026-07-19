@@ -6,6 +6,7 @@ import top.egon.mario.investment.common.InvestmentException;
 import top.egon.mario.investment.common.model.DataCapability;
 import top.egon.mario.investment.common.model.ProductType;
 import top.egon.mario.investment.marketdata.provider.model.ExternalContract;
+import top.egon.mario.investment.marketdata.provider.model.ExternalContractTicker;
 
 import java.util.List;
 import java.util.Set;
@@ -35,6 +36,17 @@ class InvestmentProviderRegistryTests {
                 .isInstanceOf(InvestmentException.class)
                 .extracting(exception -> ((InvestmentException) exception).getErrorCode())
                 .isEqualTo(InvestmentErrorCode.CAPABILITY_UNAVAILABLE);
+    }
+
+    @Test
+    void registersCurrentFundingTickerWithoutClaimingLatestTicker() {
+        CurrentFundingProvider provider = new CurrentFundingProvider();
+        ProviderRegistry registry = new ProviderRegistry(List.of(provider));
+
+        assertThat(registry.require("TEST", DataCapability.CURRENT_FUNDING_RATE,
+                ContractTickerProvider.class)).isSameAs(provider);
+        assertThat(registry.supports("TEST", DataCapability.CURRENT_FUNDING_RATE)).isTrue();
+        assertThat(registry.supports("TEST", DataCapability.LATEST_TICKER)).isFalse();
     }
 
     @Test
@@ -132,6 +144,24 @@ class InvestmentProviderRegistryTests {
 
         @Override
         public List<ExternalContract> contracts(ProductType productType, Set<String> symbols) {
+            return List.of();
+        }
+    }
+
+    private static final class CurrentFundingProvider implements ContractTickerProvider {
+
+        @Override
+        public String providerCode() {
+            return "TEST";
+        }
+
+        @Override
+        public Set<DataCapability> capabilities() {
+            return Set.of(DataCapability.CURRENT_FUNDING_RATE);
+        }
+
+        @Override
+        public List<ExternalContractTicker> tickers(ProductType productType, Set<String> symbols) {
             return List.of();
         }
     }
