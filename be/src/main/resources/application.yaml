@@ -270,6 +270,13 @@ mario:
       embedding-dimension: ${AI_EMBEDDING_DIMENSION:1024}
   agent:
     external-im:
+      guard:
+        provider: ${AGENT_EXTERNAL_IM_GUARD_PROVIDER:DASHSCOPE}
+        model: ${AGENT_EXTERNAL_IM_GUARD_MODEL:${AI_CHAT_MODEL:qwen3.7-plus}}
+        temperature: ${AGENT_EXTERNAL_IM_GUARD_TEMPERATURE:0}
+        max-tokens: ${AGENT_EXTERNAL_IM_GUARD_MAX_TOKENS:256}
+        reply-threshold: ${AGENT_EXTERNAL_IM_GUARD_REPLY_THRESHOLD:0.85}
+        timeout: ${AGENT_EXTERNAL_IM_GUARD_TIMEOUT:PT5S}
       memory:
         timeline-max-events: ${AGENT_EXTERNAL_IM_TIMELINE_MAX_EVENTS:40}
         timeline-max-chars: ${AGENT_EXTERNAL_IM_TIMELINE_MAX_CHARS:12000}

@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import reactor.core.scheduler.Scheduler;
 import top.egon.mario.agent.context.service.AgentContextAssemblyService;
 import top.egon.mario.agent.externalim.memory.ExternalImMemoryProperties;
+import top.egon.mario.agent.externalim.guard.ChatGuardProperties;
 import top.egon.mario.agent.memory.service.AgentMemoryContextService;
 import top.egon.mario.agent.memory.service.AgentMemoryExtractionService;
 import top.egon.mario.agent.memory.service.AgentMemoryMessageService;
@@ -22,12 +23,16 @@ import top.egon.mario.agent.soul.config.AgentSoulProperties;
 import top.egon.mario.agent.soul.service.AgentSoulService;
 import top.egon.mario.agent.tools.arxiv.ArxivToolUserContext;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 /**
  * Configures the CyberMario conversation agent and its application service.
  */
 @Configuration
 @Slf4j
-@EnableConfigurationProperties({AgentSoulProperties.class, ExternalImMemoryProperties.class})
+@EnableConfigurationProperties({AgentSoulProperties.class, ExternalImMemoryProperties.class,
+        ChatGuardProperties.class})
 public class AgentConfiguration {
 
     /**
@@ -36,6 +41,12 @@ public class AgentConfiguration {
     @Bean
     public AgentRuntimeDefaults agentRuntimeDefaults() {
         return AgentRuntimeDefaults.defaultDefaults();
+    }
+
+    @Bean(name = "chatGuardExecutor", destroyMethod = "close")
+    public ExecutorService chatGuardExecutor() {
+        return Executors.newThreadPerTaskExecutor(
+                Thread.ofVirtual().name("chat-guard-", 0).factory());
     }
 
     /**
