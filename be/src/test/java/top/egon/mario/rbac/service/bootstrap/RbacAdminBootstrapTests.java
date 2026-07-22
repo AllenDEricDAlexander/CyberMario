@@ -113,6 +113,7 @@ class RbacAdminBootstrapTests {
         assertThat(admin.getAccountNo()).isEqualTo("admin");
         assertThat(admin.getStatus()).isEqualTo(RbacStatus.ENABLED);
         assertThat(admin.isPasswordExpired()).isTrue();
+        assertThat(admin.getActivatedAt()).isNotNull();
         assertThat(admin.getPasswordHash()).startsWith("{argon2id}");
         assertThat(passwordEncoder.matches("Admin#2026Password!", admin.getPasswordHash())).isTrue();
 

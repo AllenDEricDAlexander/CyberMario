@@ -4,10 +4,15 @@ import io.github.linpeilie.Converter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import top.egon.mario.rbac.dto.enums.ActivationStatus;
 import top.egon.mario.rbac.dto.response.PermissionResponse;
+import top.egon.mario.rbac.dto.response.UserResponse;
 import top.egon.mario.rbac.po.ApiPo;
 import top.egon.mario.rbac.po.ButtonPo;
 import top.egon.mario.rbac.po.MenuPo;
+import top.egon.mario.rbac.po.UserPo;
+
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -19,6 +24,8 @@ class RbacDtoConverterTests {
 
     @Autowired
     private Converter converter;
+    @Autowired
+    private RbacDtoConverter rbacDtoConverter;
 
     @Test
     void mapStructPlusConvertsMenuDetail() {
@@ -84,6 +91,17 @@ class RbacDtoConverterTests {
         assertThat(detail.getServiceTag()).isEqualTo("rbac");
         assertThat(detail.getOperationName()).isEqualTo("list users");
         assertThat(detail.getRiskLevel()).isEqualTo(top.egon.mario.rbac.dto.enums.ApiRiskLevel.MEDIUM);
+    }
+
+    @Test
+    void derivesUserActivationStatusFromActivatedAt() {
+        UserPo pending = new UserPo();
+        UserResponse pendingResponse = rbacDtoConverter.toUserResponse(pending);
+        assertThat(pendingResponse.getActivationStatus()).isEqualTo(ActivationStatus.PENDING_ACTIVATION);
+
+        pending.setActivatedAt(Instant.parse("2026-07-22T00:00:00Z"));
+        UserResponse activatedResponse = rbacDtoConverter.toUserResponse(pending);
+        assertThat(activatedResponse.getActivationStatus()).isEqualTo(ActivationStatus.ACTIVATED);
     }
 
 }

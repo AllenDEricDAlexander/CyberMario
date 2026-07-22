@@ -108,8 +108,9 @@ public class RbacAuthApplication {
         user.setStatus(RbacStatus.ENABLED);
         user.setLocked(false);
         user.setPasswordExpired(false);
-        UserPo savedUser = userRepository.save(user);
         Instant now = Instant.now();
+        user.setActivatedAt(now);
+        UserPo savedUser = userRepository.save(user);
         userRoleRepository.saveAll(defaultRoles.stream()
                 .map(role -> {
                     UserRolePo relation = new UserRolePo();
@@ -258,6 +259,9 @@ public class RbacAuthApplication {
     }
 
     private void ensureUserCanLogin(UserPo user) {
+        if (user.getActivatedAt() == null) {
+            throw new RbacException("AUTH_USER_NOT_ACTIVATED", "user account is not activated");
+        }
         if (user.getStatus() != RbacStatus.ENABLED || user.isLocked() || user.isPasswordExpired()) {
             throw new RbacException("AUTH_USER_DISABLED", "user cannot login");
         }

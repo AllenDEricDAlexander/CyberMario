@@ -7,6 +7,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import top.egon.mario.rag.repository.RagKnowledgeBaseUserRepository;
+import top.egon.mario.rbac.dto.enums.ActivationStatus;
 import top.egon.mario.rbac.dto.request.LoginRequest;
 import top.egon.mario.rbac.dto.request.RegisterRequest;
 import top.egon.mario.rbac.dto.response.LoginResponse;
@@ -186,6 +187,8 @@ class RbacAuthApplicationTests {
         assertThat(user.getStatus()).isEqualTo(RbacStatus.ENABLED);
         assertThat(user.isLocked()).isFalse();
         assertThat(user.isPasswordExpired()).isFalse();
+        assertThat(user.getActivatedAt()).isNotNull();
+        assertThat(response.user().getActivationStatus()).isEqualTo(ActivationStatus.ACTIVATED);
         assertThat(userRoleRepository.findByUserId(user.getId()))
                 .extracting(UserRolePo::getRoleId)
                 .containsExactlyInAnyOrder(chatRole.getId(), ragRole.getId(), dashboardRole.getId(), mcpRole.getId(),
@@ -228,6 +231,7 @@ class RbacAuthApplicationTests {
         user.setNickname("Mario");
         user.setPasswordHash(passwordEncoder.encode("secret"));
         user.setStatus(RbacStatus.ENABLED);
+        user.setActivatedAt(Instant.now());
         user = userRepository.save(user);
 
         LoginResponse accountLogin = authApplication.login(loginRequest("mario-account", "secret"), "127.0.0.1", "test");
@@ -240,6 +244,24 @@ class RbacAuthApplicationTests {
     }
 
     @Test
+    void pendingActivationUserCannotLogin() {
+        UserPo user = new UserPo();
+        user.setAccountNo("pending");
+        user.setUsername("pending");
+        user.setEmail("pending@example.com");
+        user.setPasswordHash(passwordEncoder.encode("secret123"));
+        user.setStatus(RbacStatus.ENABLED);
+        user.setPasswordExpired(true);
+        userRepository.save(user);
+
+        assertThatThrownBy(() -> authApplication.login(
+                loginRequest("pending", "secret123"), "127.0.0.1", "test"))
+                .extracting("code")
+                .isEqualTo("AUTH_USER_NOT_ACTIVATED");
+        assertThat(refreshTokenRepository.findAll()).isEmpty();
+    }
+
+    @Test
     void loginRefreshAndAccessAuthenticationExposeApiAuthorities() {
         UserPo user = new UserPo();
         user.setAccountNo("mario");
@@ -247,6 +269,7 @@ class RbacAuthApplicationTests {
         user.setNickname("Mario");
         user.setPasswordHash(passwordEncoder.encode("secret"));
         user.setStatus(RbacStatus.ENABLED);
+        user.setActivatedAt(Instant.now());
         user = userRepository.save(user);
 
         RolePo role = new RolePo();
@@ -307,6 +330,7 @@ class RbacAuthApplicationTests {
         user.setNickname("Luigi");
         user.setPasswordHash(passwordEncoder.encode("secret"));
         user.setStatus(RbacStatus.ENABLED);
+        user.setActivatedAt(Instant.now());
         user = userRepository.save(user);
 
         RolePo role = new RolePo();
