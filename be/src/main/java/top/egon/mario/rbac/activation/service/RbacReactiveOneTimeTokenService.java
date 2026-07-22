@@ -80,6 +80,11 @@ public class RbacReactiveOneTimeTokenService implements RbacAccountActivationTok
     @Override
     public boolean revokeForUser(Long userId, Long actorUserId, String reason) {
         return Boolean.TRUE.equals(transactionOperations.execute(status -> {
+            // Match issuance lock order so a missing token row cannot race with a concurrent insert.
+            tokenStore.lockCurrentForUser(userId);
+            if (userRepository.findByIdForUpdate(userId).isEmpty()) {
+                return false;
+            }
             boolean revoked = tokenStore.revoke(userId);
             if (revoked) {
                 auditService.log(actorUserId, "AUTH_ACTIVATION_TOKEN_REVOKED", "USER", userId,

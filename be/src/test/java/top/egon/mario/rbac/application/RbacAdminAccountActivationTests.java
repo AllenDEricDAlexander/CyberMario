@@ -21,6 +21,7 @@ import top.egon.mario.rbac.dto.request.CreateUserRequest;
 import top.egon.mario.rbac.dto.request.UpdateUserRequest;
 import top.egon.mario.rbac.dto.response.ActivationDeliveryResponse;
 import top.egon.mario.rbac.dto.response.AdminUserCreateResponse;
+import top.egon.mario.rbac.po.OneTimeTokenPo;
 import top.egon.mario.rbac.po.RolePo;
 import top.egon.mario.rbac.po.UserPo;
 import top.egon.mario.rbac.po.enums.RbacStatus;
@@ -34,13 +35,21 @@ import top.egon.mario.rbac.service.RbacUserService;
 
 import java.net.URI;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -68,7 +77,7 @@ class RbacAdminAccountActivationTests {
     private AuditLogRepository auditLogRepository;
     @Autowired
     private PasswordEncoder passwordEncoder;
-    @Autowired
+    @MockitoSpyBean(reset = MockReset.AFTER)
     private RbacOneTimeTokenStore tokenStore;
 
     @MockitoBean
@@ -199,6 +208,67 @@ class RbacAdminAccountActivationTests {
         assertThat(oneTimeTokenRepository.findAll()).isEmpty();
         assertThat(auditLogRepository.findAll()).extracting("action")
                 .contains("AUTH_ACTIVATION_TOKEN_REVOKED");
+    }
+
+    @Test
+    void pendingEmailUpdateRemovesTokenIssuedAfterBothTransactionsSeeNoCurrentToken() throws Exception {
+        AdminUserCreateResponse created = application.createPendingUser(
+                createRequest("pauline", "pauline@example.com", Set.of()), 99L);
+        Long userId = created.user().getId();
+        oneTimeTokenRepository.deleteAll();
+        CountDownLatch bothReadMissingToken = new CountDownLatch(2);
+        CountDownLatch reissueReachedSecondTokenRead = new CountDownLatch(1);
+        AtomicInteger reissueReads = new AtomicInteger();
+        willAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Optional<OneTimeTokenPo> current = (Optional<OneTimeTokenPo>) invocation.callRealMethod();
+            if ("pending-email-update".equals(Thread.currentThread().getName())) {
+                bothReadMissingToken.countDown();
+                assertThat(bothReadMissingToken.await(5, TimeUnit.SECONDS)).isTrue();
+                assertThat(reissueReachedSecondTokenRead.await(5, TimeUnit.SECONDS)).isTrue();
+            } else if ("activation-reissue".equals(Thread.currentThread().getName())) {
+                if (reissueReads.incrementAndGet() == 1) {
+                    bothReadMissingToken.countDown();
+                    assertThat(bothReadMissingToken.await(5, TimeUnit.SECONDS)).isTrue();
+                } else {
+                    reissueReachedSecondTokenRead.countDown();
+                }
+            }
+            return current;
+        }).given(tokenStore).lockCurrentForUser(userId);
+        CountDownLatch reissueFinished = new CountDownLatch(1);
+        willAnswer(invocation -> {
+            Object result = invocation.callRealMethod();
+            assertThat(reissueFinished.await(5, TimeUnit.SECONDS)).isTrue();
+            return result;
+        }).given(tokenService).revokeForUser(eq(userId), isNull(),
+                eq("pending user profile or availability changed"));
+        UpdateUserRequest update = new UpdateUserRequest();
+        update.setEmail("new-pauline@example.com");
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> updateResult = executor.submit(() -> {
+                Thread.currentThread().setName("pending-email-update");
+                return userService.updateUser(userId, update);
+            });
+            Future<?> reissueResult = executor.submit(() -> {
+                Thread.currentThread().setName("activation-reissue");
+                try {
+                    return application.reissue(userId, 99L);
+                } finally {
+                    reissueFinished.countDown();
+                }
+            });
+
+            reissueResult.get(10, TimeUnit.SECONDS);
+            updateResult.get(10, TimeUnit.SECONDS);
+
+            assertThat(userRepository.findById(userId).orElseThrow().getEmail())
+                    .isEqualTo("new-pauline@example.com");
+            assertThat(oneTimeTokenRepository.findAll()).isEmpty();
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test
