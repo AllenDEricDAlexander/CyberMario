@@ -20,6 +20,7 @@ import top.egon.mario.agent.externalim.model.ExternalSenderType;
 import top.egon.mario.agent.externalim.runtime.ExternalChatIngressService;
 
 import java.time.Instant;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -45,7 +46,8 @@ class ExternalChatWebhookControllerTests {
                 "telegram:main:group-1", new ExternalSender("sender-1", "Mario", ExternalSenderType.HUMAN),
                 ExternalMessageType.TEXT, "hello", false, false, Instant.now());
         given(registry.requireInbound(ExternalChatPlatform.TELEGRAM)).willReturn(adapter);
-        given(adapter.verifyAndNormalize(any(ExternalWebhookRequest.class))).willReturn(message);
+        given(adapter.verifyAndNormalize(any(ExternalWebhookRequest.class)))
+                .willReturn(Optional.of(message));
 
         StepVerifier.create(controller.receive("telegram", "main", headers(), Mono.just("{}".getBytes())))
                 .assertNext(response -> assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT))
@@ -69,6 +71,21 @@ class ExternalChatWebhookControllerTests {
                             .isEqualTo(HttpStatus.UNAUTHORIZED);
                 })
                 .verify();
+
+        verify(ingressService, never()).accept(any(), any());
+    }
+
+    @Test
+    void authenticatedIgnoredEventReturnsNoContentWithoutPersistence() {
+        given(registry.requireInbound(ExternalChatPlatform.QQ)).willReturn(adapter);
+        given(adapter.verifyAndNormalize(any(ExternalWebhookRequest.class)))
+                .willReturn(Optional.empty());
+
+        StepVerifier.create(controller.receive("qq", "main", headers(),
+                        Mono.just("{}".getBytes())))
+                .assertNext(response -> assertThat(response.getStatusCode())
+                        .isEqualTo(HttpStatus.NO_CONTENT))
+                .verifyComplete();
 
         verify(ingressService, never()).accept(any(), any());
     }

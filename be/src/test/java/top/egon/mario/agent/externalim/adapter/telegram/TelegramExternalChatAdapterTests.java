@@ -100,6 +100,6 @@ class TelegramExternalChatAdapterTests {
         HttpHeaders headers = new HttpHeaders();
         headers.set(TelegramExternalChatAdapter.SECRET_HEADER, "webhook-secret");
         return adapter.verifyAndNormalize(new ExternalWebhookRequest(
-                "main", headers, json.getBytes(StandardCharsets.UTF_8)));
+                "main", headers, json.getBytes(StandardCharsets.UTF_8))).orElseThrow();
     }
 }

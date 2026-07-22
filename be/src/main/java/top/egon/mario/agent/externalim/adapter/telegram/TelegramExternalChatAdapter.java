@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 @Component
@@ -42,7 +43,7 @@ public class TelegramExternalChatAdapter implements ExternalChatInboundAdapter {
     }
 
     @Override
-    public ExternalChatMessage verifyAndNormalize(ExternalWebhookRequest request) {
+    public Optional<ExternalChatMessage> verifyAndNormalize(ExternalWebhookRequest request) {
         TelegramExternalChatProperties.Connector connector =
                 properties.requireConnector(request.connectorId());
         verifySecret(connector.getWebhookSecret(),
@@ -54,7 +55,7 @@ public class TelegramExternalChatAdapter implements ExternalChatInboundAdapter {
         }
         TelegramUpdate.TelegramMessage message = update.message();
         if (message == null || message.chat() == null) {
-            return unsupportedUpdate(update.updateId(), request.connectorId());
+            return Optional.of(unsupportedUpdate(update.updateId(), request.connectorId()));
         }
         ExternalConversationType conversationType = "private".equals(message.chat().type())
                 ? ExternalConversationType.DIRECT : ExternalConversationType.GROUP;
@@ -70,12 +71,12 @@ public class TelegramExternalChatAdapter implements ExternalChatInboundAdapter {
             text = StringUtils.hasText(cleaned) ? cleaned : text.trim();
         }
         String conversationId = String.valueOf(message.chat().id());
-        return new ExternalChatMessage(String.valueOf(update.updateId()),
+        return Optional.of(new ExternalChatMessage(String.valueOf(update.updateId()),
                 message.messageId() == null ? null : String.valueOf(message.messageId()),
                 ExternalChatPlatform.TELEGRAM, request.connectorId(), conversationId,
                 conversationType, "telegram:" + request.connectorId() + ":" + conversationId,
                 sender, messageType, text, mentioned, replied,
-                message.date() == null ? Instant.now() : Instant.ofEpochSecond(message.date()));
+                message.date() == null ? Instant.now() : Instant.ofEpochSecond(message.date())));
     }
 
     private void verifySecret(String expected, String actual) {

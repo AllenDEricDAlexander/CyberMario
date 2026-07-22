@@ -16,7 +16,6 @@ import reactor.core.scheduler.Scheduler;
 import top.egon.mario.agent.externalim.ExternalChatException;
 import top.egon.mario.agent.externalim.adapter.ExternalChatAdapterRegistry;
 import top.egon.mario.agent.externalim.adapter.ExternalWebhookRequest;
-import top.egon.mario.agent.externalim.model.ExternalChatMessage;
 import top.egon.mario.agent.externalim.model.ExternalChatPlatform;
 import top.egon.mario.agent.externalim.runtime.ExternalChatIngressService;
 import top.egon.mario.common.api.TraceContext;
@@ -46,9 +45,10 @@ public class ExternalChatWebhookController {
                                               @RequestBody Mono<byte[]> body) {
         return body.flatMap(bytes -> Mono.fromCallable(() -> {
                     ExternalChatPlatform selected = platform(platform);
-                    ExternalChatMessage normalized = adapterRegistry.requireInbound(selected)
+                    var normalized = adapterRegistry.requireInbound(selected)
                             .verifyAndNormalize(new ExternalWebhookRequest(connectorId, headers, bytes));
-                    ingressService.accept(normalized, TraceContext.resolve(headers));
+                    normalized.ifPresent(message ->
+                            ingressService.accept(message, TraceContext.resolve(headers)));
                     return ResponseEntity.noContent().<Void>build();
                 }).subscribeOn(blockingScheduler))
                 .onErrorMap(ExternalChatException.class, this::httpError);
