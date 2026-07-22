@@ -17,6 +17,8 @@ import reactor.core.publisher.Mono;
 import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.common.api.TraceContext;
 import top.egon.mario.rbac.application.RbacAuthApplication;
+import top.egon.mario.rbac.application.RbacAccountActivationApplication;
+import top.egon.mario.rbac.dto.request.CompleteAccountActivationRequest;
 import top.egon.mario.rbac.dto.request.LoginRequest;
 import top.egon.mario.rbac.dto.request.RefreshTokenRequest;
 import top.egon.mario.rbac.dto.request.RegisterRequest;
@@ -43,6 +45,7 @@ public class AuthController extends ReactiveRbacSupport {
     private final RbacAuthApplication authApplication;
     private final BrowserAuthCookieService browserAuthCookieService;
     private final PasswordTransportEncryptionService passwordTransportEncryptionService;
+    private final RbacAccountActivationApplication accountActivationApplication;
 
     @RbacApi(appCode = "rbac", code = "api:rbac:auth:login", name = "RBAC 用户登录", publicFlag = true)
     @PostMapping("/login")
@@ -62,6 +65,16 @@ public class AuthController extends ReactiveRbacSupport {
     @GetMapping("/password-key")
     public Mono<ApiResponse<PasswordEncryptionKeyResponse>> passwordKey() {
         return blocking(passwordTransportEncryptionService::currentKey);
+    }
+
+    @RbacApi(appCode = "rbac", code = "api:rbac:auth:activation:complete",
+            name = "RBAC 完成账号激活", publicFlag = true)
+    @PostMapping("/activation/complete")
+    public Mono<ApiResponse<Void>> completeActivation(
+            @Valid @RequestBody CompleteAccountActivationRequest request,
+            ServerWebExchange exchange) {
+        return blockingVoid(() -> accountActivationApplication.complete(
+                request, clientIp(exchange), userAgent(exchange)));
     }
 
     @RbacApi(appCode = "rbac", code = "api:rbac:auth:refresh", name = "RBAC 刷新令牌", publicFlag = true)

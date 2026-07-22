@@ -30,6 +30,19 @@ class GlobalExceptionHandlerTests {
     }
 
     @Test
+    void mapsOnlyActivationRateLimitToTooManyRequests() {
+        var response = handler.handleRbacException(new RbacException(
+                        "AUTH_ACTIVATION_RATE_LIMITED", "too many activation failures"))
+                .contextWrite(context -> context.put(TraceContext.CONTEXT_KEY, "trace-rate"))
+                .block();
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().code()).isEqualTo("AUTH_ACTIVATION_RATE_LIMITED");
+    }
+
+    @Test
     void mapsAgentBusinessExceptionsAsBadRequest() {
         var response = handler.handleAgentException(new AgentException("AGENT_PRESET_FORBIDDEN", "preset can only be modified by creator"))
                 .contextWrite(context -> context.put(TraceContext.CONTEXT_KEY, "trace-agent"))

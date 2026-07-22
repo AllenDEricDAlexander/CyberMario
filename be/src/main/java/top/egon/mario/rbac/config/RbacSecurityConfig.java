@@ -74,6 +74,7 @@ public class RbacSecurityConfig {
                 )
                 .authorizeExchange(exchange -> exchange
                         .pathMatchers(HttpMethod.POST, RbacPublicApiPolicy.PUBLIC_AUTH_ENDPOINTS).permitAll()
+                        .pathMatchers(HttpMethod.POST, RbacPublicApiPolicy.PUBLIC_ACTIVATION_ENDPOINTS).permitAll()
                         .pathMatchers(HttpMethod.GET, RbacPublicApiPolicy.PUBLIC_AUTH_CSRF_ENDPOINTS).permitAll()
                         .pathMatchers(HttpMethod.GET, RbacPublicApiPolicy.PUBLIC_ACTUATOR_ENDPOINTS).permitAll()
                         .pathMatchers(HttpMethod.GET, RbacPublicApiPolicy.PUBLIC_WEBSOCKET_ENDPOINTS).permitAll()

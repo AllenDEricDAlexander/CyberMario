@@ -25,6 +25,14 @@ class RbacPublicApiPolicyTests {
     }
 
     @Test
+    void accountActivationIsPublicOnlyForPost() {
+        assertThat(RbacPublicApiPolicy.isAllowedPublicRule(
+                "POST", "/api/auth/activation/complete")).isTrue();
+        assertThat(RbacPublicApiPolicy.isAllowedPublicRule(
+                "GET", "/api/auth/activation/complete")).isFalse();
+    }
+
+    @Test
     void imWebSocketEndpointIsAllowedAsPublicGetEndpoint() {
         assertThat(RbacPublicApiPolicy.isAllowedPublicRule("GET", "/ws/im")).isTrue();
     }
