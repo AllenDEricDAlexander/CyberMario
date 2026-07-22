@@ -13,7 +13,6 @@ type UserEditorDrawerProps = {
 }
 
 type UserFormValues = CreateUserRequest & {
-    initialPassword?: string
     status?: 'ENABLED' | 'DISABLED'
     locked?: boolean
     passwordExpired?: boolean
@@ -32,10 +31,14 @@ export function UserEditorDrawer({open, loading, value, onClose, onSubmit}: User
             email: value?.email,
             mobile: value?.mobile,
             avatarUrl: value?.avatarUrl,
-            status: typeof value?.status === 'object' ? value.status.code === 1 ? 'ENABLED' : 'DISABLED' : value?.status ?? 'ENABLED',
+            status: value
+                ? typeof value.status === 'object'
+                    ? value.status.code === 1 ? 'ENABLED' : 'DISABLED'
+                    : value.status
+                : undefined,
             remark: value?.remark,
-            locked: value?.locked ?? false,
-            passwordExpired: value?.passwordExpired ?? false,
+            locked: value?.locked,
+            passwordExpired: value?.passwordExpired,
         })
     }, [form, open, value])
 
@@ -61,16 +64,17 @@ export function UserEditorDrawer({open, loading, value, onClose, onSubmit}: User
                 <Form.Item label="用户名" name="username" rules={[{required: true, message: '请输入用户名'}]}>
                     <Input disabled={editing}/>
                 </Form.Item>
-                {!editing && (
-                    <Form.Item label="初始密码" name="initialPassword"
-                               rules={[{required: true, message: '请输入初始密码'}]}>
-                        <Input.Password/>
-                    </Form.Item>
-                )}
                 <Form.Item label="昵称" name="nickname">
                     <Input/>
                 </Form.Item>
-                <Form.Item label="邮箱" name="email">
+                <Form.Item
+                    label="邮箱"
+                    name="email"
+                    rules={[
+                        {required: !editing, message: '请输入邮箱'},
+                        {type: 'email', message: '请输入有效邮箱'},
+                    ]}
+                >
                     <Input/>
                 </Form.Item>
                 <Form.Item label="手机" name="mobile">
@@ -79,11 +83,11 @@ export function UserEditorDrawer({open, loading, value, onClose, onSubmit}: User
                 <Form.Item label="头像地址" name="avatarUrl">
                     <Input/>
                 </Form.Item>
-                <Form.Item label="状态" name="status">
-                    <Select options={RBAC_STATUS_OPTIONS}/>
-                </Form.Item>
                 {editing && (
                     <>
+                        <Form.Item label="状态" name="status">
+                            <Select options={RBAC_STATUS_OPTIONS}/>
+                        </Form.Item>
                         <Form.Item label="锁定" name="locked" valuePropName="checked">
                             <Switch/>
                         </Form.Item>
