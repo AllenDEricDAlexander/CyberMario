@@ -12,6 +12,7 @@ import jakarta.persistence.Version;
 import lombok.Getter;
 import lombok.Setter;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryEntryType;
+import top.egon.mario.agent.memory.po.enums.AgentMemoryDomain;
 import top.egon.mario.agent.memory.po.enums.AgentMemorySessionStatus;
 
 import java.time.Instant;
@@ -57,6 +58,13 @@ public class AgentMemorySessionPo {
 
     @Column(name = "short_term_window_turns", nullable = false)
     private int shortTermWindowTurns = 10;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "memory_domain", nullable = false, length = 32)
+    private AgentMemoryDomain memoryDomain = AgentMemoryDomain.WEB_PRIVATE;
+
+    @Column(name = "memory_space_id", length = 96)
+    private String memorySpaceId;
 
     @Column(name = "last_active_at")
     private Instant lastActiveAt;

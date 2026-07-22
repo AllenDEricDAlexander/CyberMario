@@ -20,6 +20,8 @@ public interface AgentMemorySessionService {
                                          Boolean memoryEnabled, Boolean longTermExtractionEnabled,
                                          RbacPrincipal principal);
 
+    AgentMemorySessionPo resolveOrCreateExternal(Long ownerUserId, String memorySpaceId);
+
     AgentMemorySessionPo requireOwned(String sessionId, RbacPrincipal principal);
 
     AgentMemorySessionPo requireUsableForChat(String sessionId, RbacPrincipal principal);

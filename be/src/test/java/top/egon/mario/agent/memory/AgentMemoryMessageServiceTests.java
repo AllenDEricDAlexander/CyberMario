@@ -5,6 +5,7 @@ import org.mockito.ArgumentCaptor;
 import top.egon.mario.agent.memory.dto.response.AgentMemoryMessageResponse;
 import top.egon.mario.agent.memory.po.AgentMemoryMessagePo;
 import top.egon.mario.agent.memory.po.AgentMemorySessionPo;
+import top.egon.mario.agent.memory.po.enums.AgentMemoryDomain;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryEntryType;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageRole;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageStatus;
@@ -13,6 +14,9 @@ import top.egon.mario.agent.memory.repository.AgentMemoryMessageRepository;
 import top.egon.mario.agent.memory.repository.AgentMemorySessionRepository;
 import top.egon.mario.agent.memory.service.impl.AgentMemoryMessageServiceImpl;
 import top.egon.mario.agent.memory.service.model.AgentMemoryMessageRecord;
+import top.egon.mario.agent.memory.service.model.AgentMemoryMessageSource;
+import top.egon.mario.agent.externalim.model.ExternalChatPlatform;
+import top.egon.mario.agent.externalim.model.ExternalConversationType;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
 import java.time.Instant;
@@ -144,6 +148,28 @@ class AgentMemoryMessageServiceTests {
                 ));
 
         assertThat(service.nextTurnNo("session-1")).isEqualTo(5);
+    }
+
+    @Test
+    void appendPersistsExternalSourceWithoutChangingOldWebConstructors() {
+        AgentMemoryMessageSource source = new AgentMemoryMessageSource(
+                AgentMemoryDomain.IM_SHARED, "space-1", ExternalChatPlatform.TELEGRAM,
+                "main", "-1001", ExternalConversationType.GROUP, "telegram:main:-1001",
+                "update-1", "message-1", "user-9", "Alice", true);
+        given(messageRepository.findBySessionIdAndDeletedFalseOrderBySeqNoAsc("external-session"))
+                .willReturn(List.of());
+        given(messageRepository.saveAll(anyList())).willAnswer(invocation -> invocation.getArgument(0));
+
+        AgentMemoryMessagePo saved = service.appendAll(List.of(new AgentMemoryMessageRecord(
+                "external-session", 8L, AgentMemoryEntryType.AGENT_CHAT, 1,
+                AgentMemoryMessageRole.USER, AgentMemoryMessageType.MESSAGE, "ambient",
+                null, "trace-1", "request-1", AgentMemoryMessageStatus.SUCCEEDED,
+                null, null, null, source))).getFirst();
+
+        assertThat(saved.getMemoryDomain()).isEqualTo(AgentMemoryDomain.IM_SHARED);
+        assertThat(saved.getMemorySpaceId()).isEqualTo("space-1");
+        assertThat(saved.getExternalEventId()).isEqualTo("update-1");
+        assertThat(saved.isObservedOnly()).isTrue();
     }
 
     private AgentMemoryMessagePo message(int seqNo, int turnNo, AgentMemoryMessageRole role, String content) {

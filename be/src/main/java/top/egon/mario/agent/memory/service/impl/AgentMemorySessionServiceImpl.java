@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import top.egon.mario.agent.memory.po.AgentMemorySessionPo;
+import top.egon.mario.agent.memory.po.enums.AgentMemoryDomain;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryEntryType;
 import top.egon.mario.agent.memory.po.enums.AgentMemorySessionStatus;
 import top.egon.mario.agent.memory.repository.AgentMemorySessionRepository;
@@ -25,6 +26,8 @@ import java.util.UUID;
  */
 @Service
 public class AgentMemorySessionServiceImpl implements AgentMemorySessionService {
+
+    private static final String EXTERNAL_SESSION_PREFIX = "__external_im__:";
 
     private final AgentMemorySessionRepository repository;
 
@@ -51,6 +54,7 @@ public class AgentMemorySessionServiceImpl implements AgentMemorySessionService 
         session.setLongTermExtractionEnabled(request.longTermExtractionEnabled() == null
                 || request.longTermExtractionEnabled());
         session.setShortTermWindowTurns(AgentMemoryDefaults.SHORT_TERM_WINDOW_TURNS);
+        session.setMemoryDomain(AgentMemoryDomain.WEB_PRIVATE);
         session.setLastActiveAt(now);
         session.setCreatedAt(now);
         session.setUpdatedAt(now);
@@ -77,12 +81,57 @@ public class AgentMemorySessionServiceImpl implements AgentMemorySessionService 
     public AgentMemorySessionPo resolveOrCreate(AgentMemoryEntryType entryType, String sessionId,
                                                 Boolean memoryEnabled, Boolean longTermExtractionEnabled,
                                                 RbacPrincipal principal) {
+        if (StringUtils.hasText(sessionId) && sessionId.startsWith(EXTERNAL_SESSION_PREFIX)) {
+            throw new AgentMemoryException("AGENT_MEMORY_SESSION_ID_RESERVED",
+                    "memory session id uses a reserved external prefix");
+        }
         if (StringUtils.hasText(sessionId)) {
             AgentMemorySessionPo session = requireUsableForChat(sessionId, principal);
             applyRuntimeSwitches(session, memoryEnabled, longTermExtractionEnabled);
             return repository.save(session);
         }
         return create(new AgentMemorySessionCreate(entryType, null, memoryEnabled, longTermExtractionEnabled), principal);
+    }
+
+    @Override
+    @Transactional
+    public AgentMemorySessionPo resolveOrCreateExternal(Long ownerUserId, String memorySpaceId) {
+        if (ownerUserId == null || !StringUtils.hasText(memorySpaceId)
+                || memorySpaceId.length() > 96) {
+            throw new AgentMemoryException("AGENT_EXTERNAL_MEMORY_SESSION_INVALID",
+                    "external memory session owner and space are required");
+        }
+        String safeMemorySpaceId = memorySpaceId.trim();
+        return repository.findByMemoryDomainAndMemorySpaceIdAndDeletedFalse(
+                        AgentMemoryDomain.IM_SHARED, safeMemorySpaceId)
+                .map(session -> {
+                    if (!ownerUserId.equals(session.getUserId())) {
+                        throw new AgentMemoryException("AGENT_EXTERNAL_MEMORY_OWNER_MISMATCH",
+                                "external memory session owner does not match the space");
+                    }
+                    Instant now = Instant.now();
+                    session.setLastActiveAt(now);
+                    session.setUpdatedAt(now);
+                    return repository.save(session);
+                })
+                .orElseGet(() -> {
+                    Instant now = Instant.now();
+                    AgentMemorySessionPo session = new AgentMemorySessionPo();
+                    session.setSessionId(EXTERNAL_SESSION_PREFIX + safeMemorySpaceId);
+                    session.setEntryType(AgentMemoryEntryType.AGENT_CHAT);
+                    session.setTitle("External IM " + safeMemorySpaceId);
+                    session.setUserId(ownerUserId);
+                    session.setStatus(AgentMemorySessionStatus.ACTIVE);
+                    session.setMemoryEnabled(true);
+                    session.setLongTermExtractionEnabled(true);
+                    session.setShortTermWindowTurns(40);
+                    session.setMemoryDomain(AgentMemoryDomain.IM_SHARED);
+                    session.setMemorySpaceId(safeMemorySpaceId);
+                    session.setLastActiveAt(now);
+                    session.setCreatedAt(now);
+                    session.setUpdatedAt(now);
+                    return repository.save(session);
+                });
     }
 
     @Override

@@ -4,9 +4,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import top.egon.mario.agent.memory.po.AgentMemorySessionPo;
+import top.egon.mario.agent.memory.po.enums.AgentMemoryDomain;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryEntryType;
 import top.egon.mario.agent.memory.po.enums.AgentMemorySessionStatus;
 import top.egon.mario.agent.memory.repository.AgentMemorySessionRepository;
+import top.egon.mario.agent.memory.service.AgentMemoryException;
 import top.egon.mario.agent.memory.service.impl.AgentMemorySessionServiceImpl;
 import top.egon.mario.agent.memory.service.model.AgentMemorySessionCreate;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
@@ -104,6 +106,29 @@ class AgentMemorySessionServiceTests {
         assertThat(session.isDeleted()).isTrue();
         assertThat(session.getDeletedAt()).isNotNull();
         verify(repository).save(session);
+    }
+
+    @Test
+    void createsTrustedExternalSessionWithoutForgingAPrincipal() {
+        given(repository.findByMemoryDomainAndMemorySpaceIdAndDeletedFalse(
+                AgentMemoryDomain.IM_SHARED, "space-1")).willReturn(Optional.empty());
+        given(repository.save(any(AgentMemorySessionPo.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        AgentMemorySessionPo session = service.resolveOrCreateExternal(8L, "space-1");
+
+        assertThat(session.getSessionId()).isEqualTo("__external_im__:space-1");
+        assertThat(session.getUserId()).isEqualTo(8L);
+        assertThat(session.getMemoryDomain()).isEqualTo(AgentMemoryDomain.IM_SHARED);
+        assertThat(session.getMemorySpaceId()).isEqualTo("space-1");
+    }
+
+    @Test
+    void webCannotReuseTheReservedExternalCheckpointPrefix() {
+        assertThatThrownBy(() -> service.resolveOrCreate(AgentMemoryEntryType.AGENT_CHAT,
+                "__external_im__:space-1", true, true, principal))
+                .isInstanceOf(AgentMemoryException.class)
+                .hasMessageContaining("reserved");
     }
 
     private AgentMemorySessionPo session(String sessionId, AgentMemorySessionStatus status) {

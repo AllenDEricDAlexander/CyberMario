@@ -19,8 +19,24 @@ public record AgentMemoryMessageRecord(
         AgentMemoryMessageStatus messageStatus,
         String errorCode,
         String errorMessage,
-        String metadataJson
+        String metadataJson,
+        AgentMemoryMessageSource source
 ) {
+
+    public AgentMemoryMessageRecord {
+        source = source == null ? AgentMemoryMessageSource.webPrivate() : source;
+    }
+
+    public AgentMemoryMessageRecord(String sessionId, Long userId, AgentMemoryEntryType entryType,
+                                    int turnNo, AgentMemoryMessageRole role,
+                                    AgentMemoryMessageType messageType, String content,
+                                    String sourceRefsJson, String traceId, String requestId,
+                                    AgentMemoryMessageStatus messageStatus, String errorCode,
+                                    String errorMessage, String metadataJson) {
+        this(sessionId, userId, entryType, turnNo, role, messageType, content, sourceRefsJson,
+                traceId, requestId, messageStatus, errorCode, errorMessage, metadataJson,
+                AgentMemoryMessageSource.webPrivate());
+    }
 
     public AgentMemoryMessageRecord(String sessionId, Long userId, AgentMemoryEntryType entryType,
                                     int turnNo, AgentMemoryMessageRole role,

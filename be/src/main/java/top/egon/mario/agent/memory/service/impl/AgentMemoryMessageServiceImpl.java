@@ -12,6 +12,7 @@ import top.egon.mario.agent.memory.repository.AgentMemorySessionRepository;
 import top.egon.mario.agent.memory.service.AgentMemoryException;
 import top.egon.mario.agent.memory.service.AgentMemoryMessageService;
 import top.egon.mario.agent.memory.service.model.AgentMemoryMessageRecord;
+import top.egon.mario.agent.memory.service.model.AgentMemoryMessageSource;
 import top.egon.mario.agent.memory.service.model.AgentMemoryTurn;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
@@ -67,6 +68,19 @@ public class AgentMemoryMessageServiceImpl implements AgentMemoryMessageService 
             message.setErrorCode(record.errorCode());
             message.setErrorMessage(record.errorMessage());
             message.setMetadataJson(record.metadataJson());
+            AgentMemoryMessageSource source = record.source();
+            message.setMemoryDomain(source.memoryDomain());
+            message.setMemorySpaceId(source.memorySpaceId());
+            message.setSourcePlatform(source.platform());
+            message.setSourceConnectorId(source.connectorId());
+            message.setSourceConversationId(source.conversationId());
+            message.setSourceConversationType(source.conversationType());
+            message.setAudienceKey(source.audienceKey());
+            message.setExternalEventId(source.externalEventId());
+            message.setExternalMessageId(source.externalMessageId());
+            message.setExternalSenderId(source.senderId());
+            message.setExternalSenderDisplayName(source.senderDisplayName());
+            message.setObservedOnly(source.observedOnly());
             message.setCreatedAt(now);
             messages.add(message);
         }

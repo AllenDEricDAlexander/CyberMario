@@ -2,6 +2,7 @@ package top.egon.mario.agent.memory.service.impl;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import top.egon.mario.agent.memory.po.AgentLongTermMemoryPo;
 import top.egon.mario.agent.memory.po.AgentLongTermMemoryVersionPo;
 import top.egon.mario.agent.memory.po.enums.AgentLongTermMemoryScopeType;
@@ -42,16 +43,24 @@ public class AgentLongTermMemoryServiceImpl implements AgentLongTermMemoryServic
     }
 
     @Override
-    @Transactional
     public AgentLongTermMemoryPo getOrCreate(Long userId, String username, AgentLongTermMemoryScopeType scopeType) {
+        return getOrCreate(userId, username, scopeType, null);
+    }
+
+    @Override
+    @Transactional
+    public AgentLongTermMemoryPo getOrCreate(Long userId, String username,
+                                             AgentLongTermMemoryScopeType scopeType,
+                                             String memorySpaceId) {
         if (userId == null) {
             throw new AgentMemoryException("AGENT_MEMORY_USER_REQUIRED", "memory user is required");
         }
-        AgentLongTermMemoryScopeType safeScopeType = scopeType == null
-                ? AgentLongTermMemoryScopeType.USER_AGENT
-                : scopeType;
-        return memoryRepository.findByUserIdAndScopeTypeAndDeletedFalse(userId, safeScopeType)
-                .orElseGet(() -> createDefault(userId, username, safeScopeType));
+        AgentLongTermMemoryScopeType safeScope = scopeType == null
+                ? AgentLongTermMemoryScopeType.USER_AGENT : scopeType;
+        String scopeKey = scopeKey(safeScope, memorySpaceId);
+        return memoryRepository.findByUserIdAndScopeTypeAndScopeKeyAndDeletedFalse(
+                        userId, safeScope, scopeKey)
+                .orElseGet(() -> createDefault(userId, username, safeScope, memorySpaceId, scopeKey));
     }
 
     @Override
@@ -65,7 +74,8 @@ public class AgentLongTermMemoryServiceImpl implements AgentLongTermMemoryServic
             throw new AgentMemoryException("AGENT_LONG_TERM_MEMORY_TOO_LARGE",
                     "long-term memory exceeds 20000 characters");
         }
-        AgentLongTermMemoryPo memory = getOrCreate(request.userId(), request.username(), request.scopeType());
+        AgentLongTermMemoryPo memory = getOrCreate(request.userId(), request.username(),
+                request.scopeType(), request.memorySpaceId());
         memory.setContentMarkdown(merged);
         memory.setContentChars(merged.length());
         memory.setUpdatedAt(Instant.now());
@@ -91,18 +101,23 @@ public class AgentLongTermMemoryServiceImpl implements AgentLongTermMemoryServic
         AgentLongTermMemoryScopeType safeScopeType = scopeType == null
                 ? AgentLongTermMemoryScopeType.USER_AGENT
                 : scopeType;
-        return memoryRepository.findByUserIdAndScopeTypeAndDeletedFalse(userId, safeScopeType)
+        return memoryRepository.findByUserIdAndScopeTypeAndScopeKeyAndDeletedFalse(
+                        userId, safeScopeType, "__web_private__")
                 .map(memory -> versionRepository.findByMemoryIdOrderByVersionNoDesc(memory.getId()))
                 .orElseGet(List::of);
     }
 
-    private AgentLongTermMemoryPo createDefault(Long userId, String username, AgentLongTermMemoryScopeType scopeType) {
+    private AgentLongTermMemoryPo createDefault(Long userId, String username,
+                                                AgentLongTermMemoryScopeType scopeType,
+                                                String memorySpaceId, String scopeKey) {
         Instant now = Instant.now();
         String markdown = AgentMemoryDefaults.DEFAULT_USER_MEMORY_MARKDOWN.trim();
         AgentLongTermMemoryPo memory = new AgentLongTermMemoryPo();
         memory.setUserId(userId);
         memory.setUsername(username);
         memory.setScopeType(scopeType);
+        memory.setMemorySpaceId(memorySpaceId);
+        memory.setScopeKey(scopeKey);
         memory.setContentMarkdown(markdown);
         memory.setContentChars(markdown.length());
         memory.setStatus(AgentLongTermMemoryStatus.ACTIVE);
@@ -113,6 +128,17 @@ public class AgentLongTermMemoryServiceImpl implements AgentLongTermMemoryServic
                 null, null, null, null);
         saved.setActiveVersionId(version.getId());
         return memoryRepository.save(saved);
+    }
+
+    private String scopeKey(AgentLongTermMemoryScopeType scopeType, String memorySpaceId) {
+        if (scopeType != AgentLongTermMemoryScopeType.IM_SHARED) {
+            return "__web_private__";
+        }
+        if (!StringUtils.hasText(memorySpaceId) || memorySpaceId.length() > 96) {
+            throw new AgentMemoryException("AGENT_MEMORY_SPACE_REQUIRED",
+                    "IM shared memory requires a memory space");
+        }
+        return memorySpaceId.trim();
     }
 
     private AgentLongTermMemoryVersionPo saveVersion(AgentLongTermMemoryPo memory, String markdown, String changeSummary,

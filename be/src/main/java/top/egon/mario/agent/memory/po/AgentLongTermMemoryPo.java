@@ -39,6 +39,12 @@ public class AgentLongTermMemoryPo {
     @Column(name = "scope_type", nullable = false, length = 32)
     private AgentLongTermMemoryScopeType scopeType;
 
+    @Column(name = "memory_space_id", length = 96)
+    private String memorySpaceId;
+
+    @Column(name = "scope_key", nullable = false, length = 128)
+    private String scopeKey = "__web_private__";
+
     @Column(name = "content_markdown", nullable = false, columnDefinition = "TEXT")
     private String contentMarkdown;
 

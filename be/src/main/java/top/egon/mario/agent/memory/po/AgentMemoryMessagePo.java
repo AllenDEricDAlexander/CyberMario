@@ -11,9 +11,12 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryEntryType;
+import top.egon.mario.agent.memory.po.enums.AgentMemoryDomain;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageRole;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageStatus;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageType;
+import top.egon.mario.agent.externalim.model.ExternalChatPlatform;
+import top.egon.mario.agent.externalim.model.ExternalConversationType;
 
 import java.time.Instant;
 
@@ -81,6 +84,45 @@ public class AgentMemoryMessagePo {
 
     @Column(name = "metadata_json", columnDefinition = "TEXT")
     private String metadataJson;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "memory_domain", nullable = false, length = 32)
+    private AgentMemoryDomain memoryDomain = AgentMemoryDomain.WEB_PRIVATE;
+
+    @Column(name = "memory_space_id", length = 96)
+    private String memorySpaceId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source_platform", length = 32)
+    private ExternalChatPlatform sourcePlatform;
+
+    @Column(name = "source_connector_id", length = 96)
+    private String sourceConnectorId;
+
+    @Column(name = "source_conversation_id", length = 192)
+    private String sourceConversationId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source_conversation_type", length = 32)
+    private ExternalConversationType sourceConversationType;
+
+    @Column(name = "audience_key", length = 256)
+    private String audienceKey;
+
+    @Column(name = "external_event_id", length = 192)
+    private String externalEventId;
+
+    @Column(name = "external_message_id", length = 192)
+    private String externalMessageId;
+
+    @Column(name = "external_sender_id", length = 192)
+    private String externalSenderId;
+
+    @Column(name = "external_sender_display_name", length = 256)
+    private String externalSenderDisplayName;
+
+    @Column(name = "observed_only", nullable = false)
+    private boolean observedOnly;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;

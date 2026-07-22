@@ -34,7 +34,8 @@ class AgentLongTermMemoryServiceTests {
 
     @Test
     void createsDefaultUserAgentMemoryWhenMissing() {
-        given(memoryRepository.findByUserIdAndScopeTypeAndDeletedFalse(8L, AgentLongTermMemoryScopeType.USER_AGENT))
+        given(memoryRepository.findByUserIdAndScopeTypeAndScopeKeyAndDeletedFalse(
+                8L, AgentLongTermMemoryScopeType.USER_AGENT, "__web_private__"))
                 .willReturn(Optional.empty());
         given(memoryRepository.save(any(AgentLongTermMemoryPo.class))).willAnswer(invocation -> {
             AgentLongTermMemoryPo po = invocation.getArgument(0);
@@ -75,7 +76,8 @@ class AgentLongTermMemoryServiceTests {
         memory.setScopeType(AgentLongTermMemoryScopeType.USER_AGENT);
         memory.setContentMarkdown("# User Memory");
         memory.setContentChars(memory.getContentMarkdown().length());
-        given(memoryRepository.findByUserIdAndScopeTypeAndDeletedFalse(8L, AgentLongTermMemoryScopeType.USER_AGENT))
+        given(memoryRepository.findByUserIdAndScopeTypeAndScopeKeyAndDeletedFalse(
+                8L, AgentLongTermMemoryScopeType.USER_AGENT, "__web_private__"))
                 .willReturn(Optional.of(memory));
         given(memoryRepository.save(any(AgentLongTermMemoryPo.class))).willAnswer(invocation -> invocation.getArgument(0));
         AgentLongTermMemoryVersionPo existingVersion = new AgentLongTermMemoryVersionPo();
@@ -94,5 +96,29 @@ class AgentLongTermMemoryServiceTests {
         assertThat(merged.getActiveVersionId()).isEqualTo(300L);
         assertThat(merged.getContentMarkdown()).contains("中文回答");
         verify(versionRepository).save(any(AgentLongTermMemoryVersionPo.class));
+    }
+
+    @Test
+    void imSharedMemoryUsesTheSpaceAsItsPortableUniqueScopeKey() {
+        given(memoryRepository.findByUserIdAndScopeTypeAndScopeKeyAndDeletedFalse(
+                8L, AgentLongTermMemoryScopeType.IM_SHARED, "space-1")).willReturn(Optional.empty());
+        given(memoryRepository.save(any(AgentLongTermMemoryPo.class)))
+                .willAnswer(invocation -> {
+                    AgentLongTermMemoryPo value = invocation.getArgument(0);
+                    value.setId(7L);
+                    return value;
+                });
+        given(versionRepository.findByMemoryIdOrderByVersionNoDesc(7L)).willReturn(List.of());
+        given(versionRepository.save(any())).willAnswer(invocation -> {
+            AgentLongTermMemoryVersionPo value = invocation.getArgument(0);
+            value.setId(11L);
+            return value;
+        });
+
+        AgentLongTermMemoryPo memory = service.getOrCreate(
+                8L, null, AgentLongTermMemoryScopeType.IM_SHARED, "space-1");
+
+        assertThat(memory.getMemorySpaceId()).isEqualTo("space-1");
+        assertThat(memory.getScopeKey()).isEqualTo("space-1");
     }
 }

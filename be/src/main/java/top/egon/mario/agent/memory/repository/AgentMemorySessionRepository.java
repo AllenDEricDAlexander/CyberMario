@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import top.egon.mario.agent.memory.po.AgentMemorySessionPo;
+import top.egon.mario.agent.memory.po.enums.AgentMemoryDomain;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryEntryType;
 import top.egon.mario.agent.memory.po.enums.AgentMemorySessionStatus;
 
@@ -20,6 +21,9 @@ public interface AgentMemorySessionRepository extends JpaRepository<AgentMemoryS
     Optional<AgentMemorySessionPo> findBySessionIdAndUserIdAndDeletedFalse(String sessionId, Long userId);
 
     Optional<AgentMemorySessionPo> findBySessionIdAndDeletedFalse(String sessionId);
+
+    Optional<AgentMemorySessionPo> findByMemoryDomainAndMemorySpaceIdAndDeletedFalse(
+            AgentMemoryDomain memoryDomain, String memorySpaceId);
 
     List<AgentMemorySessionPo> findByUserIdAndEntryTypeAndStatusAndDeletedFalseOrderByUpdatedAtDesc(
             Long userId, AgentMemoryEntryType entryType, AgentMemorySessionStatus status);

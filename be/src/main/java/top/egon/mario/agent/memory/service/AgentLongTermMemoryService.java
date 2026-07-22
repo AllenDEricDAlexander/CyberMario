@@ -14,6 +14,9 @@ public interface AgentLongTermMemoryService {
 
     AgentLongTermMemoryPo getOrCreate(Long userId, String username, AgentLongTermMemoryScopeType scopeType);
 
+    AgentLongTermMemoryPo getOrCreate(Long userId, String username,
+                                      AgentLongTermMemoryScopeType scopeType, String memorySpaceId);
+
     AgentLongTermMemoryPo merge(AgentLongTermMemoryMergeRequest request);
 
     List<AgentLongTermMemoryVersionPo> userAgentVersions(RbacPrincipal principal);

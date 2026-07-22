@@ -11,6 +11,16 @@ public record AgentLongTermMemoryMergeRequest(
         String sourceSessionIds,
         String sourceMessageIds,
         String requestId,
-        String traceId
+        String traceId,
+        String memorySpaceId
 ) {
+
+    public AgentLongTermMemoryMergeRequest(Long userId, String username,
+                                           AgentLongTermMemoryScopeType scopeType,
+                                           String mergedMarkdown, String changeSummary,
+                                           String sourceSessionIds, String sourceMessageIds,
+                                           String requestId, String traceId) {
+        this(userId, username, scopeType, mergedMarkdown, changeSummary, sourceSessionIds,
+                sourceMessageIds, requestId, traceId, null);
+    }
 }

@@ -11,7 +11,7 @@ import java.util.Optional;
  */
 public interface AgentLongTermMemoryRepository extends JpaRepository<AgentLongTermMemoryPo, Long> {
 
-    Optional<AgentLongTermMemoryPo> findByUserIdAndScopeTypeAndDeletedFalse(Long userId,
-                                                                            AgentLongTermMemoryScopeType scopeType);
+    Optional<AgentLongTermMemoryPo> findByUserIdAndScopeTypeAndScopeKeyAndDeletedFalse(
+            Long userId, AgentLongTermMemoryScopeType scopeType, String scopeKey);
 
 }

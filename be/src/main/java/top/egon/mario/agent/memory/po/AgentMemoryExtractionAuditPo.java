@@ -34,6 +34,9 @@ public class AgentMemoryExtractionAuditPo {
     @Column(name = "session_id", length = 128)
     private String sessionId;
 
+    @Column(name = "memory_space_id", length = 96)
+    private String memorySpaceId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "entry_type", length = 32)
     private AgentMemoryEntryType entryType;
