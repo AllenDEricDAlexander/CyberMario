@@ -8,6 +8,7 @@ import top.egon.mario.agent.externalim.guard.po.AgentChatGuardAuditPo;
 import top.egon.mario.agent.externalim.guard.repository.AgentChatGuardAuditRepository;
 import top.egon.mario.agent.externalim.model.ChatInvocation;
 import top.egon.mario.agent.externalim.model.ChatSource;
+import top.egon.mario.agent.externalim.runtime.repository.ExternalChatEventRepository;
 
 import java.time.Instant;
 
@@ -15,9 +16,12 @@ import java.time.Instant;
 public class DefaultChatGuardAuditService implements ChatGuardAuditService {
 
     private final AgentChatGuardAuditRepository repository;
+    private final ExternalChatEventRepository eventRepository;
 
-    public DefaultChatGuardAuditService(AgentChatGuardAuditRepository repository) {
+    public DefaultChatGuardAuditService(AgentChatGuardAuditRepository repository,
+                                        ExternalChatEventRepository eventRepository) {
         this.repository = repository;
+        this.eventRepository = eventRepository;
     }
 
     @Override
@@ -45,5 +49,14 @@ public class DefaultChatGuardAuditService implements ChatGuardAuditService {
         audit.setExternalEventId(invocation == null ? null : invocation.eventId());
         audit.setCreatedAt(Instant.now());
         repository.save(audit);
+        if (invocation != null && invocation.externalIm()) {
+            eventRepository.findByPlatformAndConnectorIdAndExternalEventId(
+                            invocation.platform(), invocation.connectorId(), invocation.eventId())
+                    .ifPresent(event -> {
+                        event.setGuardDecision(result.decision());
+                        event.setUpdatedAt(Instant.now());
+                        eventRepository.save(event);
+                    });
+        }
     }
 }

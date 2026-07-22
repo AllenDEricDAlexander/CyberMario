@@ -158,6 +158,9 @@ mario:
     browser-cookie:
       secure: false
   agent:
+    external-im:
+      worker:
+        enabled: false
     memory:
       checkpointer:
         enabled: false

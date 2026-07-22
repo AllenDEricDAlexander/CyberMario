@@ -282,6 +282,14 @@ mario:
         timeline-max-chars: ${AGENT_EXTERNAL_IM_TIMELINE_MAX_CHARS:12000}
         guard-window-events: ${AGENT_EXTERNAL_IM_GUARD_WINDOW_EVENTS:12}
         guard-window-max-chars: ${AGENT_EXTERNAL_IM_GUARD_WINDOW_MAX_CHARS:3000}
+      worker:
+        enabled: ${AGENT_EXTERNAL_IM_WORKER_ENABLED:true}
+        batch-size: ${AGENT_EXTERNAL_IM_WORKER_BATCH_SIZE:20}
+        max-attempts: ${AGENT_EXTERNAL_IM_WORKER_MAX_ATTEMPTS:3}
+        initial-delay: ${AGENT_EXTERNAL_IM_WORKER_INITIAL_DELAY:PT1S}
+        poll-interval: ${AGENT_EXTERNAL_IM_WORKER_POLL_INTERVAL:PT1S}
+        retry-delay: ${AGENT_EXTERNAL_IM_WORKER_RETRY_DELAY:PT5S}
+        stale-after: ${AGENT_EXTERNAL_IM_WORKER_STALE_AFTER:PT2M}
     soul:
       evolution-enabled: ${AGENT_SOUL_EVOLUTION_ENABLED:true}
       evolution-provider: ${AGENT_SOUL_EVOLUTION_PROVIDER:DASHSCOPE}

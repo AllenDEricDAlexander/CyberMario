@@ -4,6 +4,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import top.egon.mario.agent.externalim.guard.impl.DefaultChatGuardService;
+import top.egon.mario.agent.externalim.guard.impl.DefaultChatGuardAuditService;
+import top.egon.mario.agent.externalim.guard.repository.AgentChatGuardAuditRepository;
 import top.egon.mario.agent.externalim.model.ChatInvocation;
 import top.egon.mario.agent.externalim.model.ChatSource;
 import top.egon.mario.agent.externalim.model.ExternalChatPlatform;
@@ -12,12 +14,15 @@ import top.egon.mario.agent.externalim.model.ExternalMessageType;
 import top.egon.mario.agent.externalim.model.ExternalSender;
 import top.egon.mario.agent.externalim.model.ExternalSenderType;
 import top.egon.mario.agent.model.dto.enums.ModelProviderType;
+import top.egon.mario.agent.externalim.runtime.po.ExternalChatEventPo;
+import top.egon.mario.agent.externalim.runtime.repository.ExternalChatEventRepository;
 
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -27,6 +32,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.never;
 
 class ChatGuardServiceTests {
 
@@ -103,6 +109,27 @@ class ChatGuardServiceTests {
 
         assertThat(result.decision()).isEqualTo(ChatGuardDecision.IGNORE);
         assertThat(result.reason()).contains("timeout");
+    }
+
+    @Test
+    void externalGuardAuditUpdatesDurableEventButWebAuditDoesNotLookupOne() {
+        AgentChatGuardAuditRepository auditRepository = mock(AgentChatGuardAuditRepository.class);
+        ExternalChatEventRepository eventRepository = mock(ExternalChatEventRepository.class);
+        ExternalChatEventPo event = new ExternalChatEventPo();
+        given(eventRepository.findByPlatformAndConnectorIdAndExternalEventId(
+                ExternalChatPlatform.TELEGRAM, "main", "update-1")).willReturn(Optional.of(event));
+        DefaultChatGuardAuditService audit = new DefaultChatGuardAuditService(
+                auditRepository, eventRepository);
+
+        audit.record(externalGroup(false, false), ChatGuardResult.reply("directed"),
+                "request-1", "trace-1");
+        audit.record(webInvocation(), ChatGuardResult.reply("web"),
+                "request-2", "trace-1");
+
+        assertThat(event.getGuardDecision()).isEqualTo(ChatGuardDecision.REPLY);
+        verify(eventRepository).save(event);
+        verify(eventRepository, never()).findByPlatformAndConnectorIdAndExternalEventId(
+                null, null, null);
     }
 
     private DefaultChatGuardService service(ChatGuardProperties properties) {

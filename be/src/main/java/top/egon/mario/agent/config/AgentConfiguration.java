@@ -12,6 +12,7 @@ import top.egon.mario.agent.externalim.guard.ChatGuardProperties;
 import top.egon.mario.agent.externalim.memory.DirectionalAgentMemoryContextService;
 import top.egon.mario.agent.externalim.memory.ExternalImMemoryExtractionService;
 import top.egon.mario.agent.externalim.memory.ExternalImMemoryProperties;
+import top.egon.mario.agent.externalim.runtime.ExternalChatWorkerProperties;
 import top.egon.mario.agent.memory.service.AgentMemoryExtractionService;
 import top.egon.mario.agent.memory.service.AgentMemoryMessageService;
 import top.egon.mario.agent.memory.service.AgentMemorySessionService;
@@ -35,7 +36,7 @@ import java.util.concurrent.Executors;
 @Configuration
 @Slf4j
 @EnableConfigurationProperties({AgentSoulProperties.class, ExternalImMemoryProperties.class,
-        ChatGuardProperties.class})
+        ChatGuardProperties.class, ExternalChatWorkerProperties.class})
 public class AgentConfiguration {
 
     /**
