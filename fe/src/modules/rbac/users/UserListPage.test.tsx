@@ -33,13 +33,14 @@ describe('UserListPage activation actions', () => {
     })
 
     test('pending email changes prompt for a replacement activation link', () => {
-        expect(shouldPromptActivationReissue(baseUser, {email: 'luigi@example.com'})).toBe(true)
-        expect(shouldPromptActivationReissue(baseUser, {email: '  '})).toBe(true)
-        expect(shouldPromptActivationReissue(baseUser, {email: undefined})).toBe(true)
-        expect(shouldPromptActivationReissue(baseUser, {email: 'mario@example.com'})).toBe(false)
+        expect(shouldPromptActivationReissue(baseUser, {email: 'luigi@example.com'}, baseUser)).toBe(true)
+        expect(shouldPromptActivationReissue(baseUser, {email: '  '}, baseUser)).toBe(true)
+        expect(shouldPromptActivationReissue(baseUser, {email: undefined}, baseUser)).toBe(true)
+        expect(shouldPromptActivationReissue(baseUser, {email: 'mario@example.com'}, baseUser)).toBe(false)
         expect(shouldPromptActivationReissue(
-            {...baseUser, activationStatus: 'ACTIVATED'},
+            baseUser,
             {email: 'luigi@example.com'},
+            {...baseUser, activationStatus: 'ACTIVATED'},
         )).toBe(false)
     })
 })

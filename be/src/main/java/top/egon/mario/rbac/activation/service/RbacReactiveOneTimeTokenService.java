@@ -91,6 +91,7 @@ public class RbacReactiveOneTimeTokenService implements RbacAccountActivationTok
 
     private IssuedActivationToken issueLocked(Long userId, Long actorUserId,
                                               ActivationTokenIssueReason reason, Duration ttl) {
+        // A missing token row cannot be locked, so lock the user and then re-read before replacement.
         tokenStore.lockCurrentForUser(userId);
         UserPo user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new RbacException("RBAC_USER_NOT_FOUND", "user not found"));

@@ -15,6 +15,7 @@ import top.egon.mario.rbac.service.RbacUserService;
 import org.springframework.transaction.support.TransactionOperations;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -86,6 +87,29 @@ class RbacAccountActivationApplicationTests {
         assertThat(command.getValue()).isEqualTo(new CompleteAccountActivationCommand(
                 "raw-token", "key-1", "encrypted-password", "127.0.0.1", "test-agent"));
         then(rateLimiter).should().release(reservation);
+    }
+
+    @Test
+    void releaseFailureDoesNotTurnSuccessfulActivationIntoFailure() {
+        CompleteAccountActivationRequest request = request();
+        given(rateLimiter.beginAttempt("127.0.0.1")).willReturn(reservation);
+        given(tokenService.activate(any())).willReturn(new AccountActivationResult(7L, "mario"));
+        doThrow(new IllegalStateException("redis unavailable")).when(rateLimiter).release(reservation);
+
+        assertThatCode(() -> application.complete(request, "127.0.0.1", "test"))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void releaseFailureDoesNotMaskNonCountedBusinessFailure() {
+        CompleteAccountActivationRequest request = request();
+        RbacException original = new RbacException("RBAC_USER_NOT_FOUND", "rejected");
+        given(rateLimiter.beginAttempt("127.0.0.1")).willReturn(reservation);
+        doThrow(original).when(tokenService).activate(any());
+        doThrow(new IllegalStateException("redis unavailable")).when(rateLimiter).release(reservation);
+
+        assertThatThrownBy(() -> application.complete(request, "127.0.0.1", "test"))
+                .isSameAs(original);
     }
 
     private CompleteAccountActivationRequest request() {

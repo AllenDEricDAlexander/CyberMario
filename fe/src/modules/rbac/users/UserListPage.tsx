@@ -172,10 +172,9 @@ function UserListPage() {
         setSaving(true)
         try {
             if (editingUser) {
-                const promptActivationReissue = shouldPromptActivationReissue(editingUser, request)
-                await updateUser(editingUser.id, request)
-                if (promptActivationReissue) {
-                    promptForActivationReissue(editingUser)
+                const updatedUser = await updateUser(editingUser.id, request)
+                if (shouldPromptActivationReissue(editingUser, request, updatedUser)) {
+                    promptForActivationReissue(updatedUser)
                 }
             } else {
                 const created = await createUser(request as CreateUserRequest)
@@ -350,10 +349,14 @@ export function activationStatusLabel(user: UserResponse) {
     return user.activationStatus === 'PENDING_ACTIVATION' ? '待激活' : '已激活'
 }
 
-export function shouldPromptActivationReissue(user: UserResponse, request: UpdateUserRequest) {
+export function shouldPromptActivationReissue(
+    user: UserResponse,
+    request: UpdateUserRequest,
+    updatedUser: UserResponse,
+) {
     const currentEmail = user.email?.trim() || undefined
     const nextEmail = request.email?.trim() || undefined
-    return user.activationStatus === 'PENDING_ACTIVATION' && currentEmail !== nextEmail
+    return updatedUser.activationStatus === 'PENDING_ACTIVATION' && currentEmail !== nextEmail
 }
 
 export const Component = UserListPage

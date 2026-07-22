@@ -1,8 +1,10 @@
 package top.egon.mario.rbac.application;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionOperations;
+import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.activation.delivery.ActivationLinkDelivery;
 import top.egon.mario.rbac.activation.model.ActivationTokenIssueReason;
 import top.egon.mario.rbac.activation.model.CompleteAccountActivationCommand;
@@ -24,6 +26,7 @@ import java.util.Set;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RbacAccountActivationApplication {
 
     private static final Set<String> COUNTED_FAILURE_CODES = Set.of(
@@ -52,7 +55,7 @@ public class RbacAccountActivationApplication {
             throw exception;
         } finally {
             if (!retainAsFailure) {
-                failureRateLimiter.release(reservation);
+                releaseBestEffort(reservation);
             }
         }
     }
@@ -78,6 +81,15 @@ public class RbacAccountActivationApplication {
             throw new IllegalStateException("account activation transaction returned no result");
         }
         return value;
+    }
+
+    private void releaseBestEffort(ActivationFailureRateLimiter.AttemptReservation reservation) {
+        try {
+            failureRateLimiter.release(reservation);
+        } catch (RuntimeException exception) {
+            LogUtil.warn(log).log("account activation rate-limit reservation release failed, errorType={}",
+                    exception.getClass().getSimpleName());
+        }
     }
 
     private record PendingActivation(UserResponse user, IssuedActivationToken issuedToken) {
