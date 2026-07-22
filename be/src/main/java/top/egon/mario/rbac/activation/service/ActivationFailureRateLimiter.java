@@ -27,47 +27,52 @@ public class ActivationFailureRateLimiter {
     private static final Duration WINDOW = Duration.ofMinutes(10);
     private static final long FAILURE_LIMIT = 20L;
 
-    private static final DefaultRedisScript<Long> COUNT_SCRIPT = new DefaultRedisScript<>("""
+    private static final DefaultRedisScript<Long> BEGIN_ATTEMPT_SCRIPT = new DefaultRedisScript<>("""
             redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[1])
             local count = redis.call('ZCARD', KEYS[1])
-            if count == 0 then redis.call('DEL', KEYS[1]) end
-            return count
+            if count >= tonumber(ARGV[4]) then return 0 end
+            redis.call('ZADD', KEYS[1], ARGV[2], ARGV[3])
+            redis.call('PEXPIRE', KEYS[1], ARGV[5])
+            return 1
             """, Long.class);
 
-    private static final DefaultRedisScript<Long> RECORD_SCRIPT = new DefaultRedisScript<>("""
-            redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[1])
-            redis.call('ZADD', KEYS[1], ARGV[2], ARGV[3])
-            redis.call('PEXPIRE', KEYS[1], ARGV[4])
-            return redis.call('ZCARD', KEYS[1])
+    private static final DefaultRedisScript<Long> RELEASE_ATTEMPT_SCRIPT = new DefaultRedisScript<>("""
+            redis.call('ZREM', KEYS[1], ARGV[1])
+            if redis.call('ZCARD', KEYS[1]) == 0 then redis.call('DEL', KEYS[1]) end
+            return 1
             """, Long.class);
 
     private final StringRedisTemplate redisTemplate;
     private final RbacOttProperties properties;
     private final Clock clock;
 
-    public void assertAllowed(String ip) {
+    public AttemptReservation beginAttempt(String ip) {
         if (!properties.rateLimitEnabled()) {
-            return;
+            return AttemptReservation.notTracked();
         }
         long now = clock.millis();
-        Long count = redisTemplate.execute(COUNT_SCRIPT, List.of(key(ip)),
-                String.valueOf(now - WINDOW.toMillis()));
-        if (count != null && count >= FAILURE_LIMIT) {
+        String key = key(ip);
+        String member = now + ":" + UUID.randomUUID();
+        Long admitted = redisTemplate.execute(BEGIN_ATTEMPT_SCRIPT, List.of(key),
+                String.valueOf(now - WINDOW.toMillis()),
+                String.valueOf(now), member, String.valueOf(FAILURE_LIMIT),
+                String.valueOf(WINDOW.toMillis()));
+        if (Long.valueOf(0L).equals(admitted)) {
             throw new RbacException("AUTH_ACTIVATION_RATE_LIMITED",
                     "too many activation failures; try again later");
         }
+        if (!Long.valueOf(1L).equals(admitted)) {
+            throw new IllegalStateException("activation rate limit admission returned no result");
+        }
+        return new AttemptReservation(true, key, member);
     }
 
-    public void recordFailure(String ip) {
-        if (!properties.rateLimitEnabled()) {
+    public void release(AttemptReservation reservation) {
+        if (!reservation.tracked()) {
             return;
         }
-        long now = clock.millis();
-        redisTemplate.execute(RECORD_SCRIPT, List.of(key(ip)),
-                String.valueOf(now - WINDOW.toMillis()),
-                String.valueOf(now),
-                now + ":" + UUID.randomUUID(),
-                String.valueOf(WINDOW.toMillis()));
+        redisTemplate.execute(RELEASE_ATTEMPT_SCRIPT, List.of(reservation.key()),
+                reservation.member());
     }
 
     private String key(String ip) {
@@ -78,6 +83,13 @@ public class ActivationFailureRateLimiter {
             return KEY_PREFIX + HexFormat.of().formatHex(digest);
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
+    }
+
+    public record AttemptReservation(boolean tracked, String key, String member) {
+
+        private static AttemptReservation notTracked() {
+            return new AttemptReservation(false, "", "");
         }
     }
 }

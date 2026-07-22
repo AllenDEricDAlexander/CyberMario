@@ -41,15 +41,19 @@ public class RbacAccountActivationApplication {
     private final TransactionOperations transactionOperations;
 
     public void complete(CompleteAccountActivationRequest request, String ip, String userAgent) {
-        failureRateLimiter.assertAllowed(ip);
+        ActivationFailureRateLimiter.AttemptReservation reservation =
+                failureRateLimiter.beginAttempt(ip);
+        boolean retainAsFailure = false;
         try {
             tokenService.activate(new CompleteAccountActivationCommand(
                     request.token(), request.passwordKeyId(), request.encryptedPassword(), ip, userAgent));
         } catch (RbacException exception) {
-            if (COUNTED_FAILURE_CODES.contains(exception.getCode())) {
-                failureRateLimiter.recordFailure(ip);
-            }
+            retainAsFailure = COUNTED_FAILURE_CODES.contains(exception.getCode());
             throw exception;
+        } finally {
+            if (!retainAsFailure) {
+                failureRateLimiter.release(reservation);
+            }
         }
     }
 

@@ -33,6 +33,8 @@ class RbacAccountActivationApplicationTests {
     private final RbacUserService userService = mock(RbacUserService.class);
     private final ActivationLinkDelivery delivery = mock(ActivationLinkDelivery.class);
     private final TransactionOperations transactionOperations = mock(TransactionOperations.class);
+    private final ActivationFailureRateLimiter.AttemptReservation reservation =
+            new ActivationFailureRateLimiter.AttemptReservation(true, "hashed-key", "attempt-1");
     private final RbacAccountActivationApplication application =
             new RbacAccountActivationApplication(tokenService, rateLimiter, userService,
                     delivery, transactionOperations);
@@ -47,30 +49,33 @@ class RbacAccountActivationApplicationTests {
     })
     void recordsOnlySecurityRelevantActivationFailures(String code) {
         CompleteAccountActivationRequest request = request();
+        given(rateLimiter.beginAttempt("127.0.0.1")).willReturn(reservation);
         doThrow(new RbacException(code, "rejected")).when(tokenService).activate(any());
 
         assertThatThrownBy(() -> application.complete(request, "127.0.0.1", "test"))
                 .isInstanceOf(RbacException.class);
 
-        then(rateLimiter).should().assertAllowed("127.0.0.1");
-        then(rateLimiter).should().recordFailure("127.0.0.1");
+        then(rateLimiter).should().beginAttempt("127.0.0.1");
+        then(rateLimiter).should(never()).release(any());
     }
 
     @Test
     void unrelatedFailuresAreNotCounted() {
         CompleteAccountActivationRequest request = request();
+        given(rateLimiter.beginAttempt("127.0.0.1")).willReturn(reservation);
         doThrow(new RbacException("RBAC_USER_NOT_FOUND", "rejected")).when(tokenService).activate(any());
 
         assertThatThrownBy(() -> application.complete(request, "127.0.0.1", "test"))
                 .isInstanceOf(RbacException.class);
 
-        then(rateLimiter).should().assertAllowed("127.0.0.1");
-        then(rateLimiter).should(never()).recordFailure(any());
+        then(rateLimiter).should().beginAttempt("127.0.0.1");
+        then(rateLimiter).should().release(reservation);
     }
 
     @Test
     void successfulActivationDoesNotIncrementFailureCount() {
         CompleteAccountActivationRequest request = request();
+        given(rateLimiter.beginAttempt("127.0.0.1")).willReturn(reservation);
         given(tokenService.activate(any())).willReturn(new AccountActivationResult(7L, "mario"));
 
         application.complete(request, "127.0.0.1", "test-agent");
@@ -80,7 +85,7 @@ class RbacAccountActivationApplicationTests {
         then(tokenService).should().activate(command.capture());
         assertThat(command.getValue()).isEqualTo(new CompleteAccountActivationCommand(
                 "raw-token", "key-1", "encrypted-password", "127.0.0.1", "test-agent"));
-        then(rateLimiter).should(never()).recordFailure(any());
+        then(rateLimiter).should().release(reservation);
     }
 
     private CompleteAccountActivationRequest request() {
