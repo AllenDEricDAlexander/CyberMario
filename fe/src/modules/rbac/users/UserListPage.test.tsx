@@ -1,11 +1,12 @@
 import {describe, expect, test} from 'vitest'
 import type {UserResponse} from '../rbacTypes'
-import {activationActionsFor, activationStatusLabel} from './UserListPage'
+import {activationActionsFor, activationStatusLabel, shouldPromptActivationReissue} from './UserListPage'
 
 const baseUser: UserResponse = {
     id: 7,
     accountNo: 'mario',
     username: 'mario',
+    email: 'mario@example.com',
     status: 'ENABLED',
     locked: false,
     passwordExpired: true,
@@ -29,5 +30,16 @@ describe('UserListPage activation actions', () => {
     test('resend remains hidden without its button permission', () => {
         expect(activationActionsFor(baseUser, {resetPassword: true, resendActivation: false}))
             .toEqual({resetPassword: false, resendActivation: false})
+    })
+
+    test('pending email changes prompt for a replacement activation link', () => {
+        expect(shouldPromptActivationReissue(baseUser, {email: 'luigi@example.com'})).toBe(true)
+        expect(shouldPromptActivationReissue(baseUser, {email: '  '})).toBe(true)
+        expect(shouldPromptActivationReissue(baseUser, {email: undefined})).toBe(true)
+        expect(shouldPromptActivationReissue(baseUser, {email: 'mario@example.com'})).toBe(false)
+        expect(shouldPromptActivationReissue(
+            {...baseUser, activationStatus: 'ACTIVATED'},
+            {email: 'luigi@example.com'},
+        )).toBe(false)
     })
 })

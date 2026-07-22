@@ -172,7 +172,11 @@ function UserListPage() {
         setSaving(true)
         try {
             if (editingUser) {
+                const promptActivationReissue = shouldPromptActivationReissue(editingUser, request)
                 await updateUser(editingUser.id, request)
+                if (promptActivationReissue) {
+                    promptForActivationReissue(editingUser)
+                }
             } else {
                 const created = await createUser(request as CreateUserRequest)
                 setActivationModal({title: '账号已创建', delivery: created.activationDelivery})
@@ -183,6 +187,23 @@ function UserListPage() {
         } finally {
             setSaving(false)
         }
+    }
+
+    function promptForActivationReissue(user: UserResponse) {
+        if (!canResendActivation) {
+            Modal.warning({
+                title: '原激活链接已失效',
+                content: '待激活用户的邮箱已变更，请联系有“重新生成激活链接”权限的管理员处理。',
+            })
+            return
+        }
+        Modal.confirm({
+            title: '原激活链接已失效',
+            content: '待激活用户的邮箱已变更，是否立即生成新的激活链接？',
+            okText: '生成新链接',
+            cancelText: '稍后处理',
+            onOk: () => resendActivation(user),
+        })
     }
 
     async function resendActivation(user: UserResponse) {
@@ -327,6 +348,12 @@ export function activationActionsFor(user: UserResponse, access: ActivationActio
 
 export function activationStatusLabel(user: UserResponse) {
     return user.activationStatus === 'PENDING_ACTIVATION' ? '待激活' : '已激活'
+}
+
+export function shouldPromptActivationReissue(user: UserResponse, request: UpdateUserRequest) {
+    const currentEmail = user.email?.trim() || undefined
+    const nextEmail = request.email?.trim() || undefined
+    return user.activationStatus === 'PENDING_ACTIVATION' && currentEmail !== nextEmail
 }
 
 export const Component = UserListPage
