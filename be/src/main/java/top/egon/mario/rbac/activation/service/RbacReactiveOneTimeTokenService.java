@@ -91,13 +91,14 @@ public class RbacReactiveOneTimeTokenService implements RbacAccountActivationTok
 
     private IssuedActivationToken issueLocked(Long userId, Long actorUserId,
                                               ActivationTokenIssueReason reason, Duration ttl) {
-        OneTimeTokenPo current = tokenStore.lockCurrentForUser(userId).orElse(null);
+        tokenStore.lockCurrentForUser(userId);
         UserPo user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new RbacException("RBAC_USER_NOT_FOUND", "user not found"));
         if (user.getActivatedAt() != null) {
             throw new RbacException("AUTH_USER_ALREADY_ACTIVATED", "user account is already activated");
         }
         ensureActivationUserAvailable(user);
+        OneTimeTokenPo current = tokenStore.lockCurrentForUser(userId).orElse(null);
         IssuedActivationToken issued = tokenStore.replace(current, user.getId(), user.getUsername(),
                 actorUserId, ttl);
         auditService.log(actorUserId, reason.auditAction(), "USER", user.getId(), null,

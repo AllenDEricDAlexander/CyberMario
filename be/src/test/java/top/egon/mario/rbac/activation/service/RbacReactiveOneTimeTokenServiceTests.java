@@ -9,6 +9,8 @@ import org.springframework.security.authentication.ott.OneTimeToken;
 import org.springframework.security.authentication.ott.OneTimeTokenAuthenticationToken;
 import org.springframework.security.authentication.ott.reactive.ReactiveOneTimeTokenService;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.bean.override.mockito.MockReset;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import top.egon.mario.rbac.activation.model.AccountActivationResult;
 import top.egon.mario.rbac.activation.model.ActivationTokenIssueReason;
 import top.egon.mario.rbac.activation.model.CompleteAccountActivationCommand;
@@ -38,15 +40,18 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.willAnswer;
 
 /**
  * Verifies hashing, TTL, replacement, rollback, successful activation, and concurrency.
@@ -56,7 +61,7 @@ class RbacReactiveOneTimeTokenServiceTests {
 
     @Autowired
     private RbacAccountActivationTokenService tokenService;
-    @Autowired
+    @MockitoSpyBean(reset = MockReset.AFTER)
     private RbacOneTimeTokenStore tokenStore;
     @Autowired
     private OneTimeTokenRepository oneTimeTokenRepository;
@@ -228,6 +233,45 @@ class RbacReactiveOneTimeTokenServiceTests {
                     .isEqualTo("AUTH_ACTIVATION_TOKEN_INVALID");
             assertThat(userRepository.findById(user.getId()).orElseThrow().getActivatedAt()).isNotNull();
             assertThat(oneTimeTokenRepository.findAll()).isEmpty();
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void concurrentFirstIssuanceSerializesReplacementAfterTheUserLock() throws Exception {
+        UserPo user = pendingUser("waluigi", "waluigi@example.com");
+        CountDownLatch bothReadMissingToken = new CountDownLatch(2);
+        AtomicInteger reads = new AtomicInteger();
+        willAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Optional<OneTimeTokenPo> current = (Optional<OneTimeTokenPo>) invocation.callRealMethod();
+            if (reads.incrementAndGet() <= 2) {
+                bothReadMissingToken.countDown();
+                assertThat(bothReadMissingToken.await(5, TimeUnit.SECONDS)).isTrue();
+            }
+            return current;
+        }).given(tokenStore).lockCurrentForUser(user.getId());
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Callable<Object> attempt = () -> {
+                start.await();
+                try {
+                    return tokenService.issueForUser(
+                            user.getId(), 99L, ActivationTokenIssueReason.REISSUED);
+                } catch (RuntimeException exception) {
+                    return exception;
+                }
+            };
+            Future<Object> first = executor.submit(attempt);
+            Future<Object> second = executor.submit(attempt);
+            start.countDown();
+            List<Object> outcomes = List.of(first.get(10, TimeUnit.SECONDS),
+                    second.get(10, TimeUnit.SECONDS));
+
+            assertThat(outcomes).allMatch(IssuedActivationToken.class::isInstance);
+            assertThat(oneTimeTokenRepository.findAll()).hasSize(1);
         } finally {
             executor.shutdownNow();
         }
