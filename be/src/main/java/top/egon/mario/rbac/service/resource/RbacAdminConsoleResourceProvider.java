@@ -39,8 +39,10 @@ public class RbacAdminConsoleResourceProvider implements RbacResourceProvider {
         resources.add(button("btn:system:user:role", "用户角色", "menu:system:users", "roles", 3));
         resources.add(button("btn:system:user:permission", "用户权限", "menu:system:users", "permissions", 4));
         resources.add(button("btn:system:user:resetPassword", "重置密码", "menu:system:users", "resetPassword", 5));
-        resources.add(button("btn:system:user:status", "用户状态", "menu:system:users", "status", 6));
-        resources.add(button("btn:system:user:delete", "删除用户", "menu:system:users", "delete", 7));
+        resources.add(button("btn:system:user:resendActivation", "重新生成激活链接",
+                "menu:system:users", "resendActivation", 6));
+        resources.add(button("btn:system:user:status", "用户状态", "menu:system:users", "status", 7));
+        resources.add(button("btn:system:user:delete", "删除用户", "menu:system:users", "delete", 8));
 
         resources.add(button("btn:system:role:add", "新建角色", "menu:system:roles", "create", 1));
         resources.add(button("btn:system:role:edit", "编辑角色", "menu:system:roles", "edit", 2));

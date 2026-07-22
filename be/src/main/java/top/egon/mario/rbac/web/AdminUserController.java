@@ -21,11 +21,14 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.common.api.PageResult;
+import top.egon.mario.rbac.application.RbacAccountActivationApplication;
 import top.egon.mario.rbac.dto.request.CreateUserRequest;
 import top.egon.mario.rbac.dto.request.ReplaceIdsRequest;
 import top.egon.mario.rbac.dto.request.ResetPasswordRequest;
 import top.egon.mario.rbac.dto.request.StatusRequest;
 import top.egon.mario.rbac.dto.request.UpdateUserRequest;
+import top.egon.mario.rbac.dto.response.AdminUserCreateResponse;
+import top.egon.mario.rbac.dto.response.ActivationDeliveryResponse;
 import top.egon.mario.rbac.dto.response.EffectivePermissionResponse;
 import top.egon.mario.rbac.dto.response.UserResponse;
 import top.egon.mario.rbac.po.enums.ApiMatcherType;
@@ -49,6 +52,7 @@ public class AdminUserController extends ReactiveRbacSupport {
 
     private final RbacUserService userService;
     private final RbacEffectivePermissionService effectivePermissionService;
+    private final RbacAccountActivationApplication accountActivationApplication;
 
     @RbacApi(appCode = "rbac", code = "api:rbac:admin:*", name = "RBAC Administration APIs",
             method = "ANY", pattern = "/api/admin/**", matcher = ApiMatcherType.ANT, risk = ApiRiskLevel.HIGH)
@@ -59,9 +63,18 @@ public class AdminUserController extends ReactiveRbacSupport {
     }
 
     @PostMapping
-    public Mono<ApiResponse<UserResponse>> create(@Valid @RequestBody CreateUserRequest request,
-                                                  @AuthenticationPrincipal RbacPrincipal principal) {
-        return blocking(() -> userService.createUser(request, actorId(principal)));
+    public Mono<ApiResponse<AdminUserCreateResponse>> create(
+            @Valid @RequestBody CreateUserRequest request,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> accountActivationApplication.createPendingUser(
+                request, actorId(principal)));
+    }
+
+    @PostMapping("/{id}/activation-token")
+    public Mono<ApiResponse<ActivationDeliveryResponse>> reissueActivationToken(
+            @PathVariable @Min(1) Long id,
+            @AuthenticationPrincipal RbacPrincipal principal) {
+        return blocking(() -> accountActivationApplication.reissue(id, actorId(principal)));
     }
 
     @GetMapping("/{id}")

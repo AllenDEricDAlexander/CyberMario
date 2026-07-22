@@ -10,6 +10,9 @@ import top.egon.mario.rbac.activation.service.ActivationFailureRateLimiter;
 import top.egon.mario.rbac.activation.service.RbacAccountActivationTokenService;
 import top.egon.mario.rbac.dto.request.CompleteAccountActivationRequest;
 import top.egon.mario.rbac.service.RbacException;
+import top.egon.mario.rbac.activation.delivery.ActivationLinkDelivery;
+import top.egon.mario.rbac.service.RbacUserService;
+import org.springframework.transaction.support.TransactionOperations;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,8 +30,12 @@ class RbacAccountActivationApplicationTests {
 
     private final RbacAccountActivationTokenService tokenService = mock(RbacAccountActivationTokenService.class);
     private final ActivationFailureRateLimiter rateLimiter = mock(ActivationFailureRateLimiter.class);
+    private final RbacUserService userService = mock(RbacUserService.class);
+    private final ActivationLinkDelivery delivery = mock(ActivationLinkDelivery.class);
+    private final TransactionOperations transactionOperations = mock(TransactionOperations.class);
     private final RbacAccountActivationApplication application =
-            new RbacAccountActivationApplication(tokenService, rateLimiter);
+            new RbacAccountActivationApplication(tokenService, rateLimiter, userService,
+                    delivery, transactionOperations);
 
     @ParameterizedTest
     @ValueSource(strings = {
