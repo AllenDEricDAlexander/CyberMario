@@ -44,4 +44,14 @@ class AgentMemorySchemaMigrationTests {
         assertThat(sql).contains("CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_lg4jthread_thread_name_unreleased");
         assertThat(sql).contains("WHERE is_released = FALSE");
     }
+
+    @Test
+    void externalImMigrationExtendsMemoryWithoutEditingTheBaseline() throws IOException {
+        String sql = Files.readString(Path.of(
+                "src/main/resources/db/migration/V52__create_external_im_chat_guard.sql"));
+
+        assertThat(sql).contains("memory_domain VARCHAR(32) NOT NULL DEFAULT 'WEB_PRIVATE'");
+        assertThat(sql).contains("memory_space_id VARCHAR(96)");
+        assertThat(sql).contains("scope_key VARCHAR(128) NOT NULL DEFAULT '__web_private__'");
+    }
 }
