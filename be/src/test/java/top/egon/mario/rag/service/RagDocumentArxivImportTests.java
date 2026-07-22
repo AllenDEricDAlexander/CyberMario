@@ -19,6 +19,7 @@ import top.egon.mario.rag.repository.RagUserDocumentRepository;
 import top.egon.mario.rag.service.model.RagChunkCandidate;
 import top.egon.mario.rbac.po.UserPo;
 import top.egon.mario.rbac.po.enums.RbacStatus;
+import top.egon.mario.rbac.repository.OneTimeTokenRepository;
 import top.egon.mario.rbac.repository.UserRepository;
 import top.egon.mario.rbac.repository.UserRoleRepository;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
@@ -58,6 +59,8 @@ class RagDocumentArxivImportTests {
     @Autowired
     private UserRepository userRepository;
     @Autowired
+    private OneTimeTokenRepository oneTimeTokenRepository;
+    @Autowired
     private UserRoleRepository userRoleRepository;
     @MockitoBean
     private RagDocumentParser documentParser;
@@ -75,6 +78,7 @@ class RagDocumentArxivImportTests {
         knowledgeBaseUserRepository.deleteAll();
         knowledgeBaseRepository.deleteAll();
         userRoleRepository.deleteAll();
+        oneTimeTokenRepository.deleteAll();
         userRepository.deleteAll();
     }
 

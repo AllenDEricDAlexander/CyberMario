@@ -21,6 +21,7 @@ import top.egon.mario.rbac.repository.RefreshTokenRepository;
 import top.egon.mario.rbac.repository.RoleInheritanceRepository;
 import top.egon.mario.rbac.repository.RolePermissionRepository;
 import top.egon.mario.rbac.repository.RoleRepository;
+import top.egon.mario.rbac.repository.OneTimeTokenRepository;
 import top.egon.mario.rbac.repository.UserRepository;
 import top.egon.mario.rbac.repository.UserRoleRepository;
 import top.egon.mario.rbac.service.RbacPermissionVersionService;
@@ -67,6 +68,8 @@ class RbacRolePresetBootstrapTests {
     @Autowired
     private UserRepository userRepository;
     @Autowired
+    private OneTimeTokenRepository oneTimeTokenRepository;
+    @Autowired
     private RbacPermissionVersionService permissionVersionService;
     @Autowired
     private ApplicationEventPublisher eventPublisher;
@@ -91,6 +94,7 @@ class RbacRolePresetBootstrapTests {
         permissionRepository.flush();
         permissionRepository.deleteAll();
         roleRepository.deleteAll();
+        oneTimeTokenRepository.deleteAll();
         userRepository.deleteAll();
     }
 

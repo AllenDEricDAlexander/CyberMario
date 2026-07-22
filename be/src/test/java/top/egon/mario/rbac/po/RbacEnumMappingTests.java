@@ -10,6 +10,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import top.egon.mario.rag.repository.RagKnowledgeBaseUserRepository;
 import top.egon.mario.rbac.dto.enums.RbacStatus;
 import top.egon.mario.rbac.dto.response.UserResponse;
+import top.egon.mario.rbac.repository.OneTimeTokenRepository;
 import top.egon.mario.rbac.repository.UserRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,11 +27,14 @@ class RbacEnumMappingTests {
     @Autowired
     private UserRepository userRepository;
     @Autowired
+    private OneTimeTokenRepository oneTimeTokenRepository;
+    @Autowired
     private RagKnowledgeBaseUserRepository knowledgeBaseUserRepository;
 
     @BeforeEach
     void setUp() {
         knowledgeBaseUserRepository.deleteAll();
+        oneTimeTokenRepository.deleteAll();
         userRepository.deleteAll();
     }
 

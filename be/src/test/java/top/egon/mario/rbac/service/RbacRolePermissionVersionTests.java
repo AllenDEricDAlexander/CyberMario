@@ -20,6 +20,7 @@ import top.egon.mario.rbac.repository.RefreshTokenRepository;
 import top.egon.mario.rbac.repository.RoleInheritanceRepository;
 import top.egon.mario.rbac.repository.RolePermissionRepository;
 import top.egon.mario.rbac.repository.RoleRepository;
+import top.egon.mario.rbac.repository.OneTimeTokenRepository;
 import top.egon.mario.rbac.repository.UserRepository;
 import top.egon.mario.rbac.repository.UserRoleRepository;
 
@@ -61,6 +62,8 @@ class RbacRolePermissionVersionTests {
     @Autowired
     private UserRepository userRepository;
     @Autowired
+    private OneTimeTokenRepository oneTimeTokenRepository;
+    @Autowired
     private RagKnowledgeBaseUserRepository knowledgeBaseUserRepository;
 
     @BeforeEach
@@ -81,6 +84,7 @@ class RbacRolePermissionVersionTests {
         permissionRepository.flush();
         permissionRepository.deleteAll();
         roleRepository.deleteAll();
+        oneTimeTokenRepository.deleteAll();
         userRepository.deleteAll();
     }
 

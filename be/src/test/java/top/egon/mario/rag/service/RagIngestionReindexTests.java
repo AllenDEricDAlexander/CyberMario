@@ -27,6 +27,7 @@ import top.egon.mario.rag.repository.RagUserDocumentRepository;
 import top.egon.mario.rag.service.model.RagChunkCandidate;
 import top.egon.mario.rbac.po.UserPo;
 import top.egon.mario.rbac.po.enums.RbacStatus;
+import top.egon.mario.rbac.repository.OneTimeTokenRepository;
 import top.egon.mario.rbac.repository.UserRepository;
 
 import java.util.List;
@@ -57,6 +58,8 @@ class RagIngestionReindexTests {
     @Autowired
     private UserRepository userRepository;
     @Autowired
+    private OneTimeTokenRepository oneTimeTokenRepository;
+    @Autowired
     private RagKnowledgeBaseUserRepository knowledgeBaseUserRepository;
     @MockitoBean
     private RagDocumentParser documentParser;
@@ -73,6 +76,7 @@ class RagIngestionReindexTests {
         fileObjectRepository.deleteAll();
         knowledgeBaseUserRepository.deleteAll();
         knowledgeBaseRepository.deleteAll();
+        oneTimeTokenRepository.deleteAll();
         userRepository.deleteAll();
     }
 

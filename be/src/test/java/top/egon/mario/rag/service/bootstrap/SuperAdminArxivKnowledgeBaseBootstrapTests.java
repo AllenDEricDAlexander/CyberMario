@@ -15,6 +15,7 @@ import top.egon.mario.rbac.po.UserRolePo;
 import top.egon.mario.rbac.po.enums.RbacStatus;
 import top.egon.mario.rbac.repository.RolePermissionRepository;
 import top.egon.mario.rbac.repository.RoleRepository;
+import top.egon.mario.rbac.repository.OneTimeTokenRepository;
 import top.egon.mario.rbac.repository.UserRepository;
 import top.egon.mario.rbac.repository.UserRoleRepository;
 
@@ -37,6 +38,8 @@ class SuperAdminArxivKnowledgeBaseBootstrapTests {
     @Autowired
     private UserRepository userRepository;
     @Autowired
+    private OneTimeTokenRepository oneTimeTokenRepository;
+    @Autowired
     private RoleRepository roleRepository;
     @Autowired
     private UserRoleRepository userRoleRepository;
@@ -49,6 +52,7 @@ class SuperAdminArxivKnowledgeBaseBootstrapTests {
         knowledgeBaseRepository.deleteAll();
         rolePermissionRepository.deleteAll();
         userRoleRepository.deleteAll();
+        oneTimeTokenRepository.deleteAll();
         userRepository.deleteAll();
         roleRepository.deleteAll();
     }

@@ -20,6 +20,7 @@ import top.egon.mario.agent.model.po.enums.TokenUsageSource;
 import top.egon.mario.agent.model.repository.ModelAuditRepository;
 import top.egon.mario.rag.repository.RagKnowledgeBaseUserRepository;
 import top.egon.mario.rbac.po.UserPo;
+import top.egon.mario.rbac.repository.OneTimeTokenRepository;
 import top.egon.mario.rbac.repository.UserRepository;
 import top.egon.mario.rbac.service.RbacException;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
@@ -50,6 +51,8 @@ class ModelAuditDashboardServiceTests {
     @Autowired
     private UserRepository userRepository;
     @Autowired
+    private OneTimeTokenRepository oneTimeTokenRepository;
+    @Autowired
     private RagKnowledgeBaseUserRepository knowledgeBaseUserRepository;
 
     private UserPo mario;
@@ -59,6 +62,7 @@ class ModelAuditDashboardServiceTests {
     void setUp() {
         auditRepository.deleteAll();
         knowledgeBaseUserRepository.deleteAll();
+        oneTimeTokenRepository.deleteAll();
         userRepository.deleteAll();
         mario = userRepository.save(user("mario", "Mario"));
         luigi = userRepository.save(user("luigi", "Luigi"));
