@@ -10,19 +10,12 @@ import top.egon.mario.rbac.activation.delivery.ActivationLinkDelivery;
 import top.egon.mario.rbac.activation.delivery.MockActivationLinkDelivery;
 
 import java.security.SecureRandom;
-import java.time.Clock;
-
 /**
  * Registers OTT infrastructure and rejects unsafe Mock startup.
  */
 @Configuration
 @EnableConfigurationProperties(RbacOttProperties.class)
 public class RbacOttConfiguration {
-
-    @Bean
-    Clock rbacOttClock() {
-        return Clock.systemUTC();
-    }
 
     @Bean
     SecureRandom rbacOttSecureRandom() {

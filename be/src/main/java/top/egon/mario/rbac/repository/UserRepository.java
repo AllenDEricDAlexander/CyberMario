@@ -1,7 +1,9 @@
 package top.egon.mario.rbac.repository;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -25,6 +27,10 @@ public interface UserRepository extends JpaRepository<UserPo, Long>, JpaSpecific
     Optional<UserPo> findByUsernameAndDeletedFalse(String username);
 
     Optional<UserPo> findByIdAndDeletedFalse(Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select user from UserPo user where user.id = :id and user.deleted = false")
+    Optional<UserPo> findByIdForUpdate(@Param("id") Long id);
 
     List<UserPo> findByIdInAndDeletedFalse(Collection<Long> ids);
 
