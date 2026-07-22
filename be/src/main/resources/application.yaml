@@ -290,6 +290,15 @@ mario:
         poll-interval: ${AGENT_EXTERNAL_IM_WORKER_POLL_INTERVAL:PT1S}
         retry-delay: ${AGENT_EXTERNAL_IM_WORKER_RETRY_DELAY:PT5S}
         stale-after: ${AGENT_EXTERNAL_IM_WORKER_STALE_AFTER:PT2M}
+      telegram:
+        enabled: ${AGENT_EXTERNAL_IM_TELEGRAM_ENABLED:false}
+        base-url: ${AGENT_EXTERNAL_IM_TELEGRAM_BASE_URL:https://api.telegram.org}
+        connectors:
+          main:
+            webhook-secret: ${AGENT_EXTERNAL_IM_TELEGRAM_MAIN_WEBHOOK_SECRET:}
+            bot-token: ${AGENT_EXTERNAL_IM_TELEGRAM_MAIN_BOT_TOKEN:}
+            bot-username: ${AGENT_EXTERNAL_IM_TELEGRAM_MAIN_BOT_USERNAME:}
+            bot-user-id: ${AGENT_EXTERNAL_IM_TELEGRAM_MAIN_BOT_USER_ID:}
     soul:
       evolution-enabled: ${AGENT_SOUL_EVOLUTION_ENABLED:true}
       evolution-provider: ${AGENT_SOUL_EVOLUTION_PROVIDER:DASHSCOPE}

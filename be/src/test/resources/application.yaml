@@ -159,6 +159,8 @@ mario:
       secure: false
   agent:
     external-im:
+      telegram:
+        enabled: false
       worker:
         enabled: false
     memory:
