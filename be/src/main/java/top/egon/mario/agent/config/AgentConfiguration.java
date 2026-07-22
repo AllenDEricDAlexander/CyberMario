@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import reactor.core.scheduler.Scheduler;
 import top.egon.mario.agent.context.service.AgentContextAssemblyService;
+import top.egon.mario.agent.externalim.adapter.qq.QqExternalChatProperties;
 import top.egon.mario.agent.externalim.adapter.telegram.TelegramExternalChatProperties;
 import top.egon.mario.agent.externalim.flow.ChatAgentFlowFactory;
 import top.egon.mario.agent.externalim.flow.ChatInvocationPolicy;
@@ -38,7 +39,7 @@ import java.util.concurrent.Executors;
 @Slf4j
 @EnableConfigurationProperties({AgentSoulProperties.class, ExternalImMemoryProperties.class,
         ChatGuardProperties.class, ExternalChatWorkerProperties.class,
-        TelegramExternalChatProperties.class})
+        TelegramExternalChatProperties.class, QqExternalChatProperties.class})
 public class AgentConfiguration {
 
     /**

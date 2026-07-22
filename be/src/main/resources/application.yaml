@@ -299,6 +299,14 @@ mario:
             bot-token: ${AGENT_EXTERNAL_IM_TELEGRAM_MAIN_BOT_TOKEN:}
             bot-username: ${AGENT_EXTERNAL_IM_TELEGRAM_MAIN_BOT_USERNAME:}
             bot-user-id: ${AGENT_EXTERNAL_IM_TELEGRAM_MAIN_BOT_USER_ID:}
+      qq:
+        enabled: ${AGENT_EXTERNAL_IM_QQ_ENABLED:false}
+        base-url: ${AGENT_EXTERNAL_IM_QQ_BASE_URL:http://127.0.0.1:3000}
+        connectors:
+          main:
+            access-token: ${AGENT_EXTERNAL_IM_QQ_MAIN_ACCESS_TOKEN:}
+            bot-user-id: ${AGENT_EXTERNAL_IM_QQ_MAIN_BOT_USER_ID:}
+            reply-with-quote: ${AGENT_EXTERNAL_IM_QQ_MAIN_REPLY_WITH_QUOTE:true}
     soul:
       evolution-enabled: ${AGENT_SOUL_EVOLUTION_ENABLED:true}
       evolution-provider: ${AGENT_SOUL_EVOLUTION_PROVIDER:DASHSCOPE}

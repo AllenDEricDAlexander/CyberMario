@@ -1,7 +1,7 @@
 # External IM Chat Agent
 
-This release provides a common external-IM adapter boundary and the first
-production adapter for Telegram. QQ and WeCom can later implement the same
+This release provides a common external-IM adapter boundary and production
+adapters for Telegram and NapCat QQ. WeCom can later implement the same
 `ExternalChatInboundAdapter` and `ExternalChatReplyPort` contracts without
 changing `ChatService` or the Guard → Chat Agent flow.
 
@@ -26,6 +26,52 @@ must match `private` versus `group/supergroup`.
 The webhook returns only after durable event persistence. Agent processing and
 Telegram `sendMessage` delivery happen asynchronously. Do not enable more than
 one application instance until distributed Space claiming is implemented.
+
+## NapCat QQ configuration
+
+Set these environment variables without committing their values:
+
+- `AGENT_EXTERNAL_IM_QQ_ENABLED=true`
+- `AGENT_EXTERNAL_IM_QQ_BASE_URL=http://127.0.0.1:3000`
+- `AGENT_EXTERNAL_IM_QQ_MAIN_ACCESS_TOKEN=<strong-random-token>`
+- `AGENT_EXTERNAL_IM_QQ_MAIN_BOT_USER_ID=<bot-qq-number>`
+- `AGENT_EXTERNAL_IM_QQ_MAIN_REPLY_WITH_QUOTE=true`
+
+Create a NapCat HTTP Server at `AGENT_EXTERNAL_IM_QQ_BASE_URL`, enable its
+token, and use the same value as `AGENT_EXTERNAL_IM_QQ_MAIN_ACCESS_TOKEN`.
+CyberMario calls `/send_group_msg` and `/send_private_msg` on that server with
+`Authorization: Bearer <token>`.
+
+Create a NapCat HTTP Client with the event URL:
+
+`POST https://<cybermario-host>/api/external-im/webhooks/qq/main`
+
+Set the HTTP Client token to the same access token, set `messagePostFormat` to
+`array`, and set `reportSelfMessage` to `false`. CyberMario checks the Bearer
+token and verifies that event `self_id` equals the configured bot user ID.
+Authenticated heartbeat, notice, request, and `message_sent` events are
+acknowledged without persistence.
+
+Create bindings with type-prefixed external conversation IDs so QQ user and
+group numbers cannot collide:
+
+| QQ conversation | `external_conversation_id` | `conversation_type` | `audience_key` |
+| --- | --- | --- | --- |
+| Group `40004` | `group:40004` | `GROUP` | `qq:main:group:40004` |
+| Private user `30003` | `private:30003` | `DIRECT` | `qq:main:private:30003` |
+
+Only OneBot array messages made of text plus `at`/`reply` control segments are
+accepted as text. Any image, voice, video, file, face, card, or other segment
+makes the complete message unsupported. The adapter does not open a WebSocket,
+poll history, or resolve a `reply` segment back to its original sender. An
+explicit `at` segment for the configured bot is detected and removed from the
+text sent to the Agent.
+
+Group replies quote the source message by default. Set
+`AGENT_EXTERNAL_IM_QQ_MAIN_REPLY_WITH_QUOTE=false` to send unquoted group text.
+Private replies are always plain text. The webhook acknowledges only after the
+common durable ingress accepts the event; Guard, Agent, and NapCat delivery run
+asynchronously.
 
 ## Context and privacy boundary
 
@@ -56,5 +102,8 @@ Agent.
 - Telegram delivery retries only explicit 429/5xx failures before any chunk is
   confirmed sent. Ambiguous timeouts and partial multi-message delivery are
   terminal to avoid blind duplication.
-- QQ and WeCom require separate protocol Adapter implementations; no
-  platform-specific conditional belongs in ChatService or the Graph.
+- QQ delivery retries only explicit HTTP 429/5xx failures. OneBot business
+  failures, invalid responses, and ambiguous timeouts are terminal to avoid
+  blind duplication.
+- WeCom still requires a protocol Adapter implementation; no platform-specific
+  conditional belongs in ChatService or the Graph.

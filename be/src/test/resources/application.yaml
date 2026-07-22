@@ -161,6 +161,8 @@ mario:
     external-im:
       telegram:
         enabled: false
+      qq:
+        enabled: false
       worker:
         enabled: false
     memory:
