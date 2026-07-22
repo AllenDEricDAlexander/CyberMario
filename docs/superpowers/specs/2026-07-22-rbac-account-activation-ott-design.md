@@ -2,7 +2,9 @@
 
 **日期：** 2026-07-22
 
-**状态：** 已确认，等待实施计划
+**状态：** 已确认，实施计划已生成
+
+**实施计划：** `docs/superpowers/plans/2026-07-22-rbac-account-activation-ott.md`
 
 **目标：** 在保持 Spring Boot 3.5.16、Spring Security 6.5.11、WebFlux、JWT 和浏览器 HttpOnly Cookie 认证架构不变的前提下，引入 Spring Security Reactive One-Time Token（OTT）模型，为管理员预创建账号提供一次性的首次激活和首个密码设置流程。
 
@@ -205,10 +207,10 @@ activated_at = now()
 
 ## 7. 数据库设计
 
-当前 Flyway 迁移头为 V51。本期数据库变化全部放入一个新文件：
+当前 Flyway 迁移头为 V52。本期数据库变化全部放入一个新文件：
 
 ```text
-be/src/main/resources/db/migration/V52__add_rbac_account_activation_ott.sql
+be/src/main/resources/db/migration/V53__add_rbac_account_activation_ott.sql
 ```
 
 不得修改、重命名或重新格式化任何已有迁移。
@@ -273,7 +275,7 @@ sys_one_time_token
 ### 8.3 唯一性和重新生成
 
 - 每个用户每种用途只能有一个有效 Token。
-- 重新生成时先对用户加锁，再删除旧 Token 并插入新 Token。
+- 重新生成时先对当前 Token（如存在）加锁，再对用户加锁，然后删除旧 Token 并插入新 Token；与激活流程保持相同锁顺序，避免交叉死锁。
 - 已激活用户不能重新生成激活 Token。
 - 重新生成提交后，旧链接立即失效。
 
@@ -657,7 +659,7 @@ AUTH_ACTIVATION_TOKEN_INVALID
 
 ### 17.1 后端测试
 
-- V52 是唯一新增 Flyway 迁移。
+- V53 是唯一新增 Flyway 迁移。
 - 存量用户迁移后全部为已激活。
 - 公开注册用户直接已激活。
 - Bootstrap 管理员直接已激活。
@@ -719,7 +721,7 @@ AUTH_ACTIVATION_TOKEN_INVALID
 - 用户可以使用新密码正式登录。
 - 公开注册、存量用户和 Bootstrap 管理员行为不变。
 - 不包含 Passkey 依赖、配置、接口或页面。
-- 只新增 V52，不修改任何已有 Flyway 文件。
+- 只新增 V53，不修改任何已有 Flyway 文件。
 - 原始 Token 不进入数据库、日志、审计或浏览器持久化存储。
 
 ---
@@ -730,7 +732,7 @@ AUTH_ACTIVATION_TOKEN_INVALID
 
 - 以本设计为唯一范围来源。
 - 按 TDD 顺序先写失败测试，再写实现。
-- 将 V52 作为本期唯一迁移文件。
+- 将 V53 作为本期唯一迁移文件。
 - 保持 WebFlux、JWT、Cookie、Bearer 和公开注册兼容。
 - 将后端持久化、激活应用服务、API、安全配置、前端管理员流程和公开激活页拆为可独立验证的任务。
 - 每个任务完成后单独提交。
