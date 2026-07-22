@@ -7,11 +7,11 @@ public enum ModelScenario {
 
     UNKNOWN,
     AGENT_CHAT,
-    CHAT_GUARD,
     RAG_CHAT,
     RAG_SUMMARY,
     AGENT_SOUL_EVOLUTION,
     BACKGROUND_TASK,
-    INVESTMENT_AGENT
+    INVESTMENT_AGENT,
+    CHAT_GUARD
 
 }

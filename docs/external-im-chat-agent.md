@@ -42,3 +42,19 @@ chats to separate Spaces unless that risk is acceptable.
 External-IM execution disables business tools and SoulMD context. The current
 agentic flow contains only the fail-closed Chat Guard and the existing Chat
 Agent.
+
+## Release boundaries
+
+- Web without `memorySpaceId` behaves exactly as before.
+- Web may read an owned IM Space; Web messages, USER_AGENT Memory, SoulMD and
+  Web checkpoints never become visible to external IM.
+- A group Chat Agent can currently read private observations from the same IM
+  Space. The prompt tells it not to disclose them, but the post-generation
+  Reply Guard and regeneration loop are not implemented, so this release does
+  not provide a hard leak-prevention guarantee.
+- The worker guarantees per-Space ordering only in one application instance.
+- Telegram delivery retries only explicit 429/5xx failures before any chunk is
+  confirmed sent. Ambiguous timeouts and partial multi-message delivery are
+  terminal to avoid blind duplication.
+- QQ and WeCom require separate protocol Adapter implementations; no
+  platform-specific conditional belongs in ChatService or the Graph.
