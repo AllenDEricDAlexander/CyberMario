@@ -4,6 +4,7 @@ import {AdminLayout} from '../layouts/AdminLayout'
 import {firstAuthorizedMenuPath} from '../layouts/AdminLayout/menu'
 import {AuthLayout} from '../layouts/AuthLayout'
 import {hasAdminPermissionBypass, useAuth} from '../modules/auth/authStore'
+import {ActivationPage} from '../modules/auth/pages/ActivationPage'
 import {LoginPage} from '../modules/auth/pages/LoginPage'
 import {RegisterPage} from '../modules/auth/pages/RegisterPage'
 import {ChatPage} from '../modules/chat/pages/ChatPage'
@@ -24,6 +25,14 @@ export const router = createBrowserRouter([
         element: (
             <AuthLayout>
                 <RegisterPage/>
+            </AuthLayout>
+        ),
+    },
+    {
+        path: '/activate',
+        element: (
+            <AuthLayout>
+                <ActivationPage/>
             </AuthLayout>
         ),
     },

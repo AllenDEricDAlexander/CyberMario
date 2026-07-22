@@ -35,6 +35,17 @@ export async function register(request: RegisterRequest) {
     })
 }
 
+export async function completeAccountActivation(token: string, password: string) {
+    return requestWithPasswordKeyRetry(async () => {
+        const encryptedPassword = await encryptPasswordForTransport(password)
+        return requestJson<void>('/api/auth/activation/complete', {
+            method: 'POST',
+            auth: false,
+            body: {token, ...encryptedPassword},
+        })
+    })
+}
+
 export function fetchCurrentUser() {
     return requestJson<LoginResponse>('/api/auth/me')
 }
@@ -45,7 +56,7 @@ export function logout() {
     })
 }
 
-async function requestWithPasswordKeyRetry(action: () => Promise<LoginResponse>) {
+async function requestWithPasswordKeyRetry<T>(action: () => Promise<T>): Promise<T> {
     try {
         return await action()
     } catch (error) {
