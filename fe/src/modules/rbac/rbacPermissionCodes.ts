@@ -5,6 +5,7 @@ export const rbacButtonCodes = {
         roles: 'btn:system:user:role',
         permissions: 'btn:system:user:permission',
         resetPassword: 'btn:system:user:resetPassword',
+        resendActivation: 'btn:system:user:resendActivation',
         status: 'btn:system:user:status',
         delete: 'btn:system:user:delete',
     },

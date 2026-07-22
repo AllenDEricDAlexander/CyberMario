@@ -13,6 +13,8 @@ type UserEditorDrawerProps = {
 }
 
 type UserFormValues = CreateUserRequest & {
+    initialPassword?: string
+    status?: 'ENABLED' | 'DISABLED'
     locked?: boolean
     passwordExpired?: boolean
 }

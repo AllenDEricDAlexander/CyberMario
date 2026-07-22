@@ -3,6 +3,8 @@ import {buildSearchParams} from '../../services/urlSearch'
 import type {PageResult} from '../../types/api'
 import type {
     ApiPermissionRule,
+    ActivationDeliveryResponse,
+    AdminUserCreateResponse,
     CreateRoleRequest,
     CreateUserRequest,
     EffectivePermissionResponse,
@@ -28,9 +30,15 @@ export function getUsers(params: PageParams) {
 }
 
 export function createUser(request: CreateUserRequest) {
-    return requestJson<UserResponse>('/api/admin/users', {
+    return requestJson<AdminUserCreateResponse>('/api/admin/users', {
         method: 'POST',
         body: request,
+    })
+}
+
+export function reissueUserActivation(id: number) {
+    return requestJson<ActivationDeliveryResponse>(`/api/admin/users/${id}/activation-token`, {
+        method: 'POST',
     })
 }
 
