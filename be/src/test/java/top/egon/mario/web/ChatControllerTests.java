@@ -91,4 +91,29 @@ class ChatControllerTests {
                         org.assertj.core.api.Assertions.assertThat(message.toString()).contains("message"));
     }
 
+    @Test
+    void chatAcceptsOptionalMemorySpaceWithoutChangingTheStreamContract() {
+        given(chatAgentService.chat(any(ChatRequest.class), any()))
+                .willReturn(Flux.just(new ChatResponse("thread-1", "answer")));
+
+        webTestClient.post()
+                .uri("/demo/chat/stream")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_NDJSON)
+                .bodyValue("""
+                        {
+                          "message": "hello",
+                          "threadId": "thread-1",
+                          "memorySpaceId": "space-1"
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBodyList(ChatResponse.class)
+                .hasSize(1);
+
+        verify(chatAgentService).chat(org.mockito.ArgumentMatchers.argThat(request ->
+                "space-1".equals(request.memorySpaceId())), any());
+    }
+
 }
