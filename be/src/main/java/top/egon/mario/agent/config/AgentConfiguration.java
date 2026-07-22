@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import reactor.core.scheduler.Scheduler;
 import top.egon.mario.agent.context.service.AgentContextAssemblyService;
+import top.egon.mario.agent.externalim.memory.ExternalImMemoryProperties;
 import top.egon.mario.agent.memory.service.AgentMemoryContextService;
 import top.egon.mario.agent.memory.service.AgentMemoryExtractionService;
 import top.egon.mario.agent.memory.service.AgentMemoryMessageService;
@@ -26,7 +27,7 @@ import top.egon.mario.agent.tools.arxiv.ArxivToolUserContext;
  */
 @Configuration
 @Slf4j
-@EnableConfigurationProperties(AgentSoulProperties.class)
+@EnableConfigurationProperties({AgentSoulProperties.class, ExternalImMemoryProperties.class})
 public class AgentConfiguration {
 
     /**

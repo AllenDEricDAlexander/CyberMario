@@ -269,6 +269,12 @@ mario:
       embedding-model: ${AI_EMBEDDING_MODEL:text-embedding-v4}
       embedding-dimension: ${AI_EMBEDDING_DIMENSION:1024}
   agent:
+    external-im:
+      memory:
+        timeline-max-events: ${AGENT_EXTERNAL_IM_TIMELINE_MAX_EVENTS:40}
+        timeline-max-chars: ${AGENT_EXTERNAL_IM_TIMELINE_MAX_CHARS:12000}
+        guard-window-events: ${AGENT_EXTERNAL_IM_GUARD_WINDOW_EVENTS:12}
+        guard-window-max-chars: ${AGENT_EXTERNAL_IM_GUARD_WINDOW_MAX_CHARS:3000}
     soul:
       evolution-enabled: ${AGENT_SOUL_EVOLUTION_ENABLED:true}
       evolution-provider: ${AGENT_SOUL_EVOLUTION_PROVIDER:DASHSCOPE}
