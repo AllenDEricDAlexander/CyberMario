@@ -30,6 +30,8 @@ public interface AgentPresetService {
 
     AgentRuntimeSpec defaultRuntimeSpec();
 
+    AgentRuntimeSpec externalImRuntimeSpec();
+
     String serializeRuntimeSpec(AgentRuntimeSpec spec);
 
 }

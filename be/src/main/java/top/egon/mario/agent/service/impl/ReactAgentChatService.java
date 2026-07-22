@@ -3,7 +3,6 @@ package top.egon.mario.agent.service.impl;
 import com.alibaba.cloud.ai.graph.NodeOutput;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
-import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
@@ -16,18 +15,26 @@ import reactor.core.scheduler.Scheduler;
 import top.egon.mario.agent.context.service.AgentContextAssemblyService;
 import top.egon.mario.agent.context.service.model.AgentContext;
 import top.egon.mario.agent.dto.request.AgentDebugChatRequest;
+import top.egon.mario.agent.externalim.flow.ChatAgentFlowFactory;
+import top.egon.mario.agent.externalim.flow.ChatInvocationPolicy;
+import top.egon.mario.agent.externalim.memory.DirectionalAgentMemoryContextService;
+import top.egon.mario.agent.externalim.memory.ExternalImMemoryExtractionService;
+import top.egon.mario.agent.externalim.memory.model.ExternalImMemoryExtractionRequest;
+import top.egon.mario.agent.externalim.model.ChatInvocation;
+import top.egon.mario.agent.memory.po.AgentMemoryMessagePo;
 import top.egon.mario.agent.memory.po.AgentMemorySessionPo;
+import top.egon.mario.agent.memory.po.enums.AgentMemoryDomain;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryEntryType;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageRole;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageStatus;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageType;
-import top.egon.mario.agent.memory.service.AgentMemoryContextService;
 import top.egon.mario.agent.memory.service.AgentMemoryExtractionService;
 import top.egon.mario.agent.memory.service.AgentMemoryMessageService;
 import top.egon.mario.agent.memory.service.AgentMemorySessionService;
 import top.egon.mario.agent.memory.service.model.AgentMemoryContext;
 import top.egon.mario.agent.memory.service.model.AgentMemoryExtractionRequest;
 import top.egon.mario.agent.memory.service.model.AgentMemoryMessageRecord;
+import top.egon.mario.agent.memory.service.model.AgentMemoryMessageSource;
 import top.egon.mario.agent.memory.service.model.AgentMemoryTextAccumulator;
 import top.egon.mario.agent.model.dto.enums.ModelScenario;
 import top.egon.mario.agent.model.service.model.ModelCallContext;
@@ -81,9 +88,12 @@ public class ReactAgentChatService implements ChatAgentService {
     private final ArxivToolUserContext arxivToolUserContext;
     private final AgentMemorySessionService memorySessionService;
     private final AgentMemoryMessageService memoryMessageService;
-    private final AgentMemoryContextService memoryContextService;
+    private final DirectionalAgentMemoryContextService directionalMemoryContextService;
     private final AgentContextAssemblyService contextAssemblyService;
     private final AgentMemoryExtractionService memoryExtractionService;
+    private final ExternalImMemoryExtractionService externalMemoryExtractionService;
+    private final ChatInvocationPolicy invocationPolicy;
+    private final ChatAgentFlowFactory flowFactory;
     private final AgentSoulService soulService;
 
     public ReactAgentChatService(AgentPresetService agentPresetService, AgentRuntimeFactory agentRuntimeFactory,
@@ -91,9 +101,12 @@ public class ReactAgentChatService implements ChatAgentService {
                                  Scheduler blockingScheduler, ArxivToolUserContext arxivToolUserContext,
                                  AgentMemorySessionService memorySessionService,
                                  AgentMemoryMessageService memoryMessageService,
-                                 AgentMemoryContextService memoryContextService,
+                                 DirectionalAgentMemoryContextService directionalMemoryContextService,
                                  AgentContextAssemblyService contextAssemblyService,
                                  AgentMemoryExtractionService memoryExtractionService,
+                                 ExternalImMemoryExtractionService externalMemoryExtractionService,
+                                 ChatInvocationPolicy invocationPolicy,
+                                 ChatAgentFlowFactory flowFactory,
                                  AgentSoulService soulService) {
         this.agentPresetService = agentPresetService;
         this.agentRuntimeFactory = agentRuntimeFactory;
@@ -103,47 +116,81 @@ public class ReactAgentChatService implements ChatAgentService {
         this.arxivToolUserContext = arxivToolUserContext;
         this.memorySessionService = memorySessionService;
         this.memoryMessageService = memoryMessageService;
-        this.memoryContextService = memoryContextService;
+        this.directionalMemoryContextService = directionalMemoryContextService;
         this.contextAssemblyService = contextAssemblyService;
         this.memoryExtractionService = memoryExtractionService;
+        this.externalMemoryExtractionService = externalMemoryExtractionService;
+        this.invocationPolicy = invocationPolicy;
+        this.flowFactory = flowFactory;
         this.soulService = soulService;
     }
 
     @Override
     public Flux<ChatResponse> chat(ChatRequest request, RbacPrincipal principal) {
-        return executeChat(request, principal, null);
+        return executeChat(invocationPolicy.fromWeb(request, principal), principal, request, null);
+    }
+
+    @Override
+    public Flux<ChatResponse> chat(ChatInvocation invocation) {
+        return executeChat(invocationPolicy.requireExternal(invocation), null, null, null);
     }
 
     @Override
     public Flux<ChatResponse> debugChat(AgentDebugChatRequest request, RbacPrincipal principal) {
-        return executeChat(new ChatRequest(request.message(), request.threadId(), request.sessionId(), request.memoryEnabled()),
-                principal, request);
+        ChatRequest chatRequest = new ChatRequest(request.message(), request.threadId(), request.sessionId(),
+                request.memoryEnabled(), null);
+        return executeChat(invocationPolicy.fromWeb(chatRequest, principal), principal, chatRequest, request);
     }
 
-    private Flux<ChatResponse> executeChat(ChatRequest request, RbacPrincipal principal, AgentDebugChatRequest debugRequest) {
+    private Flux<ChatResponse> executeChat(ChatInvocation invocation, RbacPrincipal principal,
+                                           ChatRequest webRequest, AgentDebugChatRequest debugRequest) {
         return Flux.deferContextual(contextView -> {
             String traceId = TraceContext.traceId(contextView);
             String requestId = UUID.randomUUID().toString();
-            String message = request.message();
+            String message = invocation.message();
+            boolean external = invocation.externalIm();
             AgentMemoryEntryType entryType = debugRequest == null
                     ? AgentMemoryEntryType.AGENT_CHAT
                     : AgentMemoryEntryType.AGENT_DEBUG;
-            AgentMemorySessionPo memorySession = memorySessionService.resolveOrCreate(
-                    entryType,
-                    resolveSessionId(request.sessionId(), request.threadId()),
-                    request.memoryContextEnabled(),
-                    debugRequest == null ? Boolean.TRUE : debugRequest.longTermExtractionEnabled(),
-                    principal);
+            AgentMemorySessionPo memorySession = external
+                    ? memorySessionService.resolveOrCreateExternal(invocation.ownerUserId(), invocation.memorySpaceId())
+                    : memorySessionService.resolveOrCreate(entryType, invocation.webSessionId(),
+                    webRequest.memoryContextEnabled(),
+                    debugRequest == null ? Boolean.TRUE : debugRequest.longTermExtractionEnabled(), principal);
+            if (external) {
+                memorySession.setUsername(invocation.ownerUsername());
+            }
             boolean memoryContextEnabled = memorySession.isMemoryEnabled();
             String conversationThreadId = memorySession.getSessionId();
-            AgentMemoryContext memoryContext = memoryContextService.contextFor(
-                    memorySession, principal, memoryContextEnabled);
-            AgentContext agentContext = contextAssemblyService.assemble(principal, memoryContext, debugRequest == null);
-            AgentRuntimeSpec spec = debugRequest == null
+            int nextTurnNo = memoryMessageService.nextTurnNo(conversationThreadId);
+            AgentMemoryMessagePo externalUserMessage = external
+                    ? persistExternalObservation(invocation, memorySession, nextTurnNo, requestId, traceId)
+                    : null;
+            int turnNo = external && externalUserMessage != null
+                    ? externalUserMessage.getTurnNo()
+                    : nextTurnNo;
+            AgentMemoryContext memoryContext = external
+                    ? directionalMemoryContextService.externalContext(memorySession,
+                    externalUserMessage == null ? null : externalUserMessage.getId(), memoryContextEnabled)
+                    : directionalMemoryContextService.webContext(memorySession, principal,
+                    invocation.memorySpaceId(), memoryContextEnabled);
+            if (!external) {
+                persistUserMemory(memorySession, message, turnNo, requestId, traceId,
+                        AgentMemoryMessageSource.webPrivate());
+            }
+            String guardGroupWindow = external
+                    ? directionalMemoryContextService.guardGroupWindow(
+                    invocation, externalUserMessage == null ? null : externalUserMessage.getId())
+                    : "";
+            AgentContext agentContext = contextAssemblyService.assemble(
+                    external ? null : principal, memoryContext, !external && debugRequest == null);
+            AgentRuntimeSpec spec = external
+                    ? agentPresetService.externalImRuntimeSpec()
+                    : debugRequest == null
                     ? agentPresetService.defaultRuntimeSpec()
                     : agentPresetService.resolveRuntimeSpec(debugRequest);
             ModelCallContext modelCallContext = new ModelCallContext(
-                    principal == null ? null : principal.userId(),
+                    invocation.ownerUserId(),
                     traceId,
                     null,
                     conversationThreadId,
@@ -155,28 +202,25 @@ public class ReactAgentChatService implements ChatAgentService {
             AgentRuntimeFactory.AgentRuntime runtime = agentRuntimeFactory.runtime(spec, modelCallContext);
             AtomicReference<Long> auditId = new AtomicReference<>();
             AtomicReference<AgentRunAuditContext> runAuditContext = new AtomicReference<>();
-            int turnNo = memoryMessageService.nextTurnNo(memorySession.getSessionId());
-            persistUserMemory(memorySession, message, turnNo, requestId, traceId);
             AgentMemoryTextAccumulator messageContent = new AgentMemoryTextAccumulator();
             AgentMemoryTextAccumulator thinkContent = new AgentMemoryTextAccumulator();
             AtomicReference<String> lastStateSnapshotKey = new AtomicReference<>();
             TraceContext.withMdc(traceId, () -> LogUtil.info(log).log("agent chat started, threadId={}, messageLength={}",
                     conversationThreadId, message == null ? 0 : message.length()));
-            return Mono.just(RunnableConfig.builder().threadId(conversationThreadId).build())
+            Flux<ChatResponse> response = Mono.just(RunnableConfig.builder().threadId(conversationThreadId).build())
                     .flatMapMany(cfg -> {
-                        try {
-                            auditId.set(startAudit(requestId, traceId, principal, conversationThreadId, spec, message));
-                            AgentRunAuditContext context = startRunAudit(requestId, traceId, principal,
-                                    conversationThreadId, spec, message, runtime.toolDescriptors());
-                            runAuditContext.set(context);
+                        auditId.set(startAudit(requestId, traceId, invocation, conversationThreadId, spec, message));
+                        AgentRunAuditContext context = startRunAudit(requestId, traceId, invocation,
+                                conversationThreadId, spec, message, runtime.toolDescriptors());
+                        runAuditContext.set(context);
+                        if (!external) {
                             arxivToolUserContext.set(principal);
-                            return runtime.agent().stream(message, runnableConfig(cfg, context, agentContext,
-                                    memorySession, entryType));
-                        } catch (GraphRunnerException e) {
-                            return Flux.error(e);
                         }
+                        RunnableConfig effectiveConfig = runnableConfig(cfg, context, agentContext,
+                                memorySession, entryType);
+                        return flowFactory.stream(invocation, runtime.agent(), effectiveConfig,
+                                guardGroupWindow, requestId, traceId);
                     })
-                    .doFinally(signalType -> arxivToolUserContext.clear())
                     .doOnComplete(() -> TraceContext.withMdc(traceId,
                             () -> LogUtil.info(log).log("agent chat completed, threadId={}", conversationThreadId)))
                     .doOnError(error -> TraceContext.withMdc(traceId,
@@ -184,32 +228,47 @@ public class ReactAgentChatService implements ChatAgentService {
                     .flatMap(output -> toChatChunk(output, conversationThreadId))
                     .filter(chunk -> shouldEmitChunk(chunk, lastStateSnapshotKey, messageContent, thinkContent))
                     .doOnNext(chunk -> collectAuditChunk(chunk, messageContent, thinkContent))
-                    .map(AgentChatChunk::response)
+                    .map(AgentChatChunk::response);
+            if (external) {
+                response = response.concatWith(Flux.defer(() -> {
+                    finishExternalAssistantMemory(memorySession, externalUserMessage, turnNo,
+                            messageContent, thinkContent, requestId, traceId, invocation);
+                    return Flux.empty();
+                }));
+            }
+            return response
                     .doFinally(signalType -> {
+                        if (!external) {
+                            arxivToolUserContext.clear();
+                        }
                         finishAudit(signalType, auditId.get(), messageContent, thinkContent, null);
                         finishRunAudit(signalType, runAuditContext.get(), messageContent, thinkContent, null);
-                        finishAssistantMemory(signalType, memorySession, turnNo, messageContent, thinkContent,
-                                requestId, traceId);
-                        maybeEvolveSoulAfterChat(signalType, entryType, memorySession, principal, message, messageContent,
-                                agentContext, requestId, traceId);
+                        if (!external) {
+                            finishAssistantMemory(signalType, memorySession, turnNo, messageContent, thinkContent,
+                                    requestId, traceId, AgentMemoryMessageSource.webPrivate(), true);
+                            maybeEvolveSoulAfterChat(signalType, entryType, memorySession, principal, message,
+                                    messageContent, agentContext, requestId, traceId);
+                        }
                     })
                     .onErrorResume(error -> {
                         String userFacingError = errorMessage(error);
                         failAudit(auditId.get(), error);
                         failRunAudit(runAuditContext.get(), error);
-                        failAssistantMemory(memorySession, turnNo, userFacingError, error, requestId, traceId);
+                        failAssistantMemory(memorySession, turnNo, userFacingError, error, requestId, traceId,
+                                external ? externalSource(invocation, false, true)
+                                        : AgentMemoryMessageSource.webPrivate());
                         return Flux.just(new ChatResponse(conversationThreadId, userFacingError, "error"));
                     });
         }).subscribeOn(blockingScheduler);
     }
 
-    private Long startAudit(String requestId, String traceId, RbacPrincipal principal, String threadId,
+    private Long startAudit(String requestId, String traceId, ChatInvocation invocation, String threadId,
                             AgentRuntimeSpec spec, String message) {
         return auditService.start(new AgentConversationAuditStart(
                 requestId,
                 traceId,
-                principal == null ? null : principal.userId(),
-                principal == null ? null : principal.username(),
+                invocation.ownerUserId(),
+                invocation.ownerUsername(),
                 threadId,
                 spec.presetId(),
                 spec.fingerprint(),
@@ -220,14 +279,14 @@ public class ReactAgentChatService implements ChatAgentService {
         ), message);
     }
 
-    private AgentRunAuditContext startRunAudit(String requestId, String traceId, RbacPrincipal principal,
+    private AgentRunAuditContext startRunAudit(String requestId, String traceId, ChatInvocation invocation,
                                                String threadId, AgentRuntimeSpec spec, String message,
                                                Map<String, AgentRunAuditContext.ToolDescriptor> toolDescriptors) {
         return runAuditService.start(new AgentRunAuditStart(
                 requestId,
                 traceId,
-                principal == null ? null : principal.userId(),
-                principal == null ? null : principal.username(),
+                invocation.ownerUserId(),
+                invocation.ownerUsername(),
                 threadId,
                 spec.presetId(),
                 spec.fingerprint(),
@@ -368,23 +427,38 @@ public class ReactAgentChatService implements ChatAgentService {
         runAuditService.fail(context, error.getClass().getName(), error.getMessage(), Instant.now());
     }
 
-    private void persistUserMemory(AgentMemorySessionPo session, String userMessage, int turnNo,
-                                   String requestId, String traceId) {
+    private AgentMemoryMessagePo persistUserMemory(AgentMemorySessionPo session, String userMessage, int turnNo,
+                                                   String requestId, String traceId,
+                                                   AgentMemoryMessageSource source) {
         if (session == null) {
-            return;
+            return null;
         }
-        memoryMessageService.appendAll(List.of(new AgentMemoryMessageRecord(session.getSessionId(),
+        List<AgentMemoryMessagePo> saved = memoryMessageService.appendAll(List.of(new AgentMemoryMessageRecord(
+                session.getSessionId(),
                 session.getUserId(), session.getEntryType(), turnNo, AgentMemoryMessageRole.USER,
                 AgentMemoryMessageType.MESSAGE, userMessage, null, traceId, requestId,
-                AgentMemoryMessageStatus.SUCCEEDED, null, null, null)));
+                AgentMemoryMessageStatus.SUCCEEDED, null, null, null, source)));
+        return saved.isEmpty() ? null : saved.getFirst();
     }
 
-    private void finishAssistantMemory(SignalType signalType, AgentMemorySessionPo session, int turnNo,
-                                       AgentMemoryTextAccumulator messageContent,
-                                       AgentMemoryTextAccumulator thinkContent,
-                                       String requestId, String traceId) {
+    private AgentMemoryMessagePo persistExternalObservation(
+            ChatInvocation invocation, AgentMemorySessionPo session, int turnNo,
+            String requestId, String traceId) {
+        return memoryMessageService.findExternalMessage(
+                        invocation.memorySpaceId(), invocation.platform(), invocation.connectorId(),
+                        invocation.eventId(), AgentMemoryMessageRole.USER,
+                        AgentMemoryMessageType.MESSAGE, AgentMemoryMessageStatus.SUCCEEDED)
+                .orElseGet(() -> persistUserMemory(session, invocation.message(), turnNo,
+                        requestId, traceId, externalSource(invocation, true, false)));
+    }
+
+    private List<AgentMemoryMessagePo> finishAssistantMemory(
+            SignalType signalType, AgentMemorySessionPo session, int turnNo,
+            AgentMemoryTextAccumulator messageContent, AgentMemoryTextAccumulator thinkContent,
+            String requestId, String traceId, AgentMemoryMessageSource source,
+            boolean standardExtraction) {
         if (session == null || signalType != SignalType.ON_COMPLETE) {
-            return;
+            return List.of();
         }
         List<AgentMemoryMessageRecord> records = new ArrayList<>();
         String finalThinkContent = thinkContent.normalizedContent();
@@ -392,22 +466,50 @@ public class ReactAgentChatService implements ChatAgentService {
             records.add(new AgentMemoryMessageRecord(session.getSessionId(), session.getUserId(), session.getEntryType(),
                     turnNo, AgentMemoryMessageRole.ASSISTANT, AgentMemoryMessageType.THINK,
                     finalThinkContent, null, traceId, requestId,
-                    AgentMemoryMessageStatus.SUCCEEDED, null, null, null));
+                    AgentMemoryMessageStatus.SUCCEEDED, null, null, null, source));
         }
         String finalMessageContent = messageContent.normalizedContent();
         if (StringUtils.hasText(finalMessageContent)) {
             records.add(new AgentMemoryMessageRecord(session.getSessionId(), session.getUserId(), session.getEntryType(),
                     turnNo, AgentMemoryMessageRole.ASSISTANT, AgentMemoryMessageType.MESSAGE,
                     finalMessageContent, null, traceId, requestId,
-                    AgentMemoryMessageStatus.SUCCEEDED, null, null, null));
+                    AgentMemoryMessageStatus.SUCCEEDED, null, null, null, source));
         }
         if (records.isEmpty()) {
-            return;
+            return List.of();
         }
-        memoryMessageService.appendAll(records);
-        if (session.isLongTermExtractionEnabled()) {
+        List<AgentMemoryMessagePo> saved = memoryMessageService.appendAll(records);
+        if (standardExtraction && session.isLongTermExtractionEnabled()) {
             memoryExtractionService.extractAfterTurn(new AgentMemoryExtractionRequest(session.getSessionId(),
                     requestId, traceId));
+        }
+        return saved;
+    }
+
+    private void finishExternalAssistantMemory(
+            AgentMemorySessionPo session, AgentMemoryMessagePo userMessage, int turnNo,
+            AgentMemoryTextAccumulator messageContent, AgentMemoryTextAccumulator thinkContent,
+            String requestId, String traceId, ChatInvocation invocation) {
+        List<AgentMemoryMessagePo> saved = finishAssistantMemory(SignalType.ON_COMPLETE, session, turnNo,
+                messageContent, thinkContent, requestId, traceId,
+                externalSource(invocation, false, true), false);
+        AgentMemoryMessagePo assistantMessage = saved.stream()
+                .filter(row -> row.getMessageType() == AgentMemoryMessageType.MESSAGE)
+                .findFirst()
+                .orElse(null);
+        if (userMessage == null || assistantMessage == null) {
+            return;
+        }
+        memoryMessageService.markResponded(userMessage.getId());
+        if (!session.isLongTermExtractionEnabled()) {
+            return;
+        }
+        try {
+            externalMemoryExtractionService.extractAfterReply(new ExternalImMemoryExtractionRequest(
+                    session, userMessage, assistantMessage, requestId, traceId));
+        } catch (Exception error) {
+            TraceContext.withMdc(traceId, () -> LogUtil.warn(log)
+                    .log("external IM memory extraction failed, threadId={}", session.getSessionId(), error));
         }
     }
 
@@ -442,15 +544,29 @@ public class ReactAgentChatService implements ChatAgentService {
     }
 
     private void failAssistantMemory(AgentMemorySessionPo session, int turnNo, String userFacingError,
-                                     Throwable error, String requestId, String traceId) {
+                                     Throwable error, String requestId, String traceId,
+                                     AgentMemoryMessageSource source) {
         if (session == null) {
             return;
         }
-        memoryMessageService.appendAll(List.of(AgentMemoryMessageRecord.failed(session.getSessionId(),
+        memoryMessageService.appendAll(List.of(new AgentMemoryMessageRecord(session.getSessionId(),
                 session.getUserId(), session.getEntryType(), turnNo, AgentMemoryMessageRole.ASSISTANT,
-                AgentMemoryMessageType.ERROR, userFacingError, traceId, requestId,
+                AgentMemoryMessageType.ERROR, userFacingError, null, traceId, requestId,
+                AgentMemoryMessageStatus.FAILED,
                 error == null ? null : error.getClass().getName(),
-                error == null ? null : error.getMessage())));
+                error == null ? null : error.getMessage(), null, source)));
+    }
+
+    private AgentMemoryMessageSource externalSource(ChatInvocation invocation, boolean observedOnly,
+                                                    boolean assistant) {
+        return new AgentMemoryMessageSource(
+                AgentMemoryDomain.IM_SHARED,
+                invocation.memorySpaceId(), invocation.platform(), invocation.connectorId(),
+                invocation.conversationId(), invocation.conversationType(), invocation.audienceKey(),
+                invocation.eventId(), invocation.messageId(),
+                assistant || invocation.sender() == null ? null : invocation.sender().id(),
+                assistant ? "Agent" : invocation.sender() == null ? null : invocation.sender().displayName(),
+                observedOnly);
     }
 
     private Flux<AgentChatChunk> toChatChunk(NodeOutput output, String threadId) {
@@ -539,16 +655,6 @@ public class ReactAgentChatService implements ChatAgentService {
         } catch (Exception e) {
             return msg.toString();
         }
-    }
-
-    private String resolveSessionId(String sessionId, String threadId) {
-        if (StringUtils.hasText(sessionId)) {
-            return sessionId.trim();
-        }
-        if (StringUtils.hasText(threadId)) {
-            return threadId.trim();
-        }
-        return null;
     }
 
     private String errorMessage(Throwable error) {

@@ -170,6 +170,13 @@ public class AgentPresetServiceImpl implements AgentPresetService {
     }
 
     @Override
+    public AgentRuntimeSpec externalImRuntimeSpec() {
+        AgentPresetConfig config = defaultConfig();
+        return toRuntimeSpec(null, new AgentPresetConfig(config.modelConfig(), config.modelOptions(),
+                config.systemPrompt(), new AgentToolConfig(Set.of()), config.agentOptions()));
+    }
+
+    @Override
     public String serializeRuntimeSpec(AgentRuntimeSpec spec) {
         if (spec == null) {
             return null;

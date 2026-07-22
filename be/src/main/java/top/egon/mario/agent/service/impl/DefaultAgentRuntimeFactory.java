@@ -41,7 +41,7 @@ import java.util.Set;
 @Service
 public class DefaultAgentRuntimeFactory implements AgentRuntimeFactory {
 
-    private static final String AGENT_NAME = "cyber_mario_agent";
+    private static final String AGENT_NAME = "chat_agent";
 
     private final MarioModelFactory marioModelFactory;
     private final List<ToolCallback> toolCallbacks;

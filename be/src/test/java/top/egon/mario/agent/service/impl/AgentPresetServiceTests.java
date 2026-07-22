@@ -209,6 +209,25 @@ class AgentPresetServiceTests {
     }
 
     @Test
+    void externalImRuntimeSpecDisablesAllTools() {
+        McpAgentToolProvider mcpToolProvider = mock(McpAgentToolProvider.class);
+        ToolCallback mcpSearch = tool("mcp_search");
+        given(mcpToolProvider.currentToolCallbacks()).willReturn(new ToolCallback[]{mcpSearch});
+        AgentPresetServiceImpl service = newService(mock(AgentChatPresetRepository.class), mcpToolProvider);
+
+        AgentRuntimeSpec defaultSpec = service.defaultRuntimeSpec();
+        AgentRuntimeSpec externalSpec = service.externalImRuntimeSpec();
+
+        assertThat(externalSpec.modelConfig()).isEqualTo(defaultSpec.modelConfig());
+        assertThat(externalSpec.modelOptions()).isEqualTo(defaultSpec.modelOptions());
+        assertThat(externalSpec.systemPrompt()).isEqualTo(defaultSpec.systemPrompt());
+        assertThat(externalSpec.agentOptions()).isEqualTo(defaultSpec.agentOptions());
+        assertThat(defaultSpec.toolConfig().enabledToolNames()).isNotEmpty();
+        assertThat(externalSpec.toolConfig().enabledToolNames()).isEmpty();
+        assertThat(externalSpec.fingerprint()).isNotEqualTo(defaultSpec.fingerprint());
+    }
+
+    @Test
     void resolveRuntimeSpecAllowsCurrentMcpToolName() {
         McpAgentToolProvider mcpToolProvider = mock(McpAgentToolProvider.class);
         ToolCallback mcpSearch = tool("mcp_search");

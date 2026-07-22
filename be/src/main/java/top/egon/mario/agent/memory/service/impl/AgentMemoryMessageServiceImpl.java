@@ -2,8 +2,10 @@ package top.egon.mario.agent.memory.service.impl;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import top.egon.mario.agent.externalim.model.ExternalChatPlatform;
 import top.egon.mario.agent.memory.po.AgentMemoryMessagePo;
 import top.egon.mario.agent.memory.po.AgentMemorySessionPo;
+import top.egon.mario.agent.memory.po.enums.AgentMemoryDomain;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageRole;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageStatus;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageType;
@@ -22,6 +24,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Default implementation of persisted memory message sequencing.
@@ -135,6 +138,31 @@ public class AgentMemoryMessageServiceImpl implements AgentMemoryMessageService 
                 .mapToInt(AgentMemoryMessagePo::getTurnNo)
                 .max()
                 .orElse(0) + 1;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<AgentMemoryMessagePo> findExternalMessage(
+            String memorySpaceId, ExternalChatPlatform platform, String connectorId,
+            String externalEventId, AgentMemoryMessageRole role,
+            AgentMemoryMessageType messageType, AgentMemoryMessageStatus status) {
+        return messageRepository
+                .findFirstByMemorySpaceIdAndSourcePlatformAndSourceConnectorIdAndExternalEventIdAndRoleAndMessageTypeAndMessageStatusAndDeletedFalseOrderByIdDesc(
+                        memorySpaceId, platform, connectorId, externalEventId, role, messageType, status);
+    }
+
+    @Override
+    @Transactional
+    public void markResponded(Long messageId) {
+        if (messageId == null) {
+            return;
+        }
+        messageRepository.findById(messageId)
+                .filter(message -> message.getMemoryDomain() == AgentMemoryDomain.IM_SHARED)
+                .ifPresent(message -> {
+                    message.setObservedOnly(false);
+                    messageRepository.save(message);
+                });
     }
 
     private int currentMaxSeq(String sessionId) {

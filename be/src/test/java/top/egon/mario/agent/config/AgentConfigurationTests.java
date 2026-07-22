@@ -3,7 +3,10 @@ package top.egon.mario.agent.config;
 import org.junit.jupiter.api.Test;
 import reactor.core.scheduler.Schedulers;
 import top.egon.mario.agent.context.service.AgentContextAssemblyService;
-import top.egon.mario.agent.memory.service.AgentMemoryContextService;
+import top.egon.mario.agent.externalim.flow.ChatAgentFlowFactory;
+import top.egon.mario.agent.externalim.flow.ChatInvocationPolicy;
+import top.egon.mario.agent.externalim.memory.DirectionalAgentMemoryContextService;
+import top.egon.mario.agent.externalim.memory.ExternalImMemoryExtractionService;
 import top.egon.mario.agent.memory.service.AgentMemoryExtractionService;
 import top.egon.mario.agent.memory.service.AgentMemoryMessageService;
 import top.egon.mario.agent.memory.service.AgentMemorySessionService;
@@ -54,9 +57,12 @@ class AgentConfigurationTests {
                 new ArxivToolUserContext(),
                 mock(AgentMemorySessionService.class),
                 mock(AgentMemoryMessageService.class),
-                mock(AgentMemoryContextService.class),
+                mock(DirectionalAgentMemoryContextService.class),
                 mock(AgentContextAssemblyService.class),
                 mock(AgentMemoryExtractionService.class),
+                mock(ExternalImMemoryExtractionService.class),
+                mock(ChatInvocationPolicy.class),
+                mock(ChatAgentFlowFactory.class),
                 mock(AgentSoulService.class)
         );
 

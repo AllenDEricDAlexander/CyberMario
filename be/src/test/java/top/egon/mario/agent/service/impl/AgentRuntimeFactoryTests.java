@@ -89,7 +89,7 @@ class AgentRuntimeFactoryTests {
         assertThat(modelFactory.request.model()).isEqualTo("qwen3.6-max-preview");
         assertThat(modelFactory.request.options()).isEqualTo(options);
         assertThat(modelFactory.request.context()).isEqualTo(context);
-        assertThat(builder.name).isEqualTo("cyber_mario_agent");
+        assertThat(builder.name).isEqualTo("chat_agent");
         assertThat(builder.model).isSameAs(modelFactory.chatModel);
         assertThat(builder.chatOptions.getModel()).isEqualTo("qwen3.6-max-preview");
         assertThat(builder.systemPrompt).isEqualTo("system prompt");

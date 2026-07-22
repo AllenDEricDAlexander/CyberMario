@@ -6,9 +6,12 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import reactor.core.scheduler.Scheduler;
 import top.egon.mario.agent.context.service.AgentContextAssemblyService;
-import top.egon.mario.agent.externalim.memory.ExternalImMemoryProperties;
+import top.egon.mario.agent.externalim.flow.ChatAgentFlowFactory;
+import top.egon.mario.agent.externalim.flow.ChatInvocationPolicy;
 import top.egon.mario.agent.externalim.guard.ChatGuardProperties;
-import top.egon.mario.agent.memory.service.AgentMemoryContextService;
+import top.egon.mario.agent.externalim.memory.DirectionalAgentMemoryContextService;
+import top.egon.mario.agent.externalim.memory.ExternalImMemoryExtractionService;
+import top.egon.mario.agent.externalim.memory.ExternalImMemoryProperties;
 import top.egon.mario.agent.memory.service.AgentMemoryExtractionService;
 import top.egon.mario.agent.memory.service.AgentMemoryMessageService;
 import top.egon.mario.agent.memory.service.AgentMemorySessionService;
@@ -61,13 +64,17 @@ public class AgentConfiguration {
                                              ArxivToolUserContext arxivToolUserContext,
                                              AgentMemorySessionService memorySessionService,
                                              AgentMemoryMessageService memoryMessageService,
-                                             AgentMemoryContextService memoryContextService,
+                                             DirectionalAgentMemoryContextService directionalMemoryContextService,
                                              AgentContextAssemblyService contextAssemblyService,
                                              AgentMemoryExtractionService memoryExtractionService,
+                                             ExternalImMemoryExtractionService externalMemoryExtractionService,
+                                             ChatInvocationPolicy invocationPolicy,
+                                             ChatAgentFlowFactory flowFactory,
                                              AgentSoulService soulService) {
         return new ReactAgentChatService(agentPresetService, agentRuntimeFactory, auditService, runAuditService,
                 blockingScheduler, arxivToolUserContext, memorySessionService, memoryMessageService,
-                memoryContextService, contextAssemblyService, memoryExtractionService, soulService);
+                directionalMemoryContextService, contextAssemblyService, memoryExtractionService,
+                externalMemoryExtractionService, invocationPolicy, flowFactory, soulService);
     }
 
 }

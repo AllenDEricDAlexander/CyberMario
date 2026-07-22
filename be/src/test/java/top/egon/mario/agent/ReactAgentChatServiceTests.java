@@ -16,8 +16,22 @@ import reactor.test.StepVerifier;
 import top.egon.mario.agent.context.service.AgentContextAssemblyService;
 import top.egon.mario.agent.context.service.model.AgentContext;
 import top.egon.mario.agent.dto.request.AgentDebugChatRequest;
+import top.egon.mario.agent.externalim.flow.ChatAgentFlowFactory;
+import top.egon.mario.agent.externalim.flow.ChatInvocationPolicy;
+import top.egon.mario.agent.externalim.memory.DirectionalAgentMemoryContextService;
+import top.egon.mario.agent.externalim.memory.ExternalImMemoryExtractionService;
+import top.egon.mario.agent.externalim.memory.model.ExternalImMemoryExtractionRequest;
+import top.egon.mario.agent.externalim.model.ChatInvocation;
+import top.egon.mario.agent.externalim.model.ChatSource;
+import top.egon.mario.agent.externalim.model.ExternalChatPlatform;
+import top.egon.mario.agent.externalim.model.ExternalConversationType;
+import top.egon.mario.agent.externalim.model.ExternalMessageType;
+import top.egon.mario.agent.externalim.model.ExternalSender;
+import top.egon.mario.agent.externalim.model.ExternalSenderType;
+import top.egon.mario.agent.memory.po.AgentMemoryMessagePo;
 import top.egon.mario.agent.memory.hook.AgentMemoryMessagesHook;
 import top.egon.mario.agent.memory.po.AgentMemorySessionPo;
+import top.egon.mario.agent.memory.po.enums.AgentMemoryDomain;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryEntryType;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageRole;
 import top.egon.mario.agent.memory.po.enums.AgentMemoryMessageStatus;
@@ -29,6 +43,8 @@ import top.egon.mario.agent.memory.service.AgentMemoryMessageService;
 import top.egon.mario.agent.memory.service.AgentMemorySessionService;
 import top.egon.mario.agent.memory.service.model.AgentMemoryContext;
 import top.egon.mario.agent.memory.service.model.AgentMemoryExtractionRequest;
+import top.egon.mario.agent.memory.service.model.AgentMemoryMessageRecord;
+import top.egon.mario.agent.memory.service.model.AgentMemoryMessageSource;
 import top.egon.mario.agent.model.dto.enums.ModelProviderType;
 import top.egon.mario.agent.model.dto.request.ModelOptions;
 import top.egon.mario.agent.model.service.model.ModelCallContext;
@@ -57,6 +73,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -65,9 +82,11 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 class ReactAgentChatServiceTests {
@@ -579,6 +598,128 @@ class ReactAgentChatServiceTests {
                 .verifyComplete();
     }
 
+    @Test
+    void externalGroupIgnorePersistsOnlyObservedUserMessage() {
+        ReactAgent agent = mock(ReactAgent.class);
+        TestSupport support = new TestSupport(agent);
+        ChatInvocation invocation = externalInvocation();
+        given(support.flowFactory.stream(eq(invocation), eq(agent), any(RunnableConfig.class), any(), any(), any()))
+                .willReturn(Flux.empty());
+
+        StepVerifier.create(support.chatService.chat(invocation))
+                .verifyComplete();
+
+        verify(support.memoryMessageService, times(1)).appendAll(org.mockito.ArgumentMatchers.argThat(records ->
+                records.size() == 1
+                        && records.getFirst().role() == AgentMemoryMessageRole.USER
+                        && records.getFirst().source().memoryDomain() == AgentMemoryDomain.IM_SHARED
+                        && records.getFirst().source().observedOnly()));
+        verify(support.memoryMessageService, never()).markResponded(any());
+        verify(support.externalMemoryExtractionService, never()).extractAfterReply(any());
+        verify(support.memoryExtractionService, never()).extractAfterTurn(any());
+        verify(support.soulService, never()).maybeEvolveAfterChat(any());
+    }
+
+    @Test
+    void webSelectedImSpaceStillPersistsItsMessageAsWebPrivate() {
+        ReactAgent agent = mock(ReactAgent.class);
+        TestSupport support = new TestSupport(agent);
+        RbacPrincipal principal = new RbacPrincipal(8L, "luigi", Set.of("CHAT_BASIC"), Set.of(), "v1");
+        given(support.flowFactory.stream(any(), eq(agent), any(), eq(""), any(), any()))
+                .willReturn(Flux.empty());
+
+        StepVerifier.create(support.chatService.chat(
+                        new ChatRequest("来自 Web", "thread-1", null, true, "space-1"), principal))
+                .verifyComplete();
+
+        verify(support.directionalMemoryContextService)
+                .webContext(any(), eq(principal), eq("space-1"), eq(true));
+        verify(support.memoryMessageService).appendAll(org.mockito.ArgumentMatchers.argThat(records ->
+                records.size() == 1
+                        && records.getFirst().source().memoryDomain() == AgentMemoryDomain.WEB_PRIVATE
+                        && records.getFirst().source().memorySpaceId() == null));
+    }
+
+    @Test
+    void externalRetryReusesTheExistingObservation() {
+        ReactAgent agent = mock(ReactAgent.class);
+        TestSupport support = new TestSupport(agent);
+        ChatInvocation invocation = externalInvocation();
+        AgentMemoryMessagePo existing = support.memoryMessage(77L, new AgentMemoryMessageRecord(
+                "__external_im__:space-1", 8L, AgentMemoryEntryType.AGENT_CHAT, 5,
+                AgentMemoryMessageRole.USER, AgentMemoryMessageType.MESSAGE, invocation.message(),
+                null, "trace-old", "request-old", AgentMemoryMessageStatus.SUCCEEDED,
+                null, null, null, new AgentMemoryMessageSource(
+                AgentMemoryDomain.IM_SHARED, "space-1", ExternalChatPlatform.TELEGRAM, "main",
+                "group-1", ExternalConversationType.GROUP, "telegram:main:group-1",
+                "event-1", "message-1", "sender-1", "Mario", true)));
+        given(support.memoryMessageService.findExternalMessage(any(), any(), any(), any(), any(), any(), any()))
+                .willReturn(java.util.Optional.of(existing));
+        given(support.flowFactory.stream(eq(invocation), eq(agent), any(RunnableConfig.class), any(), any(), any()))
+                .willReturn(Flux.empty());
+
+        StepVerifier.create(support.chatService.chat(invocation)).verifyComplete();
+
+        verify(support.memoryMessageService, never()).appendAll(any());
+        verify(support.directionalMemoryContextService).externalContext(any(), eq(77L), eq(true));
+        verify(support.directionalMemoryContextService).guardGroupWindow(invocation, 77L);
+    }
+
+    @Test
+    void externalReplyPersistsAndExtractsBeforeStreamCompletes() {
+        ReactAgent agent = mock(ReactAgent.class);
+        TestSupport support = new TestSupport(agent);
+        ChatInvocation invocation = externalInvocation();
+        AgentMemoryContext externalContext = new AgentMemoryContext("im only", "im shared");
+        given(support.directionalMemoryContextService.externalContext(any(), eq(101L), eq(true)))
+                .willReturn(externalContext);
+        given(support.directionalMemoryContextService.guardGroupWindow(invocation, 101L))
+                .willReturn("same group only");
+        given(support.flowFactory.stream(eq(invocation), eq(agent), any(RunnableConfig.class),
+                eq("same group only"), any(), any()))
+                .willReturn(Flux.just(messageOutput("群聊答案")));
+
+        StepVerifier.create(support.chatService.chat(invocation)
+                        .doOnComplete(() -> {
+                            verify(support.memoryMessageService).markResponded(101L);
+                            verify(support.externalMemoryExtractionService).extractAfterReply(
+                                    any(ExternalImMemoryExtractionRequest.class));
+                        }))
+                .expectNext(new ChatResponse("__external_im__:space-1", "群聊答案", "message"))
+                .verifyComplete();
+
+        verify(support.memoryMessageService, times(2)).appendAll(any());
+        verify(support.memoryMessageService).appendAll(org.mockito.ArgumentMatchers.argThat(records ->
+                records.size() == 1
+                        && records.getFirst().role() == AgentMemoryMessageRole.ASSISTANT
+                        && records.getFirst().source().memoryDomain() == AgentMemoryDomain.IM_SHARED
+                        && records.getFirst().source().senderId() == null
+                        && "Agent".equals(records.getFirst().source().senderDisplayName())
+                        && !records.getFirst().source().observedOnly()));
+        verify(support.contextAssemblyService).assemble(isNull(), eq(externalContext), eq(false));
+        verify(support.presetService).externalImRuntimeSpec();
+        verify(support.presetService, never()).defaultRuntimeSpec();
+        verify(support.soulService, never()).maybeEvolveAfterChat(any());
+        assertThat(support.userContext.get()).isNull();
+    }
+
+    @Test
+    void externalExtractionFailureDoesNotSuppressThePersistedReply() {
+        ReactAgent agent = mock(ReactAgent.class);
+        TestSupport support = new TestSupport(agent);
+        ChatInvocation invocation = externalInvocation();
+        given(support.flowFactory.stream(eq(invocation), eq(agent), any(), any(), any(), any()))
+                .willReturn(Flux.just(messageOutput("仍然回复")));
+        doThrow(new IllegalStateException("extract failed"))
+                .when(support.externalMemoryExtractionService).extractAfterReply(any());
+
+        StepVerifier.create(support.chatService.chat(invocation))
+                .expectNext(new ChatResponse("__external_im__:space-1", "仍然回复", "message"))
+                .verifyComplete();
+
+        verify(support.memoryMessageService).markResponded(101L);
+    }
+
     private NodeOutput messageOutput(String text) {
         return NodeOutput.of("node", "agent", new OverAllState(Map.of("messages", java.util.List.of(new AssistantMessage(text)))), null);
     }
@@ -602,6 +743,14 @@ class ReactAgentChatServiceTests {
                 fingerprint);
     }
 
+    private static ChatInvocation externalInvocation() {
+        return new ChatInvocation(ChatSource.EXTERNAL_IM, "群里有人问我吗", 8L, "luigi", null,
+                "space-1", ExternalChatPlatform.TELEGRAM, "main", "group-1",
+                ExternalConversationType.GROUP, "telegram:main:group-1",
+                new ExternalSender("sender-1", "Mario", ExternalSenderType.HUMAN),
+                ExternalMessageType.TEXT, false, false, "event-1", "message-1", Instant.now());
+    }
+
     private static final class TestSupport {
 
         private final AgentPresetService presetService = mock(AgentPresetService.class);
@@ -611,6 +760,12 @@ class ReactAgentChatServiceTests {
         private final AgentMemorySessionService memorySessionService = mock(AgentMemorySessionService.class);
         private final AgentMemoryMessageService memoryMessageService = mock(AgentMemoryMessageService.class);
         private final AgentMemoryContextService memoryContextService = mock(AgentMemoryContextService.class);
+        private final DirectionalAgentMemoryContextService directionalMemoryContextService =
+                mock(DirectionalAgentMemoryContextService.class);
+        private final ExternalImMemoryExtractionService externalMemoryExtractionService =
+                mock(ExternalImMemoryExtractionService.class);
+        private final ChatInvocationPolicy invocationPolicy = mock(ChatInvocationPolicy.class);
+        private final ChatAgentFlowFactory flowFactory = mock(ChatAgentFlowFactory.class);
         private final AgentContextAssemblyService contextAssemblyService = mock(AgentContextAssemblyService.class);
         private final AgentMemoryExtractionService memoryExtractionService = mock(AgentMemoryExtractionService.class);
         private final AgentSoulService soulService = mock(AgentSoulService.class);
@@ -626,12 +781,16 @@ class ReactAgentChatServiceTests {
 
         private TestSupport(ReactAgent agent, Scheduler blockingScheduler) {
             AgentRuntimeSpec defaultSpec = runtimeSpec("default-fingerprint");
+            AgentRuntimeSpec externalSpec = runtimeSpec("external-fingerprint");
             given(presetService.defaultRuntimeSpec()).willReturn(defaultSpec);
+            given(presetService.externalImRuntimeSpec()).willReturn(externalSpec);
             given(presetService.serializeRuntimeSpec(any())).willReturn("{\"systemPrompt\":\"system prompt\"}");
             given(runtimeFactory.runtime(eq(defaultSpec), any(ModelCallContext.class)))
                     .willReturn(new AgentRuntimeFactory.AgentRuntime(agent, Map.of()));
             given(runtimeFactory.runtime(org.mockito.ArgumentMatchers.argThat(spec ->
                     spec != null && "debug-fingerprint".equals(spec.fingerprint())), any(ModelCallContext.class)))
+                    .willReturn(new AgentRuntimeFactory.AgentRuntime(agent, Map.of()));
+            given(runtimeFactory.runtime(eq(externalSpec), any(ModelCallContext.class)))
                     .willReturn(new AgentRuntimeFactory.AgentRuntime(agent, Map.of()));
             given(auditService.start(any(), any())).willReturn(1L);
             given(runAuditService.start(any())).willReturn(runAuditContext);
@@ -641,15 +800,66 @@ class ReactAgentChatServiceTests {
                         String sessionId = invocation.getArgument(1);
                         return session(sessionId == null || sessionId.isBlank() ? "thread-1" : sessionId, entryType);
                     });
+            given(memorySessionService.resolveOrCreateExternal(any(), any())).willAnswer(invocation -> {
+                AgentMemorySessionPo external = session("__external_im__:" + invocation.getArgument(1),
+                        AgentMemoryEntryType.AGENT_CHAT);
+                external.setMemoryDomain(AgentMemoryDomain.IM_SHARED);
+                external.setMemorySpaceId(invocation.getArgument(1));
+                return external;
+            });
             given(memoryContextService.contextFor(any(), any(), any(Boolean.class)))
                     .willReturn(new AgentMemoryContext("", ""));
+            given(directionalMemoryContextService.webContext(any(), any(), any(), anyBoolean()))
+                    .willAnswer(invocation -> memoryContextService.contextFor(
+                            invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(3)));
+            given(directionalMemoryContextService.externalContext(any(), any(), anyBoolean()))
+                    .willReturn(new AgentMemoryContext("", ""));
+            given(directionalMemoryContextService.guardGroupWindow(any(), any())).willReturn("");
+            given(invocationPolicy.fromWeb(any(), any())).willAnswer(invocation -> {
+                ChatRequest request = invocation.getArgument(0);
+                RbacPrincipal principal = invocation.getArgument(1);
+                Long userId = principal == null ? 8L : principal.userId();
+                String username = principal == null ? "luigi" : principal.username();
+                String sessionId = request.sessionId() == null ? request.threadId() : request.sessionId();
+                return ChatInvocation.web(request.message(), userId, username, sessionId, request.memorySpaceId());
+            });
+            given(invocationPolicy.requireExternal(any())).willAnswer(invocation -> invocation.getArgument(0));
+            given(flowFactory.stream(any(), eq(agent), any(RunnableConfig.class), any(), any(), any()))
+                    .willAnswer(invocation -> agent.stream(
+                            ((ChatInvocation) invocation.getArgument(0)).message(), invocation.getArgument(2)));
             given(contextAssemblyService.assemble(any(), any(), anyBoolean()))
                     .willReturn((AgentContext) null);
             given(memoryMessageService.nextTurnNo(any())).willReturn(1);
+            given(memoryMessageService.findExternalMessage(any(), any(), any(), any(), any(), any(), any()))
+                    .willReturn(java.util.Optional.empty());
+            AtomicLong messageId = new AtomicLong(100L);
+            given(memoryMessageService.appendAll(any())).willAnswer(invocation ->
+                    ((java.util.List<AgentMemoryMessageRecord>) invocation.getArgument(0)).stream()
+                            .map(record -> memoryMessage(messageId.incrementAndGet(), record))
+                            .toList());
             doAnswer(invocation -> null).when(auditService).complete(any(), any(), any());
             this.chatService = new ReactAgentChatService(presetService, runtimeFactory, auditService, runAuditService,
                     blockingScheduler, userContext, memorySessionService, memoryMessageService,
-                    memoryContextService, contextAssemblyService, memoryExtractionService, soulService);
+                    directionalMemoryContextService, contextAssemblyService, memoryExtractionService,
+                    externalMemoryExtractionService, invocationPolicy, flowFactory, soulService);
+        }
+
+        private AgentMemoryMessagePo memoryMessage(long id, AgentMemoryMessageRecord record) {
+            AgentMemoryMessagePo message = new AgentMemoryMessagePo();
+            message.setId(id);
+            message.setSessionId(record.sessionId());
+            message.setUserId(record.userId());
+            message.setEntryType(record.entryType());
+            message.setTurnNo(record.turnNo());
+            message.setRole(record.role());
+            message.setMessageType(record.messageType());
+            message.setContent(record.content());
+            message.setMessageStatus(record.messageStatus());
+            message.setMemoryDomain(record.source().memoryDomain());
+            message.setMemorySpaceId(record.source().memorySpaceId());
+            message.setExternalEventId(record.source().externalEventId());
+            message.setObservedOnly(record.source().observedOnly());
+            return message;
         }
     }
 

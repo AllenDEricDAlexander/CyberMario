@@ -29,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 /**
@@ -170,6 +171,49 @@ class AgentMemoryMessageServiceTests {
         assertThat(saved.getMemorySpaceId()).isEqualTo("space-1");
         assertThat(saved.getExternalEventId()).isEqualTo("update-1");
         assertThat(saved.isObservedOnly()).isTrue();
+    }
+
+    @Test
+    void findsExternalObservationByStableEventIdentity() {
+        AgentMemoryMessagePo observation = message(1, 1, AgentMemoryMessageRole.USER, "ambient");
+        given(messageRepository
+                .findFirstByMemorySpaceIdAndSourcePlatformAndSourceConnectorIdAndExternalEventIdAndRoleAndMessageTypeAndMessageStatusAndDeletedFalseOrderByIdDesc(
+                        "space-1", ExternalChatPlatform.TELEGRAM, "main", "update-1",
+                        AgentMemoryMessageRole.USER, AgentMemoryMessageType.MESSAGE,
+                        AgentMemoryMessageStatus.SUCCEEDED))
+                .willReturn(Optional.of(observation));
+
+        assertThat(service.findExternalMessage("space-1", ExternalChatPlatform.TELEGRAM, "main", "update-1",
+                AgentMemoryMessageRole.USER, AgentMemoryMessageType.MESSAGE,
+                AgentMemoryMessageStatus.SUCCEEDED)).containsSame(observation);
+    }
+
+    @Test
+    void markRespondedPromotesOnlySharedImObservation() {
+        AgentMemoryMessagePo observation = message(1, 1, AgentMemoryMessageRole.USER, "ambient");
+        observation.setId(12L);
+        observation.setMemoryDomain(AgentMemoryDomain.IM_SHARED);
+        observation.setObservedOnly(true);
+        given(messageRepository.findById(12L)).willReturn(Optional.of(observation));
+
+        service.markResponded(12L);
+
+        assertThat(observation.isObservedOnly()).isFalse();
+        verify(messageRepository).save(observation);
+    }
+
+    @Test
+    void markRespondedIgnoresWebPrivateMessage() {
+        AgentMemoryMessagePo message = message(1, 1, AgentMemoryMessageRole.USER, "web");
+        message.setId(12L);
+        message.setMemoryDomain(AgentMemoryDomain.WEB_PRIVATE);
+        message.setObservedOnly(true);
+        given(messageRepository.findById(12L)).willReturn(Optional.of(message));
+
+        service.markResponded(12L);
+
+        assertThat(message.isObservedOnly()).isTrue();
+        verify(messageRepository, never()).save(message);
     }
 
     private AgentMemoryMessagePo message(int seqNo, int turnNo, AgentMemoryMessageRole role, String content) {
