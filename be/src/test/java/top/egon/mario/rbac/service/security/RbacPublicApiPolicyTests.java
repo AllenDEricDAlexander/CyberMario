@@ -35,4 +35,14 @@ class RbacPublicApiPolicyTests {
         assertThat(RbacPublicApiPolicy.isAllowedPublicRule("PUT", "/api/me/password")).isFalse();
     }
 
+    @Test
+    void onlyPostExternalWebhookPathsMayBePublic() {
+        assertThat(RbacPublicApiPolicy.isAllowedPublicRule(
+                "POST", "/api/external-im/webhooks/telegram/main")).isTrue();
+        assertThat(RbacPublicApiPolicy.isAllowedPublicRule(
+                "GET", "/api/external-im/webhooks/telegram/main")).isFalse();
+        assertThat(RbacPublicApiPolicy.isAllowedPublicRule(
+                "POST", "/api/external-im/admin/spaces")).isFalse();
+    }
+
 }

@@ -25,6 +25,9 @@ public final class RbacPublicApiPolicy {
     public static final String[] PUBLIC_WEBSOCKET_ENDPOINTS = {
             "/ws/im"
     };
+    public static final String[] PUBLIC_EXTERNAL_IM_WEBHOOK_ENDPOINTS = {
+            "/api/external-im/webhooks/**"
+    };
 
     private static final Set<String> PUBLIC_POST_PATHS = Set.of(PUBLIC_AUTH_ENDPOINTS);
     private static final Set<String> PUBLIC_GET_PATHS = Set.of("/api/auth/csrf", "/api/auth/password-key",
@@ -40,7 +43,8 @@ public final class RbacPublicApiPolicy {
         String normalizedMethod = method.trim().toUpperCase();
         String normalizedPattern = urlPattern.trim();
         if ("POST".equals(normalizedMethod)) {
-            return PUBLIC_POST_PATHS.contains(normalizedPattern);
+            return PUBLIC_POST_PATHS.contains(normalizedPattern)
+                    || normalizedPattern.startsWith("/api/external-im/webhooks/");
         }
         if ("GET".equals(normalizedMethod)) {
             return PUBLIC_GET_PATHS.contains(normalizedPattern) || isHealthSubPath(normalizedPattern);
