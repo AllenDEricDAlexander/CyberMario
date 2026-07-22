@@ -70,16 +70,21 @@ public class QqExternalChatReplyPort implements ExternalChatReplyPort {
         if (conversationId.startsWith(GROUP_PREFIX)
                 && conversationId.length() > GROUP_PREFIX.length()) {
             String id = conversationId.substring(GROUP_PREFIX.length()).trim();
-            return StringUtils.hasText(id)
+            return isQqId(id)
                     ? new QqTarget("/send_group_msg", "group_id", id, true) : null;
         }
         if (conversationId.startsWith(PRIVATE_PREFIX)
                 && conversationId.length() > PRIVATE_PREFIX.length()) {
             String id = conversationId.substring(PRIVATE_PREFIX.length()).trim();
-            return StringUtils.hasText(id)
+            return isQqId(id)
                     ? new QqTarget("/send_private_msg", "user_id", id, false) : null;
         }
         return null;
+    }
+
+    private boolean isQqId(String value) {
+        return StringUtils.hasText(value)
+                && value.chars().allMatch(character -> character >= '0' && character <= '9');
     }
 
     private Map<String, Object> payload(ExternalReplyCommand command, QqTarget target,
@@ -120,6 +125,7 @@ public class QqExternalChatReplyPort implements ExternalChatReplyPort {
                                 retryable, "QQ_SEND_FAILED",
                                 "NapCat rejected the QQ send request"));
                     })
+                    .timeout(properties.getRequestTimeout())
                     .blockOptional()
                     .orElseGet(() -> ExternalReplyResult.failed(false,
                             "QQ_RESPONSE_EMPTY", "QQ returned no response"));

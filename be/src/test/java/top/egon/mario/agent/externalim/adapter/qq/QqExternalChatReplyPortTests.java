@@ -18,12 +18,14 @@ import top.egon.mario.agent.externalim.model.ExternalReplyCommand;
 import top.egon.mario.agent.externalim.model.ExternalReplyResult;
 
 import java.net.SocketTimeoutException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 class QqExternalChatReplyPortTests {
 
@@ -130,6 +132,22 @@ class QqExternalChatReplyPortTests {
     }
 
     @Test
+    void boundsNeverCompletingResponsesAsAmbiguousDelivery() {
+        QqExternalChatProperties properties = properties();
+        properties.setRequestTimeout(Duration.ofMillis(50));
+        WebClient webClient = WebClient.builder()
+                .exchangeFunction(request -> Mono.never())
+                .build();
+
+        ExternalReplyResult result = assertTimeoutPreemptively(Duration.ofSeconds(1),
+                () -> new QqExternalChatReplyPort(properties, webClient).send(
+                        command("private:30003", "2003", "answer")));
+
+        assertThat(result.retryable()).isFalse();
+        assertThat(result.errorCode()).isEqualTo("QQ_DELIVERY_AMBIGUOUS");
+    }
+
+    @Test
     void rejectsEmptyTextAndMalformedConversationBeforeNetworkUse() {
         assertThat(port(properties()).send(
                 command("group:40004", "2002", " ")).errorCode())
@@ -139,6 +157,9 @@ class QqExternalChatReplyPortTests {
                 .isEqualTo("QQ_CONVERSATION_INVALID");
         assertThat(port(properties()).send(
                 command("group: ", "2002", "answer")).errorCode())
+                .isEqualTo("QQ_CONVERSATION_INVALID");
+        assertThat(port(properties()).send(
+                command("group:not-a-number", "2002", "answer")).errorCode())
                 .isEqualTo("QQ_CONVERSATION_INVALID");
         assertThat(requests).isEmpty();
     }

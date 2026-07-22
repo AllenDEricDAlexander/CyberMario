@@ -302,6 +302,7 @@ mario:
       qq:
         enabled: ${AGENT_EXTERNAL_IM_QQ_ENABLED:false}
         base-url: ${AGENT_EXTERNAL_IM_QQ_BASE_URL:http://127.0.0.1:3000}
+        request-timeout: ${AGENT_EXTERNAL_IM_QQ_REQUEST_TIMEOUT:PT10S}
         connectors:
           main:
             access-token: ${AGENT_EXTERNAL_IM_QQ_MAIN_ACCESS_TOKEN:}

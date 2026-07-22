@@ -18,6 +18,7 @@ import top.egon.mario.agent.externalim.model.ExternalSenderType;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
@@ -69,8 +70,7 @@ public class QqExternalChatAdapter implements ExternalChatInboundAdapter {
                 ? ExternalSenderType.BOT : ExternalSenderType.HUMAN;
         ExternalSender sender = new ExternalSender(String.valueOf(event.userId()),
                 displayName(event.sender(), event.userId(), conversationType), senderType);
-        Instant occurredAt = event.time() == null
-                ? Instant.now() : Instant.ofEpochSecond(event.time());
+        Instant occurredAt = occurredAt(event.time());
         String messageId = String.valueOf(event.messageId());
         return Optional.of(new ExternalChatMessage(messageId, messageId,
                 ExternalChatPlatform.QQ, request.connectorId(), conversationId,
@@ -95,8 +95,25 @@ public class QqExternalChatAdapter implements ExternalChatInboundAdapter {
 
     private QqOneBotEvent read(byte[] body) {
         try {
-            return objectMapper.readValue(body, QqOneBotEvent.class);
+            QqOneBotEvent event = objectMapper.readValue(body, QqOneBotEvent.class);
+            if (event == null) {
+                throw new ExternalChatException("QQ_PAYLOAD_INVALID",
+                        "QQ webhook payload is invalid");
+            }
+            return event;
         } catch (IOException error) {
+            throw new ExternalChatException("QQ_PAYLOAD_INVALID",
+                    "QQ webhook payload is invalid");
+        }
+    }
+
+    private Instant occurredAt(Long time) {
+        if (time == null) {
+            return Instant.now();
+        }
+        try {
+            return Instant.ofEpochSecond(time);
+        } catch (DateTimeException error) {
             throw new ExternalChatException("QQ_PAYLOAD_INVALID",
                     "QQ webhook payload is invalid");
         }

@@ -147,6 +147,21 @@ class QqExternalChatAdapterTests {
                 .isEqualTo("QQ_PAYLOAD_INVALID");
     }
 
+    @Test
+    void rejectsNullAndOutOfRangeTimestampsAsInvalidPayloads() {
+        assertThatThrownBy(() -> normalize("null"))
+                .isInstanceOf(ExternalChatException.class)
+                .extracting(error -> ((ExternalChatException) error).code())
+                .isEqualTo("QQ_PAYLOAD_INVALID");
+
+        String invalidTimestamp = privateJson(10001L)
+                .replace("1784731201", String.valueOf(Long.MAX_VALUE));
+        assertThatThrownBy(() -> normalize(invalidTimestamp))
+                .isInstanceOf(ExternalChatException.class)
+                .extracting(error -> ((ExternalChatException) error).code())
+                .isEqualTo("QQ_PAYLOAD_INVALID");
+    }
+
     private Optional<ExternalChatMessage> normalize(String json) {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth("access-token");

@@ -33,6 +33,7 @@ Set these environment variables without committing their values:
 
 - `AGENT_EXTERNAL_IM_QQ_ENABLED=true`
 - `AGENT_EXTERNAL_IM_QQ_BASE_URL=http://127.0.0.1:3000`
+- `AGENT_EXTERNAL_IM_QQ_REQUEST_TIMEOUT=PT10S`
 - `AGENT_EXTERNAL_IM_QQ_MAIN_ACCESS_TOKEN=<strong-random-token>`
 - `AGENT_EXTERNAL_IM_QQ_MAIN_BOT_USER_ID=<bot-qq-number>`
 - `AGENT_EXTERNAL_IM_QQ_MAIN_REPLY_WITH_QUOTE=true`
@@ -71,7 +72,8 @@ Group replies quote the source message by default. Set
 `AGENT_EXTERNAL_IM_QQ_MAIN_REPLY_WITH_QUOTE=false` to send unquoted group text.
 Private replies are always plain text. The webhook acknowledges only after the
 common durable ingress accepts the event; Guard, Agent, and NapCat delivery run
-asynchronously.
+asynchronously. The request timeout bounds a stalled NapCat response and is
+treated as an ambiguous terminal delivery result to avoid blind duplicates.
 
 ## Context and privacy boundary
 
