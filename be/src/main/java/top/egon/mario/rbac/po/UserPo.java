@@ -62,6 +62,9 @@ public class UserPo extends BaseAuditablePo {
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
 
+    @Column(name = "activated_at")
+    private Instant activatedAt;
+
     @Column(name = "remark", length = 255)
     private String remark;
 

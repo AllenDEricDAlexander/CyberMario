@@ -2,6 +2,7 @@ package top.egon.mario.rbac.dto.response;
 
 import lombok.Getter;
 import lombok.Setter;
+import top.egon.mario.rbac.dto.enums.ActivationStatus;
 import top.egon.mario.rbac.dto.enums.RbacStatus;
 
 import java.time.Instant;
@@ -24,6 +25,8 @@ public class UserResponse {
     private boolean locked;
     private boolean passwordExpired;
     private Instant lastLoginAt;
+    private Instant activatedAt;
+    private ActivationStatus activationStatus;
     private String remark;
 
 }

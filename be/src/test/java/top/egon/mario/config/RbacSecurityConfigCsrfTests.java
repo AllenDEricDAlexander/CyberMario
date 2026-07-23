@@ -11,6 +11,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import top.egon.mario.rbac.application.RbacAuthApplication;
+import top.egon.mario.rbac.application.RbacAccountActivationApplication;
 import top.egon.mario.rbac.service.RbacException;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
@@ -37,6 +38,9 @@ class RbacSecurityConfigCsrfTests {
 
     @MockitoBean
     private RbacAuthApplication authApplication;
+
+    @MockitoBean
+    private RbacAccountActivationApplication accountActivationApplication;
 
     @Test
     void csrfEndpointReturnsTokenMetadataAndCookie() {
@@ -107,6 +111,27 @@ class RbacSecurityConfigCsrfTests {
     }
 
     @Test
+    void browserActivationWithoutCsrfIsForbidden() {
+        webTestClient.post().uri("/api/auth/activation/complete")
+                .header("X-Client-Type", "browser")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(invalidActivationBody())
+                .exchange()
+                .expectStatus().isForbidden()
+                .expectBody().jsonPath("$.code").isEqualTo("AUTH_CSRF_INVALID");
+    }
+
+    @Test
+    void nonBrowserActivationIsPublicAndReachesValidation() {
+        webTestClient.post().uri("/api/auth/activation/complete")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(invalidActivationBody())
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody().jsonPath("$.code").isEqualTo("VALIDATION_ERROR");
+    }
+
+    @Test
     void bearerPostWithoutCsrfReachesValidation() {
         given(authApplication.authenticateAccessToken("api-token"))
                 .willReturn(new UsernamePasswordAuthenticationToken(
@@ -146,6 +171,12 @@ class RbacSecurityConfigCsrfTests {
                   "encryptedPassword": "",
                   "passwordKeyId": ""
                 }
+                """;
+    }
+
+    private String invalidActivationBody() {
+        return """
+                {"token":"","passwordKeyId":"","encryptedPassword":""}
                 """;
     }
 

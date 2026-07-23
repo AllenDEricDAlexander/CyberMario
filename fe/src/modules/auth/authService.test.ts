@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest'
 import {ApiRequestError} from '../../types/api'
-import {login, register} from './authService'
+import {completeAccountActivation, login, register} from './authService'
 
 vi.mock('../../services/request', () => ({
     requestJson: vi.fn(),
@@ -86,5 +86,22 @@ describe('authService', () => {
                 passwordKeyId: 'new-key',
             },
         })
+    })
+
+    test('encrypts the activation password and never sends plaintext', async () => {
+        const {requestJson} = await import('../../services/request')
+
+        await completeAccountActivation('raw-token', 'new-password-123')
+
+        expect(requestJson).toHaveBeenCalledWith('/api/auth/activation/complete', {
+            method: 'POST',
+            auth: false,
+            body: {
+                token: 'raw-token',
+                encryptedPassword: 'encrypted:new-password-123',
+                passwordKeyId: 'key-1',
+            },
+        })
+        expect(vi.mocked(requestJson).mock.calls[0]?.[1]?.body).not.toHaveProperty('password')
     })
 })

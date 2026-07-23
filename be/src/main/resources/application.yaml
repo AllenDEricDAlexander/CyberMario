@@ -215,6 +215,13 @@ mario:
       refresh-token-ttl: ${JWT_REFRESH_TOKEN_TTL:P14D}
     browser-cookie:
       secure: ${BROWSER_AUTH_COOKIE_SECURE:true}
+    ott:
+      enabled: ${OTT_ENABLED:true}
+      activation-token-ttl: ${OTT_ACTIVATION_TOKEN_TTL:PT24H}
+      public-base-url: ${OTT_PUBLIC_BASE_URL:http://localhost:5173}
+      delivery-mode: ${OTT_DELIVERY_MODE:MOCK}
+      mock-delivery-allowed: ${OTT_MOCK_DELIVERY_ALLOWED:false}
+      rate-limit-enabled: ${OTT_RATE_LIMIT_ENABLED:true}
   rbac:
     resource-sync:
       enabled: ${RBAC_RESOURCE_SYNC_ENABLED:true}

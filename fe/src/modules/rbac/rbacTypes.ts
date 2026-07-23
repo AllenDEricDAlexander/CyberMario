@@ -5,6 +5,19 @@ export type PermissionStatus = 'ENABLED' | 'DISABLED' | 'DRAFT' | CodedEnum
 export type PermissionType = 'MENU' | 'BUTTON' | 'API' | CodedEnum
 export type ApiMatcherType = 'EXACT' | 'MVC' | 'ANT' | 'REGEX' | CodedEnum
 export type ApiRiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | CodedEnum
+export type ActivationStatus = 'PENDING_ACTIVATION' | 'ACTIVATED'
+export type ActivationDeliveryMode = 'MOCK'
+
+export type ActivationDeliveryResponse = {
+    mode: ActivationDeliveryMode
+    expiresAt: string
+    mockActivationUrl?: string
+}
+
+export type AdminUserCreateResponse = {
+    user: UserResponse
+    activationDelivery: ActivationDeliveryResponse
+}
 
 export type UserResponse = {
     id: number
@@ -18,6 +31,8 @@ export type UserResponse = {
     locked: boolean
     passwordExpired: boolean
     lastLoginAt?: string
+    activatedAt?: string
+    activationStatus: ActivationStatus
     remark?: string
 }
 
@@ -117,16 +132,15 @@ export type CreateUserRequest = {
     accountNo: string
     username: string
     nickname?: string
-    email?: string
+    email: string
     mobile?: string
     avatarUrl?: string
-    initialPassword: string
-    status?: 'ENABLED' | 'DISABLED'
     remark?: string
     roleIds?: number[]
 }
 
-export type UpdateUserRequest = Omit<Partial<CreateUserRequest>, 'initialPassword' | 'roleIds'> & {
+export type UpdateUserRequest = Partial<Omit<CreateUserRequest, 'accountNo' | 'username' | 'roleIds'>> & {
+    status?: 'ENABLED' | 'DISABLED'
     locked?: boolean
     passwordExpired?: boolean
 }

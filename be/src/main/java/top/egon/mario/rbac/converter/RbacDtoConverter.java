@@ -3,6 +3,7 @@ package top.egon.mario.rbac.converter;
 import io.github.linpeilie.Converter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import top.egon.mario.rbac.dto.enums.ActivationStatus;
 import top.egon.mario.rbac.dto.request.CreateRoleRequest;
 import top.egon.mario.rbac.dto.request.CreateUserRequest;
 import top.egon.mario.rbac.dto.request.PermissionRequest;
@@ -29,7 +30,11 @@ public class RbacDtoConverter {
     private final RbacLayerEnumMapper enumMapper;
 
     public UserResponse toUserResponse(UserPo userPo) {
-        return converter.convert(userPo, UserResponse.class);
+        UserResponse response = converter.convert(userPo, UserResponse.class);
+        response.setActivationStatus(userPo.getActivatedAt() == null
+                ? ActivationStatus.PENDING_ACTIVATION
+                : ActivationStatus.ACTIVATED);
+        return response;
     }
 
     public RoleResponse toRoleResponse(RolePo rolePo) {

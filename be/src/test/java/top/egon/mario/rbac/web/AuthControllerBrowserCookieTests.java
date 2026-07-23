@@ -9,6 +9,8 @@ import org.springframework.mock.web.server.MockServerWebExchange;
 import reactor.core.scheduler.Schedulers;
 import reactor.test.StepVerifier;
 import top.egon.mario.rbac.application.RbacAuthApplication;
+import top.egon.mario.rbac.application.RbacAccountActivationApplication;
+import top.egon.mario.rbac.dto.request.CompleteAccountActivationRequest;
 import top.egon.mario.rbac.dto.request.LoginRequest;
 import top.egon.mario.rbac.dto.request.RefreshTokenRequest;
 import top.egon.mario.rbac.dto.request.RegisterRequest;
@@ -40,6 +42,7 @@ import static org.mockito.Mockito.when;
 class AuthControllerBrowserCookieTests {
 
     private RbacAuthApplication authApplication;
+    private RbacAccountActivationApplication accountActivationApplication;
     private BrowserAuthCookieService browserAuthCookieService;
     private PasswordTransportEncryptionService passwordTransportEncryptionService;
     private AuthController controller;
@@ -47,11 +50,13 @@ class AuthControllerBrowserCookieTests {
     @BeforeEach
     void setUp() {
         authApplication = mock(RbacAuthApplication.class);
+        accountActivationApplication = mock(RbacAccountActivationApplication.class);
         BrowserAuthCookieProperties properties = new BrowserAuthCookieProperties();
         properties.setSecure(false);
         browserAuthCookieService = new BrowserAuthCookieService(properties);
         passwordTransportEncryptionService = mock(PasswordTransportEncryptionService.class);
-        controller = new AuthController(authApplication, browserAuthCookieService, passwordTransportEncryptionService);
+        controller = new AuthController(authApplication, browserAuthCookieService,
+                passwordTransportEncryptionService, accountActivationApplication);
         controller.setBlockingScheduler(Schedulers.immediate());
     }
 
@@ -116,6 +121,21 @@ class AuthControllerBrowserCookieTests {
                     assertNoAuthCookies(exchange);
                 })
                 .verifyComplete();
+    }
+
+    @Test
+    void browserActivationReturnsNoTokensAndWritesNoAuthCookies() {
+        CompleteAccountActivationRequest request = new CompleteAccountActivationRequest(
+                "raw-token", "key-1", "encrypted-password");
+        MockServerWebExchange exchange = exchange("/api/auth/activation/complete", true);
+
+        StepVerifier.create(controller.completeActivation(request, exchange))
+                .assertNext(response -> {
+                    assertThat(response.data()).isNull();
+                    assertNoAuthCookies(exchange);
+                })
+                .verifyComplete();
+        verify(accountActivationApplication).complete(eq(request), nullable(String.class), eq("controller-test"));
     }
 
     @Test

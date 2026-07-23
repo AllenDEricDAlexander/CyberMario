@@ -107,6 +107,9 @@ public class RbacAdminBootstrap implements ApplicationRunner {
         user.setNickname(StringUtils.hasText(user.getNickname()) ? user.getNickname() : "Administrator");
         user.setStatus(RbacStatus.ENABLED);
         user.setLocked(false);
+        if (user.getActivatedAt() == null) {
+            user.setActivatedAt(Instant.now());
+        }
         return userRepository.save(user);
     }
 

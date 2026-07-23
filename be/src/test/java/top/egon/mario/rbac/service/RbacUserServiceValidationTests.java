@@ -23,14 +23,15 @@ class RbacUserServiceValidationTests {
     private ChatModel chatModel;
 
     @Test
-    void createUserRejectsInvalidRequestBeforeBusinessLogic() {
+    void createPendingUserRejectsInvalidRequestBeforeBusinessLogic() {
         CreateUserRequest request = new CreateUserRequest();
 
-        assertThatThrownBy(() -> userService.createUser(request, 1L))
+        assertThatThrownBy(() -> userService.createPendingUser(request, 1L))
                 .isInstanceOf(ConstraintViolationException.class)
                 .hasMessageContaining("accountNo")
                 .hasMessageContaining("username")
-                .hasMessageContaining("initialPassword");
+                .hasMessageContaining("email")
+                .hasMessageNotContaining("initialPassword");
     }
 
     @Test

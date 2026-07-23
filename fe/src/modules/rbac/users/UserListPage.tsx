@@ -1,5 +1,5 @@
-import {EditOutlined, KeyOutlined, PlusOutlined, SafetyOutlined, TeamOutlined} from '@ant-design/icons'
-import {App, Button, Input, Modal, Popconfirm, Space, Table} from 'antd'
+import {EditOutlined, KeyOutlined, LinkOutlined, PlusOutlined, SafetyOutlined, TeamOutlined} from '@ant-design/icons'
+import {App, Button, Input, Modal, Popconfirm, Space, Table, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import type {ReactNode} from 'react'
 import {useCallback, useEffect, useState} from 'react'
@@ -18,20 +18,28 @@ import {
     getUserRoles,
     getUsers,
     replaceUserRoles,
+    reissueUserActivation,
     resetUserPassword,
     updateUser,
     updateUserStatus,
 } from '../rbacService'
 import type {
+    ActivationDeliveryResponse,
     CreateUserRequest,
     EffectivePermissionResponse,
     RoleResponse,
     UpdateUserRequest,
-    UserResponse
+    UserResponse,
 } from '../rbacTypes'
+import {ActivationLinkModal} from './ActivationLinkModal'
 import {UserEditorDrawer} from './UserEditorDrawer'
 import {UserPermissionDrawer} from './UserPermissionDrawer'
 import {UserRoleDrawer} from './UserRoleDrawer'
+
+type ActivationModalState = {
+    title: string
+    delivery: ActivationDeliveryResponse
+}
 
 function UserListPage() {
     const {message} = App.useApp()
@@ -44,6 +52,7 @@ function UserListPage() {
     const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([])
     const [permissionUser, setPermissionUser] = useState<UserResponse | null>(null)
     const [effectivePermissions, setEffectivePermissions] = useState<EffectivePermissionResponse | null>(null)
+    const [activationModal, setActivationModal] = useState<ActivationModalState | null>(null)
     const loadUsersPage = useCallback(
         (request: { page: number; size: number }) => getUsers(request),
         [],
@@ -64,6 +73,7 @@ function UserListPage() {
     const canAssignRoles = canUseRbacButton(auth, rbacButtonCodes.user.roles)
     const canViewPermissions = canUseRbacButton(auth, rbacButtonCodes.user.permissions)
     const canResetPassword = canUseRbacButton(auth, rbacButtonCodes.user.resetPassword)
+    const canResendActivation = canUseRbacButton(auth, rbacButtonCodes.user.resendActivation)
     const canChangeStatus = canUseRbacButton(auth, rbacButtonCodes.user.status)
     const canDelete = canUseRbacButton(auth, rbacButtonCodes.user.delete)
 
@@ -74,6 +84,16 @@ function UserListPage() {
         {title: '邮箱', dataIndex: 'email', width: 190, render: (_, record) => record.email || '-'},
         {title: '手机', dataIndex: 'mobile', width: 140, render: (_, record) => record.mobile || '-'},
         {title: '状态', dataIndex: 'status', width: 100, render: (_, record) => <StatusTag value={record.status}/>},
+        {
+            title: '激活状态',
+            dataIndex: 'activationStatus',
+            width: 110,
+            render: (_, record) => (
+                <Tag color={record.activationStatus === 'PENDING_ACTIVATION' ? 'gold' : 'green'}>
+                    {activationStatusLabel(record)}
+                </Tag>
+            ),
+        },
         {title: '锁定', dataIndex: 'locked', width: 80, render: (_, record) => record.locked ? '是' : '否'},
         {
             title: '密码过期',
@@ -91,6 +111,10 @@ function UserListPage() {
 
     function renderActions(record: UserResponse) {
         const actions: ReactNode[] = []
+        const activationActions = activationActionsFor(record, {
+            resetPassword: canResetPassword,
+            resendActivation: canResendActivation,
+        })
         if (canEdit) {
             actions.push(<Button icon={<EditOutlined/>} key="edit" size="small"
                                  onClick={() => openEditor(record)}>编辑</Button>)
@@ -103,10 +127,18 @@ function UserListPage() {
             actions.push(<Button icon={<SafetyOutlined/>} key="permissions" size="small"
                                  onClick={() => void openPermissions(record)}>权限</Button>)
         }
-        if (canResetPassword) {
+        if (activationActions.resetPassword) {
             actions.push(
                 <Button icon={<KeyOutlined/>} key="password" size="small" onClick={() => openPasswordModal(record)}>
                     重置密码
+                </Button>,
+            )
+        }
+        if (activationActions.resendActivation) {
+            actions.push(
+                <Button icon={<LinkOutlined/>} key="resend-activation" size="small"
+                        onClick={() => void resendActivation(record)}>
+                    重新生成激活链接
                 </Button>,
             )
         }
@@ -140,13 +172,45 @@ function UserListPage() {
         setSaving(true)
         try {
             if (editingUser) {
-                await updateUser(editingUser.id, request)
+                const updatedUser = await updateUser(editingUser.id, request)
+                if (shouldPromptActivationReissue(editingUser, request, updatedUser)) {
+                    promptForActivationReissue(updatedUser)
+                }
             } else {
-                await createUser(request as CreateUserRequest)
+                const created = await createUser(request as CreateUserRequest)
+                setActivationModal({title: '账号已创建', delivery: created.activationDelivery})
             }
             message.success('保存成功')
             setEditorOpen(false)
             await loadUsers()
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    function promptForActivationReissue(user: UserResponse) {
+        if (!canResendActivation) {
+            Modal.warning({
+                title: '原激活链接已失效',
+                content: '待激活用户的邮箱已变更，请联系有“重新生成激活链接”权限的管理员处理。',
+            })
+            return
+        }
+        Modal.confirm({
+            title: '原激活链接已失效',
+            content: '待激活用户的邮箱已变更，是否立即生成新的激活链接？',
+            okText: '生成新链接',
+            cancelText: '稍后处理',
+            onOk: () => resendActivation(user),
+        })
+    }
+
+    async function resendActivation(user: UserResponse) {
+        setSaving(true)
+        try {
+            const delivery = await reissueUserActivation(user.id)
+            setActivationModal({title: '新激活链接已生成', delivery})
+            message.success('已生成新的激活链接')
         } finally {
             setSaving(false)
         }
@@ -240,6 +304,11 @@ function UserListPage() {
                 open={editorOpen}
                 value={editingUser}
             />
+            <ActivationLinkModal
+                onClose={() => setActivationModal(null)}
+                title={activationModal?.title ?? '激活链接'}
+                value={activationModal?.delivery ?? null}
+            />
             <UserRoleDrawer
                 onClose={() => setRoleUser(null)}
                 onSubmit={saveRoles}
@@ -261,6 +330,33 @@ function UserListPage() {
 
 function isEnabled(user: UserResponse) {
     return enumEquals(user.status, 1) || enumEquals(user.status, 'ENABLED')
+}
+
+type ActivationActionAccess = {
+    resetPassword: boolean
+    resendActivation: boolean
+}
+
+export function activationActionsFor(user: UserResponse, access: ActivationActionAccess) {
+    const pending = user.activationStatus === 'PENDING_ACTIVATION'
+    return {
+        resetPassword: access.resetPassword && !pending,
+        resendActivation: access.resendActivation && pending,
+    }
+}
+
+export function activationStatusLabel(user: UserResponse) {
+    return user.activationStatus === 'PENDING_ACTIVATION' ? '待激活' : '已激活'
+}
+
+export function shouldPromptActivationReissue(
+    user: UserResponse,
+    request: UpdateUserRequest,
+    updatedUser: UserResponse,
+) {
+    const currentEmail = user.email?.trim() || undefined
+    const nextEmail = request.email?.trim() || undefined
+    return updatedUser.activationStatus === 'PENDING_ACTIVATION' && currentEmail !== nextEmail
 }
 
 export const Component = UserListPage

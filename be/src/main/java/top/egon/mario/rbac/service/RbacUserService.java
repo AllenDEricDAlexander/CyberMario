@@ -20,7 +20,7 @@ import java.util.Set;
  */
 public interface RbacUserService {
 
-    UserResponse createUser(@Valid @NotNull CreateUserRequest request, Long actorUserId);
+    UserResponse createPendingUser(@Valid @NotNull CreateUserRequest request, Long actorUserId);
 
     UserPo getUserPo(@NotNull Long userId);
 

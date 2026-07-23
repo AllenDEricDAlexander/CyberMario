@@ -22,6 +22,7 @@ export function LoginPage() {
 
     const state = location.state as LocationState | null
     const redirectTo = state?.from?.pathname || '/chat'
+    const activated = new URLSearchParams(location.search).get('activated') === '1'
 
     if (auth.authenticated) {
         return <Navigate replace to={redirectTo}/>
@@ -61,6 +62,10 @@ export function LoginPage() {
                         使用账号登录，继续管理你的 Agent、权限与知识库配置。
                     </Typography.Paragraph>
 
+                    {activated && (
+                        <Alert showIcon className="auth-alert"
+                               message="账号激活成功，请使用新密码登录" type="success"/>
+                    )}
                     {error && <Alert showIcon className="auth-alert" message={error} type="error"/>}
 
                     <Form<LoginRequest> layout="vertical" onFinish={voidify(handleFinish)} requiredMark={false}>

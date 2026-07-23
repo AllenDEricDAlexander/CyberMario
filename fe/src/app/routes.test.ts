@@ -5,6 +5,15 @@ import {describe, expect, test} from 'vitest'
 const routesSource = readFileSync(resolve(process.cwd(), 'src/app/routes.tsx'), 'utf8')
 
 describe('admin routes', () => {
+    test('registers account activation as a public auth-layout route', () => {
+        expect(routesSource).toContain("path: '/activate'")
+        expect(routesSource).toContain('<ActivationPage/>')
+        const activationIndex = routesSource.indexOf("path: '/activate'")
+        const protectedIndex = routesSource.indexOf("path: '/'")
+        expect(activationIndex).toBeGreaterThan(-1)
+        expect(activationIndex).toBeLessThan(protectedIndex)
+    })
+
     test('registers the platform IM workspace as a lazy admin route', () => {
         expect(routesSource).toContain("path: 'im'")
         expect(routesSource).toContain("lazy: () => import('../modules/im/PlatformImPage')")

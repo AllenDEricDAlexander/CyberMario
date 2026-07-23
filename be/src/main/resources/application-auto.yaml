@@ -52,6 +52,13 @@ mario:
     browser-cookie:
       enabled: true
       secure: false
+    ott:
+      enabled: true
+      activation-token-ttl: PT24H
+      public-base-url: ${AUTO_OTT_PUBLIC_BASE_URL:http://localhost:5173}
+      delivery-mode: MOCK
+      mock-delivery-allowed: true
+      rate-limit-enabled: true
   rbac:
     resource-sync:
       enabled: true

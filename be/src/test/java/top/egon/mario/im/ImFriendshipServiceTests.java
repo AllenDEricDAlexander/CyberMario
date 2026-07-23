@@ -24,6 +24,7 @@ import top.egon.mario.im.repository.ImFriendshipRepository;
 import top.egon.mario.im.service.ImException;
 import top.egon.mario.rbac.po.UserPo;
 import top.egon.mario.rbac.po.enums.RbacStatus;
+import top.egon.mario.rbac.repository.OneTimeTokenRepository;
 import top.egon.mario.rbac.repository.UserRepository;
 
 import java.util.Map;
@@ -55,12 +56,15 @@ class ImFriendshipServiceTests {
 
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private OneTimeTokenRepository oneTimeTokenRepository;
 
     @BeforeEach
     void setUp() {
         contactRepository.deleteAll();
         friendshipRepository.deleteAll();
         dmBlockRepository.deleteAll();
+        oneTimeTokenRepository.deleteAll();
         userRepository.deleteAll();
     }
 

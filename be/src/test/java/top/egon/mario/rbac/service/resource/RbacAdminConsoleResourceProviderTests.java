@@ -19,6 +19,10 @@ class RbacAdminConsoleResourceProviderTests {
                 .contains("menu:system", "menu:system:users", "menu:system:roles",
                         "btn:system:user:add", "btn:system:role:permission", "btn:system:api:delete");
         assertThat(provider.resources())
+                .filteredOn(seed -> "btn:system:user:resendActivation".equals(seed.code()))
+                .singleElement()
+                .satisfies(seed -> assertThat(seed.button().frontendAction()).isEqualTo("resendActivation"));
+        assertThat(provider.resources())
                 .noneMatch(seed -> seed.type() == PermissionType.API);
         assertThat(provider.resources().stream()
                 .filter(seed -> seed.type() == PermissionType.BUTTON)

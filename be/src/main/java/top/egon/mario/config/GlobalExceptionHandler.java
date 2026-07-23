@@ -79,7 +79,8 @@ public class GlobalExceptionHandler {
             String traceId = TraceContext.traceId(contextView);
             return Mono.just(TraceContext.withMdc(traceId, () -> {
                 LogUtil.warn(log).log("rbac request rejected, code={}", ex.getCode());
-                return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getCode(), ex.getDetailMessage(), traceId));
+                return ResponseEntity.status(rbacStatus(ex))
+                        .body(ApiResponse.fail(ex.getCode(), ex.getDetailMessage(), traceId));
             }));
         });
     }
@@ -164,6 +165,12 @@ public class GlobalExceptionHandler {
             case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
             default -> HttpStatus.BAD_REQUEST;
         };
+    }
+
+    private HttpStatus rbacStatus(RbacException exception) {
+        return "AUTH_ACTIVATION_RATE_LIMITED".equals(exception.getCode())
+                ? HttpStatus.TOO_MANY_REQUESTS
+                : HttpStatus.BAD_REQUEST;
     }
 
     private String formatFieldError(FieldError error) {

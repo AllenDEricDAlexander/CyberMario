@@ -3,6 +3,7 @@ package top.egon.mario.rbac.service.security;
 import org.springframework.util.StringUtils;
 
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Defines the small set of endpoints that may bypass RBAC API authority checks.
@@ -18,6 +19,9 @@ public final class RbacPublicApiPolicy {
             "/api/auth/csrf",
             "/api/auth/password-key"
     };
+    public static final String[] PUBLIC_ACTIVATION_ENDPOINTS = {
+            "/api/auth/activation/complete"
+    };
     public static final String[] PUBLIC_ACTUATOR_ENDPOINTS = {
             "/actuator/health/**",
             "/actuator/info"
@@ -29,7 +33,8 @@ public final class RbacPublicApiPolicy {
             "/api/external-im/webhooks/**"
     };
 
-    private static final Set<String> PUBLIC_POST_PATHS = Set.of(PUBLIC_AUTH_ENDPOINTS);
+    private static final Set<String> PUBLIC_POST_PATHS = Set.copyOf(Stream.concat(
+            Stream.of(PUBLIC_AUTH_ENDPOINTS), Stream.of(PUBLIC_ACTIVATION_ENDPOINTS)).toList());
     private static final Set<String> PUBLIC_GET_PATHS = Set.of("/api/auth/csrf", "/api/auth/password-key",
             "/actuator/health", "/actuator/info", "/ws/im");
 

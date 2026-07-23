@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import top.egon.mario.common.utils.LogUtil;
+import top.egon.mario.rbac.activation.service.RbacAccountActivationTokenService;
 import top.egon.mario.rbac.converter.RbacDtoConverter;
 import top.egon.mario.rbac.dto.request.ChangeCurrentUserPasswordRequest;
 import top.egon.mario.rbac.dto.request.CreateUserRequest;
@@ -29,11 +30,14 @@ import top.egon.mario.rbac.service.RbacException;
 import top.egon.mario.rbac.service.RbacUserService;
 import top.egon.mario.rbac.service.model.RbacPermissionChangedEvent;
 
+import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -53,10 +57,12 @@ public class RbacUserServiceImpl implements RbacUserService {
     private final RbacDtoConverter rbacDtoConverter;
     private final RbacAuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
+    private final SecureRandom secureRandom;
+    private final RbacAccountActivationTokenService accountActivationTokenService;
 
     @Override
     @Transactional
-    public UserResponse createUser(CreateUserRequest request, Long actorUserId) {
+    public UserResponse createPendingUser(CreateUserRequest request, Long actorUserId) {
         String accountNo = normalizeAccountNo(request.getAccountNo());
         String username = normalizeUsername(request.getUsername());
         if (userRepository.existsByAccountNoAndDeletedFalse(accountNo)) {
@@ -70,14 +76,22 @@ public class RbacUserServiceImpl implements RbacUserService {
         UserPo user = rbacDtoConverter.toUserPo(request);
         user.setAccountNo(accountNo);
         user.setUsername(username);
-        user.setEmail(trimToNull(request.getEmail()));
+        user.setEmail(request.getEmail().trim());
         user.setMobile(trimToNull(request.getMobile()));
-        user.setPasswordHash(passwordEncoder.encode(request.getInitialPassword()));
-        user.setStatus(request.getStatus() == null ? RbacStatus.ENABLED : rbacDtoConverter.toPoRbacStatus(request.getStatus()));
+        byte[] placeholderBytes = new byte[32];
+        secureRandom.nextBytes(placeholderBytes);
+        String placeholder = Base64.getUrlEncoder().withoutPadding().encodeToString(placeholderBytes);
+        user.setPasswordHash(passwordEncoder.encode(placeholder));
+        user.setStatus(RbacStatus.ENABLED);
+        user.setLocked(false);
+        user.setPasswordExpired(true);
+        user.setActivatedAt(null);
         UserPo savedUser = userRepository.save(user);
         replaceUserRoles(savedUser.getId(), request.getRoleIds(), actorUserId);
-        auditService.log(actorUserId, "RBAC_USER_CREATE", "USER", savedUser.getId(), null, savedUser.getUsername(), null, null);
-        LogUtil.info(log).log("rbac user created, userId={}, actorUserId={}", savedUser.getId(), actorUserId);
+        auditService.log(actorUserId, "RBAC_USER_CREATE_PENDING", "USER", savedUser.getId(),
+                null, savedUser.getUsername(), null, null);
+        LogUtil.info(log).log("rbac pending user created, userId={}, actorUserId={}",
+                savedUser.getId(), actorUserId);
         return rbacDtoConverter.toUserResponse(savedUser);
     }
 
@@ -105,16 +119,24 @@ public class RbacUserServiceImpl implements RbacUserService {
     @Transactional
     public UserResponse updateUser(Long userId, UpdateUserRequest request) {
         UserPo user = getUserPo(userId);
-        if (StringUtils.hasText(request.getEmail()) && !request.getEmail().equals(user.getEmail())
-                && userRepository.existsByEmailAndDeletedFalse(request.getEmail())) {
+        String newEmail = trimToNull(request.getEmail());
+        if (newEmail != null && !newEmail.equals(user.getEmail())
+                && userRepository.existsByEmailAndDeletedFalse(newEmail)) {
             throw new RbacException("RBAC_USER_EMAIL_DUPLICATED", "email already exists");
         }
         if (StringUtils.hasText(request.getMobile()) && !request.getMobile().equals(user.getMobile())
                 && userRepository.existsByMobileAndDeletedFalse(request.getMobile())) {
             throw new RbacException("RBAC_USER_MOBILE_DUPLICATED", "mobile already exists");
         }
+        boolean pending = user.getActivatedAt() == null;
+        boolean disabling = request.getStatus() != null
+                && rbacDtoConverter.toPoRbacStatus(request.getStatus()) != RbacStatus.ENABLED;
+        boolean locking = Boolean.TRUE.equals(request.getLocked());
+        if (pending && (!Objects.equals(user.getEmail(), newEmail) || disabling || locking)) {
+            revokePendingActivation(user, null, "pending user profile or availability changed");
+        }
         user.setNickname(request.getNickname());
-        user.setEmail(trimToNull(request.getEmail()));
+        user.setEmail(newEmail);
         user.setMobile(trimToNull(request.getMobile()));
         user.setAvatarUrl(request.getAvatarUrl());
         user.setRemark(request.getRemark());
@@ -169,6 +191,10 @@ public class RbacUserServiceImpl implements RbacUserService {
     @Transactional
     public void resetPassword(Long userId, String newPassword) {
         UserPo user = getUserPo(userId);
+        if (user.getActivatedAt() == null) {
+            throw new RbacException("AUTH_USER_NOT_ACTIVATED",
+                    "pending user password must be set through account activation");
+        }
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setPasswordExpired(false);
         userRepository.save(user);
@@ -179,6 +205,9 @@ public class RbacUserServiceImpl implements RbacUserService {
     @Transactional
     public void updateStatus(Long userId, top.egon.mario.rbac.dto.enums.RbacStatus status) {
         UserPo user = getUserPo(userId);
+        if (status != top.egon.mario.rbac.dto.enums.RbacStatus.ENABLED) {
+            revokePendingActivation(user, null, "pending user disabled");
+        }
         user.setStatus(rbacDtoConverter.toPoRbacStatus(status));
         userRepository.save(user);
         LogUtil.info(log).log("rbac user status updated, userId={}, statusCode={}", userId, status.getCode());
@@ -194,6 +223,7 @@ public class RbacUserServiceImpl implements RbacUserService {
         if ("admin".equalsIgnoreCase(user.getAccountNo())) {
             throw new RbacException("RBAC_USER_BUILT_IN", "built-in administrator cannot be deleted");
         }
+        revokePendingActivation(user, actorUserId, "pending user deleted");
         user.setDeleted(true);
         userRepository.save(user);
         auditService.log(actorUserId, "RBAC_USER_DELETE", "USER", userId, user.getUsername(), null, null, null);
@@ -300,6 +330,12 @@ public class RbacUserServiceImpl implements RbacUserService {
 
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private void revokePendingActivation(UserPo user, Long actorUserId, String reason) {
+        if (user.getActivatedAt() == null) {
+            accountActivationTokenService.revokeForUser(user.getId(), actorUserId, reason);
+        }
     }
 
     private void publishPermissionChanged(String reason) {
