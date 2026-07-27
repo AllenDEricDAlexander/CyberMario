@@ -1,8 +1,11 @@
-import {DeleteOutlined, LinkOutlined, PlusOutlined, SafetyCertificateOutlined} from '@ant-design/icons'
-import {Alert, App, Button, Drawer, Form, Input, Popconfirm, Select, Space, Switch, Table, Tag} from 'antd'
+import {ApartmentOutlined, DeleteOutlined, LinkOutlined, PlusOutlined, SafetyCertificateOutlined} from '@ant-design/icons'
+import {Alert, App, Button, Form, Input, Popconfirm, Select, Space, Switch, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useState} from 'react'
+import {DataTable} from '../../components/DataTable'
+import {FormDrawer} from '../../components/FormDrawer'
 import {PageToolbar} from '../../components/PageToolbar'
+import {StackedCell} from '../../components/StackedCell'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {CurrentFamilySelect} from './components/CurrentFamilySelect'
 import {NutritionAsyncState, nutritionLoadFailure} from './components/NutritionAsyncState'
@@ -29,12 +32,40 @@ import type {
     NutritionCreateDataGrantRequest,
     NutritionCreateScopedRoleBindingRequest,
     NutritionDataGrantResponse,
+    NutritionFamilyResponse,
     NutritionLoadState,
     NutritionScopedRoleBindingResponse,
     NutritionUpdateFamilySettingsRequest,
 } from './nutritionTypes'
-import {NutritionPageGrid, NutritionSection, NutritionStack} from './NutritionPageLayout'
+import {NutritionPageGrid, NutritionStack} from './NutritionPageLayout'
 import {useNutritionFamilySelection} from './useNutritionFamilySelection'
+
+/** Each drawer footer submits its form by id, so the buttons live outside the `<Form>`. */
+const settingsFormId = 'nutrition-family-settings-form'
+const actionFormId = 'nutrition-family-action-form'
+
+const clanColumns: ColumnsType<NutritionClanResponse> = [
+    {
+        title: 'Clan',
+        dataIndex: 'name',
+        render: (value: string, record) => <StackedCell primary={value} secondary={`Owner #${record.ownerUserId}`}/>,
+    },
+    {title: '状态', dataIndex: 'status', width: 100, render: (value) => <Tag>{value}</Tag>},
+]
+
+const familyColumns: ColumnsType<NutritionFamilyResponse> = [
+    {
+        title: '家庭',
+        dataIndex: 'name',
+        render: (value: string, record) => <StackedCell primary={value} secondary={record.region || '未设置地区'}/>,
+    },
+    {
+        title: 'AI',
+        dataIndex: 'aiEnabled',
+        width: 90,
+        render: (value: boolean) => <Tag color={value ? 'success' : 'default'}>{value ? '开启' : '关闭'}</Tag>,
+    },
+]
 
 type AdministrationAction = 'clan' | 'family' | 'association' | 'role' | 'grant'
 type AdministrationActionFormValues = {
@@ -184,9 +215,13 @@ function ClanFamilyPage() {
     }
 
     const roleColumns: ColumnsType<NutritionScopedRoleBindingResponse> = [
-        {title: '用户', dataIndex: 'subjectId', width: 100},
-        {title: '角色', dataIndex: 'roleCode'},
-        {title: '范围', dataIndex: 'scopeType', width: 120},
+        {
+            title: '角色',
+            dataIndex: 'roleCode',
+            render: (value: string, record) => (
+                <StackedCell primary={value} secondary={`用户 #${record.subjectId} · ${record.scopeType}`}/>
+            ),
+        },
         {
             title: '操作', width: 110, render: (_, record) => (
                 <Button
@@ -203,8 +238,12 @@ function ClanFamilyPage() {
         },
     ]
     const grantColumns: ColumnsType<NutritionDataGrantResponse> = [
-        {title: '授权对象', render: (_, record) => `${record.granteeType} #${record.granteeId}`},
-        {title: '数据范围', dataIndex: 'dataScope'},
+        {
+            title: '授权对象',
+            render: (_, record) => (
+                <StackedCell primary={`${record.granteeType} #${record.granteeId}`} secondary={record.dataScope}/>
+            ),
+        },
         {title: '权限', dataIndex: 'permissionLevel', width: 100},
         {
             title: '操作', width: 110, render: (_, record) => (
@@ -222,8 +261,14 @@ function ClanFamilyPage() {
         },
     ]
     const relationColumns: ColumnsType<NutritionClanFamilyRelationResponse> = [
-        {title: 'Clan ID', dataIndex: 'clanId'},
-        {title: '状态', dataIndex: 'relationStatus', render: (value) => <Tag color="success">{value}</Tag>},
+        {
+            title: '关联 Clan',
+            dataIndex: 'clanId',
+            render: (value: number, record) => (
+                <StackedCell primary={`Clan #${value}`} secondary={record.joinedAt ? `加入于 ${record.joinedAt}` : '未记录加入时间'}/>
+            ),
+        },
+        {title: '状态', dataIndex: 'relationStatus', width: 110, render: (value) => <Tag color="success">{value}</Tag>},
         {
             title: '操作', width: 110, render: (_, record) => (
                 <Button
@@ -265,6 +310,7 @@ function ClanFamilyPage() {
                     </Space>
                 )}
                 description="管理 Clan、家庭设置、关联关系、家庭角色和显式数据授权。"
+                icon={<ApartmentOutlined/>}
                 title="家庭营养"
             />
             {mutationError && <Alert closable={{onClose: () => setMutationError(undefined)}} showIcon title={mutationError} type="error"/>}
@@ -275,66 +321,80 @@ function ClanFamilyPage() {
             >
                 <NutritionStack>
                     <NutritionPageGrid>
-                        <NutritionSection
-                            extra={<Button disabled={!canManage} onClick={() => setAction('clan')} size="small">新建 Clan</Button>}
+                        <DataTable<NutritionClanResponse>
+                            columns={clanColumns}
+                            count={clans.length}
+                            dataSource={clans}
+                            emptyDescription="Clan 用来把多个家庭编成一族；先新建 Clan，再在下方关联家庭。"
+                            emptyTitle="还没有 Clan"
+                            pagination={false}
+                            rowKey="id"
+                            size="small"
                             title="Clan 列表"
-                        >
-                            <Table<NutritionClanResponse>
-                                columns={[
-                                    {title: 'Clan 名称', dataIndex: 'name'},
-                                    {title: 'Owner', dataIndex: 'ownerUserId', width: 100},
-                                ]}
-                                dataSource={clans}
-                                pagination={false}
-                                rowKey="id"
-                                size="small"
-                            />
-                        </NutritionSection>
-                        <NutritionSection title="家庭列表">
-                            <Table
-                                columns={[
-                                    {title: '家庭名称', dataIndex: 'name'},
-                                    {title: '地区', dataIndex: 'region'},
-                                    {title: 'AI', dataIndex: 'aiEnabled', render: (value) => value ? '开启' : '关闭'},
-                                ]}
-                                dataSource={familySelection.families}
-                                pagination={false}
-                                rowKey="id"
-                                size="small"
-                            />
-                        </NutritionSection>
+                            toolbar={<Button disabled={!canManage} onClick={() => setAction('clan')} size="small">新建 Clan</Button>}
+                        />
+                        <DataTable<NutritionFamilyResponse>
+                            columns={familyColumns}
+                            count={familySelection.families.length}
+                            dataSource={familySelection.families}
+                            emptyDescription="点击右上角「新建家庭」创建，创建后即可维护成员、菜单与预算。"
+                            emptyTitle="还没有可管理的家庭"
+                            pagination={false}
+                            rowKey="id"
+                            size="small"
+                            title="家庭列表"
+                        />
                     </NutritionPageGrid>
-                    <NutritionSection
-                        extra={<Button disabled={!canManage} icon={<LinkOutlined/>} onClick={() => setAction('association')} size="small">关联家庭</Button>}
+                    <DataTable<NutritionClanFamilyRelationResponse>
+                        columns={relationColumns}
+                        count={relations.length}
+                        dataSource={relations}
+                        emptyDescription="点击「关联家庭」把当前家庭挂到某个 Clan 下，之后可共享 Clan 级授权。"
+                        emptyTitle="当前家庭尚未关联 Clan"
+                        pagination={false}
+                        rowKey="id"
+                        size="small"
                         title="关联关系"
-                    >
-                        <Table columns={relationColumns} dataSource={relations} pagination={false} rowKey="id" size="small"/>
-                    </NutritionSection>
+                        toolbar={<Button disabled={!canManage} icon={<LinkOutlined/>} onClick={() => setAction('association')} size="small">关联家庭</Button>}
+                    />
                     <NutritionPageGrid>
-                        <NutritionSection
-                            extra={<Button disabled={!canManage} icon={<SafetyCertificateOutlined/>} onClick={() => setAction('role')} size="small">新增角色</Button>}
+                        <DataTable<NutritionScopedRoleBindingResponse>
+                            columns={roleColumns}
+                            count={roles.length}
+                            dataSource={roles}
+                            emptyDescription="点击「新增角色」把成员设为家庭管理员、厨师或监护人。"
+                            emptyTitle="还没有家庭角色"
+                            pagination={false}
+                            rowKey="id"
+                            size="small"
                             title="家庭角色"
-                        >
-                            <Table columns={roleColumns} dataSource={roles} pagination={false} rowKey="id" size="small"/>
-                        </NutritionSection>
-                        <NutritionSection
-                            extra={<Button disabled={!canManage} onClick={() => setAction('grant')} size="small">新增授权</Button>}
+                            toolbar={<Button disabled={!canManage} icon={<SafetyCertificateOutlined/>} onClick={() => setAction('role')} size="small">新增角色</Button>}
+                        />
+                        <DataTable<NutritionDataGrantResponse>
+                            columns={grantColumns}
+                            count={grants.length}
+                            dataSource={grants}
+                            emptyDescription="点击「新增授权」把健康档案、菜单或预算按范围显式授权给某位用户或 Clan。"
+                            emptyTitle="还没有数据授权"
+                            pagination={false}
+                            rowKey="id"
+                            size="small"
                             title="数据授权"
-                        >
-                            <Table columns={grantColumns} dataSource={grants} pagination={false} rowKey="id" size="small"/>
-                        </NutritionSection>
+                            toolbar={<Button disabled={!canManage} onClick={() => setAction('grant')} size="small">新增授权</Button>}
+                        />
                     </NutritionPageGrid>
                 </NutritionStack>
             </NutritionAsyncState>
-            <Drawer
-                destroyOnHidden
+            <FormDrawer
+                footerHint="设置只影响当前家庭；AI 生成时间使用 24 小时制。"
+                formId={settingsFormId}
                 loading={saving}
                 onClose={() => setSettingsOpen(false)}
                 open={settingsOpen}
+                size="md"
                 title="家庭设置"
-                size={480}
             >
-                <Form form={settingsForm} layout="vertical" onFinish={(values) => void saveSettings(values)}>
+                <Form form={settingsForm} id={settingsFormId} layout="vertical" onFinish={(values) => void saveSettings(values)}>
                     <Form.Item label="地区" name="region"><Input/></Form.Item>
                     <Form.Item label="币种" name="currency"><Input maxLength={3}/></Form.Item>
                     <Form.Item label="默认餐次" name="defaultMealTypes">
@@ -346,17 +406,18 @@ function ClanFamilyPage() {
                     <Form.Item label="AI 生成时间" name="aiGenerateTime"><Input placeholder="07:30:00"/></Form.Item>
                     <Form.Item label="健康提醒" name="healthAlertEnabled" valuePropName="checked"><Switch/></Form.Item>
                     <Form.Item label="预算管理" name="budgetEnabled" valuePropName="checked"><Switch/></Form.Item>
-                    <Button htmlType="submit" loading={saving} type="primary">保存</Button>
                 </Form>
-            </Drawer>
-            <Drawer
-                destroyOnHidden
+            </FormDrawer>
+            <FormDrawer
+                formId={actionFormId}
+                loading={saving}
                 onClose={() => setAction(undefined)}
                 open={Boolean(action)}
+                size="sm"
+                submitText="保存"
                 title={actionTitle(action)}
-                size={480}
             >
-                <Form form={actionForm} layout="vertical" onFinish={(values) => void submitAction(values)}>
+                <Form form={actionForm} id={actionFormId} layout="vertical" onFinish={(values) => void submitAction(values)}>
                     {action === 'clan' && <Form.Item label="Clan 名称" name="name" rules={[{required: true}]}><Input/></Form.Item>}
                     {action === 'family' && <>
                         <Form.Item label="家庭名称" name="name" rules={[{required: true}]}><Input/></Form.Item>
@@ -385,9 +446,8 @@ function ClanFamilyPage() {
                         <Form.Item label="数据范围" name="dataScope" rules={[{required: true}]}><Select options={grantScopeOptions}/></Form.Item>
                         <Form.Item label="权限级别" name="permissionLevel" rules={[{required: true}]}><Select options={permissionOptions}/></Form.Item>
                     </>}
-                    <Button htmlType="submit" loading={saving} type="primary">保存</Button>
                 </Form>
-            </Drawer>
+            </FormDrawer>
         </NutritionStack>
     )
 }

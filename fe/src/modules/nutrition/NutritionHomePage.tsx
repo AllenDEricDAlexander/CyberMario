@@ -1,15 +1,29 @@
-import {CheckCircleOutlined, DollarOutlined, RobotOutlined} from '@ant-design/icons'
-import {Card, Statistic, Table, Tag} from 'antd'
+import {CheckCircleOutlined, DashboardOutlined, DollarOutlined, RobotOutlined} from '@ant-design/icons'
+import {Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useState} from 'react'
+import {DataTable} from '../../components/DataTable'
 import {PageToolbar} from '../../components/PageToolbar'
+import {StackedCell} from '../../components/StackedCell'
+import {StatCard, StatGrid} from '../../components/StatCard'
 import {CurrentFamilySelect} from './components/CurrentFamilySelect'
 import {MoneyText} from './components/MoneyText'
 import {NutritionAsyncState, nutritionLoadFailure} from './components/NutritionAsyncState'
 import {getNutritionHomeOverview} from './nutritionService'
 import type {NutritionAmount, NutritionHomeOverviewResponse, NutritionLoadState, NutritionMealPlanResponse} from './nutritionTypes'
-import {NutritionPageGrid, NutritionStack} from './NutritionPageLayout'
+import {NutritionStack} from './NutritionPageLayout'
 import {useNutritionFamilySelection} from './useNutritionFamilySelection'
+
+const mealPlanColumns: ColumnsType<NutritionMealPlanResponse> = [
+    {
+        title: '菜单',
+        dataIndex: 'title',
+        render: (value: string, row) => <StackedCell primary={value} secondary={row.planDate}/>,
+    },
+    {title: '状态', dataIndex: 'status', width: 140, render: (value) => <Tag color="processing">{value}</Tag>},
+    {title: '确认人数', dataIndex: 'confirmedMemberCount', width: 110},
+    {title: '预估成本', dataIndex: 'estimatedCost', width: 130, render: (value: NutritionAmount | null | undefined) => <MoneyText value={value}/>},
+]
 
 function NutritionHomePage() {
     const familySelection = useNutritionFamilySelection()
@@ -39,13 +53,6 @@ function NutritionHomePage() {
         void loadOverview()
     }, [loadOverview])
 
-    const columns: ColumnsType<NutritionMealPlanResponse> = [
-        {title: '菜单', dataIndex: 'title', width: 180},
-        {title: '日期', dataIndex: 'planDate', width: 120},
-        {title: '状态', dataIndex: 'status', width: 140, render: (value) => <Tag color="processing">{value}</Tag>},
-        {title: '确认人数', dataIndex: 'confirmedMemberCount', width: 110},
-        {title: '预估成本', dataIndex: 'estimatedCost', width: 130, render: (value: NutritionAmount | null | undefined) => <MoneyText value={value}/>},
-    ]
     const visibleState = familySelection.state === 'ready' ? state : familySelection.state
     const visibleError = familySelection.state === 'ready' ? error : familySelection.error
 
@@ -61,6 +68,7 @@ function NutritionHomePage() {
                     />
                 )}
                 description="跟踪家庭菜单、确认进度、风险、采购和预算使用。"
+                icon={<DashboardOutlined/>}
                 title="营养首页"
             />
             <NutritionAsyncState
@@ -69,40 +77,43 @@ function NutritionHomePage() {
                 state={visibleState}
             >
                 <NutritionStack>
-                    <NutritionPageGrid>
-                        <Card>
-                            <Statistic
-                                prefix={<RobotOutlined/>}
-                                title="今日菜单"
-                                value={overview?.mealPlans.length ?? 0}
-                            />
-                        </Card>
-                        <Card>
-                            <Statistic
-                                suffix="%"
-                                prefix={<DollarOutlined/>}
-                                title="预算使用率"
-                                value={Number(overview?.budgetUsageRate ?? 0)}
-                            />
-                        </Card>
-                        <Card>
-                            <Statistic
-                                prefix={<CheckCircleOutlined/>}
-                                title="待确认成员"
-                                value={overview?.unconfirmedMemberCount ?? 0}
-                            />
-                        </Card>
-                        <Card title="今日实际成本">
-                            <MoneyText value={overview?.actualCost ?? 0}/>
-                        </Card>
-                    </NutritionPageGrid>
-                    <Table<NutritionMealPlanResponse>
-                        columns={columns}
+                    <StatGrid columns={4}>
+                        <StatCard
+                            icon={<RobotOutlined/>}
+                            label="今日菜单"
+                            value={overview?.mealPlans.length ?? 0}
+                        />
+                        <StatCard
+                            icon={<DollarOutlined/>}
+                            label="预算使用率"
+                            suffix="%"
+                            tone="sky"
+                            value={Number(overview?.budgetUsageRate ?? 0)}
+                        />
+                        <StatCard
+                            icon={<CheckCircleOutlined/>}
+                            label="待确认成员"
+                            tone="amber"
+                            value={overview?.unconfirmedMemberCount ?? 0}
+                        />
+                        <StatCard
+                            hint="按已记录的采购价格累计"
+                            label="今日实际成本"
+                            tone="violet"
+                            value={<MoneyText value={overview?.actualCost ?? 0}/>}
+                        />
+                    </StatGrid>
+                    <DataTable<NutritionMealPlanResponse>
+                        columns={mealPlanColumns}
+                        count={overview?.mealPlans.length ?? 0}
                         dataSource={overview?.mealPlans ?? []}
+                        emptyDescription="生成或人工创建今日菜单后，确认进度和成本会显示在这里。"
+                        emptyTitle="今天还没有菜单"
                         pagination={false}
                         rowKey="id"
-                        scroll={{x: 760}}
+                        scroll={{x: 560}}
                         size="small"
+                        title="今日菜单"
                     />
                 </NutritionStack>
             </NutritionAsyncState>

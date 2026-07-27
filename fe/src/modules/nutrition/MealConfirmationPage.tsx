@@ -1,7 +1,11 @@
-import {CheckOutlined} from '@ant-design/icons'
-import {Alert, App, Button, Checkbox, Input, Select, Space, Table, Tag} from 'antd'
+import {CheckOutlined, CheckSquareOutlined} from '@ant-design/icons'
+import {Alert, App, Button, Checkbox, Input, Select, Space, Tag} from 'antd'
+import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useState} from 'react'
+import {DataTable} from '../../components/DataTable'
+import {EmptyState} from '../../components/EmptyState'
 import {PageToolbar} from '../../components/PageToolbar'
+import {StackedCell} from '../../components/StackedCell'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {CurrentFamilySelect} from './components/CurrentFamilySelect'
 import {NutritionAsyncState, nutritionLoadFailure} from './components/NutritionAsyncState'
@@ -23,6 +27,19 @@ import type {
 } from './nutritionTypes'
 import {NutritionPageGrid, NutritionSection, NutritionStack} from './NutritionPageLayout'
 import {useNutritionFamilySelection} from './useNutritionFamilySelection'
+
+const confirmationColumns: ColumnsType<NutritionMealConfirmationResponse> = [
+    {
+        title: '成员档案',
+        dataIndex: 'memberProfileId',
+        render: (value: number, row) => (
+            <StackedCell primary={value} secondary={row.eatAtHome ? '在家用餐' : '不在家用餐'}/>
+        ),
+    },
+    {title: '状态', dataIndex: 'confirmationStatus', width: 120, render: (value) => <Tag color="success">{value}</Tag>},
+    {title: '已选菜品', width: 110, render: (_, row) => row.items.filter((item) => item.selected).length},
+    {title: '备注', dataIndex: 'remark', render: (value: string | null | undefined) => value || '-'},
+]
 
 function MealConfirmationPage() {
     const auth = useAuth()
@@ -105,6 +122,7 @@ function MealConfirmationPage() {
     const hasBlockingRisk = mealPlan?.risks.some((risk) => risk.blocking) ?? false
     const hasMediumRisk = mealPlan?.risks.some((risk) => risk.riskLevel === 'MEDIUM' && risk.requiresConfirmation) ?? false
     const mediumRiskPending = hasMediumRisk && items.some((item) => item.selected && !item.riskAcknowledged)
+    const planItems = mealPlan?.items ?? []
     const visibleState = familySelection.state === 'ready' ? state : familySelection.state
 
     return (
@@ -128,6 +146,7 @@ function MealConfirmationPage() {
                     </Space>
                 )}
                 description="确认成员是否在家用餐、逐个菜品和份量；中风险需确认，高风险阻断提交。"
+                icon={<CheckSquareOutlined/>}
                 title="用餐确认"
             />
             {mutationError && <Alert closable={{onClose: () => setMutationError(undefined)}} showIcon title={mutationError} type="error"/>}
@@ -162,7 +181,14 @@ function MealConfirmationPage() {
                         </NutritionSection>
                         <NutritionSection title="逐菜确认">
                             <NutritionStack>
-                                {(mealPlan?.items ?? []).map((planItem) => {
+                                {planItems.length === 0 && (
+                                    <EmptyState
+                                        description="发布含菜品的菜单后，可在这里逐个确认份量。"
+                                        inline
+                                        title="菜单里还没有菜品"
+                                    />
+                                )}
+                                {planItems.map((planItem) => {
                                     const item = items.find((row) => row.mealPlanItemId === planItem.id)
                                     return (
                                         <NutritionStack key={planItem.id}>
@@ -195,21 +221,17 @@ function MealConfirmationPage() {
                             </NutritionStack>
                         </NutritionSection>
                     </NutritionPageGrid>
-                    <NutritionSection title="确认记录">
-                        <Table<NutritionMealConfirmationResponse>
-                            columns={[
-                                {title: '成员档案', dataIndex: 'memberProfileId'},
-                                {title: '状态', dataIndex: 'confirmationStatus', render: (value) => <Tag color="success">{value}</Tag>},
-                                {title: '在家用餐', dataIndex: 'eatAtHome', render: (value) => value ? '是' : '否'},
-                                {title: '已选菜品', render: (_, row) => row.items.filter((item) => item.selected).length},
-                                {title: '备注', dataIndex: 'remark', render: (value: string | null | undefined) => value || '-'},
-                            ]}
-                            dataSource={confirmations}
-                            pagination={false}
-                            rowKey="id"
-                            size="small"
-                        />
-                    </NutritionSection>
+                    <DataTable<NutritionMealConfirmationResponse>
+                        columns={confirmationColumns}
+                        count={confirmations.length}
+                        dataSource={confirmations}
+                        emptyDescription="成员提交确认后，用餐人数、份量和备注会记录在这里。"
+                        emptyTitle="还没有确认记录"
+                        pagination={false}
+                        rowKey="id"
+                        size="small"
+                        title="确认记录"
+                    />
                 </NutritionStack>
             </NutritionAsyncState>
         </NutritionStack>
