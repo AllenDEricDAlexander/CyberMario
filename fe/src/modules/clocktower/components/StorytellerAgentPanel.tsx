@@ -97,7 +97,7 @@ export function StorytellerAgentPanel({gameId}: { gameId: number }) {
                 actionLoadingKey={actionLoadingKey}
                 agents={agents}
                 loading={loading}
-                onOpenMemory={openMemory}
+                onOpenMemory={(agent) => void openMemory(agent)}
                 onPause={(agent) => void runAgentAction(agent, 'pause')}
                 onRefresh={() => void refresh()}
                 onResume={(agent) => void runAgentAction(agent, 'resume')}
