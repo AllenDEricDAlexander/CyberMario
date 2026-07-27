@@ -303,7 +303,7 @@ export function GameRoomSurface({
             payload: {},
         })
         if (response.event) {
-            const gameEvent = response.event as ClocktowerGameEventResponse
+            const gameEvent = response.event
             setEvents((current) => [...current, mapGameEvent(view.roomId, gameEvent)])
         }
         if (!response.accepted) {

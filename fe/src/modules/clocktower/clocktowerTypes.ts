@@ -660,7 +660,7 @@ export type ClocktowerMicSessionView = {
     sessionId: number
     gameId: number
     dayNo?: number | null
-    status: 'ROUND_ROBIN' | 'GRAB_MIC' | 'CLOSED' | string
+    status: 'ROUND_ROBIN' | 'GRAB_MIC' | 'CLOSED'
     currentHolderGameSeatId?: number | null
     currentTurnId?: number | null
     roundStartedAt?: string | null
