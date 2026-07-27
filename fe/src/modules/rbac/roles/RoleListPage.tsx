@@ -1,12 +1,26 @@
-import {BranchesOutlined, EditOutlined, PlusOutlined, SafetyOutlined} from '@ant-design/icons'
-import {App, Button, Popconfirm, Space, Table, Tag} from 'antd'
+import {
+    BranchesOutlined,
+    DeleteOutlined,
+    EditOutlined,
+    PlusOutlined,
+    SafetyOutlined,
+    TeamOutlined,
+} from '@ant-design/icons'
+import {App, Button, Form, Input, Select, Skeleton, Space, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
-import type {ReactNode} from 'react'
-import {useCallback, useEffect, useState} from 'react'
+import {useCallback, useEffect, useMemo, useState} from 'react'
+import {DataTable} from '../../../components/DataTable'
+import {EmptyState} from '../../../components/EmptyState'
+import {ErrorState} from '../../../components/ErrorState'
+import {FilterBar} from '../../../components/FilterBar'
 import {PageToolbar} from '../../../components/PageToolbar'
+import {RowActions, type RowAction} from '../../../components/RowActions'
+import {StackedCell} from '../../../components/StackedCell'
 import {StatusTag} from '../../../components/StatusTag'
 import {usePageData} from '../../../hooks/usePageData'
+import {resolveErrorMessage} from '../../../services/request'
 import {voidify} from '../../../utils/async'
+import {enumEquals} from '../../../utils/enum'
 import {canUseRbacButton, useAuth} from '../../auth/authStore'
 import {rbacButtonCodes} from '../rbacPermissionCodes'
 import {
@@ -26,6 +40,19 @@ import {RoleEditorDrawer} from './RoleEditorDrawer'
 import {RoleInheritanceDrawer} from './RoleInheritanceDrawer'
 import {RolePermissionDrawer} from './RolePermissionDrawer'
 
+type RoleFilters = {
+    keyword?: string
+    status?: string
+    builtIn?: string
+}
+
+/** Per-row state for the expanded "有效权限" summary, kept separately for every role id. */
+type RoleEffectiveState = {
+    error?: string
+    ids?: number[]
+    loading: boolean
+}
+
 function RoleListPage() {
     const {message} = App.useApp()
     const auth = useAuth()
@@ -37,7 +64,8 @@ function RoleListPage() {
     const [selectedPermissionIds, setSelectedPermissionIds] = useState<number[]>([])
     const [inheritanceRole, setInheritanceRole] = useState<RoleResponse | null>(null)
     const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([])
-    const [effectiveIds, setEffectiveIds] = useState<number[]>([])
+    const [effectiveStates, setEffectiveStates] = useState<Record<number, RoleEffectiveState>>({})
+    const [filters, setFilters] = useState<RoleFilters>({})
     const loadRolesPage = useCallback(
         (request: { page: number; size: number }) => getRoles(request),
         [],
@@ -59,52 +87,72 @@ function RoleListPage() {
     const canEditInheritance = canUseRbacButton(auth, rbacButtonCodes.role.inheritance)
     const canDelete = canUseRbacButton(auth, rbacButtonCodes.role.delete)
 
+    /** Filtering runs client-side over the loaded page — the list API has no query params. */
+    const visibleRoles = useMemo(() => filterRoles(roles, filters), [filters, roles])
+
     const columns: ColumnsType<RoleResponse> = [
-        {title: '角色编码', dataIndex: 'roleCode', width: 180},
-        {title: '角色名称', dataIndex: 'roleName', width: 160},
-        {title: '状态', dataIndex: 'status', width: 100, render: (_, record) => <StatusTag value={record.status}/>},
-        {title: '排序', dataIndex: 'sortNo', width: 90},
         {
-            title: '内置',
-            dataIndex: 'builtIn',
-            width: 90,
-            render: (_, record) => record.builtIn ? <Tag color="blue">内置</Tag> : '-'
+            title: '角色',
+            dataIndex: 'roleCode',
+            fixed: 'left',
+            width: 240,
+            render: (_, record) => <StackedCell primary={record.roleName} secondary={record.roleCode}/>,
         },
+        {
+            title: '状态',
+            dataIndex: 'status',
+            width: 150,
+            render: (_, record) => (
+                <Space size={4} wrap>
+                    <StatusTag value={record.status}/>
+                    {record.builtIn && <Tag color="blue">内置</Tag>}
+                </Space>
+            ),
+        },
+        {title: '排序', dataIndex: 'sortNo', width: 90},
         {title: '描述', dataIndex: 'description', render: (_, record) => record.description || '-'},
         {
             title: '操作',
             fixed: 'right',
-            width: 310,
+            width: 190,
             render: (_, record) => renderActions(record),
         },
     ]
 
     function renderActions(record: RoleResponse) {
-        const actions: ReactNode[] = []
-        if (canEdit) {
-            actions.push(<Button icon={<EditOutlined/>} key="edit" size="small"
-                                 onClick={() => openEditor(record)}>编辑</Button>)
-        }
-        if (canAssignPermissions) {
-            actions.push(<Button icon={<SafetyOutlined/>} key="permissions" size="small"
-                                 onClick={() => void openPermissions(record)}>权限</Button>)
-        }
-        if (canEditInheritance) {
-            actions.push(
-                <Button icon={<BranchesOutlined/>} key="inheritance" size="small"
-                        onClick={() => void openInheritance(record)}>
-                    继承
-                </Button>,
-            )
-        }
-        if (canDelete) {
-            actions.push(
-                <Popconfirm key="delete" title="确认删除该角色？" onConfirm={() => void removeRole(record.id)}>
-                    <Button danger size="small">删除</Button>
-                </Popconfirm>,
-            )
-        }
-        return actions.length ? <Space>{actions}</Space> : '-'
+        const actions: RowAction[] = [
+            {
+                key: 'edit',
+                label: '编辑',
+                icon: <EditOutlined/>,
+                hidden: !canEdit,
+                onClick: () => openEditor(record),
+            },
+            {
+                key: 'permissions',
+                label: '权限',
+                icon: <SafetyOutlined/>,
+                hidden: !canAssignPermissions,
+                onClick: () => void openPermissions(record),
+            },
+            {
+                key: 'inheritance',
+                label: '继承',
+                icon: <BranchesOutlined/>,
+                hidden: !canEditInheritance,
+                onClick: () => void openInheritance(record),
+            },
+            {
+                key: 'delete',
+                label: '删除',
+                icon: <DeleteOutlined/>,
+                danger: true,
+                hidden: !canDelete,
+                confirm: '确认删除该角色？删除后无法恢复。',
+                onClick: () => void removeRole(record.id),
+            },
+        ]
+        return <RowActions actions={actions} maxInline={2}/>
     }
 
     function openEditor(role?: RoleResponse) {
@@ -130,12 +178,24 @@ function RoleListPage() {
 
     async function openPermissions(role: RoleResponse) {
         setPermissionRole(role)
-        const [directIds, effectivePermissionIds] = await Promise.all([
-            getRolePermissions(role.id),
-            getRoleEffectivePermissions(role.id),
-        ])
-        setSelectedPermissionIds(directIds)
-        setEffectiveIds(effectivePermissionIds)
+        setSelectedPermissionIds(await getRolePermissions(role.id))
+    }
+
+    /**
+     * Loads one role's effective permissions on demand. Re-runs on every expand so a row
+     * opened after a permission or inheritance edit shows the updated set.
+     */
+    async function loadEffectivePermissions(roleId: number) {
+        setEffectiveStates((current) => ({...current, [roleId]: {...current[roleId], loading: true}}))
+        try {
+            const ids = await getRoleEffectivePermissions(roleId)
+            setEffectiveStates((current) => ({...current, [roleId]: {ids, loading: false}}))
+        } catch (error) {
+            setEffectiveStates((current) => ({
+                ...current,
+                [roleId]: {error: resolveErrorMessage(error), loading: false},
+            }))
+        }
     }
 
     async function savePermissions(ids: number[], syncButtonApis: boolean) {
@@ -176,27 +236,71 @@ function RoleListPage() {
     return (
         <>
             <PageToolbar
-                actions={canCreate &&
-                    <Button icon={<PlusOutlined/>} onClick={() => openEditor()} type="primary">新建角色</Button>}
+                actions={canCreate && (
+                    <Button icon={<PlusOutlined/>} onClick={() => openEditor()} type="primary">新建角色</Button>
+                )}
                 description="维护角色、直接权限和 RBAC1 角色继承。"
+                icon={<TeamOutlined/>}
                 title="角色管理"
             />
-            <Table<RoleResponse>
+            <FilterBar<RoleFilters>
+                onReset={() => setFilters({})}
+                onSearch={setFilters}
+            >
+                <Form.Item label="关键词" name="keyword">
+                    <Input allowClear placeholder="角色编码、名称、描述"/>
+                </Form.Item>
+                <Form.Item label="状态" name="status">
+                    <Select
+                        allowClear
+                        options={[
+                            {label: '启用', value: 'ENABLED'},
+                            {label: '禁用', value: 'DISABLED'},
+                        ]}
+                        placeholder="全部"
+                    />
+                </Form.Item>
+                <Form.Item label="来源" name="builtIn">
+                    <Select
+                        allowClear
+                        options={[
+                            {label: '内置角色', value: 'builtIn'},
+                            {label: '自定义角色', value: 'custom'},
+                        ]}
+                        placeholder="全部"
+                    />
+                </Form.Item>
+            </FilterBar>
+            <DataTable<RoleResponse>
                 columns={columns}
-                dataSource={roles}
+                count={total}
+                dataSource={visibleRoles}
+                emptyDescription="调整筛选条件，或新建一个角色并为它分配权限。"
+                emptyTitle="没有匹配的角色"
                 expandable={{
-                    expandedRowRender: () => <RoleEffectiveSummary permissions={permissions} ids={effectiveIds}/>,
+                    expandedRowRender: (record) => (
+                        <RoleEffectiveSummary
+                            onRetry={() => void loadEffectivePermissions(record.id)}
+                            permissions={permissions}
+                            state={effectiveStates[record.id]}
+                        />
+                    ),
+                    onExpand: (expanded, record) => {
+                        if (expanded) {
+                            void loadEffectivePermissions(record.id)
+                        }
+                    },
                 }}
                 loading={loading}
                 pagination={{
                     current: page,
                     pageSize: size,
                     total,
-                    showSizeChanger: true,
                     onChange: voidify(loadRoles),
                 }}
                 rowKey="id"
-                scroll={{x: 1160}}
+                scroll={{x: 960}}
+                title="角色列表"
             />
             <RoleEditorDrawer
                 loading={saving}
@@ -227,10 +331,44 @@ function RoleListPage() {
     )
 }
 
-function RoleEffectiveSummary({permissions, ids}: { permissions: PermissionResponse[]; ids: number[] }) {
+function filterRoles(roles: RoleResponse[], filters: RoleFilters) {
+    const keyword = filters.keyword?.trim().toLowerCase()
+    return roles.filter((role) => {
+        if (filters.status && !enumEquals(role.status, filters.status)) {
+            return false
+        }
+        if (filters.builtIn && role.builtIn !== (filters.builtIn === 'builtIn')) {
+            return false
+        }
+        if (!keyword) {
+            return true
+        }
+        return [role.roleCode, role.roleName, role.description]
+            .some((field) => field?.toLowerCase().includes(keyword))
+    })
+}
+
+function RoleEffectiveSummary({onRetry, permissions, state}: {
+    onRetry: () => void
+    permissions: PermissionResponse[]
+    state?: RoleEffectiveState
+}) {
+    const {error, ids, loading}: RoleEffectiveState = state ?? {loading: true}
+    if (error) {
+        return <ErrorState inline message={error} onRetry={onRetry} title="有效权限加载失败"/>
+    }
+    if (loading || !ids) {
+        return <Skeleton active paragraph={{rows: 1}} title={false}/>
+    }
     const matched = permissions.filter((permission) => ids.includes(permission.id))
     if (!matched.length) {
-        return <span>展开前请先点击“权限”加载有效权限，或该角色暂无有效权限。</span>
+        return (
+            <EmptyState
+                description="该角色没有直接分配或继承得到的权限，可通过“权限”“继承”操作分配。"
+                inline
+                title="暂无有效权限"
+            />
+        )
     }
     return (
         <Space wrap>
