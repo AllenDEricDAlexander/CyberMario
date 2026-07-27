@@ -1,6 +1,7 @@
-import {Button, Empty, Flex, Tabs, Typography} from 'antd'
+import {Button, Flex, Tabs, Typography} from 'antd'
 import {useState} from 'react'
 import {Outlet, useLocation, useNavigate} from 'react-router'
+import {EmptyState} from '../../components/EmptyState'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {InvestmentAsyncState} from './components/InvestmentAsyncState'
 import {InvestmentWorkspaceSelect} from './components/InvestmentWorkspaceSelect'
@@ -68,12 +69,11 @@ function InvestmentWorkspaceLayoutContent() {
                     {canCreate && <Button onClick={() => setCreateOpen(true)} type="primary">创建工作区</Button>}
                 </Flex>
             </header>
-            <nav aria-label="投资工作区导航">
+            <nav aria-label="投资工作区导航" className="investment-workspace-nav">
                 <Tabs
                     activeKey={activeTab?.key}
                     items={workspaceTabs.map(({key, label}) => ({key, label}))}
                     onChange={(path) => void navigate(path)}
-                    tabBarStyle={{marginBottom: 16}}
                 />
             </nav>
             {requiresWorkspace ? (
@@ -120,12 +120,11 @@ function PrivateWorkspaceContent({
     }
     if (!currentWorkspaceSelected) {
         return (
-            <Empty
-                description="请先选择或创建一个私人投资工作区"
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-            >
-                {canCreate && <Button onClick={onCreate} type="primary">创建工作区</Button>}
-            </Empty>
+            <EmptyState
+                action={canCreate && <Button onClick={onCreate} type="primary">创建工作区</Button>}
+                description="工作区隔离每个人的分析、回测与模拟盘数据；用顶部的选择器挑一个，或新建一个。"
+                title="请先选择或创建一个私人投资工作区"
+            />
         )
     }
     return <Outlet/>

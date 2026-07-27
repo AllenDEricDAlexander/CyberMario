@@ -1,4 +1,6 @@
-import {Alert, Button, Card, Descriptions, Drawer, Flex, Space, Spin, Tag, Typography} from 'antd'
+import {Alert, Button, Card, Descriptions, Flex, Spin, Tag, Typography} from 'antd'
+import {FormDrawer} from '../../../components/FormDrawer'
+import {PageGrid, PageStack} from '../../../components/PageSection'
 import type {
     InvestmentAgentDecisionResponse,
     InvestmentAgentExecutionResponse,
@@ -17,22 +19,23 @@ export function InvestmentAgentRunDrawer({open, runId, onClose}: InvestmentAgent
     const run = detail?.run
 
     return (
-        <Drawer
-            destroyOnHidden
+        <FormDrawer
             extra={<Button loading={polling} onClick={refresh}>刷新</Button>}
+            footer={false}
             onClose={onClose}
             open={open}
-            size="large"
+            size="lg"
             title={runId === undefined ? 'Agent 运行详情' : `Agent 运行 #${runId}`}
         >
-            <Space orientation="vertical" size={16} style={{width: '100%'}}>
+            <PageStack>
                 <Alert
+                    className="page-alert"
                     description="Agent 不会连接实盘账户，也不提供逐单确认入口。"
                     title="仅模拟盘，风控通过后自动执行"
                     showIcon
                     type="warning"
                 />
-                {!detail && !error && <Flex justify="center"><Spin/></Flex>}
+                {!detail && !error && <div className="state-block"><Spin/></div>}
                 {error && <Alert description={error} showIcon title="Agent 状态刷新失败" type="warning"/>}
                 {run && (
                     <Descriptions
@@ -62,8 +65,8 @@ export function InvestmentAgentRunDrawer({open, runId, onClose}: InvestmentAgent
                 {detail?.decisions.map((decision) => (
                     <DecisionCard decision={decision} key={decision.id}/>
                 ))}
-            </Space>
-        </Drawer>
+            </PageStack>
+        </FormDrawer>
     )
 }
 
@@ -78,7 +81,7 @@ function DecisionCard({decision}: {decision: InvestmentAgentDecisionResponse}) {
                 </Flex>
             )}
         >
-            <Space orientation="vertical" size={16} style={{width: '100%'}}>
+            <PageStack>
                 <Descriptions
                     column={2}
                     size="small"
@@ -97,19 +100,19 @@ function DecisionCard({decision}: {decision: InvestmentAgentDecisionResponse}) {
                     <Typography.Title level={5}>分析依据</Typography.Title>
                     <Typography.Paragraph>{decision.thesis}</Typography.Paragraph>
                 </section>
-                <Flex gap={24} wrap>
+                <PageGrid minWidth={240}>
                     <DecisionList items={decision.risks} title="风险"/>
                     <DecisionList items={decision.invalidation} title="失效条件"/>
-                </Flex>
+                </PageGrid>
                 <ExecutionChain decision={decision} execution={decision.execution}/>
-            </Space>
+            </PageStack>
         </Card>
     )
 }
 
 function DecisionList({items, title}: {items: string[]; title: string}) {
     return (
-        <section aria-label={title} style={{minWidth: 240, flex: 1}}>
+        <section aria-label={title}>
             <Typography.Title level={5}>{title}</Typography.Title>
             <ul>{items.map((item) => <li key={item}>{item}</li>)}</ul>
         </section>

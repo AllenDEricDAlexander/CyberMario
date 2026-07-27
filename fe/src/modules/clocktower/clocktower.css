@@ -1,0 +1,63 @@
+/*
+ * Clocktower module styles.
+ *
+ * Only the handful of rules the shared kit does not cover: dense editor field
+ * rows and preformatted event payloads. Everything else uses the global
+ * utilities in `src/styles`.
+ *
+ * Imported by each page that uses these classes, matching how `investment.css`
+ * and `PlatformImPage.css` are loaded. The bundler emits the file once.
+ */
+
+/* Editor field rows. Replaces the per-control `style={{width: 220}}` widths:
+   fields size themselves on a grid and collapse to one column on phones. */
+.clocktower-field-row {
+    display: grid;
+    align-items: end;
+    gap: var(--space-xs) var(--space-md);
+    grid-template-columns: repeat(auto-fit, minmax(var(--clocktower-field-min, 180px), 1fr));
+}
+
+.clocktower-field-row .ant-form-item {
+    margin-bottom: 0;
+}
+
+/* Stacked caption + control for rows that are not backed by a form. */
+.clocktower-field-row > label {
+    display: grid;
+    gap: var(--space-xxs);
+    min-width: 0;
+}
+
+.clocktower-field-row .ant-input,
+.clocktower-field-row .ant-input-number,
+.clocktower-field-row .ant-select,
+.clocktower-field-row .ant-tree-select {
+    width: 100%;
+}
+
+/* Trailing action cell of a field row — keeps buttons aligned with the inputs. */
+.clocktower-field-row-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+}
+
+/* Event and audit payloads. Keeps JSON indentation readable without letting a
+   large payload push the drawer open. */
+.clocktower-payload.ant-typography {
+    margin-bottom: 0;
+    max-height: 320px;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--muted);
+}
+
+/* Reserves room for the spinner while a detail drawer resolves. */
+.clocktower-loading-block {
+    min-height: 60px;
+}

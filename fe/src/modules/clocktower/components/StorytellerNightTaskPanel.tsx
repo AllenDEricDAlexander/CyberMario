@@ -121,7 +121,7 @@ export function StorytellerNightTaskPanel({
                     onChange={setTargetIds}
                     options={options}
                     placeholder="选择目标座位"
-                    style={{width: '100%'}}
+                    className="u-full-width"
                     value={targetIds}
                 />
             </Modal>
@@ -152,7 +152,7 @@ export function StorytellerNightTaskPanelContent({
 }) {
     return (
         <Spin spinning={loading}>
-            <Space direction="vertical" size="middle" style={{width: '100%'}}>
+            <Space direction="vertical" size="middle" className="u-full-width">
                 <Button icon={<ReloadOutlined/>} onClick={onRefresh}>刷新</Button>
                 {tasks.length === 0 ? (
                     <Empty description="当前没有夜晚任务"/>
@@ -163,7 +163,7 @@ export function StorytellerNightTaskPanelContent({
                             const seat = seats.find((item) => item.gameSeatId === task.actorGameSeatId)
                             return (
                                 <List.Item>
-                                    <Space direction="vertical" size="small" style={{width: '100%'}}>
+                                    <Space direction="vertical" size="small" className="u-full-width">
                                         <Space wrap>
                                             <Typography.Text strong>
                                                 #{seat?.seatNo ?? task.actorGameSeatId} {seat?.displayName ?? task.actorGameSeatId}

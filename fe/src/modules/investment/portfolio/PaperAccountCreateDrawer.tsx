@@ -1,5 +1,7 @@
-import {Alert, Button, Drawer, Form, Input, InputNumber, Space, Typography} from 'antd'
+import {Alert, Form, Input, InputNumber, Typography} from 'antd'
 import {useEffect, useState} from 'react'
+import {FormDrawer} from '../../../components/FormDrawer'
+import {PageStack} from '../../../components/PageSection'
 import type {
     CreateInvestmentPaperAccountRequest,
 } from '../types/investmentPortfolioTypes'
@@ -28,6 +30,8 @@ const DEFAULTS: CreateInvestmentPaperAccountRequest = {
     },
 }
 
+const FORM_ID = 'investment-paper-account-form'
+
 export function PaperAccountCreateDrawer({open, onClose, onCreate}: Props) {
     const [form] = Form.useForm<CreateInvestmentPaperAccountRequest>()
     const [submitting, setSubmitting] = useState(false)
@@ -40,9 +44,8 @@ export function PaperAccountCreateDrawer({open, onClose, onCreate}: Props) {
         }
     }, [form, open])
 
-    async function submit() {
+    async function submit(values: CreateInvestmentPaperAccountRequest) {
         if (submitting) return
-        const values = await form.validateFields()
         setSubmitting(true)
         setError(undefined)
         try {
@@ -56,19 +59,24 @@ export function PaperAccountCreateDrawer({open, onClose, onCreate}: Props) {
     }
 
     return (
-        <Drawer
-            destroyOnHidden
-            extra={<Space><Button disabled={submitting} onClick={onClose}>取消</Button>
-                <Button loading={submitting} onClick={() => void submit()} type="primary">创建模拟账户</Button></Space>}
+        <FormDrawer
+            formId={FORM_ID}
+            loading={submitting}
             onClose={onClose}
             open={open}
-            size="large"
+            size="lg"
+            submitText="创建模拟账户"
             title="创建 USDT 合约模拟账户"
         >
-            <Space orientation="vertical" size={16} style={{width: '100%'}}>
-                <Alert description="新账户的手工交易与 Agent 自动交易开关固定为关闭，创建后需显式开启。" showIcon type="info"/>
-                {error && <Alert description={error} showIcon title="创建失败" type="error"/>}
-                <Form form={form} layout="vertical">
+            <PageStack>
+                <Alert
+                    className="page-alert"
+                    description="新账户的手工交易与 Agent 自动交易开关固定为关闭，创建后需显式开启。"
+                    showIcon
+                    type="info"
+                />
+                {error && <Alert className="page-alert" description={error} showIcon title="创建失败" type="error"/>}
+                <Form form={form} id={FORM_ID} layout="vertical" onFinish={(values) => void submit(values)}>
                     <Form.Item label="账户名称" name="name" rules={[{required: true, whitespace: true}, {max: 128}]}>
                         <Input autoComplete="off"/>
                     </Form.Item>
@@ -76,8 +84,8 @@ export function PaperAccountCreateDrawer({open, onClose, onCreate}: Props) {
                     <Typography.Title level={5}>风险限制</Typography.Title>
                     <RiskFields/>
                 </Form>
-            </Space>
-        </Drawer>
+            </PageStack>
+        </FormDrawer>
     )
 }
 
@@ -107,7 +115,7 @@ function DecimalItem({label, name, min, max}: {
 }) {
     return (
         <Form.Item label={label} name={name} rules={[{required: true, message: `请输入${label}`}]}>
-            <InputNumber min={min} max={max} stringMode style={{width: '100%'}}/>
+            <InputNumber className="u-full-width" min={min} max={max} stringMode/>
         </Form.Item>
     )
 }
@@ -119,7 +127,7 @@ function IntegerItem({label, name, min}: {
 }) {
     return (
         <Form.Item label={label} name={name} rules={[{required: true, message: `请输入${label}`}]}>
-            <InputNumber min={min} precision={0} style={{width: '100%'}}/>
+            <InputNumber className="u-full-width" min={min} precision={0}/>
         </Form.Item>
     )
 }

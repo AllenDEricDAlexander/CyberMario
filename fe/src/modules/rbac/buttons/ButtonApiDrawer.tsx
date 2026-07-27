@@ -1,6 +1,7 @@
-import {Drawer, Select} from 'antd'
+import {Select} from 'antd'
 import {useEffect, useState} from 'react'
-import {voidify} from '../../../utils/async'
+import {EmptyState} from '../../../components/EmptyState'
+import {FormDrawer} from '../../../components/FormDrawer'
 import type {PermissionResponse} from '../rbacTypes'
 
 type ButtonApiDrawerProps = {
@@ -31,27 +32,36 @@ export function ButtonApiDrawer({
     }, [open, selectedIds])
 
     return (
-        <Drawer
-            destroyOnHidden
-            extra={<button className="drawer-submit" disabled={saving}
-                           onClick={voidify(() => onSubmit(ids))}>保存</button>}
+        <FormDrawer
+            description={button?.permCode}
+            footerHint={`已绑定 ${ids.length} 个 API 权限`}
+            loading={saving}
             onClose={onClose}
+            onSubmit={() => void onSubmit(ids)}
             open={open}
+            size="md"
             title={`绑定 API：${button?.permName ?? ''}`}
-            width={560}
         >
-            <Select
-                mode="multiple"
-                onChange={setIds}
-                optionFilterProp="label"
-                options={apiPermissions.map((permission) => ({
-                    value: permission.id,
-                    label: `${permission.permName} (${permission.permCode})`,
-                }))}
-                placeholder="选择 API 权限"
-                style={{width: '100%'}}
-                value={ids}
-            />
-        </Drawer>
+            {apiPermissions.length ? (
+                <Select
+                    className="u-full-width"
+                    mode="multiple"
+                    onChange={setIds}
+                    optionFilterProp="label"
+                    options={apiPermissions.map((permission) => ({
+                        value: permission.id,
+                        label: `${permission.permName} (${permission.permCode})`,
+                    }))}
+                    placeholder="选择 API 权限"
+                    value={ids}
+                />
+            ) : (
+                <EmptyState
+                    description="请先在“API 权限”页面维护接口权限，之后即可绑定到按钮。"
+                    inline
+                    title="暂无可绑定的 API 权限"
+                />
+            )}
+        </FormDrawer>
     )
 }

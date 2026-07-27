@@ -1,7 +1,12 @@
 import {DollarOutlined, PlusOutlined} from '@ant-design/icons'
-import {Alert, App, Button, Descriptions, Drawer, Form, Input, InputNumber, Select, Space, Switch, Table, Tag} from 'antd'
+import {Alert, App, Button, Descriptions, Form, Input, InputNumber, Select, Space, Switch, Tag} from 'antd'
+import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useState} from 'react'
+import {DataTable} from '../../components/DataTable'
+import {FormDrawer} from '../../components/FormDrawer'
 import {PageToolbar} from '../../components/PageToolbar'
+import {RowActions, type RowAction} from '../../components/RowActions'
+import {StackedCell} from '../../components/StackedCell'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {CurrentFamilySelect} from './components/CurrentFamilySelect'
 import {MoneyText} from './components/MoneyText'
@@ -28,6 +33,60 @@ import type {
 } from './nutritionTypes'
 import {NutritionPageGrid, NutritionSection, NutritionStack} from './NutritionPageLayout'
 import {useNutritionFamilySelection} from './useNutritionFamilySelection'
+
+/** The drawer footer submits the form by id, so the button lives outside the `<Form>`. */
+const ruleFormId = 'nutrition-budget-rule-form'
+
+const dailyColumns: ColumnsType<NutritionBudgetDailySummaryResponse> = [
+    {
+        title: '日期',
+        dataIndex: 'date',
+        render: (value: string, row) => <StackedCell primary={value} secondary={`${row.confirmedMemberCount} 人确认`}/>,
+    },
+    {title: '总成本', dataIndex: 'totalAmount', render: (value: NutritionAmount) => <MoneyText value={value}/>},
+    {title: '实际支出', dataIndex: 'actualAmount', render: (value: NutritionAmount) => <MoneyText value={value}/>},
+    {title: '预估成本', dataIndex: 'estimatedAmount', render: (value: NutritionAmount) => <MoneyText value={value}/>},
+    {title: '人均成本', dataIndex: 'perPersonCost', render: (value: NutritionAmount) => <MoneyText value={value}/>},
+]
+
+const dishColumns: ColumnsType<NutritionBudgetDishSummaryResponse> = [
+    {
+        title: '菜品',
+        dataIndex: 'dishName',
+        render: (value: string, row) => <StackedCell primary={value} secondary={`${row.planDate} · ${row.mealType}`}/>,
+    },
+    {
+        title: '份数',
+        dataIndex: 'finalServingCount',
+        width: 140,
+        render: (value: NutritionAmount, row) => (
+            <StackedCell plain primary={`最终 ${value}`} secondary={`确认 ${row.confirmedServingCount}`}/>
+        ),
+    },
+    {title: '成本', dataIndex: 'amount', width: 110, render: (value: NutritionAmount) => <MoneyText value={value}/>},
+]
+
+const ingredientColumns: ColumnsType<NutritionBudgetIngredientSummaryResponse> = [
+    {
+        title: '食材',
+        dataIndex: 'rawFoodName',
+        render: (value: string, row) => (
+            <StackedCell primary={value} secondary={`计划 ${row.plannedAmount}${row.unit ?? ''} · 已购 ${row.purchasedAmount}${row.unit ?? ''}`}/>
+        ),
+    },
+    {title: '成本', dataIndex: 'totalAmount', width: 110, render: (value: NutritionAmount) => <MoneyText value={value}/>},
+]
+
+const channelColumns: ColumnsType<NutritionBudgetChannelSummaryResponse> = [
+    {
+        title: '渠道',
+        dataIndex: 'channel',
+        render: (value: string | null | undefined, row) => (
+            <StackedCell primary={value || '未记录渠道'} secondary={`${row.itemCount} 个采购项`}/>
+        ),
+    },
+    {title: '成本', dataIndex: 'totalAmount', width: 110, render: (value: NutritionAmount) => <MoneyText value={value}/>},
+]
 
 function BudgetPage() {
     const auth = useAuth()
@@ -127,6 +186,31 @@ function BudgetPage() {
         }
     }
 
+    function ruleActions(rule: NutritionBudgetRuleResponse): RowAction[] {
+        return [
+            {key: 'edit', label: '编辑', disabled: !canManage, onClick: () => openEditor(rule)},
+            {
+                key: 'deactivate',
+                label: '停用',
+                danger: true,
+                disabled: !canManage,
+                confirm: `确认停用预算规则「${rule.ruleName}」？停用后不再收到超支提醒。`,
+                onClick: () => void deactivateRule(rule.id),
+            },
+        ]
+    }
+
+    const ruleColumns: ColumnsType<NutritionBudgetRuleResponse> = [
+        {
+            title: '规则',
+            dataIndex: 'ruleName',
+            render: (value: string, rule) => <StackedCell primary={value} secondary={rule.periodType}/>,
+        },
+        {title: '预算上限', width: 120, render: (_, rule) => <MoneyText value={rule.amountLimit}/>},
+        {title: '提醒阈值', width: 100, render: (_, rule) => `${Number(rule.warningThreshold ?? 0) * 100}%`},
+        {title: '状态', width: 90, render: (_, rule) => <Tag color={rule.enabled ? 'success' : 'default'}>{rule.enabled ? '启用' : '停用'}</Tag>},
+        {title: '操作', width: 150, render: (_, rule) => <RowActions actions={ruleActions(rule)}/>},
+    ]
     const visibleState = familySelection.state === 'ready' ? state : familySelection.state
 
     return (
@@ -144,6 +228,7 @@ function BudgetPage() {
                     </Space>
                 )}
                 description="分别查看预算使用率与采购完成率，并维护家庭预算规则。"
+                icon={<DollarOutlined/>}
                 title="预算分析"
             />
             {mutationError && <Alert closable={{onClose: () => setMutationError(undefined)}} showIcon title={mutationError} type="error"/>}
@@ -166,105 +251,91 @@ function BudgetPage() {
                     </NutritionPageGrid>
                     {weekly && (
                         <>
-                            <NutritionSection title="本周每日成本">
-                                <Table<NutritionBudgetDailySummaryResponse>
-                                    columns={[
-                                        {title: '日期', dataIndex: 'date'},
-                                        {title: '总成本', dataIndex: 'totalAmount', render: (value: NutritionAmount) => <MoneyText value={value}/>},
-                                        {title: '实际支出', dataIndex: 'actualAmount', render: (value: NutritionAmount) => <MoneyText value={value}/>},
-                                        {title: '预估成本', dataIndex: 'estimatedAmount', render: (value: NutritionAmount) => <MoneyText value={value}/>},
-                                        {title: '确认人数', dataIndex: 'confirmedMemberCount'},
-                                        {title: '人均成本', dataIndex: 'perPersonCost', render: (value: NutritionAmount) => <MoneyText value={value}/>},
-                                    ]}
-                                    dataSource={weekly.dailySummaries}
-                                    pagination={false}
-                                    rowKey="date"
-                                    size="small"
-                                />
-                            </NutritionSection>
-                            <NutritionSection title="本周确认后菜单成本">
-                                <Table<NutritionBudgetDishSummaryResponse>
-                                    columns={[
-                                        {title: '日期', dataIndex: 'planDate'},
-                                        {title: '菜品', dataIndex: 'dishName'},
-                                        {title: '餐次', dataIndex: 'mealType'},
-                                        {title: '确认份数', dataIndex: 'confirmedServingCount'},
-                                        {title: '最终份数', dataIndex: 'finalServingCount'},
-                                        {title: '成本', dataIndex: 'amount', render: (value: NutritionAmount) => <MoneyText value={value}/>},
-                                    ]}
-                                    dataSource={weekly.dishSummaries}
-                                    pagination={false}
-                                    rowKey="itemId"
-                                    size="small"
-                                />
-                            </NutritionSection>
+                            <DataTable<NutritionBudgetDailySummaryResponse>
+                                columns={dailyColumns}
+                                count={weekly.dailySummaries.length}
+                                dataSource={weekly.dailySummaries}
+                                emptyDescription="本周还没有产生成本，发布菜单并记录采购后即可看到。"
+                                emptyTitle="本周暂无每日成本"
+                                pagination={false}
+                                rowKey="date"
+                                size="small"
+                                title="本周每日成本"
+                            />
+                            <DataTable<NutritionBudgetDishSummaryResponse>
+                                columns={dishColumns}
+                                count={weekly.dishSummaries.length}
+                                dataSource={weekly.dishSummaries}
+                                emptyDescription="菜单确认关闭后，按菜品分摊的成本会列在这里。"
+                                emptyTitle="本周暂无确认后菜单成本"
+                                pagination={false}
+                                rowKey="itemId"
+                                size="small"
+                                title="本周确认后菜单成本"
+                            />
                             <NutritionPageGrid>
-                                <NutritionSection title="本周食材成本">
-                                    <Table<NutritionBudgetIngredientSummaryResponse>
-                                        columns={[
-                                            {title: '食材', dataIndex: 'rawFoodName'},
-                                            {title: '计划数量', render: (_, row) => `${row.plannedAmount}${row.unit ?? ''}`},
-                                            {title: '已购数量', render: (_, row) => `${row.purchasedAmount}${row.unit ?? ''}`},
-                                            {title: '成本', dataIndex: 'totalAmount', render: (value: NutritionAmount) => <MoneyText value={value}/>},
-                                        ]}
-                                        dataSource={weekly.ingredientSummaries}
-                                        pagination={false}
-                                        rowKey={(row) => `${row.standardFoodId ?? 'raw'}-${row.rawFoodName}`}
-                                        size="small"
-                                    />
-                                </NutritionSection>
-                                <NutritionSection title="本周渠道成本">
-                                    <Table<NutritionBudgetChannelSummaryResponse>
-                                        columns={[
-                                            {title: '渠道', dataIndex: 'channel', render: (value: string | null | undefined) => value || '未记录渠道'},
-                                            {title: '采购项数', dataIndex: 'itemCount'},
-                                            {title: '成本', dataIndex: 'totalAmount', render: (value: NutritionAmount) => <MoneyText value={value}/>},
-                                        ]}
-                                        dataSource={weekly.channelSummaries}
-                                        pagination={false}
-                                        rowKey={(row) => row.channel ?? 'unassigned'}
-                                        size="small"
-                                    />
-                                </NutritionSection>
+                                <DataTable<NutritionBudgetIngredientSummaryResponse>
+                                    columns={ingredientColumns}
+                                    count={weekly.ingredientSummaries.length}
+                                    dataSource={weekly.ingredientSummaries}
+                                    emptyDescription="记录采购价格后即可按食材归集成本。"
+                                    emptyTitle="本周暂无食材成本"
+                                    pagination={false}
+                                    rowKey={(row) => `${row.standardFoodId ?? 'raw'}-${row.rawFoodName}`}
+                                    size="small"
+                                    title="本周食材成本"
+                                />
+                                <DataTable<NutritionBudgetChannelSummaryResponse>
+                                    columns={channelColumns}
+                                    count={weekly.channelSummaries.length}
+                                    dataSource={weekly.channelSummaries}
+                                    emptyDescription="在采购项上填写渠道后即可比较各渠道支出。"
+                                    emptyTitle="本周暂无渠道成本"
+                                    pagination={false}
+                                    rowKey={(row) => row.channel ?? 'unassigned'}
+                                    size="small"
+                                    title="本周渠道成本"
+                                />
                             </NutritionPageGrid>
                         </>
                     )}
-                    <NutritionSection title="预算规则">
-                        <Table<NutritionBudgetRuleResponse>
-                            columns={[
-                                {title: '规则', dataIndex: 'ruleName'},
-                                {title: '周期', dataIndex: 'periodType'},
-                                {title: '预算上限', render: (_, rule) => <MoneyText value={rule.amountLimit}/>},
-                                {title: '提醒阈值', render: (_, rule) => `${Number(rule.warningThreshold ?? 0) * 100}%`},
-                                {title: '状态', render: (_, rule) => <Tag color={rule.enabled ? 'success' : 'default'}>{rule.enabled ? '启用' : '停用'}</Tag>},
-                                {title: '操作', render: (_, rule) => (
-                                    <Space>
-                                        <Button aria-label={`编辑预算规则 ${rule.id}`} disabled={!canManage} onClick={() => openEditor(rule)} size="small">编辑</Button>
-                                        <Button aria-label={`停用预算规则 ${rule.id}`} danger disabled={!canManage} onClick={() => void deactivateRule(rule.id)} size="small">停用</Button>
-                                    </Space>
-                                )},
-                            ]}
-                            dataSource={rules}
-                            pagination={false}
-                            rowKey="id"
-                            size="small"
-                        />
-                    </NutritionSection>
+                    <DataTable<NutritionBudgetRuleResponse>
+                        columns={ruleColumns}
+                        count={rules.length}
+                        dataSource={rules}
+                        emptyAction={(
+                            <Button disabled={!canManage} icon={<PlusOutlined/>} onClick={() => openEditor()} type="primary">新增预算规则</Button>
+                        )}
+                        emptyDescription="设置周或月预算上限后，超支会在这里给出提醒。"
+                        emptyTitle="还没有预算规则"
+                        pagination={false}
+                        rowKey="id"
+                        size="small"
+                        title="预算规则"
+                    />
                 </NutritionStack>
             </NutritionAsyncState>
-            <Drawer destroyOnHidden loading={saving} onClose={() => setEditorOpen(false)} open={editorOpen} size={480} title={editingRule ? '编辑预算规则' : '新增预算规则'}>
-                <Form form={ruleForm} layout="vertical" onFinish={(values) => void saveRule(values)}>
+            <FormDrawer
+                footerHint="提醒阈值是预算上限的比例，例如 0.8 表示用掉 80% 时提醒。"
+                formId={ruleFormId}
+                loading={saving}
+                onClose={() => setEditorOpen(false)}
+                open={editorOpen}
+                size="sm"
+                submitText="保存规则"
+                title={editingRule ? '编辑预算规则' : '新增预算规则'}
+            >
+                <Form form={ruleForm} id={ruleFormId} layout="vertical" onFinish={(values) => void saveRule(values)}>
                     <Form.Item label="规则名称" name="ruleName" rules={[{required: true}]}><Input aria-label="规则名称"/></Form.Item>
                     <Form.Item label="周期类型" name="periodType" rules={[{required: true}]}>
                         <Select aria-label="周期类型" options={[{label: 'WEEKLY', value: 'WEEKLY'}, {label: 'MONTHLY', value: 'MONTHLY'}]}/>
                     </Form.Item>
-                    <Form.Item label="预算上限" name="amountLimit" rules={[{required: true}]}><InputNumber aria-label="预算上限" min={0.01} precision={2} style={{width: '100%'}}/></Form.Item>
+                    <Form.Item label="预算上限" name="amountLimit" rules={[{required: true}]}><InputNumber aria-label="预算上限" className="u-full-width" min={0.01} precision={2}/></Form.Item>
                     <Form.Item label="币种" name="currency"><Input/></Form.Item>
-                    <Form.Item label="提醒阈值" name="warningThreshold"><InputNumber max={1} min={0.01} step={0.05} style={{width: '100%'}}/></Form.Item>
+                    <Form.Item label="提醒阈值" name="warningThreshold"><InputNumber className="u-full-width" max={1} min={0.01} step={0.05}/></Form.Item>
                     <Form.Item label="启用" name="enabled" valuePropName="checked"><Switch/></Form.Item>
-                    <Button htmlType="submit" icon={<DollarOutlined/>} loading={saving} type="primary">保存规则</Button>
                 </Form>
-            </Drawer>
+            </FormDrawer>
         </NutritionStack>
     )
 }

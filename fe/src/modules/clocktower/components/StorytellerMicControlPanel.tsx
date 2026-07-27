@@ -122,7 +122,7 @@ export function StorytellerMicControlPanelContent({
 
     return (
         <Spin spinning={loading}>
-            <Space orientation="vertical" size="middle" style={{width: '100%'}}>
+            <Space orientation="vertical" size="middle" className="u-full-width">
                 <Space wrap>
                     <Button icon={<ReloadOutlined/>} onClick={onRefresh}>刷新</Button>
                     <Button

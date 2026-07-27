@@ -1,8 +1,13 @@
-import {DeleteOutlined, MinusCircleOutlined, PlusOutlined} from '@ant-design/icons'
-import {Alert, App, Button, Drawer, Form, Input, InputNumber, Select, Space, Table, Tag} from 'antd'
+import {BookOutlined, DeleteOutlined, MinusCircleOutlined, PlusOutlined} from '@ant-design/icons'
+import {Alert, App, Button, Form, Input, InputNumber, Select, Space, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useMemo, useState} from 'react'
+import {DataTable} from '../../components/DataTable'
+import {FormDrawer} from '../../components/FormDrawer'
+import {PageGrid} from '../../components/PageSection'
 import {PageToolbar} from '../../components/PageToolbar'
+import {RowActions, type RowAction} from '../../components/RowActions'
+import {StackedCell} from '../../components/StackedCell'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {CurrentFamilySelect} from './components/CurrentFamilySelect'
 import {NutritionAsyncState, nutritionLoadFailure} from './components/NutritionAsyncState'
@@ -25,8 +30,21 @@ import type {
     NutritionStandardFoodResponse,
     NutritionUpdateRecipeIngredientMappingRequest,
 } from './nutritionTypes'
-import {NutritionPageGrid, NutritionSection, NutritionStack} from './NutritionPageLayout'
+import {NutritionPageGrid, NutritionStack} from './NutritionPageLayout'
 import {useNutritionFamilySelection} from './useNutritionFamilySelection'
+
+/** Each drawer footer submits its form by id, so the buttons live outside the `<Form>`. */
+const recipeFormId = 'nutrition-recipe-editor-form'
+const mappingFormId = 'nutrition-recipe-mapping-form'
+
+const standardFoodColumns: ColumnsType<NutritionStandardFoodResponse> = [
+    {
+        title: '名称',
+        dataIndex: 'nameCn',
+        render: (value: string, food) => <StackedCell primary={value} secondary={food.category ?? '未分类'}/>,
+    },
+    {title: '热量/100g', dataIndex: 'caloriesPer100g', width: 120},
+]
 
 function RecipeLibraryPage() {
     const auth = useAuth()
@@ -166,30 +184,49 @@ function RecipeLibraryPage() {
         }
     }
 
+    function recipeActions(recipe: NutritionRecipeResponse): RowAction[] {
+        // Platform recipes are read-only for a family; only the validation report stays available.
+        const readOnly = !canManage || recipe.sourceType === 'PLATFORM_PUBLIC'
+        return [
+            {key: 'edit', label: '编辑', disabled: readOnly, onClick: () => openRecipeEditor(recipe)},
+            {key: 'validate', label: '校验', onClick: () => void runValidation(recipe)},
+            {
+                key: 'deactivate',
+                label: '停用',
+                danger: true,
+                disabled: readOnly,
+                confirm: `确认停用菜谱「${recipe.name}」？停用后不再进入配餐候选。`,
+                onClick: () => void mutate(async () => {
+                    if (!familySelection.currentFamilyId) return
+                    await deactivateNutritionFamilyRecipe(familySelection.currentFamilyId, recipe.id)
+                    await loadData()
+                }, '菜谱已停用'),
+            },
+        ]
+    }
+
     const recipeColumns: ColumnsType<NutritionRecipeResponse> = [
-        {title: '菜谱', dataIndex: 'name'},
-        {title: '来源', dataIndex: 'sourceType', width: 150, render: (value) => <Tag>{value}</Tag>},
-        {title: '分类', dataIndex: 'category', width: 110},
-        {title: '份数', dataIndex: 'servingCount', width: 80},
         {
-            title: '操作', width: 260, render: (_, recipe) => (
-                <Space wrap size="small">
-                    <Button disabled={!canManage || recipe.sourceType === 'PLATFORM_PUBLIC'} onClick={() => openRecipeEditor(recipe)} size="small">编辑</Button>
-                    <Button aria-label={`校验 ${recipe.name}`} onClick={() => void runValidation(recipe)} size="small">校验</Button>
-                    <Button danger disabled={!canManage || recipe.sourceType === 'PLATFORM_PUBLIC'} onClick={() => void mutate(async () => {
-                        if (!familySelection.currentFamilyId) return
-                        await deactivateNutritionFamilyRecipe(familySelection.currentFamilyId, recipe.id)
-                        await loadData()
-                    }, '菜谱已停用')} size="small">停用</Button>
-                </Space>
-            ),
+            title: '菜谱',
+            dataIndex: 'name',
+            render: (value: string, recipe) => <StackedCell primary={value} secondary={recipe.category ?? '未分类'}/>,
         },
+        {title: '来源', dataIndex: 'sourceType', width: 150, render: (value) => <Tag>{value}</Tag>},
+        {title: '份数', dataIndex: 'servingCount', width: 80},
+        {title: '操作', width: 200, render: (_, recipe) => <RowActions actions={recipeActions(recipe)} maxInline={2}/>},
     ]
     const ingredientColumns: ColumnsType<{recipe: NutritionRecipeResponse; ingredient: NutritionRecipeIngredientResponse}> = [
         {title: '菜谱', render: (_, row) => row.recipe.name},
-        {title: '原始食材', render: (_, row) => row.ingredient.rawFoodName},
-        {title: '数量', render: (_, row) => `${row.ingredient.amount} ${row.ingredient.unit}`},
-        {title: '映射状态', render: (_, row) => <Tag color={row.ingredient.mappingStatus === 'MAPPED' ? 'success' : 'warning'}>{row.ingredient.mappingStatus}</Tag>},
+        {
+            title: '原始食材',
+            render: (_, row) => (
+                <StackedCell
+                    primary={row.ingredient.rawFoodName}
+                    secondary={`${row.ingredient.amount} ${row.ingredient.unit}`}
+                />
+            ),
+        },
+        {title: '映射状态', width: 120, render: (_, row) => <Tag color={row.ingredient.mappingStatus === 'MAPPED' ? 'success' : 'warning'}>{row.ingredient.mappingStatus}</Tag>},
         {
             title: '操作', width: 110, render: (_, row) => (
                 <Button
@@ -218,6 +255,7 @@ function RecipeLibraryPage() {
                     </Space>
                 )}
                 description="维护平台可见食材、家庭菜谱、制作步骤、营养映射和发布校验。"
+                icon={<BookOutlined/>}
                 title="家庭菜谱"
             />
             {mutationError && <Alert closable={{onClose: () => setMutationError(undefined)}} showIcon title={mutationError} type="error"/>}
@@ -236,36 +274,60 @@ function RecipeLibraryPage() {
                 state={visibleState}
             >
                 <NutritionPageGrid>
-                    <NutritionSection title="标准食材">
-                        <Table
-                            columns={[
-                                {title: '名称', dataIndex: 'nameCn'},
-                                {title: '分类', dataIndex: 'category'},
-                                {title: '热量/100g', dataIndex: 'caloriesPer100g'},
-                            ]}
-                            dataSource={foods}
-                            pagination={false}
-                            rowKey="id"
-                            size="small"
-                        />
-                    </NutritionSection>
-                    <NutritionSection title="家庭与公共菜谱">
-                        <Table columns={recipeColumns} dataSource={recipes} pagination={false} rowKey="id" scroll={{x: 760}} size="small"/>
-                    </NutritionSection>
-                    <NutritionSection title="食材映射">
-                        <Table columns={ingredientColumns} dataSource={ingredients} pagination={false} rowKey={(row) => row.ingredient.id} scroll={{x: 760}} size="small"/>
-                    </NutritionSection>
+                    <DataTable<NutritionStandardFoodResponse>
+                        columns={standardFoodColumns}
+                        count={foods.length}
+                        dataSource={foods}
+                        emptyDescription="平台食材库尚未对该家庭开放，请联系平台管理员补充。"
+                        emptyTitle="暂无可用标准食材"
+                        pagination={false}
+                        rowKey="id"
+                        size="small"
+                        title="标准食材"
+                    />
+                    <DataTable<NutritionRecipeResponse>
+                        columns={recipeColumns}
+                        count={recipes.length}
+                        dataSource={recipes}
+                        emptyDescription="点击右上角「新建菜谱」，录入家庭常做的第一道菜。"
+                        emptyTitle="还没有可用菜谱"
+                        pagination={false}
+                        rowKey="id"
+                        scroll={{x: 720}}
+                        size="small"
+                        title="家庭与公共菜谱"
+                    />
+                    <DataTable<{recipe: NutritionRecipeResponse; ingredient: NutritionRecipeIngredientResponse}>
+                        columns={ingredientColumns}
+                        count={ingredients.length}
+                        dataSource={ingredients}
+                        emptyDescription="菜谱录入食材后，这里会列出待映射到标准食材的条目。"
+                        emptyTitle="暂无食材需要映射"
+                        pagination={false}
+                        rowKey={(row) => row.ingredient.id}
+                        scroll={{x: 720}}
+                        size="small"
+                        title="食材映射"
+                    />
                 </NutritionPageGrid>
             </NutritionAsyncState>
-            <Drawer destroyOnHidden loading={saving} onClose={() => setEditorOpen(false)} open={editorOpen} size={760} title={editingRecipe ? '编辑菜谱' : '新建菜谱'}>
-                <Form form={recipeForm} layout="vertical" onFinish={(values) => void saveRecipe(values)}>
-                    <NutritionPageGrid>
+            <FormDrawer
+                formId={recipeFormId}
+                loading={saving}
+                onClose={() => setEditorOpen(false)}
+                open={editorOpen}
+                size="lg"
+                submitText="保存菜谱"
+                title={editingRecipe ? '编辑菜谱' : '新建菜谱'}
+            >
+                <Form form={recipeForm} id={recipeFormId} layout="vertical" onFinish={(values) => void saveRecipe(values)}>
+                    <PageGrid minWidth={200}>
                         <Form.Item label="菜谱名称" name="name" rules={[{required: true}]}><Input aria-label="菜谱名称"/></Form.Item>
                         <Form.Item label="分类" name="category"><Input/></Form.Item>
-                        <Form.Item label="份数" name="servingCount"><InputNumber min={1} style={{width: '100%'}}/></Form.Item>
-                        <Form.Item label="烹饪分钟" name="cookingMinutes"><InputNumber min={0} style={{width: '100%'}}/></Form.Item>
+                        <Form.Item label="份数" name="servingCount"><InputNumber className="u-full-width" min={1}/></Form.Item>
+                        <Form.Item label="烹饪分钟" name="cookingMinutes"><InputNumber className="u-full-width" min={0}/></Form.Item>
                         <Form.Item label="难度" name="difficultyLevel"><Input/></Form.Item>
-                    </NutritionPageGrid>
+                    </PageGrid>
                     <Form.Item label="描述" name="description"><Input.TextArea rows={3}/></Form.Item>
                     <Form.Item label="适用标签" name="suitableTags"><Select mode="tags"/></Form.Item>
                     <Form.Item label="过敏标签" name="allergenTags"><Select mode="tags"/></Form.Item>
@@ -305,21 +367,28 @@ function RecipeLibraryPage() {
                             </NutritionStack>
                         )}
                     </Form.List>
-                    <Button htmlType="submit" loading={saving} style={{marginTop: 16}} type="primary">保存菜谱</Button>
                 </Form>
-            </Drawer>
-            <Drawer destroyOnHidden loading={saving} onClose={() => setMapping(undefined)} open={Boolean(mapping)} size={420} title="食材映射">
-                <Form form={mappingForm} layout="vertical" onFinish={(values) => void saveMapping(values)}>
+            </FormDrawer>
+            <FormDrawer
+                footerHint={mapping ? `来自菜谱「${mapping.recipe.name}」` : undefined}
+                formId={mappingFormId}
+                loading={saving}
+                onClose={() => setMapping(undefined)}
+                open={Boolean(mapping)}
+                size="sm"
+                submitText="保存映射"
+                title="食材映射"
+            >
+                <Form form={mappingForm} id={mappingFormId} layout="vertical" onFinish={(values) => void saveMapping(values)}>
                     <Form.Item label="标准食材" name="standardFoodId" rules={[{required: true}]}>
                         <Select
                             aria-label="标准食材"
                             options={foods.map((food) => ({label: food.nameCn, value: food.id}))}
                         />
                     </Form.Item>
-                    <Form.Item label="每单位克数" name="gramsPerUnit"><InputNumber min={0.001} style={{width: '100%'}}/></Form.Item>
-                    <Button htmlType="submit" loading={saving} type="primary">保存映射</Button>
+                    <Form.Item label="每单位克数" name="gramsPerUnit"><InputNumber className="u-full-width" min={0.001}/></Form.Item>
                 </Form>
-            </Drawer>
+            </FormDrawer>
         </NutritionStack>
     )
 }

@@ -14,7 +14,7 @@ export function NightChecklist({checklist, loading}: NightChecklistProps) {
     }
 
     return (
-        <Space direction="vertical" size="middle" style={{width: '100%'}}>
+        <Space direction="vertical" size="middle" className="u-full-width">
             <Space wrap>
                 <Tag color="blue">{enumDesc(checklist.nightType)}</Tag>
                 <Typography.Text type="secondary">第 {checklist.nightNo} 夜</Typography.Text>

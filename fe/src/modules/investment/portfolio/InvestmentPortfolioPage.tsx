@@ -1,18 +1,18 @@
+import {WalletOutlined} from '@ant-design/icons'
 import {
-    Alert,
     App,
     Button,
-    Card,
     Descriptions,
-    Empty,
-    Flex,
     InputNumber,
     Select,
     Space,
     Switch,
-    Typography,
 } from 'antd'
 import {useCallback, useEffect, useRef, useState} from 'react'
+import {EmptyState} from '../../../components/EmptyState'
+import {ErrorState} from '../../../components/ErrorState'
+import {PageSection, PageStack} from '../../../components/PageSection'
+import {PageToolbar} from '../../../components/PageToolbar'
 import {resolveErrorMessage} from '../../../services/request'
 import {canUseRbacButton, useAuth} from '../../auth/authStore'
 import {InvestmentAsyncState} from '../components/InvestmentAsyncState'
@@ -405,58 +405,74 @@ export default function InvestmentPortfolioPage() {
         : 'loading'
 
     return (
-        <Space orientation="vertical" size={16} style={{width: '100%'}}>
-            <Card>
-                <Flex align="center" gap={12} justify="space-between" wrap>
-                    <div>
-                        <Typography.Title level={4}>USDT 合约模拟盘</Typography.Title>
-                        <Typography.Text type="secondary">账户、仓位、保证金、资金费和强平结果均由服务端计算。</Typography.Text>
-                    </div>
-                    {canTrade && <Button onClick={() => setCreateOpen(true)} type="primary">创建模拟账户</Button>}
-                </Flex>
-            </Card>
-            <Card title="模拟账户">
+        <PageStack>
+            <PageToolbar
+                actions={canTrade && (
+                    <Button onClick={() => setCreateOpen(true)} type="primary">创建模拟账户</Button>
+                )}
+                description="账户、仓位、保证金、资金费和强平结果均由服务端计算。"
+                icon={<WalletOutlined/>}
+                title="USDT 合约模拟盘"
+            />
+            <PageSection description="模拟账户按工作区隔离，切换账户会重新拉取全部事实区。" title="模拟账户">
                 <InvestmentAsyncState
                     emptyDescription="当前工作区暂无模拟账户"
+                    emptyHint="用右上角的「创建模拟账户」开一个 USDT 合约模拟账户。"
                     error={accountListError}
                     onRetry={() => void loadAccounts()}
                     state={visibleAccountListState}
                 >
                     <Select
                         aria-label="模拟账户"
+                        className="investment-inline-select is-xl"
                         onChange={selectAccount}
                         options={visibleAccounts.map((account) => ({
                             label: `${account.name} · ${account.equity} ${account.baseCurrency}`,
                             value: account.id,
                         }))}
                         placeholder="选择一个私人模拟账户"
-                        style={{minWidth: 320}}
                         value={accountId}
                     />
                 </InvestmentAsyncState>
-            </Card>
-            {accountId === undefined ? <Empty description="请选择模拟账户后查看私人仓位与交易事实"/> : (
+            </PageSection>
+            {accountId === undefined ? (
+                <EmptyState
+                    description="选中账户后，权益、持仓、委托、成交与资金流水才会按该账户加载。"
+                    title="请选择模拟账户后查看私人仓位与交易事实"
+                />
+            ) : (
                 <>
-                    <Card title="账户事实" extra={canTrade && <Space>
-                        <Button onClick={() => refreshAccountFacts(accountId)}>刷新</Button>
-                        <Button onClick={() => setRiskOpen(true)}>风险限制</Button>
-                        <Button disabled={!detail?.account.tradingEnabled} onClick={() => setTradeOpen(true)} type="primary">手工模拟下单</Button>
-                    </Space>}>
+                    <PageSection
+                        actions={canTrade && (
+                            <Space>
+                                <Button onClick={() => refreshAccountFacts(accountId)}>刷新</Button>
+                                <Button onClick={() => setRiskOpen(true)}>风险限制</Button>
+                                <Button
+                                    disabled={!detail?.account.tradingEnabled}
+                                    onClick={() => setTradeOpen(true)}
+                                    type="primary"
+                                >
+                                    手工模拟下单
+                                </Button>
+                            </Space>
+                        )}
+                        title="账户事实"
+                    >
                         <InvestmentAsyncState state={detailState} error="模拟账户详情加载失败" onRetry={() => void loadDetail(accountId)}>
                             {detail && <AccountFacts detail={detail} switchSaving={switchSaving} canTrade={canTrade}
                                 onSwitch={(field, value) => void changeSwitch(field, value)}/>}
                         </InvestmentAsyncState>
-                    </Card>
-                    <Card title="权益与回撤">
+                    </PageSection>
+                    <PageSection title="权益与回撤">
                         <FactError error={equityError} state={equityState}/>
                         {equityState === 'loading' ? <InvestmentAsyncState state="loading"><span/></InvestmentAsyncState>
                             : <PortfolioEquityChart points={equity?.records ?? []}/>}
-                    </Card>
-                    <Card title="当前持仓">
+                    </PageSection>
+                    <PageSection title="当前持仓">
                         <FactError error={positionsError} state={positionsState}/>
                         <PortfolioPositionsTable positions={positions} loading={positionsState === 'loading'}/>
-                    </Card>
-                    <Card title="模拟委托">
+                    </PageSection>
+                    <PageSection title="模拟委托">
                         <FactError error={ordersError} state={ordersState}/>
                         <PortfolioOrdersTable
                             cancellingId={cancellingId}
@@ -465,26 +481,31 @@ export default function InvestmentPortfolioPage() {
                             onPageChange={(page) => { setOrderPage(page); void loadOrders(accountId, page) }}
                             page={orders}
                         />
-                    </Card>
-                    <Card title="成交与强平标记" extra={<Space>
-                        <InputNumber aria-label="成交合约 ID" min={1} onChange={changeFillInstrument} precision={0} value={fillInstrumentId}/>
-                        <Button disabled={!fillInstrumentId} loading={fillsState === 'loading'} onClick={() => void queryFills(1)}>查询最近 30 天</Button>
-                    </Space>}>
+                    </PageSection>
+                    <PageSection
+                        actions={(
+                            <Space>
+                                <InputNumber aria-label="成交合约 ID" min={1} onChange={changeFillInstrument} precision={0} value={fillInstrumentId}/>
+                                <Button disabled={!fillInstrumentId} loading={fillsState === 'loading'} onClick={() => void queryFills(1)}>查询最近 30 天</Button>
+                            </Space>
+                        )}
+                        title="成交与强平标记"
+                    >
                         <FactError error={fillsError} state={fillsState}/>
                         <PortfolioFillsTable
                             loading={fillsState === 'loading'}
                             onPageChange={(page) => void queryFills(page)}
                             page={fills}
                         />
-                    </Card>
-                    <Card title="保证金与资金流水">
+                    </PageSection>
+                    <PageSection title="保证金与资金流水">
                         <FactError error={ledgerError} state={ledgerState}/>
                         <PortfolioLedgerTable
                             loading={ledgerState === 'loading'}
                             onPageChange={(page) => { setLedgerPage(page); void loadLedger(accountId, page) }}
                             page={ledger}
                         />
-                    </Card>
+                    </PageSection>
                 </>
             )}
             <PaperAccountCreateDrawer onClose={() => setCreateOpen(false)} onCreate={create} open={createOpen}/>
@@ -495,7 +516,7 @@ export default function InvestmentPortfolioPage() {
                 profile={detail?.riskProfile}
             />
             <TradeIntentDrawer onClose={() => setTradeOpen(false)} onSubmit={submitTrade} open={tradeOpen}/>
-        </Space>
+        </PageStack>
     )
 }
 
@@ -521,7 +542,16 @@ function AccountFacts({detail, switchSaving, canTrade, onSwitch}: {
 }
 
 function FactError({state, error}: {state: InvestmentLoadState; error?: string}) {
-    return state === 'error' ? <Alert description={error} showIcon title="该事实区加载失败" type="error"/> : null
+    if (state !== 'error') {
+        return null
+    }
+    return (
+        <ErrorState
+            inline
+            message={error ?? '请用「刷新」重新拉取该账户的服务端事实。'}
+            title="该事实区加载失败"
+        />
+    )
 }
 
 function replaceAccount(current: InvestmentPaperAccountResponse[], account: InvestmentPaperAccountResponse) {

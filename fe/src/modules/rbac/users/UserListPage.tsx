@@ -1,9 +1,24 @@
-import {EditOutlined, KeyOutlined, LinkOutlined, PlusOutlined, SafetyOutlined, TeamOutlined} from '@ant-design/icons'
-import {App, Button, Input, Modal, Popconfirm, Space, Table, Tag} from 'antd'
+import {
+    DeleteOutlined,
+    EditOutlined,
+    KeyOutlined,
+    LinkOutlined,
+    LockOutlined,
+    PlusOutlined,
+    SafetyOutlined,
+    StopOutlined,
+    TeamOutlined,
+    UserOutlined,
+} from '@ant-design/icons'
+import {App, Button, Form, Input, Modal, Select, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
-import type {ReactNode} from 'react'
 import {useCallback, useEffect, useState} from 'react'
+import {DataTable} from '../../../components/DataTable'
+import {FilterBar} from '../../../components/FilterBar'
 import {PageToolbar} from '../../../components/PageToolbar'
+import {PromptModal} from '../../../components/PromptModal'
+import {RowActions, type RowAction} from '../../../components/RowActions'
+import {StackedCell} from '../../../components/StackedCell'
 import {StatusTag} from '../../../components/StatusTag'
 import {usePageData} from '../../../hooks/usePageData'
 import {voidify} from '../../../utils/async'
@@ -41,6 +56,12 @@ type ActivationModalState = {
     delivery: ActivationDeliveryResponse
 }
 
+type UserFilters = {
+    keyword?: string
+    status?: string
+    activationStatus?: string
+}
+
 function UserListPage() {
     const {message} = App.useApp()
     const auth = useAuth()
@@ -53,9 +74,13 @@ function UserListPage() {
     const [permissionUser, setPermissionUser] = useState<UserResponse | null>(null)
     const [effectivePermissions, setEffectivePermissions] = useState<EffectivePermissionResponse | null>(null)
     const [activationModal, setActivationModal] = useState<ActivationModalState | null>(null)
+    const [passwordUser, setPasswordUser] = useState<UserResponse | null>(null)
+    const [filters, setFilters] = useState<UserFilters>({})
+    // Filters go to the server so a search covers every user, not just the
+    // rows already loaded into the current page.
     const loadUsersPage = useCallback(
-        (request: { page: number; size: number }) => getUsers(request),
-        [],
+        (request: { page: number; size: number }) => getUsers({...request, ...filters}),
+        [filters],
     )
     const {loading, records: users, page, size, total, load: loadUsers} = usePageData<UserResponse>(loadUsersPage)
 
@@ -78,12 +103,29 @@ function UserListPage() {
     const canDelete = canUseRbacButton(auth, rbacButtonCodes.user.delete)
 
     const columns: ColumnsType<UserResponse> = [
-        {title: '账号', dataIndex: 'accountNo', fixed: 'left', width: 150},
-        {title: '用户名', dataIndex: 'username', width: 150},
-        {title: '昵称', dataIndex: 'nickname', width: 140, render: (_, record) => record.nickname || '-'},
-        {title: '邮箱', dataIndex: 'email', width: 190, render: (_, record) => record.email || '-'},
-        {title: '手机', dataIndex: 'mobile', width: 140, render: (_, record) => record.mobile || '-'},
-        {title: '状态', dataIndex: 'status', width: 100, render: (_, record) => <StatusTag value={record.status}/>},
+        {
+            title: '用户',
+            dataIndex: 'accountNo',
+            fixed: 'left',
+            width: 220,
+            render: (_, record) => (
+                <StackedCell primary={record.nickname || record.username} secondary={record.accountNo}/>
+            ),
+        },
+        {
+            title: '联系方式',
+            dataIndex: 'email',
+            width: 220,
+            render: (_, record) => (
+                <StackedCell plain primary={record.email || '-'} secondary={record.mobile || '未绑定手机'}/>
+            ),
+        },
+        {
+            title: '状态',
+            dataIndex: 'status',
+            width: 100,
+            render: (_, record) => <StatusTag value={record.status}/>,
+        },
         {
             title: '激活状态',
             dataIndex: 'activationStatus',
@@ -94,73 +136,86 @@ function UserListPage() {
                 </Tag>
             ),
         },
-        {title: '锁定', dataIndex: 'locked', width: 80, render: (_, record) => record.locked ? '是' : '否'},
         {
-            title: '密码过期',
-            dataIndex: 'passwordExpired',
-            width: 100,
-            render: (_, record) => record.passwordExpired ? '是' : '否'
+            title: '安全',
+            dataIndex: 'locked',
+            width: 150,
+            render: (_, record) => {
+                const flags = [
+                    record.locked && <Tag color="error" icon={<LockOutlined/>} key="locked">已锁定</Tag>,
+                    record.passwordExpired && <Tag color="warning" key="expired">密码过期</Tag>,
+                ].filter(Boolean)
+                return flags.length ? <>{flags}</> : <Typography.Text type="secondary">正常</Typography.Text>
+            },
         },
         {
             title: '操作',
             fixed: 'right',
-            width: 360,
+            width: 190,
             render: (_, record) => renderActions(record),
         },
     ]
 
     function renderActions(record: UserResponse) {
-        const actions: ReactNode[] = []
         const activationActions = activationActionsFor(record, {
             resetPassword: canResetPassword,
             resendActivation: canResendActivation,
         })
-        if (canEdit) {
-            actions.push(<Button icon={<EditOutlined/>} key="edit" size="small"
-                                 onClick={() => openEditor(record)}>编辑</Button>)
-        }
-        if (canAssignRoles) {
-            actions.push(<Button icon={<TeamOutlined/>} key="roles" size="small"
-                                 onClick={() => void openRoles(record)}>角色</Button>)
-        }
-        if (canViewPermissions) {
-            actions.push(<Button icon={<SafetyOutlined/>} key="permissions" size="small"
-                                 onClick={() => void openPermissions(record)}>权限</Button>)
-        }
-        if (activationActions.resetPassword) {
-            actions.push(
-                <Button icon={<KeyOutlined/>} key="password" size="small" onClick={() => openPasswordModal(record)}>
-                    重置密码
-                </Button>,
-            )
-        }
-        if (activationActions.resendActivation) {
-            actions.push(
-                <Button icon={<LinkOutlined/>} key="resend-activation" size="small"
-                        onClick={() => void resendActivation(record)}>
-                    重新生成激活链接
-                </Button>,
-            )
-        }
-        if (canChangeStatus) {
-            actions.push(
-                <Popconfirm
-                    key="status"
-                    title={`确认${isEnabled(record) ? '禁用' : '启用'}该用户？`}
-                    onConfirm={() => void toggleStatus(record)}
-                >
-                    <Button size="small">{isEnabled(record) ? '禁用' : '启用'}</Button>
-                </Popconfirm>,
-            )
-        }
-        if (canDelete) {
-            actions.push(
-                <Popconfirm key="delete" title="确认删除该用户？" onConfirm={() => void removeUser(record.id)}>
-                    <Button danger size="small">删除</Button>
-                </Popconfirm>,
-            )
-        }
-        return actions.length ? <Space>{actions}</Space> : '-'
+        const actions: RowAction[] = [
+            {
+                key: 'edit',
+                label: '编辑',
+                icon: <EditOutlined/>,
+                hidden: !canEdit,
+                onClick: () => openEditor(record),
+            },
+            {
+                key: 'roles',
+                label: '角色',
+                icon: <TeamOutlined/>,
+                hidden: !canAssignRoles,
+                onClick: () => void openRoles(record),
+            },
+            {
+                key: 'permissions',
+                label: '权限',
+                icon: <SafetyOutlined/>,
+                hidden: !canViewPermissions,
+                onClick: () => void openPermissions(record),
+            },
+            {
+                key: 'password',
+                label: '重置密码',
+                icon: <KeyOutlined/>,
+                hidden: !activationActions.resetPassword,
+                onClick: () => setPasswordUser(record),
+            },
+            {
+                key: 'resend-activation',
+                label: '重新生成激活链接',
+                icon: <LinkOutlined/>,
+                hidden: !activationActions.resendActivation,
+                onClick: () => void resendActivation(record),
+            },
+            {
+                key: 'status',
+                label: isEnabled(record) ? '禁用' : '启用',
+                icon: <StopOutlined/>,
+                hidden: !canChangeStatus,
+                confirm: `确认${isEnabled(record) ? '禁用' : '启用'}该用户？`,
+                onClick: () => void toggleStatus(record),
+            },
+            {
+                key: 'delete',
+                label: '删除',
+                icon: <DeleteOutlined/>,
+                danger: true,
+                hidden: !canDelete,
+                confirm: '确认删除该用户？删除后无法恢复。',
+                onClick: () => void removeUser(record.id),
+            },
+        ]
+        return <RowActions actions={actions} maxInline={2}/>
     }
 
     function openEditor(user?: UserResponse) {
@@ -239,28 +294,11 @@ function UserListPage() {
         setEffectivePermissions(await getUserEffectivePermissions(user.id))
     }
 
-    function openPasswordModal(user: UserResponse) {
-        let password = ''
-        Modal.confirm({
-            title: `重置密码：${user.accountNo}`,
-            content: (
-                <Input.Password
-                    autoFocus
-                    placeholder="输入新密码"
-                    onChange={(event) => {
-                        password = event.target.value
-                    }}
-                />
-            ),
-            onOk: async () => {
-                if (!password) {
-                    message.error('请输入新密码')
-                    return Promise.reject(new Error('请输入新密码'))
-                }
-                await resetUserPassword(user.id, password)
-                message.success('密码已重置')
-            },
-        })
+    async function submitPasswordReset(values: { password: string }) {
+        if (!passwordUser) return
+        await resetUserPassword(passwordUser.id, values.password)
+        message.success('密码已重置')
+        setPasswordUser(null)
     }
 
     async function toggleStatus(user: UserResponse) {
@@ -278,24 +316,57 @@ function UserListPage() {
     return (
         <>
             <PageToolbar
-                actions={canCreate &&
-                    <Button icon={<PlusOutlined/>} onClick={() => openEditor()} type="primary">新建用户</Button>}
+                actions={canCreate && (
+                    <Button icon={<PlusOutlined/>} onClick={() => openEditor()} type="primary">新建用户</Button>
+                )}
                 description="维护用户资料、状态、角色授权和有效权限。"
+                icon={<UserOutlined/>}
                 title="用户管理"
             />
-            <Table<UserResponse>
+            <FilterBar<UserFilters>
+                onSearch={setFilters}
+                onReset={() => setFilters({})}
+            >
+                <Form.Item label="关键词" name="keyword">
+                    <Input allowClear placeholder="账号、用户名、昵称、邮箱"/>
+                </Form.Item>
+                <Form.Item label="状态" name="status">
+                    <Select
+                        allowClear
+                        options={[
+                            {label: '启用', value: 'ENABLED'},
+                            {label: '禁用', value: 'DISABLED'},
+                        ]}
+                        placeholder="全部"
+                    />
+                </Form.Item>
+                <Form.Item label="激活状态" name="activationStatus">
+                    <Select
+                        allowClear
+                        options={[
+                            {label: '待激活', value: 'PENDING_ACTIVATION'},
+                            {label: '已激活', value: 'ACTIVATED'},
+                        ]}
+                        placeholder="全部"
+                    />
+                </Form.Item>
+            </FilterBar>
+            <DataTable<UserResponse>
                 columns={columns}
+                count={total}
                 dataSource={users}
+                emptyDescription="调整筛选条件，或创建第一个用户账号。"
+                emptyTitle="没有匹配的用户"
                 loading={loading}
                 pagination={{
                     current: page,
                     pageSize: size,
                     total,
-                    showSizeChanger: true,
                     onChange: voidify(loadUsers),
                 }}
                 rowKey="id"
-                scroll={{x: 1280}}
+                scroll={{x: 1000}}
+                title="用户列表"
             />
             <UserEditorDrawer
                 loading={saving}
@@ -303,6 +374,45 @@ function UserListPage() {
                 onSubmit={handleSubmit}
                 open={editorOpen}
                 value={editingUser}
+            />
+            <PromptModal<{ password: string }>
+                danger
+                description={passwordUser
+                    ? `将为「${passwordUser.nickname || passwordUser.username}」（${passwordUser.accountNo}）设置新密码，用户下次登录时生效。`
+                    : undefined}
+                fields={[
+                    {
+                        name: 'password',
+                        label: '新密码',
+                        type: 'password',
+                        autoFocus: true,
+                        placeholder: '至少 8 位，包含字母与数字',
+                        rules: [
+                            {required: true, message: '请输入新密码'},
+                            {min: 8, message: '密码至少 8 位'},
+                        ],
+                    },
+                    {
+                        name: 'confirmPassword',
+                        label: '确认新密码',
+                        type: 'password',
+                        placeholder: '再次输入新密码',
+                        rules: [
+                            {required: true, message: '请再次输入新密码'},
+                            ({getFieldValue}) => ({
+                                validator: (_, value) =>
+                                    !value || value === getFieldValue('password')
+                                        ? Promise.resolve()
+                                        : Promise.reject(new Error('两次输入的密码不一致')),
+                            }),
+                        ],
+                    },
+                ]}
+                okText="重置密码"
+                onCancel={() => setPasswordUser(null)}
+                onSubmit={submitPasswordReset}
+                open={Boolean(passwordUser)}
+                title="重置密码"
             />
             <ActivationLinkModal
                 onClose={() => setActivationModal(null)}

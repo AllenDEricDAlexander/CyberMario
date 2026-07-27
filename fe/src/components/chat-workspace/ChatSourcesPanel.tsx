@@ -18,7 +18,7 @@ export type ChatSourcesPanelProps = {
 export function ChatSourcesPanel(props: ChatSourcesPanelProps) {
     const {
         sources = [],
-        title = 'Sources',
+        title = '引用来源',
         inline = false,
         defaultExpanded = false,
         onSourceSelect,
@@ -31,12 +31,12 @@ export function ChatSourcesPanel(props: ChatSourcesPanelProps) {
             return {
                 key,
                 icon: <FileSearchOutlined/>,
-                title: source.documentName || `Document ${source.documentId}`,
+                title: source.documentName || `文档 ${source.documentId}`,
                 description: (
                     <Space className="chat-workspace-x-source-meta" wrap>
                         <Typography.Text type="secondary">{source.knowledgeBaseName}</Typography.Text>
-                        <Tag>chunk {source.chunkIndex}</Tag>
-                        <Tag>score {source.score.toFixed(4)}</Tag>
+                        <Tag>切片 {source.chunkIndex}</Tag>
+                        <Tag>相关度 {source.score.toFixed(4)}</Tag>
                         {source.matchedBy && <Tag>{source.matchedBy}</Tag>}
                     </Space>
                 ),

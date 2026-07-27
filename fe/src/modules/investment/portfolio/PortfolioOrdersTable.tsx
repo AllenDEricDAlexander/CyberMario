@@ -1,5 +1,6 @@
-import {Button, Table, Tag} from 'antd'
+import {Button, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
+import {DataTable} from '../../../components/DataTable'
 import type {InvestmentPaperOrderPage} from '../types/investmentPortfolioTypes'
 
 export function PortfolioOrdersTable({page, loading, cancellingId, onPageChange, onCancel}: {
@@ -22,11 +23,12 @@ export function PortfolioOrdersTable({page, loading, cancellingId, onPageChange,
         },
     ]
     return (
-        <Table
+        <DataTable<InvestmentPaperOrderPage['records'][number]>
             columns={columns}
             dataSource={page?.records ?? []}
+            emptyDescription="手工模拟下单与 Agent 自动交易产生的委托都会列在这里。"
+            emptyTitle="当前账户暂无委托"
             loading={loading}
-            locale={{emptyText: '当前账户暂无委托'}}
             pagination={{
                 current: page?.page ?? 1,
                 pageSize: page?.size ?? 20,

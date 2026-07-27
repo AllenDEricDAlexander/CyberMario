@@ -1,7 +1,7 @@
 import type {TransferProps} from 'antd'
-import {Drawer, Transfer} from 'antd'
+import {Transfer} from 'antd'
 import {useEffect, useState} from 'react'
-import {voidify} from '../../../utils/async'
+import {FormDrawer} from '../../../components/FormDrawer'
 import type {RoleResponse, UserResponse} from '../rbacTypes'
 
 type UserRoleDrawerProps = {
@@ -21,14 +21,14 @@ type RoleTransferItem = {
 }
 
 export function UserRoleDrawer({
-                                   open,
-                                   user,
-                                   roles,
-                                   selectedRoleIds,
-                                   saving,
-                                   onClose,
-                                   onSubmit,
-                               }: UserRoleDrawerProps) {
+    open,
+    user,
+    roles,
+    selectedRoleIds,
+    saving,
+    onClose,
+    onSubmit,
+}: UserRoleDrawerProps) {
     const [targetKeys, setTargetKeys] = useState<string[]>([])
 
     useEffect(() => {
@@ -44,23 +44,26 @@ export function UserRoleDrawer({
     }))
 
     return (
-        <Drawer
-            destroyOnHidden
-            extra={<button className="drawer-submit" disabled={saving}
-                           onClick={voidify(() => onSubmit(targetKeys.map(Number)))}>保存</button>}
+        <FormDrawer
+            description={user?.username}
+            footerHint={`已分配 ${targetKeys.length} / ${roles.length} 个角色`}
+            loading={saving}
             onClose={onClose}
+            onSubmit={() => void onSubmit(targetKeys.map(Number))}
             open={open}
-            title={`分配角色：${user?.username ?? ''}`}
-            width={680}
+            size="lg"
+            title="分配角色"
         >
             <Transfer<RoleTransferItem>
+                className="role-transfer"
                 dataSource={dataSource}
-                listStyle={{width: 290, height: 420}}
-                onChange={(nextTargetKeys: TransferProps['targetKeys']) => setTargetKeys((nextTargetKeys ?? []).map(String))}
+                onChange={(nextTargetKeys: TransferProps['targetKeys']) =>
+                    setTargetKeys((nextTargetKeys ?? []).map(String))}
                 render={(item) => item.title}
+                showSearch
                 targetKeys={targetKeys}
                 titles={['可选角色', '已分配角色']}
             />
-        </Drawer>
+        </FormDrawer>
     )
 }

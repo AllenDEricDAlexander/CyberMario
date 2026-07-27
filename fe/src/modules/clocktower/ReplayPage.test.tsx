@@ -14,6 +14,7 @@ const authState = ((globalThis as typeof globalThis & Record<string, MockAuthSta
 })
 
 vi.mock('react-router', () => ({
+    useNavigate: () => vi.fn(),
     useParams: () => ({gameId: '42', roomId: '7'}),
 }))
 

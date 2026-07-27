@@ -1,8 +1,12 @@
-import {Button, Card, Popconfirm, Table, Tag, Typography} from 'antd'
+import {BlockOutlined} from '@ant-design/icons'
+import {Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback} from 'react'
-import {useNavigate, useParams} from 'react-router'
+import {useParams} from 'react-router'
+import {DataTable} from '../../components/DataTable'
 import {PageToolbar} from '../../components/PageToolbar'
+import {RowActions} from '../../components/RowActions'
+import {StackedCell} from '../../components/StackedCell'
 import {usePageData} from '../../hooks/usePageData'
 import {voidify} from '../../utils/async'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
@@ -12,7 +16,6 @@ import type {RagChunkResponse} from './ragTypes'
 
 function DocumentDetailPage() {
     const auth = useAuth()
-    const navigate = useNavigate()
     const params = useParams()
     const documentId = Number(params.documentId)
     const canToggle = canUseRbacButton(auth, ragButtonCodes.chunk.toggle)
@@ -30,19 +33,25 @@ function DocumentDetailPage() {
     }
 
     const columns: ColumnsType<RagChunkResponse> = [
-        {title: '序号', dataIndex: 'chunkIndex', width: 80},
-        {title: 'Token', dataIndex: 'tokenCount', width: 90},
+        {
+            title: '切片',
+            dataIndex: 'chunkIndex',
+            width: 130,
+            render: (_, record) => (
+                <StackedCell primary={`#${record.chunkIndex}`} secondary={`${record.tokenCount ?? 0} token`}/>
+            ),
+        },
         {
             title: '标题路径',
             dataIndex: 'headingPath',
-            width: 180,
-            render: (value: RagChunkResponse['headingPath']) => value || '-',
-        },
-        {
-            title: 'Hash',
-            dataIndex: 'contentHash',
-            width: 110,
-            render: (value: RagChunkResponse['contentHash']) => value ? value.slice(0, 8) : '-',
+            width: 220,
+            render: (_, record) => (
+                <StackedCell
+                    plain
+                    primary={record.headingPath || '-'}
+                    secondary={record.contentHash ? record.contentHash.slice(0, 8) : undefined}
+                />
+            ),
         },
         {
             title: '状态',
@@ -63,32 +72,44 @@ function DocumentDetailPage() {
         },
         {
             title: '操作',
+            fixed: 'right',
             width: 100,
-            render: (_, record) => canToggle ? (
-                <Popconfirm title={`确认${record.enabled ? '禁用' : '启用'}该切片？`}
-                            onConfirm={() => void toggle(record)}>
-                    <Button size="small">{record.enabled ? '禁用' : '启用'}</Button>
-                </Popconfirm>
-            ) : '-',
+            render: (_, record) => (
+                <RowActions
+                    actions={[
+                        {
+                            key: 'toggle',
+                            label: record.enabled ? '禁用' : '启用',
+                            hidden: !canToggle,
+                            confirm: `确认${record.enabled ? '禁用' : '启用'}该切片？`,
+                            onClick: () => void toggle(record),
+                        },
+                    ]}
+                />
+            ),
         },
     ]
 
     return (
         <>
             <PageToolbar
-                actions={<Button onClick={() => void navigate('/rag/documents')}>返回</Button>}
-                description="查看文档切片、元数据和检索启用状态。"
+                back="/rag/documents"
+                breadcrumb={[{title: '文档管理', to: '/rag/documents'}, {title: `#${documentId || '-'}`}]}
+                description="查看文档切片、元数据和检索启用状态。禁用的切片不会参与召回。"
+                icon={<BlockOutlined/>}
                 title={`文档切片 #${documentId || '-'}`}
             />
-            <Card>
-                <Table<RagChunkResponse>
-                    columns={columns}
-                    dataSource={records}
-                    loading={loading}
-                    pagination={{current: page, pageSize: size, total, showSizeChanger: true, onChange: voidify(load)}}
-                    rowKey="id"
-                />
-            </Card>
+            <DataTable<RagChunkResponse>
+                columns={columns}
+                count={total}
+                dataSource={records}
+                emptyDescription="文档还没有解析出切片，可以回到文档列表触发一次重建索引。"
+                emptyTitle="暂无切片"
+                loading={loading}
+                pagination={{current: page, pageSize: size, total, onChange: voidify(load)}}
+                rowKey="id"
+                title="切片列表"
+            />
         </>
     )
 }

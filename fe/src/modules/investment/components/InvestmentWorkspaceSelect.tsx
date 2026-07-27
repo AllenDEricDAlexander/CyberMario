@@ -20,6 +20,7 @@ export function InvestmentWorkspaceSelect({
         <Select
             allowClear
             aria-label="当前投资工作区"
+            className="investment-inline-select is-wide"
             disabled={disabled}
             loading={loading}
             onChange={(workspaceId) => onChange(workspaceId ?? null)}
@@ -28,7 +29,6 @@ export function InvestmentWorkspaceSelect({
                 value: workspace.id,
             }))}
             placeholder="选择投资工作区"
-            style={{minWidth: 240}}
             value={value ?? undefined}
         />
     )

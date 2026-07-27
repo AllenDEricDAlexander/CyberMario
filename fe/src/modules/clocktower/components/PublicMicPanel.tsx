@@ -173,7 +173,7 @@ export function PublicMicPanelContent({
 
     if (!session) {
         return (
-            <Space orientation="vertical" style={{width: '100%'}}>
+            <Space orientation="vertical" className="u-full-width">
                 <Empty description="当前没有公聊麦序"/>
                 <PublicSpeechComposer
                     disabled
@@ -186,7 +186,7 @@ export function PublicMicPanelContent({
     }
 
     return (
-        <Space orientation="vertical" size="middle" style={{width: '100%'}}>
+        <Space orientation="vertical" size="middle" className="u-full-width">
             <Flex align="center" justify="space-between" gap="middle" wrap>
                 <Space wrap>
                     <Tag color={session.status === 'GRAB_MIC' ? 'warning' : session.status === 'CLOSED' ? 'default' : 'processing'}>
@@ -255,14 +255,14 @@ function PublicSpeechComposer({
     const [content, setContent] = useState('')
     const trimmed = content.trim()
     return (
-        <Space orientation="vertical" style={{width: '100%'}}>
+        <Space orientation="vertical" className="u-full-width">
             <Input.TextArea
+                autoSize={{minRows: 3, maxRows: 8}}
                 disabled={disabled}
                 maxLength={SPEECH_MAX_LENGTH}
                 onChange={(event) => setContent(event.target.value)}
                 placeholder={placeholder}
                 showCount
-                style={{minHeight: 72}}
                 value={content}
             />
             <Button

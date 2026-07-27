@@ -1,7 +1,14 @@
-import {FileTextOutlined, PlusOutlined, SaveOutlined} from '@ant-design/icons'
-import {Alert, App, Button, Descriptions, Drawer, Form, Input, InputNumber, Select, Space, Table, Tag} from 'antd'
+import {FileTextOutlined, LineChartOutlined, PlusOutlined} from '@ant-design/icons'
+import {Alert, App, Button, Descriptions, Form, Input, InputNumber, Select, Space, Tag} from 'antd'
+import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useMemo, useState} from 'react'
+import {DataTable} from '../../components/DataTable'
+import {EmptyState} from '../../components/EmptyState'
+import {FormDrawer} from '../../components/FormDrawer'
+import {PageGrid, PageSection} from '../../components/PageSection'
 import {PageToolbar} from '../../components/PageToolbar'
+import {StackedCell} from '../../components/StackedCell'
+import {StatCard, StatGrid} from '../../components/StatCard'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {CurrentFamilySelect} from './components/CurrentFamilySelect'
 import {MoneyText} from './components/MoneyText'
@@ -27,11 +34,22 @@ import type {
     NutritionRecordAdjustmentRequest,
     NutritionRecordResponse,
     NutritionReportResponse,
+    NutritionTrendPointResponse,
 } from './nutritionTypes'
 import {NutritionPageGrid, NutritionSection, NutritionStack} from './NutritionPageLayout'
 import {useNutritionFamilySelection} from './useNutritionFamilySelection'
 
 type AdjustmentFormValues = NutritionRecordAdjustmentRequest & {nutrients: NutritionNutrients}
+
+/** Each drawer footer submits its form by id, so the buttons live outside the `<Form>`. */
+const adjustmentFormId = 'nutrition-record-adjustment-form'
+const extraFoodFormId = 'nutrition-record-extra-food-form'
+
+const trendColumns: ColumnsType<NutritionTrendPointResponse> = [
+    {title: '日期', dataIndex: 'date'},
+    {title: '热量', render: (_, point) => `热量：${point.nutrients.calories}`},
+    {title: '蛋白', render: (_, point) => `蛋白：${point.nutrients.protein}`},
+]
 
 function NutritionRecordPage() {
     const auth = useAuth()
@@ -181,6 +199,26 @@ function NutritionRecordPage() {
         }
     }
 
+    const recordColumns: ColumnsType<NutritionRecordResponse> = [
+        {
+            title: '成员',
+            dataIndex: 'memberProfileId',
+            render: (id: number, record) => (
+                <StackedCell primary={members.find((entry) => entry.id === id)?.nickname ?? `#${id}`} secondary={record.mealType}/>
+            ),
+        },
+        {title: '热量', render: (_, record) => record.nutrients.calories},
+        {title: '蛋白', render: (_, record) => record.nutrients.protein},
+        {title: '钠', render: (_, record) => record.nutrients.sodium},
+        {title: '风险', width: 90, render: (_, record) => record.riskTags ? <RiskTag value="MEDIUM"/> : '-'},
+        {
+            title: '操作',
+            width: 120,
+            render: (_, record) => (
+                <Button aria-label={`调整记录 ${record.id}`} disabled={!canManage} onClick={() => openAdjustment(record)} size="small">调整记录</Button>
+            ),
+        },
+    ]
     const visibleState = familySelection.state === 'ready' ? state : familySelection.state
 
     return (
@@ -198,6 +236,7 @@ function NutritionRecordPage() {
                     </Space>
                 )}
                 description="查看每日摄入、修正实际摄入、登记加餐，并生成可追溯家庭报告快照。"
+                icon={<LineChartOutlined/>}
                 title="营养记录"
             />
             {mutationError && <Alert closable={{onClose: () => setMutationError(undefined)}} showIcon title={mutationError} type="error"/>}
@@ -207,104 +246,121 @@ function NutritionRecordPage() {
                 state={visibleState}
             >
                 <NutritionStack>
-                    <NutritionSection title="每日目标对比">
-                        <Descriptions bordered column={3} size="small">
-                            <Descriptions.Item label="已摄入热量">{daily?.totalNutrients.calories} kcal</Descriptions.Item>
-                            <Descriptions.Item label="目标热量">{daily?.targetNutrients.calories} kcal</Descriptions.Item>
-                            <Descriptions.Item label="剩余热量">{daily?.remainingNutrients.calories} kcal</Descriptions.Item>
-                        </Descriptions>
-                    </NutritionSection>
-                    <NutritionSection title="每日摄入记录">
-                        <Table<NutritionRecordResponse>
-                            columns={[
-                                {title: '成员', dataIndex: 'memberProfileId'},
-                                {title: '餐次', dataIndex: 'mealType'},
-                                {title: '热量', render: (_, record) => record.nutrients.calories},
-                                {title: '蛋白', render: (_, record) => record.nutrients.protein},
-                                {title: '钠', render: (_, record) => record.nutrients.sodium},
-                                {title: '风险', render: (_, record) => record.riskTags ? <RiskTag value="MEDIUM"/> : '-'},
-                                {title: '操作', render: (_, record) => (
-                                    <Button aria-label={`调整记录 ${record.id}`} disabled={!canManage} onClick={() => openAdjustment(record)} size="small">调整记录</Button>
-                                )},
-                            ]}
-                            dataSource={records}
-                            pagination={false}
-                            rowKey="id"
-                            size="small"
-                        />
-                    </NutritionSection>
+                    <PageSection title="每日目标对比">
+                        <StatGrid columns={3}>
+                            <StatCard label="已摄入热量" suffix="kcal" value={daily?.totalNutrients.calories ?? '-'}/>
+                            <StatCard label="目标热量" suffix="kcal" tone="sky" value={daily?.targetNutrients.calories ?? '-'}/>
+                            <StatCard
+                                hint="按当日目标扣减后的余量"
+                                label="剩余热量"
+                                suffix="kcal"
+                                tone="amber"
+                                value={daily?.remainingNutrients.calories ?? '-'}
+                            />
+                        </StatGrid>
+                    </PageSection>
+                    <DataTable<NutritionRecordResponse>
+                        columns={recordColumns}
+                        count={records.length}
+                        dataSource={records}
+                        emptyDescription="今天还没有摄入记录，确认菜单或点击「加餐登记」补录。"
+                        emptyTitle="今日暂无摄入记录"
+                        pagination={false}
+                        rowKey="id"
+                        size="small"
+                        title="每日摄入记录"
+                    />
                     <NutritionPageGrid>
-                        <NutritionSection title="周报告">
+                        <NutritionSection
+                            extra={<Button disabled={!canManage} icon={<FileTextOutlined/>} loading={saving} onClick={() => void generateWeeklyReport()} type="primary">生成周报告</Button>}
+                            title="周报告"
+                        >
                             <Descriptions column={1} bordered size="small">
                                 <Descriptions.Item label="报告周期">{report?.periodStart} ~ {report?.periodEnd}</Descriptions.Item>
                                 <Descriptions.Item label="快照">{report?.snapshotId ? `快照 #${report.snapshotId}` : '实时预览'}</Descriptions.Item>
                                 <Descriptions.Item label="实际成本"><MoneyText value={report?.actualCost}/></Descriptions.Item>
                                 <Descriptions.Item label="预估成本"><MoneyText value={report?.estimatedCost}/></Descriptions.Item>
                             </Descriptions>
-                            <Button disabled={!canManage} icon={<FileTextOutlined/>} loading={saving} onClick={() => void generateWeeklyReport()} style={{marginTop: 12}} type="primary">生成周报告</Button>
                         </NutritionSection>
-                        <NutritionSection title="月报告">
+                        <NutritionSection
+                            extra={<Button disabled={!canManage} icon={<FileTextOutlined/>} loading={saving} onClick={() => void generateMonthlyReport()} type="primary">生成月报告</Button>}
+                            title="月报告"
+                        >
                             <Descriptions column={1} bordered size="small">
                                 <Descriptions.Item label="报告周期">{monthlyReport?.periodStart} ~ {monthlyReport?.periodEnd}</Descriptions.Item>
                                 <Descriptions.Item label="快照">{monthlyReport?.snapshotId ? `月度快照 #${monthlyReport.snapshotId}` : '实时预览'}</Descriptions.Item>
                                 <Descriptions.Item label="实际成本"><MoneyText value={monthlyReport?.actualCost}/></Descriptions.Item>
                                 <Descriptions.Item label="预估成本"><MoneyText value={monthlyReport?.estimatedCost}/></Descriptions.Item>
                             </Descriptions>
-                            <Button disabled={!canManage} icon={<FileTextOutlined/>} loading={saving} onClick={() => void generateMonthlyReport()} style={{marginTop: 12}} type="primary">生成月报告</Button>
                         </NutritionSection>
                         <NutritionSection title="营养提醒">
-                            <Space wrap>{(report?.nutrientReminders ?? []).map((reminder) => <Tag color="warning" key={reminder}>{reminder}</Tag>)}</Space>
+                            {report?.nutrientReminders?.length
+                                ? <Space wrap>{report.nutrientReminders.map((reminder) => <Tag color="warning" key={reminder}>{reminder}</Tag>)}</Space>
+                                : <EmptyState description="本周摄入没有触发钠、糖等超标提醒。" inline title="暂无营养提醒"/>}
                         </NutritionSection>
-                        <NutritionSection title="摄入趋势">
-                            <Table
-                                columns={[
-                                    {title: '日期', dataIndex: 'date'},
-                                    {title: '热量', render: (_, point) => `热量：${point.nutrients.calories}`},
-                                    {title: '蛋白', render: (_, point) => `蛋白：${point.nutrients.protein}`},
-                                ]}
-                                dataSource={report?.trends ?? []}
-                                pagination={false}
-                                rowKey="date"
-                                size="small"
-                            />
-                        </NutritionSection>
+                        <DataTable<NutritionTrendPointResponse>
+                            columns={trendColumns}
+                            dataSource={report?.trends ?? []}
+                            emptyDescription="生成周报告后，这里会按天列出热量与蛋白摄入。"
+                            emptyTitle="暂无摄入趋势"
+                            pagination={false}
+                            rowKey="date"
+                            size="small"
+                            title="摄入趋势"
+                        />
                     </NutritionPageGrid>
                 </NutritionStack>
             </NutritionAsyncState>
-            <Drawer destroyOnHidden loading={saving} onClose={() => setEditingRecord(undefined)} open={Boolean(editingRecord)} size={520} title="调整营养记录">
-                <Form form={adjustmentForm} layout="vertical" onFinish={(values) => void saveAdjustment(values)}>
+            <FormDrawer
+                footerHint={editingRecord ? `记录 #${editingRecord.id} · ${editingRecord.mealType}` : undefined}
+                formId={adjustmentFormId}
+                loading={saving}
+                onClose={() => setEditingRecord(undefined)}
+                open={Boolean(editingRecord)}
+                size="md"
+                submitText="保存调整"
+                title="调整营养记录"
+            >
+                <Form form={adjustmentForm} id={adjustmentFormId} layout="vertical" onFinish={(values) => void saveAdjustment(values)}>
                     <NutrientFields prefix="调整"/>
                     <Form.Item label="调整原因" name="reason" rules={[{required: true}]}><Input aria-label="调整原因"/></Form.Item>
-                    <Button htmlType="submit" icon={<SaveOutlined/>} loading={saving} type="primary">保存调整</Button>
                 </Form>
-            </Drawer>
-            <Drawer destroyOnHidden loading={saving} onClose={() => setExtraOpen(false)} open={extraOpen} size={520} title="加餐登记">
-                <Form form={extraForm} layout="vertical" onFinish={(values) => void saveExtraFood(values)}>
+            </FormDrawer>
+            <FormDrawer
+                formId={extraFoodFormId}
+                loading={saving}
+                onClose={() => setExtraOpen(false)}
+                open={extraOpen}
+                size="md"
+                submitText="保存加餐"
+                title="加餐登记"
+            >
+                <Form form={extraForm} id={extraFoodFormId} layout="vertical" onFinish={(values) => void saveExtraFood(values)}>
                     <Form.Item label="成员档案" name="memberProfileId" rules={[{required: true}]}>
                         <Select options={members.map((member) => ({label: member.nickname, value: member.id}))}/>
                     </Form.Item>
                     <Form.Item hidden name="recordDate"><Input/></Form.Item>
                     <Form.Item hidden name="mealType"><Input/></Form.Item>
                     <Form.Item label="食物名称" name="foodName" rules={[{required: true}]}><Input aria-label="食物名称"/></Form.Item>
-                    <Form.Item label="数量" name="amount" rules={[{required: true}]}><InputNumber aria-label="数量" min={0.001} style={{width: '100%'}}/></Form.Item>
+                    <Form.Item label="数量" name="amount" rules={[{required: true}]}><InputNumber aria-label="数量" className="u-full-width" min={0.001}/></Form.Item>
                     <Form.Item label="单位" name="unit" rules={[{required: true}]}><Input aria-label="单位"/></Form.Item>
                     <NutrientFields prefix="加餐"/>
-                    <Button htmlType="submit" icon={<SaveOutlined/>} loading={saving} type="primary">保存加餐</Button>
                 </Form>
-            </Drawer>
+            </FormDrawer>
         </NutritionStack>
     )
 }
 
 function NutrientFields({prefix}: {prefix: string}) {
     return (
-        <NutritionPageGrid>
+        // Eight short number fields — a tighter minimum than the page grid keeps them side by side.
+        <PageGrid minWidth={160}>
             {nutrientFields.map(({name, label}) => (
                 <Form.Item key={name} label={`${prefix}${label}`} name={['nutrients', name]}>
-                    <InputNumber aria-label={`${prefix}${label}`} min={0} style={{width: '100%'}}/>
+                    <InputNumber aria-label={`${prefix}${label}`} className="u-full-width" min={0}/>
                 </Form.Item>
             ))}
-        </NutritionPageGrid>
+        </PageGrid>
     )
 }
 

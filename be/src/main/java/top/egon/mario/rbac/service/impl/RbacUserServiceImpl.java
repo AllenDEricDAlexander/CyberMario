@@ -1,5 +1,6 @@
 package top.egon.mario.rbac.service.impl;
 
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -13,6 +14,7 @@ import org.springframework.validation.annotation.Validated;
 import top.egon.mario.common.utils.LogUtil;
 import top.egon.mario.rbac.activation.service.RbacAccountActivationTokenService;
 import top.egon.mario.rbac.converter.RbacDtoConverter;
+import top.egon.mario.rbac.dto.enums.ActivationStatus;
 import top.egon.mario.rbac.dto.request.ChangeCurrentUserPasswordRequest;
 import top.egon.mario.rbac.dto.request.CreateUserRequest;
 import top.egon.mario.rbac.dto.request.UpdateCurrentUserProfileRequest;
@@ -29,9 +31,11 @@ import top.egon.mario.rbac.service.RbacAuditService;
 import top.egon.mario.rbac.service.RbacException;
 import top.egon.mario.rbac.service.RbacUserService;
 import top.egon.mario.rbac.service.model.RbacPermissionChangedEvent;
+import top.egon.mario.rbac.service.model.UserQuery;
 
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.HashSet;
@@ -111,8 +115,36 @@ public class RbacUserServiceImpl implements RbacUserService {
     @Override
     @Transactional(readOnly = true)
     public Page<UserResponse> getUserPage(Pageable pageable) {
-        return userRepository.findAll((root, query, cb) -> cb.isFalse(root.get("deleted")), pageable)
-                .map(rbacDtoConverter::toUserResponse);
+        return getUserPage(UserQuery.EMPTY, pageable);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<UserResponse> getUserPage(UserQuery userQuery, Pageable pageable) {
+        UserQuery filters = userQuery == null ? UserQuery.EMPTY : userQuery;
+        return userRepository.findAll((root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.isFalse(root.get("deleted")));
+            if (filters.hasKeyword()) {
+                String pattern = filters.keywordPattern();
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("accountNo")), pattern),
+                        cb.like(cb.lower(root.get("username")), pattern),
+                        cb.like(cb.lower(root.get("nickname")), pattern),
+                        cb.like(cb.lower(root.get("email")), pattern),
+                        cb.like(cb.lower(root.get("mobile")), pattern)));
+            }
+            if (filters.status() != null) {
+                predicates.add(cb.equal(root.get("status"), filters.status()));
+            }
+            if (filters.activationStatus() != null) {
+                // Activation is derived from activatedAt, mirroring RbacDtoConverter.
+                predicates.add(filters.activationStatus() == ActivationStatus.PENDING_ACTIVATION
+                        ? cb.isNull(root.get("activatedAt"))
+                        : cb.isNotNull(root.get("activatedAt")));
+            }
+            return cb.and(predicates.toArray(new Predicate[0]));
+        }, pageable).map(rbacDtoConverter::toUserResponse);
     }
 
     @Override

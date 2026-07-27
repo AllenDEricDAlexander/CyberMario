@@ -87,7 +87,8 @@ describe('NutritionRecordPage', () => {
     test('corrects a record and adds an extra food with complete nutrients', async () => {
         const user = userEvent.setup()
         renderNutritionPage(<NutritionRecordPage/>)
-        await screen.findByText('620')
+        // The intake total now shows both as a headline stat and in the record row.
+        await screen.findAllByText('620')
 
         await user.click(screen.getByRole('button', {name: '调整记录 901'}))
         const calories = screen.getByLabelText('调整热量')

@@ -1,5 +1,6 @@
-import {Button, Drawer, Form, Input, InputNumber, Select, Switch} from 'antd'
+import {Form, Input, InputNumber, Select, Switch} from 'antd'
 import {useEffect} from 'react'
+import {FormDrawer} from '../../../components/FormDrawer'
 import {voidify} from '../../../utils/async'
 import {RBAC_STATUS_OPTIONS} from '../rbacEnums'
 import type {CreateRoleRequest, RoleResponse, UpdateRoleRequest} from '../rbacTypes'
@@ -34,13 +35,14 @@ export function RoleEditorDrawer({open, loading, value, onClose, onSubmit}: Role
     }
 
     return (
-        <Drawer
-            destroyOnHidden
-            extra={<Button form="role-editor-form" htmlType="submit" loading={loading} type="primary">保存</Button>}
+        <FormDrawer
+            description={editing ? value?.roleCode : '角色编码创建后不可修改。'}
+            formId="role-editor-form"
+            loading={loading}
             onClose={onClose}
             open={open}
+            size="md"
             title={editing ? '编辑角色' : '新建角色'}
-            width={520}
         >
             <Form form={form} id="role-editor-form" layout="vertical" onFinish={voidify(handleFinish)}
                   requiredMark={false}>
@@ -54,7 +56,7 @@ export function RoleEditorDrawer({open, loading, value, onClose, onSubmit}: Role
                     <Select options={RBAC_STATUS_OPTIONS}/>
                 </Form.Item>
                 <Form.Item label="排序" name="sortNo">
-                    <InputNumber style={{width: '100%'}}/>
+                    <InputNumber className="u-full-width"/>
                 </Form.Item>
                 <Form.Item label="内置角色" name="builtIn" valuePropName="checked">
                     <Switch/>
@@ -63,6 +65,6 @@ export function RoleEditorDrawer({open, loading, value, onClose, onSubmit}: Role
                     <Input.TextArea rows={3}/>
                 </Form.Item>
             </Form>
-        </Drawer>
+        </FormDrawer>
     )
 }

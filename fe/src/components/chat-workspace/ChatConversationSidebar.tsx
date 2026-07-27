@@ -43,7 +43,7 @@ export function ChatConversationSidebar(props: ChatConversationSidebarProps) {
     )
 
     return (
-        <aside className="chat-workspace-x-sidebar" aria-label={`${brandTitle} conversations`}>
+        <aside className="chat-workspace-x-sidebar" aria-label={`${brandTitle} 会话列表`}>
             <div className="chat-workspace-x-sidebar-brand">
                 <Typography.Title className="chat-workspace-x-sidebar-title" level={4}>
                     {brandTitle}
@@ -62,13 +62,13 @@ export function ChatConversationSidebar(props: ChatConversationSidebarProps) {
                     type="primary"
                     onClick={onNewConversation}
                 >
-                    New Chat
+                    新建会话
                 </Button>
                 <Space.Compact>
                     {onReload && (
-                        <Tooltip title="Refresh conversations">
+                        <Tooltip title="刷新会话列表">
                             <Button
-                                aria-label="Refresh conversations"
+                                aria-label="刷新会话列表"
                                 icon={<ReloadOutlined/>}
                                 loading={loading}
                                 onClick={onReload}
@@ -76,9 +76,9 @@ export function ChatConversationSidebar(props: ChatConversationSidebarProps) {
                         </Tooltip>
                     )}
                     {onArchive && (
-                        <Tooltip title="Archive current conversation">
+                        <Tooltip title="归档当前会话">
                             <Button
-                                aria-label="Archive current conversation"
+                                aria-label="归档当前会话"
                                 disabled={!activeKey}
                                 icon={<InboxOutlined/>}
                                 onClick={() => onArchive(activeKey)}
@@ -99,7 +99,7 @@ export function ChatConversationSidebar(props: ChatConversationSidebarProps) {
                 ) : (
                     <Empty
                         className="chat-workspace-x-sidebar-empty"
-                        description={loading ? 'Loading conversations...' : 'No conversations yet'}
+                        description={loading ? '正在加载会话…' : '还没有会话，点击「新建会话」开始'}
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                     />
                 )}

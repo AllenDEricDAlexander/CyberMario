@@ -1,5 +1,6 @@
-import {Button, Drawer, Form, Input, Select, Switch} from 'antd'
+import {Form, Input, Select, Switch} from 'antd'
 import {useEffect} from 'react'
+import {FormDrawer} from '../../../components/FormDrawer'
 import {voidify} from '../../../utils/async'
 import {RBAC_STATUS_OPTIONS} from '../rbacEnums'
 import type {CreateUserRequest, UpdateUserRequest, UserResponse} from '../rbacTypes'
@@ -48,13 +49,13 @@ export function UserEditorDrawer({open, loading, value, onClose, onSubmit}: User
     }
 
     return (
-        <Drawer
-            destroyOnHidden
-            extra={<Button form="user-editor-form" htmlType="submit" loading={loading} type="primary">保存</Button>}
+        <FormDrawer
+            description={editing ? value?.accountNo : '创建后将生成激活链接，由用户自行设置密码'}
+            formId="user-editor-form"
+            loading={loading}
             onClose={onClose}
             open={open}
             title={editing ? '编辑用户' : '新建用户'}
-            width={520}
         >
             <Form form={form} id="user-editor-form" layout="vertical" onFinish={voidify(handleFinish)}
                 requiredMark={false}>
@@ -100,6 +101,6 @@ export function UserEditorDrawer({open, loading, value, onClose, onSubmit}: User
                     <Input.TextArea rows={3}/>
                 </Form.Item>
             </Form>
-        </Drawer>
+        </FormDrawer>
     )
 }

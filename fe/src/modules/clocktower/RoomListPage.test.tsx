@@ -126,9 +126,12 @@ describe('RoomListPage', () => {
             />,
         )
 
-        expect(markup).toContain('大 厅')
-        expect(markup).toContain('游 戏')
-        expect(markup).toContain('回 放')
+        // Row actions render as link buttons, which opt out of Ant Design's
+        // two-character auto-spacing — assert on both spellings either way.
+        expect(markup).toContain('大厅')
+        expect(markup).toContain('游戏')
+        expect(markup).toContain('回放')
+        expect(markup).not.toContain('魔典')
         expect(markup).not.toContain('魔 典')
         expect(markup).not.toContain('/grimoire')
     })

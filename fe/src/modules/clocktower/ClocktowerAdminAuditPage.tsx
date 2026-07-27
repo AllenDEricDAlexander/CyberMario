@@ -1,21 +1,23 @@
-import {EyeOutlined, ReloadOutlined, SearchOutlined} from '@ant-design/icons'
 import {
-    Alert,
-    Button,
-    Card,
-    Col,
+    AuditOutlined,
+    CommentOutlined,
+    EyeOutlined,
+    MessageOutlined,
+    ReloadOutlined,
+    StopOutlined,
+    TeamOutlined,
+    ThunderboltOutlined,
+    UserAddOutlined,
+} from '@ant-design/icons'
+import {
     Descriptions,
-    Drawer,
-    Empty,
+    Button,
     Form,
     Input,
     List,
-    Row,
     Select,
     Space,
     Spin,
-    Statistic,
-    Table,
     Tabs,
     Tag,
     Timeline,
@@ -23,10 +25,18 @@ import {
 } from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useEffect, useRef, useState} from 'react'
+import {DataTable} from '../../components/DataTable'
 import {DateTimeText} from '../../components/DateTimeText'
+import {EmptyState} from '../../components/EmptyState'
+import {ErrorState} from '../../components/ErrorState'
+import {FilterBar} from '../../components/FilterBar'
+import {FormDrawer} from '../../components/FormDrawer'
+import {PageSection, PageStack} from '../../components/PageSection'
 import {PageToolbar} from '../../components/PageToolbar'
+import {RowActions} from '../../components/RowActions'
+import {StatCard, StatGrid} from '../../components/StatCard'
 import {resolveErrorMessage} from '../../services/request'
-import {voidify} from '../../utils/async'
+import './clocktower.css'
 import {
     getClocktowerAuditSummary,
     getClocktowerGameAudit,
@@ -149,8 +159,7 @@ function ClocktowerAdminAuditPage() {
     const loading = summary.loading || rooms.loading || games.loading || events.loading || conversations.loading
         || messages.loading || members.loading || invitations.loading || bans.loading
 
-    async function search() {
-        const values = await form.validateFields()
+    function search(values: AuditSearchForm) {
         const nextCriteria = normalizeAuditCriteria(values)
         form.setFieldsValue({
             ...values,
@@ -159,6 +168,10 @@ function ClocktowerAdminAuditPage() {
             conversationIds: nextCriteria.conversationIds?.map(String),
             roomName: nextCriteria.roomName,
         })
+        applyCriteria(nextCriteria)
+    }
+
+    function applyCriteria(nextCriteria: ClocktowerAuditFilter) {
         setCriteria(nextCriteria)
         setPagination((current) => resetPaginationPages(current))
         setRefreshVersion((current) => current + 1)
@@ -242,7 +255,14 @@ function ClocktowerAdminAuditPage() {
             fixed: 'right',
             width: 100,
             render: (_, record) => (
-                <Button icon={<EyeOutlined/>} onClick={() => void openRoomDetail(record)} size="small">详情</Button>
+                <RowActions
+                    actions={[{
+                        key: 'detail',
+                        label: '详情',
+                        icon: <EyeOutlined/>,
+                        onClick: () => void openRoomDetail(record),
+                    }]}
+                />
             ),
         },
     ]
@@ -263,7 +283,14 @@ function ClocktowerAdminAuditPage() {
             fixed: 'right',
             width: 100,
             render: (_, record) => (
-                <Button icon={<EyeOutlined/>} onClick={() => void openGameDetail(record)} size="small">详情</Button>
+                <RowActions
+                    actions={[{
+                        key: 'detail',
+                        label: '详情',
+                        icon: <EyeOutlined/>,
+                        onClick: () => void openGameDetail(record),
+                    }]}
+                />
             ),
         },
     ]
@@ -366,25 +393,22 @@ function ClocktowerAdminAuditPage() {
                 description="统一查询房间及其全部历史游戏、事件、会话和消息；不填写条件时查询全部数据。"
                 title="钟楼审计"
             />
-            <Card className="dashboard-filter-card">
-                <Form form={form} layout="vertical">
-                    <Space align="end" wrap>
-                        <AuditIdSelect label="房间 ID" name="roomIds"/>
-                        <AuditIdSelect label="游戏 ID" name="gameIds"/>
-                        <AuditIdSelect label="会话 ID" name="conversationIds"/>
-                        <Form.Item label="房间名称" name="roomName">
-                            <Input allowClear placeholder="支持模糊查询" style={{width: 220}}/>
-                        </Form.Item>
-                        <Form.Item label=" ">
-                            <Button icon={<SearchOutlined/>} onClick={voidify(search)} type="primary">
-                                查询
-                            </Button>
-                        </Form.Item>
-                    </Space>
-                </Form>
-            </Card>
+            {/* No `loading` here: the eight reports load independently and a
+                permanently spinning submit button would block re-querying. */}
+            <FilterBar<AuditSearchForm>
+                form={form}
+                onReset={() => applyCriteria({})}
+                onSearch={search}
+            >
+                <AuditIdSelect label="房间 ID" name="roomIds"/>
+                <AuditIdSelect label="游戏 ID" name="gameIds"/>
+                <AuditIdSelect label="会话 ID" name="conversationIds"/>
+                <Form.Item label="房间名称" name="roomName">
+                    <Input allowClear placeholder="支持模糊查询"/>
+                </Form.Item>
+            </FilterBar>
             <AuditSummary state={summary}/>
-            <Card style={{marginTop: 16}}>
+            <PageSection title="审计明细">
                 <Tabs
                     items={[
                         auditTab('rooms', '房间', summary.data.roomCount, rooms, roomColumns, pagination.rooms, changePage, 1420),
@@ -415,18 +439,19 @@ function ClocktowerAdminAuditPage() {
                         auditTab('bans', '封禁', summary.data.banCount, bans, banColumns, pagination.bans, changePage, 1320),
                     ]}
                 />
-            </Card>
-            <Drawer
+            </PageSection>
+            <FormDrawer
+                footer={false}
                 onClose={() => {
                     detailRequestRef.current += 1
                     setDetail(null)
                 }}
                 open={!!detail}
-                size="large"
-                title={detail?.title}
+                size="xl"
+                title={detail?.title ?? '审计详情'}
             >
                 {detail && <AuditDetailContent detail={detail}/>}
-            </Drawer>
+            </FormDrawer>
         </>
     )
 }
@@ -454,35 +479,42 @@ function AuditIdSelect({label, name}: { label: string; name: keyof AuditSearchFo
                 mode="tags"
                 open={false}
                 placeholder="支持多个 ID"
-                style={{width: 260}}
                 tokenSeparators={[',', '，', ' ', '\n', '\t']}
             />
         </Form.Item>
     )
 }
 
+const summaryTiles = [
+    {key: 'roomCount', label: '房间', icon: <AuditOutlined/>, tone: 'accent'},
+    {key: 'gameCount', label: '游戏', icon: <ThunderboltOutlined/>, tone: 'sky'},
+    {key: 'eventCount', label: '事件', icon: <ThunderboltOutlined/>, tone: 'violet'},
+    {key: 'conversationCount', label: '会话', icon: <CommentOutlined/>, tone: 'sky'},
+    {key: 'messageCount', label: '消息', icon: <MessageOutlined/>, tone: 'accent'},
+    {key: 'memberCount', label: '成员', icon: <TeamOutlined/>, tone: 'amber'},
+    {key: 'invitationCount', label: '邀请', icon: <UserAddOutlined/>, tone: 'violet'},
+    {key: 'banCount', label: '封禁', icon: <StopOutlined/>, tone: 'coral'},
+] as const
+
 function AuditSummary({state}: { state: { data: ClocktowerAuditSummaryResponse; loading: boolean; error: string } }) {
-    const items = [
-        ['房间', state.data.roomCount],
-        ['游戏', state.data.gameCount],
-        ['事件', state.data.eventCount],
-        ['会话', state.data.conversationCount],
-        ['消息', state.data.messageCount],
-        ['成员', state.data.memberCount],
-        ['邀请', state.data.invitationCount],
-        ['封禁', state.data.banCount],
-    ] as const
     return (
-        <Card loading={state.loading} style={{marginTop: 16}} title="查询汇总">
-            {state.error && <Alert message={state.error} showIcon type="error"/>}
-            <Row gutter={[16, 16]}>
-                {items.map(([title, value]) => (
-                    <Col key={title} lg={3} md={6} sm={12} xs={12}>
-                        <Statistic title={title} value={value}/>
-                    </Col>
-                ))}
-            </Row>
-        </Card>
+        <PageSection description="当前查询条件命中的记录数。" title="查询汇总">
+            <PageStack>
+                {state.error && <ErrorState inline message={state.error} title="审计汇总查询失败"/>}
+                <StatGrid>
+                    {summaryTiles.map((tile) => (
+                        <StatCard
+                            icon={tile.icon}
+                            key={tile.key}
+                            label={tile.label}
+                            loading={state.loading}
+                            tone={tile.tone}
+                            value={state.data[tile.key]}
+                        />
+                    ))}
+                </StatGrid>
+            </PageStack>
+        </PageSection>
     )
 }
 
@@ -500,25 +532,25 @@ function auditTab<T extends object>(
         key,
         label: `${title} (${count})`,
         children: (
-            <Space orientation="vertical" size={12} style={{width: '100%'}}>
-                {state.error && <Alert message={state.error} showIcon type="error"/>}
-                <Table<T>
+            <PageStack>
+                {state.error && <ErrorState inline message={state.error} title={`${title}审计查询失败`}/>}
+                <DataTable<T>
                     columns={columns}
+                    count={state.page.total}
                     dataSource={state.page.records}
+                    emptyDescription={`当前查询条件下没有${title}记录，放宽条件后重试。`}
+                    emptyTitle={`暂无${title}审计数据`}
                     loading={state.loading}
-                    locale={{emptyText: <Empty description={`暂无${title}审计数据`}/>}}
                     pagination={{
                         current: state.page.page || pagination.page,
                         pageSize: state.page.size || pagination.size,
                         total: state.page.total,
-                        showSizeChanger: true,
-                        showTotal: (total) => `共 ${total} 条`,
                         onChange: (page, size) => changePage(key, page, size),
                     }}
                     rowKey={(record) => auditRowKey(key, record)}
                     scroll={{x: scrollWidth}}
                 />
-            </Space>
+            </PageStack>
         ),
     }
 }
@@ -532,34 +564,58 @@ function AuditDetailContent({detail}: { detail: AuditDetail }) {
         {title: '状态', dataIndex: 'status', width: 110, render: renderTag},
     ]
     return (
-        <Space orientation="vertical" size={16} style={{width: '100%'}}>
-            {detail.error && <Alert message={detail.error} showIcon type="error"/>}
+        <PageStack>
+            {detail.error && <ErrorState inline message={detail.error} title="详情加载失败"/>}
             <Descriptions bordered column={1} items={Object.entries(detail.data).map(([key, value]) => ({
                 key,
                 label: key,
                 children: renderDetailValue(key, value),
             }))}/>
-            {detail.loading && <Spin tip="正在加载完整详情"><div style={{height: 60}}/></Spin>}
+            {detail.loading && <Spin description="正在加载完整详情"><div className="clocktower-loading-block"/></Spin>}
             {detail.roomSeats && (
-                <Card size="small" title="房间座位">
-                    <Table columns={seatColumns} dataSource={detail.roomSeats} pagination={false} rowKey="seatId" size="small"/>
-                </Card>
+                <DataTable
+                    columns={seatColumns}
+                    count={detail.roomSeats.length}
+                    dataSource={detail.roomSeats}
+                    emptyDescription="该房间还没有任何座位记录。"
+                    emptyTitle="暂无房间座位"
+                    pagination={false}
+                    rowKey="seatId"
+                    size="small"
+                    title="房间座位"
+                />
             )}
             {detail.gameSeats && (
-                <Card size="small" title="游戏座位">
-                    <Table columns={seatColumns} dataSource={detail.gameSeats} pagination={false} rowKey="gameSeatId" size="small"/>
-                </Card>
+                <DataTable
+                    columns={seatColumns}
+                    count={detail.gameSeats.length}
+                    dataSource={detail.gameSeats}
+                    emptyDescription="该游戏还没有任何座位记录。"
+                    emptyTitle="暂无游戏座位"
+                    pagination={false}
+                    rowKey="gameSeatId"
+                    size="small"
+                    title="游戏座位"
+                />
             )}
             {detail.events && (
-                <Card size="small" title="事件时间线">
+                <PageSection title="事件时间线">
                     <GameEventTimeline events={detail.events}/>
-                </Card>
+                </PageSection>
             )}
             {detail.conversations && (
-                <Card size="small" title="关联会话">
+                <PageSection title="关联会话">
                     <List
                         dataSource={detail.conversations}
-                        locale={{emptyText: '暂无会话'}}
+                        locale={{
+                            emptyText: (
+                                <EmptyState
+                                    description="这条记录还没有产生任何聊天会话。"
+                                    inline
+                                    title="暂无会话"
+                                />
+                            ),
+                        }}
                         renderItem={(conversation) => (
                             <List.Item>
                                 <List.Item.Meta
@@ -570,15 +626,15 @@ function AuditDetailContent({detail}: { detail: AuditDetail }) {
                         )}
                         rowKey="conversationId"
                     />
-                </Card>
+                </PageSection>
             )}
-        </Space>
+        </PageStack>
     )
 }
 
 function GameEventTimeline({events}: { events: ClocktowerGameEventResponse[] }) {
     if (events.length === 0) {
-        return <Empty description="暂无事件"/>
+        return <EmptyState description="这局游戏还没有记录任何事件。" inline title="暂无事件"/>
     }
     return (
         <Timeline
@@ -597,7 +653,9 @@ function GameEventTimeline({events}: { events: ClocktowerGameEventResponse[] }) 
                         <Typography.Text type="secondary">
                             {event.phase} · 第 {event.dayNo} 天 / 第 {event.nightNo} 夜 · <DateTimeText value={event.occurredAt}/>
                         </Typography.Text>
-                        <Typography.Text code>{formatPayload(event.payload)}</Typography.Text>
+                        <Typography.Paragraph className="clocktower-payload">
+                            {formatPayload(event.payload)}
+                        </Typography.Paragraph>
                     </Space>
                 ),
             }))}
@@ -749,13 +807,14 @@ function detailButton<T extends object>(
     setDetail: (detail: AuditDetail) => void,
 ) {
     return (
-        <Button
-            icon={<EyeOutlined/>}
-            onClick={() => setDetail({title: `${title} #${id}`, data: toRecord(record)})}
-            size="small"
-        >
-            详情
-        </Button>
+        <RowActions
+            actions={[{
+                key: 'detail',
+                label: '详情',
+                icon: <EyeOutlined/>,
+                onClick: () => setDetail({title: `${title} #${id}`, data: toRecord(record)}),
+            }]}
+        />
     )
 }
 
@@ -787,14 +846,14 @@ function renderDetailValue(key: string, value: unknown) {
         return <DateTimeText value={value}/>
     }
     if (key.endsWith('Json') && typeof value === 'string') {
-        return <Typography.Paragraph copyable style={{marginBottom: 0, whiteSpace: 'pre-wrap'}}>{value}</Typography.Paragraph>
+        return <Typography.Paragraph className="clocktower-payload" copyable>{value}</Typography.Paragraph>
     }
     if (Array.isArray(value)) {
         return `${value.length} 条`
     }
     if (typeof value === 'object') {
         return (
-            <Typography.Paragraph copyable style={{marginBottom: 0, whiteSpace: 'pre-wrap'}}>
+            <Typography.Paragraph className="clocktower-payload" copyable>
                 {formatPayload(value as Record<string, unknown>)}
             </Typography.Paragraph>
         )

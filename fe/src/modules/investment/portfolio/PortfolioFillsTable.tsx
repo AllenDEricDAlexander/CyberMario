@@ -1,5 +1,6 @@
-import {Table, Tag} from 'antd'
+import {Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
+import {DataTable} from '../../../components/DataTable'
 import {InvestmentDecimalText} from '../components/InvestmentDecimalText'
 import type {InvestmentFillMarkerPage} from '../types/investmentPortfolioTypes'
 
@@ -21,11 +22,12 @@ export function PortfolioFillsTable({page, loading, onPageChange}: {
         {title: 'K 线时间', dataIndex: 'marketBarOpenTime', render: (value: string | null) => value ?? '-'},
     ]
     return (
-        <Table
+        <DataTable<InvestmentFillMarkerPage['records'][number]>
             columns={columns}
             dataSource={page?.records ?? []}
+            emptyDescription="填入合约 ID 后点击「查询最近 30 天」，成交与强平标记会列在这里。"
+            emptyTitle="请选择合约并查询最近成交"
             loading={loading}
-            locale={{emptyText: '请选择合约并查询最近成交'}}
             pagination={{
                 current: page?.page ?? 1,
                 pageSize: page?.size ?? 100,

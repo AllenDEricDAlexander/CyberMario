@@ -1,7 +1,10 @@
-import {Alert, Descriptions, Drawer, Space, Table, Tag, Typography} from 'antd'
+import {Alert, Descriptions, Tag, Typography} from 'antd'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import {DataTable} from '../../../components/DataTable'
+import {FormDrawer} from '../../../components/FormDrawer'
+import {PageSection, PageStack} from '../../../components/PageSection'
 import {InvestmentAsyncState} from '../components/InvestmentAsyncState'
 import {getInvestmentReport} from '../services/investmentResearchService'
 import type {InvestmentLoadState} from '../types/investmentCommonTypes'
@@ -57,24 +60,24 @@ export function InvestmentReportDrawer({open, reportId, onClose}: InvestmentRepo
     }, [load])
 
     return (
-        <Drawer
-            destroyOnHidden
+        <FormDrawer
+            footer={false}
             onClose={onClose}
             open={open}
+            size="xl"
             title={detail?.report.title ?? '分析报告详情'}
-            width={880}
         >
             <InvestmentAsyncState error={loadError} onRetry={() => void load()} state={loadState}>
                 {detail && <ReportDetail detail={detail}/>}
             </InvestmentAsyncState>
-        </Drawer>
+        </FormDrawer>
     )
 }
 
 function ReportDetail({detail}: {detail: InvestmentReportDetailResponse}) {
     const {report} = detail
     return (
-        <Space orientation="vertical" size={16} style={{width: '100%'}}>
+        <PageStack>
             <Descriptions bordered column={{xs: 1, sm: 2}} size="small">
                 <Descriptions.Item label="报告类型">{investmentReportTypeLabel(report.reportType)}</Descriptions.Item>
                 <Descriptions.Item label="状态"><Tag color={statusColor(report.status)}>{report.status}</Tag></Descriptions.Item>
@@ -96,27 +99,28 @@ function ReportDetail({detail}: {detail: InvestmentReportDetailResponse}) {
             {report.status === 'READY' && !detail.contentMarkdown && (
                 <Alert showIcon title="报告正文暂不可用" type="warning"/>
             )}
-            <div>
-                <Typography.Title level={5}>数据证据</Typography.Title>
-                <Typography.Paragraph type="secondary">
-                    以下证据范围和数据截止时间属于当前不可变报告版本。
-                </Typography.Paragraph>
-                <Table
+            <PageSection
+                description="以下证据范围和数据截止时间属于当前不可变报告版本。"
+                title="数据证据"
+            >
+                <DataTable<InvestmentReportEvidenceResponse>
                     columns={evidenceColumns}
+                    count={detail.evidence.length}
                     dataSource={detail.evidence}
-                    locale={{emptyText: '当前报告尚无证据记录'}}
+                    emptyDescription="生成器没有为这一版报告登记证据；换一个版本或重新生成后再查看。"
+                    emptyTitle="当前报告尚无证据记录"
                     pagination={false}
                     rowKey="evidenceId"
                     scroll={{x: 1100}}
                     size="small"
                 />
-            </div>
+            </PageSection>
             <details>
                 <summary>指标与结构化结果</summary>
                 <Typography.Text copyable={{text: detail.metricsJson}}>复制结构化结果</Typography.Text>
                 <pre>{prettyJson(detail.metricsJson)}</pre>
             </details>
-        </Space>
+        </PageStack>
     )
 }
 

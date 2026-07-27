@@ -15,7 +15,7 @@ export function ClocktowerMessageList({messages, loading}: ClocktowerMessageList
             locale={{emptyText: <Empty description="暂无消息"/>}}
             renderItem={(message) => (
                 <List.Item>
-                    <Space orientation="vertical" size={2} style={{width: '100%'}}>
+                    <Space orientation="vertical" size={2} className="u-full-width">
                         <Space wrap>
                             <Tag>#{message.messageSeq}</Tag>
                             <Tag color={message.messageType === 'TEXT' ? 'processing' : 'default'}>
@@ -27,7 +27,7 @@ export function ClocktowerMessageList({messages, loading}: ClocktowerMessageList
                                 <DateTimeText value={message.sentAt}/>
                             </Typography.Text>
                         </Space>
-                        <Typography.Paragraph style={{marginBottom: 0, whiteSpace: 'pre-wrap'}}>
+                        <Typography.Paragraph className="payload-text">
                             {message.content}
                         </Typography.Paragraph>
                     </Space>

@@ -37,7 +37,7 @@ export function ImSurfaceBrowser(props: ImSurfaceBrowserProps) {
 
     if (props.loading) {
         return (
-            <div aria-busy="true" aria-label="Loading channels and groups" style={{padding: 16, textAlign: 'center'}}>
+            <div aria-busy="true" aria-label="Loading channels and groups" className="platform-im-surface-browser-loading">
                 <Spin description="Loading channels and groups"/>
             </div>
         )
@@ -47,7 +47,7 @@ export function ImSurfaceBrowser(props: ImSurfaceBrowserProps) {
         <List
             dataSource={surfaces}
             header={(
-                <div style={{alignItems: 'center', display: 'flex', justifyContent: 'space-between', gap: 12}}>
+                <div className="platform-im-surface-browser-header">
                     <strong>Channels and groups</strong>
                     <Button icon={<ReloadOutlined/>} onClick={props.onRefresh} size="small">
                         Refresh

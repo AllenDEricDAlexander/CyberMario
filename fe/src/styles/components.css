@@ -1,0 +1,835 @@
+/*
+ * Structural component styling.
+ *
+ * Colour, radius and spacing tokens live in the Ant Design theme
+ * (`src/theme/antdTheme.ts`). Only rules that tokens cannot express belong
+ * here: sticky regions, grid layouts, scroll containers and custom widgets.
+ */
+
+/* ============================================================= surfaces === */
+
+.surface-card,
+.admin-content-inner > .ant-card,
+.admin-content-inner > .ant-table-wrapper,
+.ant-drawer-body > .ant-card {
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-lg);
+    background: var(--surface-glass);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow: var(--shadow-sm);
+    transition: border-color var(--motion-mid) var(--motion-ease),
+    box-shadow var(--motion-mid) var(--motion-ease);
+}
+
+.surface-card:hover,
+.admin-content-inner > .ant-card:hover {
+    border-color: var(--line-glow);
+    box-shadow: var(--shadow-md);
+}
+
+.ant-card-head {
+    border-bottom-color: var(--line-soft);
+}
+
+.ant-card-head-title {
+    color: var(--text-strong);
+    font-weight: 650;
+}
+
+/* Nested cards should read as sections, not floating panels. */
+.ant-card .ant-card {
+    box-shadow: none;
+    background: var(--surface-soft);
+}
+
+/* ================================================================ table === */
+
+.ant-table-wrapper {
+    overflow: hidden;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-lg);
+    background: var(--table-surface);
+    box-shadow: var(--shadow-sm);
+}
+
+/* A table inside a card is already framed — drop the double border. */
+.ant-card .ant-table-wrapper,
+.data-table-card .ant-table-wrapper,
+.ant-drawer-body .ant-table-wrapper,
+.ant-modal-body .ant-table-wrapper {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+}
+
+.ant-table {
+    background: transparent;
+}
+
+.ant-table-thead > tr > th {
+    font-weight: 650;
+    letter-spacing: 0.1px;
+    white-space: nowrap;
+}
+
+.ant-table-tbody > tr > td {
+    border-bottom-color: var(--line-soft);
+}
+
+/*
+ * Fixed columns float above the horizontally scrolling cells, so they must be
+ * opaque — `background: inherit` let the scrolled content show through them.
+ */
+.ant-table-tbody > tr > .ant-table-cell-fix-left,
+.ant-table-tbody > tr > .ant-table-cell-fix-right {
+    background: var(--table-surface);
+}
+
+.ant-table-thead > tr > .ant-table-cell-fix-left,
+.ant-table-thead > tr > .ant-table-cell-fix-right {
+    background: var(--table-header-surface) !important;
+}
+
+.ant-table-tbody > tr.ant-table-row:hover > .ant-table-cell-fix-left,
+.ant-table-tbody > tr.ant-table-row:hover > .ant-table-cell-fix-right {
+    background: var(--table-row-hover);
+}
+
+/* The shadow marks where the sticky column ends. */
+.ant-table-cell-fix-left-last::after,
+.ant-table-cell-fix-right-first::after {
+    box-shadow: inset -10px 0 8px -8px rgba(20, 55, 58, 0.14);
+}
+
+.ant-table-placeholder > td {
+    border-bottom: 0 !important;
+    background: transparent !important;
+}
+
+.ant-table-summary > tr > td {
+    background: var(--fill-subtle);
+    font-weight: 600;
+}
+
+.ant-pagination {
+    padding-inline: var(--space-xs);
+}
+
+/* --- data table shell ----------------------------------------------- */
+
+.data-table-card {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-lg);
+    background: var(--table-surface);
+    box-shadow: var(--shadow-sm);
+}
+
+/*
+ * A DataTable placed inside another surface (card, drawer, modal, tab panel)
+ * would otherwise draw a second frame inside the first. Flatten it so the outer
+ * surface stays the only visible container.
+ */
+.ant-card .data-table-card,
+.ant-drawer-body .data-table-card,
+.ant-modal-body .data-table-card,
+.split-panel .data-table-card {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+}
+
+/* Without the frame the header needs no side padding to line up with the rows. */
+.ant-card .data-table-card > .data-table-header,
+.ant-drawer-body .data-table-card > .data-table-header,
+.ant-modal-body .data-table-card > .data-table-header {
+    padding-inline: 0;
+}
+
+.data-table-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.data-table-header-main {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.data-table-title {
+    color: var(--text-strong);
+    font-size: 14px;
+    font-weight: 650;
+}
+
+.data-table-count {
+    color: var(--muted-soft);
+    font-size: 12.5px;
+}
+
+.data-table-header-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+}
+
+.data-table-body {
+    min-width: 0;
+}
+
+.data-table-selection {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    padding: var(--space-xs) var(--space-md);
+    border-bottom: 1px solid var(--line-soft);
+    background: var(--accent-soft);
+    font-size: 13px;
+}
+
+/* ========================================================== filter bar === */
+
+.filter-bar {
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-lg);
+    background: var(--surface-glass);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow: var(--shadow-xs);
+}
+
+.filter-bar-body {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: var(--space-sm) var(--space-md);
+    padding: var(--space-md);
+}
+
+.filter-bar-fields {
+    min-width: 0;
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--filter-field-min, 210px), 1fr));
+    gap: var(--space-sm) var(--space-md);
+    align-items: end;
+}
+
+.filter-bar-fields .ant-form-item {
+    margin-bottom: 0;
+}
+
+/* Filter controls always fill their grid cell — no per-page width overrides. */
+.filter-bar-fields .ant-select,
+.filter-bar-fields .ant-picker,
+.filter-bar-fields .ant-input-affix-wrapper,
+.filter-bar-fields .ant-input,
+.filter-bar-fields .ant-input-number,
+.filter-bar-fields .ant-cascader,
+.filter-bar-fields .ant-tree-select {
+    width: 100%;
+}
+
+.filter-bar-actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding-bottom: 1px;
+}
+
+.filter-bar-collapsed .filter-bar-body {
+    padding-block: var(--space-sm);
+}
+
+/* ============================================================ transfer === */
+
+/*
+ * Role/permission pickers. Ant Design sizes Transfer panes with a `listStyle`
+ * prop, which forces a fixed pixel width per call site; letting the pair share
+ * the drawer width keeps both panes equal and responsive instead.
+ */
+.role-transfer.ant-transfer {
+    width: 100%;
+    align-items: stretch;
+}
+
+.role-transfer .ant-transfer-list {
+    flex: 1 1 0;
+    min-width: 0;
+    height: min(60svh, 460px);
+}
+
+/* ======================================================= stacked cell ===== */
+
+.stacked-cell {
+    min-width: 0;
+    display: grid;
+    gap: 1px;
+    line-height: 1.35;
+}
+
+.stacked-cell-primary {
+    overflow: hidden;
+    color: var(--text);
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.stacked-cell-primary.is-plain {
+    font-weight: 400;
+}
+
+.stacked-cell-secondary {
+    overflow: hidden;
+    color: var(--muted-soft);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ======================================================== row actions ===== */
+
+.row-actions {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: var(--space-xxs);
+}
+
+.row-actions .ant-btn-link,
+.row-actions .ant-btn-text {
+    height: 26px;
+    padding-inline: 6px;
+}
+
+.row-actions-more.ant-btn {
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+}
+
+.row-actions-menu .ant-dropdown-menu-item-danger {
+    font-weight: 600;
+}
+
+/* ========================================================== stat cards === */
+
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(var(--stat-min, 190px), 1fr));
+    gap: var(--space-md);
+}
+
+/*
+ * Fixed column counts for tile sets with a natural split. Each step divides the
+ * one above it, so no breakpoint ever leaves a ragged final row.
+ */
+.stat-grid.is-cols-6 {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.stat-grid.is-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.stat-grid.is-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.stat-grid.is-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 1500px) {
+    .stat-grid.is-cols-6 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 1100px) {
+    .stat-grid.is-cols-6,
+    .stat-grid.is-cols-4,
+    .stat-grid.is-cols-3 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 620px) {
+    .stat-grid.is-cols-6,
+    .stat-grid.is-cols-4,
+    .stat-grid.is-cols-3,
+    .stat-grid.is-cols-2 {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.stat-card {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    padding: var(--space-md);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-lg);
+    background: var(--surface-glass);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow: var(--shadow-xs);
+    transition: border-color var(--motion-mid) var(--motion-ease),
+    box-shadow var(--motion-mid) var(--motion-ease), transform var(--motion-mid) var(--motion-ease);
+}
+
+.stat-card:hover {
+    border-color: var(--line-glow);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.stat-card::after {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--stat-accent, var(--accent));
+    opacity: 0.85;
+}
+
+.stat-card-icon {
+    flex: 0 0 auto;
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    color: var(--stat-accent, var(--accent));
+    background: color-mix(in srgb, var(--stat-accent, var(--accent)) 12%, transparent);
+    font-size: 18px;
+}
+
+.stat-card-main {
+    min-width: 0;
+    flex: 1;
+    display: grid;
+    gap: 2px;
+}
+
+.stat-card-label {
+    color: var(--muted);
+    font-size: 12.5px;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.stat-card-value {
+    color: var(--text-strong);
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.5px;
+    overflow-wrap: anywhere;
+}
+
+.stat-card-suffix {
+    margin-left: 4px;
+    color: var(--muted-soft);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.stat-card-hint {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--muted-soft);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.stat-card-trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-weight: 650;
+}
+
+.stat-card-trend.is-up {
+    color: var(--accent);
+}
+
+.stat-card-trend.is-down {
+    color: var(--coral);
+}
+
+/* ====================================================== drawer & modal === */
+
+.ant-drawer-content {
+    background: var(--surface);
+}
+
+.ant-drawer-header,
+.ant-modal-header {
+    border-bottom: 1px solid var(--line-soft);
+    background: transparent;
+}
+
+.ant-drawer-title,
+.ant-modal-title {
+    color: var(--text-strong);
+    font-weight: 680;
+}
+
+.ant-modal-content {
+    overflow: hidden;
+    border: 1px solid var(--line-soft);
+    box-shadow: var(--shadow-lg);
+}
+
+.ant-modal-header {
+    margin-bottom: var(--space-md);
+    padding-bottom: var(--space-sm);
+}
+
+.ant-modal-footer {
+    margin-top: var(--space-md);
+    padding-top: var(--space-sm);
+    border-top: 1px solid var(--line-soft);
+}
+
+/* Long drawer forms scroll in the body while header and footer stay put. */
+.ant-drawer-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    scroll-behavior: smooth;
+}
+
+.ant-drawer-footer {
+    border-top: 1px solid var(--line-soft);
+    background: var(--surface);
+}
+
+.form-drawer-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-xs);
+}
+
+.form-drawer-footer-hint {
+    margin-right: auto;
+    color: var(--muted-soft);
+    font-size: 12.5px;
+}
+
+.form-drawer-body {
+    min-width: 0;
+    flex: 1;
+}
+
+/* A modal that hosts a form gets the same scroll discipline as the drawer. */
+.form-modal .ant-modal-body {
+    max-height: min(64svh, 620px);
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.drawer-inline-toolbar {
+    margin-bottom: var(--space-md);
+}
+
+/*
+ * Transfer panels inside a drawer share the drawer width instead of the fixed
+ * pixel `listStyle` every caller used to repeat.
+ */
+.drawer-transfer {
+    width: 100%;
+}
+
+.drawer-transfer .ant-transfer-list {
+    flex: 1;
+    height: 420px;
+    min-width: 0;
+}
+
+/* --------------------------------------------------------- description --- */
+
+/*
+ * Raw JSON, prompts and tool payloads rendered in audit drawers and expanded
+ * table rows. Audit pages used to repeat `whiteSpace: 'pre-wrap'` inline on
+ * every one of these paragraphs.
+ */
+.payload-text.ant-typography {
+    margin-bottom: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.ant-descriptions-item-label {
+    font-weight: 550;
+}
+
+/* ================================================== global error banner === */
+
+.global-error-alert-popup {
+    position: fixed;
+    top: var(--space-lg);
+    left: 50%;
+    z-index: 1100;
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    transform: translateX(-50%);
+    /* The wrapper must not swallow clicks aimed at the page behind it. */
+    pointer-events: none;
+    animation: surface-enter var(--motion-mid) var(--motion-ease) both;
+}
+
+.global-error-alert-popup .ant-alert {
+    pointer-events: auto;
+    box-shadow: var(--shadow-lg);
+}
+
+/*
+ * Inline controls that sit in a toolbar rather than a FilterBar grid. Ant Design
+ * shrinks a Select to its content inside a Space, so they need a floor width;
+ * these classes replace the per-call-site `style={{minWidth: …}}`.
+ */
+.inline-control {
+    min-width: 220px;
+    max-width: 100%;
+}
+
+.inline-control-wide {
+    min-width: 260px;
+    max-width: 100%;
+}
+
+/* ============================================================== states === */
+
+.state-block {
+    display: grid;
+    place-items: center;
+    padding: var(--space-xl) var(--space-md);
+    text-align: center;
+}
+
+.state-block-inline {
+    padding: var(--space-lg) var(--space-md);
+}
+
+.state-block .ant-empty-description {
+    color: var(--muted);
+}
+
+.state-block-description.ant-typography {
+    margin-top: var(--space-xxs);
+    margin-bottom: 0;
+    color: var(--muted);
+}
+
+.state-block-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    margin-top: var(--space-sm);
+}
+
+.state-card {
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-lg);
+    background: var(--surface-glass);
+    box-shadow: var(--shadow-xs);
+}
+
+/* ============================================================ controls === */
+
+.ant-btn {
+    letter-spacing: 0.1px;
+    transition: color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    background var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.ant-btn:not(:disabled):active {
+    transform: translateY(1px);
+}
+
+.ant-btn-primary:not(:disabled) {
+    background: linear-gradient(135deg, var(--accent), #16a06f);
+    box-shadow: var(--shadow-accent);
+}
+
+.ant-btn-primary:not(:disabled):hover {
+    background: linear-gradient(135deg, var(--accent-strong), #0f8d70);
+    box-shadow: 0 14px 30px rgba(15, 118, 110, 0.28);
+}
+
+:root[data-theme='dark'] .ant-btn-primary:not(:disabled) {
+    color: #04211f;
+    background: linear-gradient(135deg, var(--accent-bright), #14b8a6);
+}
+
+:root[data-theme='dark'] .ant-btn-primary:not(:disabled):hover {
+    background: linear-gradient(135deg, #5eead4, #2dd4bf);
+}
+
+.ant-btn-dangerous:not(.ant-btn-primary) {
+    color: var(--coral);
+}
+
+/* Icon-only buttons should stay square regardless of size preset. */
+.ant-btn-icon-only.ant-btn-sm {
+    width: 28px;
+    min-width: 28px;
+}
+
+.ant-form-item-explain-error {
+    font-size: 12.5px;
+}
+
+.ant-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+}
+
+.ant-tag .anticon {
+    font-size: 11px;
+}
+
+/* ============================================================ markdown === */
+
+.markdown-body {
+    overflow-wrap: anywhere;
+}
+
+.markdown-body > :first-child {
+    margin-top: 0;
+}
+
+.markdown-body > :last-child {
+    margin-bottom: 0;
+}
+
+.markdown-body p,
+.markdown-body ul,
+.markdown-body ol,
+.markdown-body blockquote,
+.markdown-body pre,
+.markdown-body table {
+    margin: 10px 0 0;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+    padding-left: 22px;
+}
+
+.markdown-body code {
+    border-radius: 5px;
+    padding: 2px 5px;
+    background: var(--code-bg);
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+}
+
+.markdown-body pre {
+    max-width: 100%;
+    overflow-x: auto;
+    border-radius: var(--radius-md);
+    padding: var(--space-sm);
+    background: var(--code-block-bg);
+}
+
+.markdown-body pre code {
+    padding: 0;
+    color: #e8fbf7;
+    background: transparent;
+    white-space: pre;
+}
+
+.markdown-body blockquote {
+    border-left: 3px solid var(--line);
+    padding-left: var(--space-sm);
+    color: var(--muted);
+}
+
+.markdown-body table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+}
+
+.markdown-body th,
+.markdown-body td {
+    border: 1px solid var(--line);
+    padding: 6px 8px;
+    text-align: left;
+}
+
+.markdown-body th {
+    background: var(--code-bg);
+    font-weight: 650;
+}
+
+/* ========================================================== responsive === */
+
+@media (max-width: 860px) {
+    .filter-bar-body {
+        flex-direction: column;
+        align-items: stretch;
+        padding: var(--space-sm);
+    }
+
+    .filter-bar-fields {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .filter-bar-actions {
+        justify-content: flex-end;
+    }
+
+    .data-table-header {
+        padding: var(--space-sm);
+    }
+
+    .stat-grid {
+        --stat-min: 150px;
+        gap: var(--space-sm);
+    }
+
+    .stat-card {
+        padding: var(--space-sm);
+    }
+
+    .stat-card-value {
+        font-size: 20px;
+    }
+}

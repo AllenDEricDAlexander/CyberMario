@@ -22,6 +22,7 @@ import reactor.core.publisher.Mono;
 import top.egon.mario.common.api.ApiResponse;
 import top.egon.mario.common.api.PageResult;
 import top.egon.mario.rbac.application.RbacAccountActivationApplication;
+import top.egon.mario.rbac.dto.enums.ActivationStatus;
 import top.egon.mario.rbac.dto.request.CreateUserRequest;
 import top.egon.mario.rbac.dto.request.ReplaceIdsRequest;
 import top.egon.mario.rbac.dto.request.ResetPasswordRequest;
@@ -33,8 +34,10 @@ import top.egon.mario.rbac.dto.response.EffectivePermissionResponse;
 import top.egon.mario.rbac.dto.response.UserResponse;
 import top.egon.mario.rbac.po.enums.ApiMatcherType;
 import top.egon.mario.rbac.po.enums.ApiRiskLevel;
+import top.egon.mario.rbac.po.enums.RbacStatus;
 import top.egon.mario.rbac.service.RbacEffectivePermissionService;
 import top.egon.mario.rbac.service.RbacUserService;
+import top.egon.mario.rbac.service.model.UserQuery;
 import top.egon.mario.rbac.service.resource.annotation.RbacApi;
 import top.egon.mario.rbac.service.security.RbacPrincipal;
 
@@ -58,8 +61,16 @@ public class AdminUserController extends ReactiveRbacSupport {
             method = "ANY", pattern = "/api/admin/**", matcher = ApiMatcherType.ANT, risk = ApiRiskLevel.HIGH)
     @GetMapping
     public Mono<ApiResponse<PageResult<UserResponse>>> page(@RequestParam(defaultValue = "1") @Min(1) int page,
-                                                            @RequestParam(defaultValue = "20") @Min(1) int size) {
-        return blocking(() -> pageResult(userService.getUserPage(PageRequest.of(Math.max(page - 1, 0), size, Sort.by("id").descending()))));
+                                                            @RequestParam(defaultValue = "20") @Min(1) int size,
+                                                            @RequestParam(required = false) String keyword,
+                                                            @RequestParam(required = false) RbacStatus status,
+                                                            @RequestParam(required = false) ActivationStatus activationStatus) {
+        // Filtering runs in the database so the console searches every user, not
+        // just the rows already loaded into the current page.
+        UserQuery userQuery = new UserQuery(keyword, status, activationStatus);
+        return blocking(() -> pageResult(userService.getUserPage(
+                userQuery,
+                PageRequest.of(Math.max(page - 1, 0), size, Sort.by("id").descending()))));
     }
 
     @PostMapping

@@ -1,7 +1,9 @@
 import {ReloadOutlined} from '@ant-design/icons'
-import {App, Button, Drawer, Table, Typography} from 'antd'
+import {App, Button} from 'antd'
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {reportGlobalError} from '../../../app/globalError'
+import {DataTable} from '../../../components/DataTable'
+import {FormDrawer} from '../../../components/FormDrawer'
 import {disableMcpTool, enableMcpTool, getMcpTools, updateMcpToolPolicy} from './mcpService'
 import type {
     McpServerResponse,
@@ -218,26 +220,25 @@ export function McpServerToolPolicyDrawer({
     const currentPolicyOpen = policyOpen && Boolean(currentEditingTool)
 
     return (
-        <Drawer
-            destroyOnHidden
+        <FormDrawer
+            description={`服务编码：${server?.serverCode ?? '-'}`}
             extra={<Button icon={<ReloadOutlined/>} loading={loading} onClick={() => void loadTools()}>刷新</Button>}
+            footer={false}
             onClose={onClose}
             open={open}
+            size="xl"
             title={getMcpServerToolPolicyDrawerTitle(server)}
-            width={960}
         >
-            <Typography.Paragraph style={{marginTop: 0}} type="secondary">
-                服务编码：{server?.serverCode ?? '-'}
-            </Typography.Paragraph>
-            <Table<McpToolResponse>
+            <DataTable<McpToolResponse>
                 columns={columns}
                 dataSource={currentTools}
+                emptyDescription="请先在服务列表中点击“发现”以同步该服务提供的工具。"
+                emptyTitle="暂无工具"
                 expandable={{
                     expandedRowRender: renderMcpToolExpandedRow,
                     rowExpandable: isMcpToolRowExpandable,
                 }}
                 loading={loading}
-                locale={{emptyText: '暂无工具，请先在服务行点击“发现”'}}
                 pagination={false}
                 rowKey="id"
                 scroll={{x: 1400}}
@@ -252,6 +253,6 @@ export function McpServerToolPolicyDrawer({
                 open={currentPolicyOpen}
                 tool={currentEditingTool}
             />
-        </Drawer>
+        </FormDrawer>
     )
 }

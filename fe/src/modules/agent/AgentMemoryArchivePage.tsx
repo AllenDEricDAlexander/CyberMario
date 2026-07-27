@@ -1,9 +1,12 @@
-import {DeleteOutlined, ReloadOutlined, RollbackOutlined} from '@ant-design/icons'
-import {App, Button, Popconfirm, Space, Table, Tag} from 'antd'
+import {DeleteOutlined, InboxOutlined, ReloadOutlined, RollbackOutlined} from '@ant-design/icons'
+import {App, Button, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {reportGlobalError} from '../../app/globalError'
+import {DataTable} from '../../components/DataTable'
 import {PageToolbar} from '../../components/PageToolbar'
+import {RowActions} from '../../components/RowActions'
+import {StackedCell} from '../../components/StackedCell'
 import {voidify} from '../../utils/async'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {deleteAgentMemorySession, getAgentMemorySessions, restoreAgentMemorySession} from './agentService'
@@ -55,28 +58,43 @@ function AgentMemoryArchivePage() {
     }
 
     const columns = useMemo<ColumnsType<AgentMemorySessionResponse>>(() => [
-        {title: '标题', dataIndex: 'title', render: (_, record) => record.title || record.sessionId},
+        {
+            title: '会话',
+            dataIndex: 'title',
+            render: (_, record) => (
+                <StackedCell
+                    primary={record.title || record.sessionId}
+                    secondary={record.title ? record.sessionId : undefined}
+                />
+            ),
+        },
         {title: '入口', dataIndex: 'entryType', width: 140, render: (value) => <Tag color="blue">{value}</Tag>},
         {title: '归档时间', dataIndex: 'archivedAt', width: 180, render: (value: string | undefined) => value || '-'},
         {
             title: '操作',
             fixed: 'right',
-            width: 180,
+            width: 160,
             render: (_, record) => (
-                <Space>
-                    {canRestore && (
-                        <Button icon={<RollbackOutlined/>} size="small" onClick={() => void restore(record)}>
-                            恢复
-                        </Button>
-                    )}
-                    {canDelete && (
-                        <Popconfirm title="删除这个归档会话？" onConfirm={() => void remove(record)}>
-                            <Button danger icon={<DeleteOutlined/>} size="small">
-                                删除
-                            </Button>
-                        </Popconfirm>
-                    )}
-                </Space>
+                <RowActions
+                    actions={[
+                        {
+                            key: 'restore',
+                            label: '恢复',
+                            icon: <RollbackOutlined/>,
+                            hidden: !canRestore,
+                            onClick: () => void restore(record),
+                        },
+                        {
+                            key: 'delete',
+                            label: '删除',
+                            icon: <DeleteOutlined/>,
+                            danger: true,
+                            hidden: !canDelete,
+                            confirm: '删除这个归档会话？删除后无法恢复。',
+                            onClick: () => void remove(record),
+                        },
+                    ]}
+                />
             ),
         },
     ], [canDelete, canRestore])
@@ -86,15 +104,20 @@ function AgentMemoryArchivePage() {
             <PageToolbar
                 actions={<Button icon={<ReloadOutlined/>} loading={loading} onClick={voidify(load)}>刷新</Button>}
                 description="查看和处理已归档的当前用户会话。"
+                icon={<InboxOutlined/>}
                 title="归档会话"
             />
-            <Table<AgentMemorySessionResponse>
+            <DataTable<AgentMemorySessionResponse>
                 columns={columns}
+                count={sessions.length}
                 dataSource={sessions}
+                emptyDescription="在“记忆管理”里归档会话后，它们会出现在这里，可以恢复或彻底删除。"
+                emptyTitle="没有归档会话"
                 loading={loading}
                 pagination={false}
                 rowKey="sessionId"
                 scroll={{x: 760}}
+                title="归档列表"
             />
         </>
     )

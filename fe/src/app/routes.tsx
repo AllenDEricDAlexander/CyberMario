@@ -134,7 +134,9 @@ function RequireAuth() {
     if (auth.bootstrapping) {
         return (
             <div className="route-loading">
-                <Spin size="large"/>
+                <Spin description="正在加载工作台…" size="large">
+                    <div className="route-loading-target"/>
+                </Spin>
             </div>
         )
     }

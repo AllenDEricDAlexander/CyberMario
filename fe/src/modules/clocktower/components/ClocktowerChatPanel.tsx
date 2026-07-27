@@ -452,7 +452,7 @@ export function ClocktowerChatPanel({
                         label: activeConversation ? conversationLabel(activeConversation) : '消息',
                         forceRender: true,
                         children: (
-                            <Space orientation="vertical" size="middle" style={{width: '100%'}}>
+                            <Space orientation="vertical" size="middle" className="u-full-width">
                                 {activeSurface?.announcement && (
                                     <Alert
                                         banner
@@ -558,7 +558,7 @@ function DiscoverableSurfaceList({
             locale={{emptyText: <Empty description="暂无可加入频道"/>}}
             renderItem={(item) => (
                 <List.Item>
-                    <Space orientation="vertical" size={6} style={{width: '100%'}}>
+                    <Space orientation="vertical" size={6} className="u-full-width">
                         <Space wrap>
                             <Typography.Text strong>{item.surface.name}</Typography.Text>
                             <Tag>{item.surfaceType === 'CHANNEL' ? '频道' : '分组'}</Tag>

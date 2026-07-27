@@ -49,24 +49,13 @@ export function GlobalErrorAlert({message, onClose}: GlobalErrorAlertProps) {
         return null
     }
 
+    // Positioning lives in `.global-error-alert-popup` (styles/components.css)
+    // so the banner picks up the active theme.
     return (
-        <div
-            className="global-error-alert-popup"
-            style={{
-                position: 'fixed',
-                top: 24,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                zIndex: 1100,
-                width: 'max-content',
-                maxWidth: 'calc(100vw - 32px)',
-                pointerEvents: 'none',
-            }}
-        >
+        <div className="global-error-alert-popup">
             <Alert
                 closable={{closeIcon: true, onClose}}
                 showIcon
-                style={{pointerEvents: 'auto'}}
                 title={message}
                 type="error"
             />

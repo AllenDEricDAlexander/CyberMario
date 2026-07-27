@@ -11,6 +11,47 @@
 - 绝大多数页面按 RBAC 菜单权限和按钮权限展示，UI 需要支持按钮缺失、无权限、空数据、加载、错误和禁用状态。
 - 后台页面是重复工作型产品界面，优先考虑密度、扫描效率、筛选效率、状态可读性和长表格横向滚动。
 
+## Design System
+
+界面统一由一套设计令牌和共享组件驱动，页面本身不应再出现 `style={{...}}` 形式的宽度、间距或颜色补丁。
+
+### 令牌
+
+| 位置 | 作用 |
+|------|------|
+| `src/theme/designTokens.ts` | 间距（4px 基准）、圆角、品牌色、抽屉宽度，供 TypeScript 使用 |
+| `src/theme/antdTheme.ts` | Ant Design 全量组件级 token，明暗两套 |
+| `src/styles/tokens.css` | 同一批令牌的 CSS 自定义属性版本 |
+
+两处令牌必须同步修改。样式表按层次拆分并由 `src/styles/global.css` 依序引入：
+`tokens` → `base` → `layout` → `components` → `chat`。
+
+### 明暗主题与密度
+
+- `ThemeModeProvider`（`src/theme/themeMode.tsx`）在 `<html>` 上写入 `data-theme` 与 `data-density`，首次访问跟随系统 `prefers-color-scheme`，此后记忆用户选择。
+- 顶栏灯泡按钮切换明暗；侧边栏底部按钮切换舒适/紧凑密度。
+- **页面中禁止硬编码色值**，一律使用 `var(--muted)`、`var(--accent)`、`var(--line)` 等变量，或 Ant Design 自身的语义属性（`type="secondary"`、`<Tag color="success">`）。图表 canvas 无法使用 CSS 变量，从 `designTokens.ts` 的 `palette` 取色。
+- 表格表面（`--table-surface` / `--table-header-surface`）必须保持不透明：固定列悬浮在横向滚动内容之上，半透明背景会透出下层单元格。
+
+### 共享组件
+
+| 组件 | 用途 |
+|------|------|
+| `PageToolbar` | 页面头部，支持 `icon`、`eyebrow`、`breadcrumb`、`back` |
+| `FilterBar` | 筛选条，子元素为 `Form.Item`，自动栅格排布并提供查询/重置；`instant` 表示改动即生效 |
+| `DataTable` | 列表表格，统一卡片外框、粘性表头、总数与空状态 |
+| `RowActions` | 行操作，超出 `maxInline` 的动作自动收进「更多」菜单 |
+| `StackedCell` | 双行单元格（主值 + 次要说明），用于合并相关列 |
+| `StatCard` / `StatGrid` | 指标卡片；`StatGrid columns` 可固定列数避免末行参差 |
+| `PageSection` / `PageGrid` / `PageStack` | 区块标题、自适应卡片栅格、纵向堆叠 |
+| `FormDrawer` | 编辑抽屉，保存按钮位于吸底页脚，宽度取 `size` 预设 |
+| `PromptModal` | 带校验的输入弹窗，取代 `Modal.confirm({content: <Input/>})` |
+| `EmptyState` / `ErrorState` | 空态与错误态，错误态支持 `inline` 与重试 |
+
+### 已知的 Ant Design 行为
+
+`form.resetFields()` 在 Ant Design 6 + React 19 下会清空表单 store，但**不会重绘已挂载的输入框**，旧文本仍然可见。`FilterBar` 通过在重置时重挂载字段容器规避此问题；其他自建重置逻辑需同样处理。
+
 ## Global App Shell
 
 ### Auth Layout
@@ -24,21 +65,23 @@
 ### Admin Layout
 
 - 受保护路由根路径：`/`。
-- 左侧深色侧边栏：CyberMario logo、可折叠菜单、菜单根据后端权限过滤。
-- 顶部栏：折叠按钮、当前用户头像和名称、用户下拉菜单。
+- 左侧深色侧边栏：品牌区、菜单搜索框、按后端权限过滤的可折叠菜单、底部折叠与密度切换。折叠状态记忆在 `localStorage`。
+- 顶部栏：面包屑（由当前路由反推菜单层级）、主题切换、用户头像与角色摘要、用户下拉菜单。
 - 用户下拉菜单：个人设置、退出登录。
-- 内容区：浅色动态背景、页面主体滚动隔离。
-- 无菜单权限时展示 403 Result；权限变化可能触发当前页面重新挂载。
-- 全局错误：顶部居中的可关闭错误 Alert。
+- 窄屏（`lg` 以下）隐藏侧边栏，改用顶栏汉堡按钮唤起抽屉式导航；面包屑与角色摘要同时隐藏。
+- 内容区：浅色动态背景、页面主体滚动隔离，内容最大宽度 1680px 居中，子元素之间自动留出统一间距。
+- 无菜单权限时展示 403 Result 并提供返回首页入口；权限变化可能触发当前页面重新挂载。
+- 全局错误：顶部居中的可关闭错误 Alert（`.global-error-alert-popup`）。
 
 ### Shared Page Patterns
 
-- `PageToolbar`：每个后台页顶部的标题、说明、右侧操作按钮。
-- 管理页常见结构：工具栏 + 筛选卡片 + 表格 + 抽屉或弹窗。
+- `PageToolbar`：每个后台页顶部的标题、说明、右侧操作按钮，可选图标、面包屑与返回按钮。
+- 管理页标准结构：`PageToolbar` + `FilterBar` + `DataTable` + `FormDrawer` 或 `PromptModal`。
 - 状态表达：`Tag`、`StatusTag`、`ApiRiskTag`、`PermissionTypeTag`。
 - 日期展示：`DateTimeText`。
-- 重要删除、取消、切换状态操作使用 `Popconfirm`。
-- 新建/编辑复杂对象通常使用右侧 `Drawer`；短流程使用 `Modal`。
+- 行内删除、切换状态用 `RowActions` 的 `confirm`（内部为 `Popconfirm`）；收进「更多」菜单的动作改用确认弹窗。
+- 新建/编辑复杂对象使用 `FormDrawer`；需要校验的短输入使用 `PromptModal`。
+- 相关列应通过 `StackedCell` 合并，减少列数与横向滚动宽度。
 
 ## Navigation Map
 
@@ -425,9 +468,11 @@ Clocktower 是“血染钟楼”游戏工具域，当前前端覆盖规则数据
 
 核心功能：
 
-- 表格字段：账号、用户名、昵称、邮箱、手机、状态、锁定、密码过期。
-- 操作：新建、编辑、分配角色、查看有效权限、重置密码、启用/禁用、删除。
+- 表格字段：用户（昵称 + 账号）、联系方式（邮箱 + 手机）、状态、激活状态、安全（锁定 / 密码过期）。
+- 筛选：关键词、状态、激活状态。**筛选在服务端执行**（`GET /api/admin/users` 接受 `keyword`、`status`、`activationStatus`），因此搜索覆盖全部用户而不仅是当前页；`keyword` 会匹配账号、用户名、昵称、邮箱和手机。
+- 操作：新建、编辑、分配角色、查看有效权限、重置密码、重新生成激活链接、启用/禁用、删除。前两项常驻，其余收进「更多」菜单。
 - 用户抽屉字段：账号、用户名、初始密码、昵称、邮箱、手机、头像地址、状态、锁定、密码过期、备注。
+- 重置密码使用 `PromptModal`：新密码 + 确认密码，含长度与一致性校验，服务端错误就地展示且不关闭弹窗。
 - 角色抽屉：Transfer 分配角色。
 - 有效权限抽屉：角色、菜单权限、按钮权限、API 权限。
 

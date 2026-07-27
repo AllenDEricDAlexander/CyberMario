@@ -1,8 +1,11 @@
 import {SendOutlined} from '@ant-design/icons'
-import {Button, Drawer, Form, InputNumber, Select, Space, Table, Tag} from 'antd'
+import {Button, Form, InputNumber, Select, Tag} from 'antd'
 import type {FormInstance} from 'antd/es/form'
 import type {ColumnsType} from 'antd/es/table'
 import {useEffect} from 'react'
+import {DataTable} from '../../../components/DataTable'
+import {FormDrawer} from '../../../components/FormDrawer'
+import {PageStack} from '../../../components/PageSection'
 import type {
     ClocktowerRoomInvitationCreateRequest,
     ClocktowerRoomReservationResponse,
@@ -61,8 +64,8 @@ export function ClocktowerInvitationDrawer({
     }
 
     return (
-        <Drawer
-            destroyOnHidden
+        <FormDrawer
+            description="被邀请的玩家会在房间列表中看到邀请，接受后自动入座。"
             footer={
                 <ClocktowerInvitationDrawerFooter
                     loading={loading}
@@ -72,11 +75,11 @@ export function ClocktowerInvitationDrawer({
             }
             onClose={onClose}
             open={open}
-            size={560}
+            size="md"
             title="邀请玩家"
         >
             <ClocktowerInvitationDrawerContent form={form} maxSeatNo={maxSeatNo} reservations={reservations}/>
-        </Drawer>
+        </FormDrawer>
     )
 }
 
@@ -98,14 +101,14 @@ export function ClocktowerInvitationDrawerContent({
     ]
 
     return (
-        <>
+        <PageStack>
             <Form form={form} layout="vertical">
                 <Form.Item
                     label="受邀用户 ID"
                     name="inviteeUserId"
                     rules={[{required: true, message: '请输入受邀用户 ID'}]}
                 >
-                    <InputNumber min={1} precision={0} style={{width: '100%'}}/>
+                    <InputNumber min={1} precision={0} className="u-full-width"/>
                 </Form.Item>
                 <Form.Item
                     label="邀请类型"
@@ -115,17 +118,21 @@ export function ClocktowerInvitationDrawerContent({
                     <Select options={invitationTypeOptions}/>
                 </Form.Item>
                 <Form.Item label="目标座位" name="targetSeatNo">
-                    <InputNumber min={1} max={maxSeatNo} precision={0} style={{width: '100%'}}/>
+                    <InputNumber min={1} max={maxSeatNo} precision={0} className="u-full-width"/>
                 </Form.Item>
             </Form>
-            <Table
+            <DataTable<ClocktowerRoomReservationResponse>
                 columns={columns}
+                count={reservations.length}
                 dataSource={reservations}
+                emptyDescription="创建座位邀请后，为对方预留的座位会显示在这里。"
+                emptyTitle="暂无预留座位"
                 pagination={false}
                 rowKey="invitationId"
                 size="small"
+                title="待接受的邀请"
             />
-        </>
+        </PageStack>
     )
 }
 
@@ -135,11 +142,11 @@ export function ClocktowerInvitationDrawerFooter({
                                                     onSubmit,
                                                 }: ClocktowerInvitationDrawerFooterProps) {
     return (
-        <Space style={{display: 'flex', justifyContent: 'end'}}>
-            <Button onClick={onClose}>取消</Button>
+        <div className="form-drawer-footer">
+            <Button disabled={loading} onClick={onClose}>取消</Button>
             <Button icon={<SendOutlined/>} loading={loading} onClick={onSubmit} type="primary">
                 创建邀请
             </Button>
-        </Space>
+        </div>
     )
 }

@@ -1,6 +1,8 @@
 import {MoreOutlined} from '@ant-design/icons'
-import {Button, Drawer, Dropdown, Popconfirm, Space, Table, Tag} from 'antd'
+import {Button, Dropdown, Popconfirm, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
+import {DataTable} from '../../../components/DataTable'
+import {FormDrawer} from '../../../components/FormDrawer'
 import type {ClocktowerRoomMemberResponse} from '../clocktowerTypes'
 
 type ClocktowerMemberDrawerProps = {
@@ -23,16 +25,21 @@ export function ClocktowerMemberDrawer({
                                            onKickMember,
                                        }: ClocktowerMemberDrawerProps) {
     return (
-        <Drawer destroyOnHidden onClose={onClose} open={open} size={720} title="房间成员">
-            <Space orientation="vertical" size="middle" style={{width: '100%'}}>
-                <ClocktowerMemberTable
-                    actionUserId={actionUserId}
-                    currentUserId={currentUserId}
-                    members={members}
-                    onKickMember={onKickMember}
-                />
-            </Space>
-        </Drawer>
+        <FormDrawer
+            description={`共 ${members.length} 名成员`}
+            footer={false}
+            onClose={onClose}
+            open={open}
+            size="lg"
+            title="房间成员"
+        >
+            <ClocktowerMemberTable
+                actionUserId={actionUserId}
+                currentUserId={currentUserId}
+                members={members}
+                onKickMember={onKickMember}
+            />
+        </FormDrawer>
     )
 }
 
@@ -110,9 +117,11 @@ export function ClocktowerMemberTable({
     ]
 
     return (
-        <Table
+        <DataTable<ClocktowerRoomMemberResponse>
             columns={columns}
             dataSource={members}
+            emptyDescription="邀请玩家加入房间后，成员会显示在这里。"
+            emptyTitle="暂无成员"
             pagination={false}
             rowKey="memberId"
             scroll={{x: 680}}

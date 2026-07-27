@@ -1,12 +1,17 @@
-import {FolderOpenOutlined, InboxOutlined, ReloadOutlined} from '@ant-design/icons'
-import {App, Button, Card, Select, Space, Table, Tag} from 'antd'
+import {BulbOutlined, FolderOpenOutlined, InboxOutlined, ReloadOutlined} from '@ant-design/icons'
+import {App, Button, Card, Form, Select, Space, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {useNavigate} from 'react-router'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {reportGlobalError} from '../../app/globalError'
+import {DataTable} from '../../components/DataTable'
+import {EmptyState} from '../../components/EmptyState'
+import {FilterBar} from '../../components/FilterBar'
 import {PageToolbar} from '../../components/PageToolbar'
+import {RowActions} from '../../components/RowActions'
+import {StackedCell} from '../../components/StackedCell'
 import {canAccessAdminPath} from '../../layouts/AdminLayout/menu'
 import {voidify} from '../../utils/async'
 import {canUseRbacButton, hasAdminPermissionBypass, useAuth} from '../auth/authStore'
@@ -18,6 +23,11 @@ import type {
     AgentMemorySessionStatus,
 } from './agentTypes'
 import {memoryButtonCodes} from './memoryPermissionCodes'
+
+type MemorySessionFilters = {
+    entryType?: AgentMemoryEntryType
+    status?: AgentMemorySessionStatus
+}
 
 const markdownPlugins = [remarkGfm]
 const entryOptions: Array<{ label: string; value: AgentMemoryEntryType }> = [
@@ -77,8 +87,22 @@ function AgentMemoryPage() {
         }
     }
 
+    function applyFilters(values: MemorySessionFilters) {
+        setEntryType(values.entryType)
+        setStatus(values.status)
+    }
+
     const columns = useMemo<ColumnsType<AgentMemorySessionResponse>>(() => [
-        {title: '标题', dataIndex: 'title', render: (_, record) => record.title || record.sessionId},
+        {
+            title: '会话',
+            dataIndex: 'title',
+            render: (_, record) => (
+                <StackedCell
+                    primary={record.title || record.sessionId}
+                    secondary={record.title ? record.sessionId : undefined}
+                />
+            ),
+        },
         {title: '入口', dataIndex: 'entryType', width: 140, render: (value) => <Tag color="blue">{value}</Tag>},
         {
             title: '状态',
@@ -89,28 +113,39 @@ function AgentMemoryPage() {
         {
             title: '长期记忆',
             dataIndex: 'memoryContextEnabled',
-            width: 100,
+            width: 180,
             render: (_, record) => {
-                const enabled = record.memoryContextEnabled ?? record.memoryEnabled
-                return <Tag color={enabled ? 'green' : 'default'}>{enabled ? '开启' : '关闭'}</Tag>
+                const contextEnabled = record.memoryContextEnabled ?? record.memoryEnabled
+                return (
+                    <Space size={4} wrap>
+                        <Tag color={contextEnabled ? 'green' : 'default'}>
+                            上下文{contextEnabled ? '开启' : '关闭'}
+                        </Tag>
+                        <Tag color={record.longTermExtractionEnabled ? 'purple' : 'default'}>
+                            提取{record.longTermExtractionEnabled ? '开启' : '关闭'}
+                        </Tag>
+                    </Space>
+                )
             },
-        },
-        {
-            title: '长期提取',
-            dataIndex: 'longTermExtractionEnabled',
-            width: 110,
-            render: (value) => <Tag color={value ? 'purple' : 'default'}>{value ? 'ON' : 'OFF'}</Tag>,
         },
         {title: '最后活跃', dataIndex: 'lastActiveAt', width: 180, render: (value: string | undefined) => value || '-'},
         {
             title: '操作',
             fixed: 'right',
-            width: 120,
-            render: (_, record) => canArchive ? (
-                <Button icon={<InboxOutlined/>} size="small" onClick={() => void archive(record)}>
-                    归档
-                </Button>
-            ) : '-',
+            width: 100,
+            render: (_, record) => (
+                <RowActions
+                    actions={[
+                        {
+                            key: 'archive',
+                            label: '归档',
+                            icon: <InboxOutlined/>,
+                            hidden: !canArchive,
+                            onClick: () => void archive(record),
+                        },
+                    ]}
+                />
+            ),
         },
     ], [canArchive])
 
@@ -129,53 +164,54 @@ function AgentMemoryPage() {
                     </>
                 )}
                 description="查看当前用户的长期记忆和未归档会话。"
+                icon={<BulbOutlined/>}
                 title="记忆管理"
             />
             <Card loading={loading} title="长期记忆">
-                <div className="message-content">
-                    <ReactMarkdown remarkPlugins={markdownPlugins}>
-                        {longTerm?.contentMarkdown || ''}
-                    </ReactMarkdown>
-                </div>
+                {longTerm?.contentMarkdown ? (
+                    <div className="message-content">
+                        <ReactMarkdown remarkPlugins={markdownPlugins}>
+                            {longTerm.contentMarkdown}
+                        </ReactMarkdown>
+                    </div>
+                ) : (
+                    <EmptyState
+                        description="继续在 Agent 或 RAG 对话中开启长期提取，系统会在会话结束后写入长期记忆。"
+                        inline
+                        title="还没有长期记忆"
+                    />
+                )}
                 <Space wrap>
                     <Tag>{longTerm?.status ?? 'UNKNOWN'}</Tag>
                     <Tag>{longTerm?.contentChars ?? 0} chars</Tag>
                     {longTerm?.updatedAt && <Tag>{longTerm.updatedAt}</Tag>}
                 </Space>
             </Card>
-            <Card
-                style={{marginTop: 16}}
-                title="会话"
-                extra={(
-                    <Space wrap>
-                        <Select
-                            allowClear
-                            options={entryOptions}
-                            placeholder="入口"
-                            style={{width: 150}}
-                            value={entryType}
-                            onChange={setEntryType}
-                        />
-                        <Select
-                            allowClear
-                            options={statusOptions}
-                            placeholder="状态"
-                            style={{width: 130}}
-                            value={status}
-                            onChange={setStatus}
-                        />
-                    </Space>
-                )}
+            <FilterBar<MemorySessionFilters>
+                instant
+                loading={loading}
+                onReset={() => applyFilters({})}
+                onSearch={applyFilters}
             >
-                <Table<AgentMemorySessionResponse>
-                    columns={columns}
-                    dataSource={sessions}
-                    loading={loading}
-                    pagination={false}
-                    rowKey="sessionId"
-                    scroll={{x: 1000}}
-                />
-            </Card>
+                <Form.Item label="入口" name="entryType">
+                    <Select allowClear options={entryOptions} placeholder="全部入口"/>
+                </Form.Item>
+                <Form.Item label="状态" name="status">
+                    <Select allowClear options={statusOptions} placeholder="全部状态"/>
+                </Form.Item>
+            </FilterBar>
+            <DataTable<AgentMemorySessionResponse>
+                columns={columns}
+                count={sessions.length}
+                dataSource={sessions}
+                emptyDescription="换个入口或状态筛选，已归档的会话请到“归档会话”页面查看。"
+                emptyTitle="没有未归档的会话"
+                loading={loading}
+                pagination={false}
+                rowKey="sessionId"
+                scroll={{x: 1000}}
+                title="会话"
+            />
         </>
     )
 }

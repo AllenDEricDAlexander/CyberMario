@@ -1,8 +1,11 @@
 import {CloudUploadOutlined, DeleteOutlined, PlusOutlined, ReloadOutlined, RobotOutlined, SaveOutlined} from '@ant-design/icons'
-import {Alert, App, Button, Checkbox, Descriptions, Drawer, Form, Input, InputNumber, Select, Space, Table, Tag} from 'antd'
+import {Alert, App, Button, Checkbox, Descriptions, Form, Input, InputNumber, Select, Space, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useRef, useState} from 'react'
+import {DataTable} from '../../components/DataTable'
+import {FormDrawer} from '../../components/FormDrawer'
 import {PageToolbar} from '../../components/PageToolbar'
+import {StackedCell} from '../../components/StackedCell'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {CurrentFamilySelect} from './components/CurrentFamilySelect'
 import {MoneyText} from './components/MoneyText'
@@ -33,9 +36,12 @@ import type {
 } from './nutritionTypes'
 import {NutritionPageGrid, NutritionSection, NutritionStack} from './NutritionPageLayout'
 import {useNutritionFamilySelection} from './useNutritionFamilySelection'
+import './nutrition.css'
 
 const AI_POLL_INTERVAL_MS = 1000
 const AI_POLL_LIMIT = 120
+/** The drawer footer submits the form by id, so the button lives outside the `<Form>`. */
+const manualMenuFormId = 'nutrition-manual-meal-plan-form'
 
 type ManualMealPlanForm = {
     title: string
@@ -317,12 +323,12 @@ function AiMenuPage() {
                         {mealPlans.length > 0 && (
                             <Select
                                 aria-label="选择菜单"
+                                className="nutrition-select-wide"
                                 onChange={selectMealPlan}
                                 options={mealPlans.map((plan) => ({
                                     label: `${plan.planDate} · ${plan.title} · ${plan.status}`,
                                     value: plan.id,
                                 }))}
-                                style={{minWidth: 260}}
                                 value={mealPlan?.id}
                             />
                         )}
@@ -331,6 +337,7 @@ function AiMenuPage() {
                     </Space>
                 )}
                 description="人工选择菜谱创建今日菜单，或审核 AI 建议、风险检查和厨师调整后的菜单。"
+                icon={<RobotOutlined/>}
                 title="菜单管理"
             />
             {mutationError && <Alert closable={{onClose: () => setMutationError(undefined)}} showIcon title={mutationError} type="error"/>}
@@ -343,12 +350,14 @@ function AiMenuPage() {
                 />
             )}
             {jobs.length > 0 && (
-                <Table<NutritionAiRecommendationJobResponse>
+                <DataTable<NutritionAiRecommendationJobResponse>
                     columns={jobColumns}
+                    count={jobs.length}
                     dataSource={jobs}
                     pagination={false}
                     rowKey="id"
                     size="small"
+                    title="AI 生成任务"
                 />
             )}
             <NutritionAsyncState
@@ -365,21 +374,17 @@ function AiMenuPage() {
                         <Descriptions.Item label="版本">{mealPlan.version}</Descriptions.Item>
                         {recommendation && <Descriptions.Item label="推荐理由" span={2}>{recommendation.reason || '-'}</Descriptions.Item>}
                     </Descriptions>}
-                    <NutritionSection title="AI 建议对比">
-                        <Table<NutritionAiRecommendationResponse>
-                            columns={[
-                                {title: '建议', dataIndex: 'title'},
-                                {title: '日期', dataIndex: 'recommendationDate'},
-                                {title: '推荐理由', dataIndex: 'reason', render: (value: string | null | undefined) => value || '-'},
-                                {title: '成本预估', dataIndex: 'costEstimate', render: (value: NutritionAmount | null | undefined) => <MoneyText value={value}/>},
-                                {title: '状态', dataIndex: 'status'},
-                            ]}
-                            dataSource={recommendations}
-                            pagination={false}
-                            rowKey="id"
-                            size="small"
-                        />
-                    </NutritionSection>
+                    <DataTable<NutritionAiRecommendationResponse>
+                        columns={recommendationColumns}
+                        count={recommendations.length}
+                        dataSource={recommendations}
+                        emptyDescription="点击右上角「生成 AI 建议」，让助手基于家庭健康目标出一版菜单。"
+                        emptyTitle="暂无 AI 建议"
+                        pagination={false}
+                        rowKey="id"
+                        size="small"
+                        title="AI 建议对比"
+                    />
                     <NutritionPageGrid>
                         <NutritionSection title="风险检查">
                             <NutritionStack>
@@ -400,61 +405,66 @@ function AiMenuPage() {
                                 {hasBlockingRisk && <Button disabled={!canManage} onClick={() => void regenerate()}>重新生成</Button>}
                             </NutritionStack>
                         </NutritionSection>
-                        <NutritionSection
-                            extra={(
-                                <Space>
+                        <DataTable<NutritionMealPlanResponse['items'][number]>
+                            columns={[
+                                {
+                                    title: '菜品',
+                                    dataIndex: 'dishName',
+                                    render: (value: string, item) => (
+                                        <StackedCell primary={value} secondary={`${item.mealType} · ${item.servingCount} 份`}/>
+                                    ),
+                                },
+                                {title: '选择菜谱', width: 220, render: (_, item) => (
+                                    <Select
+                                        aria-label={`选择菜谱 ${item.dishName}`}
+                                        className="u-full-width"
+                                        disabled={!canManage || !isEditable || hasBlockingRisk || recipes.length === 0}
+                                        onChange={(recipeId) => replaceDish(item.id, recipeId)}
+                                        options={recipes.map((recipe) => ({label: recipe.name, value: recipe.id}))}
+                                        value={item.recipeId ?? undefined}
+                                    />
+                                )},
+                                {title: '操作', width: 80, render: (_, item) => (
+                                    <Button
+                                        aria-label={`删除菜品 ${item.dishName}`}
+                                        danger
+                                        disabled={!canManage || !isEditable || hasBlockingRisk || draftItems.length <= 1}
+                                        icon={<DeleteOutlined/>}
+                                        onClick={() => removeDish(item.id)}
+                                        size="small"
+                                        type="text"
+                                    />
+                                )},
+                            ]}
+                            count={draftItems.length}
+                            dataSource={draftItems}
+                            emptyDescription="从上方选择一份菜单，或点击「添加菜品」补充今天要做的菜。"
+                            emptyTitle="当前菜单没有菜品"
+                            pagination={false}
+                            rowKey="id"
+                            size="small"
+                            title="厨师调整菜单"
+                            toolbar={(
+                                <>
                                     <Button disabled={!canManage || !isEditable || hasBlockingRisk || recipes.length === 0} icon={<PlusOutlined/>} onClick={addDish}>添加菜品</Button>
                                     <Button aria-label="保存调整" disabled={!canManage || !isEditable || hasBlockingRisk || draftItems.length === 0} icon={<SaveOutlined/>} loading={saving} onClick={() => void saveAdjustment()}>保存调整</Button>
                                     <Button disabled={publishDisabled} icon={<CloudUploadOutlined/>} loading={saving} onClick={() => void publishPlan()} type="primary">发布菜单</Button>
-                                </Space>
+                                </>
                             )}
-                            title="厨师调整菜单"
-                        >
-                            <Table
-                                columns={[
-                                    {title: '餐次', dataIndex: 'mealType', width: 110},
-                                    {title: '菜品', dataIndex: 'dishName'},
-                                    {title: '份数', dataIndex: 'servingCount', width: 90},
-                                    {title: '选择菜谱', width: 220, render: (_, item) => (
-                                        <Select
-                                            aria-label={`选择菜谱 ${item.dishName}`}
-                                            disabled={!canManage || !isEditable || hasBlockingRisk || recipes.length === 0}
-                                            onChange={(recipeId) => replaceDish(item.id, recipeId)}
-                                            options={recipes.map((recipe) => ({label: recipe.name, value: recipe.id}))}
-                                            style={{width: '100%'}}
-                                            value={item.recipeId ?? undefined}
-                                        />
-                                    )},
-                                    {title: '操作', width: 80, render: (_, item) => (
-                                        <Button
-                                            aria-label={`删除菜品 ${item.dishName}`}
-                                            danger
-                                            disabled={!canManage || !isEditable || hasBlockingRisk || draftItems.length <= 1}
-                                            icon={<DeleteOutlined/>}
-                                            onClick={() => removeDish(item.id)}
-                                            size="small"
-                                            type="text"
-                                        />
-                                    )},
-                                ]}
-                                dataSource={draftItems}
-                                pagination={false}
-                                rowKey="id"
-                                size="small"
-                            />
-                        </NutritionSection>
+                        />
                     </NutritionPageGrid>
                 </NutritionStack>
             </NutritionAsyncState>
-            <Drawer
-                destroyOnHidden
+            <FormDrawer
+                formId={manualMenuFormId}
                 loading={saving}
                 onClose={() => setManualOpen(false)}
                 open={manualOpen}
-                size={720}
+                size="lg"
+                submitText="创建今日菜单"
                 title="人工创建今日菜单"
             >
-                <Form form={manualForm} layout="vertical" onFinish={(values) => void createManualMenu(values)}>
+                <Form form={manualForm} id={manualMenuFormId} layout="vertical" onFinish={(values) => void createManualMenu(values)}>
                     <Form.Item label="菜单标题" name="title" rules={[{required: true, whitespace: true}]}>
                         <Input aria-label="菜单标题" maxLength={128}/>
                     </Form.Item>
@@ -472,8 +482,8 @@ function AiMenuPage() {
                                         <Form.Item label={`菜谱 ${index + 1}`} name={[field.name, 'recipeId']} rules={[{required: true}]}>
                                             <Select
                                                 aria-label={`菜谱 ${index + 1}`}
+                                                className="nutrition-select"
                                                 options={recipes.map((recipe) => ({label: recipe.name, value: recipe.id}))}
-                                                style={{minWidth: 220}}
                                             />
                                         </Form.Item>
                                         <Form.Item label={`份数 ${index + 1}`} name={[field.name, 'servingCount']} rules={[{required: true}]}>
@@ -497,19 +507,32 @@ function AiMenuPage() {
                             </NutritionStack>
                         )}
                     </Form.List>
-                    <Button htmlType="submit" loading={saving} style={{marginTop: 16}} type="primary">创建今日菜单</Button>
                 </Form>
-            </Drawer>
+            </FormDrawer>
         </NutritionStack>
     )
 }
 
 const jobColumns: ColumnsType<NutritionAiRecommendationJobResponse> = [
-    {title: '任务 ID', dataIndex: 'id'},
-    {title: '计划日期', dataIndex: 'plannedDate'},
-    {title: '触发方式', dataIndex: 'triggerType'},
-    {title: '状态', dataIndex: 'status', render: (value) => <Tag color={value === 'FAILED' ? 'error' : 'processing'}>{value}</Tag>},
+    {
+        title: '任务',
+        dataIndex: 'id',
+        width: 180,
+        render: (id: number, job) => <StackedCell primary={`#${id}`} secondary={`${job.plannedDate} · ${job.triggerType}`}/>,
+    },
+    {title: '状态', dataIndex: 'status', width: 120, render: (value) => <Tag color={value === 'FAILED' ? 'error' : 'processing'}>{value}</Tag>},
     {title: '失败原因', dataIndex: 'errorMessage', render: (value: string | null | undefined) => value ? nutritionAiJobError(value) : '-'},
+]
+
+const recommendationColumns: ColumnsType<NutritionAiRecommendationResponse> = [
+    {
+        title: '建议',
+        dataIndex: 'title',
+        render: (value: string, row) => <StackedCell primary={value} secondary={row.recommendationDate}/>,
+    },
+    {title: '推荐理由', dataIndex: 'reason', render: (value: string | null | undefined) => value || '-'},
+    {title: '成本预估', dataIndex: 'costEstimate', width: 120, render: (value: NutritionAmount | null | undefined) => <MoneyText value={value}/>},
+    {title: '状态', dataIndex: 'status', width: 110},
 ]
 
 const mealTypeOptions = [

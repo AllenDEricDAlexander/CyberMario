@@ -1,5 +1,6 @@
-import {Alert, Button, Drawer, Form, InputNumber, Space} from 'antd'
+import {Alert, Form, InputNumber} from 'antd'
 import {useEffect, useState} from 'react'
+import {FormDrawer} from '../../../components/FormDrawer'
 import type {
     InvestmentRiskProfile,
     UpdateInvestmentRiskProfileRequest,
@@ -11,6 +12,8 @@ type Props = {
     onClose: () => void
     onSave: (request: UpdateInvestmentRiskProfileRequest) => Promise<InvestmentRiskProfile>
 }
+
+const FORM_ID = 'investment-risk-profile-form'
 
 export function RiskProfileDrawer({open, profile, onClose, onSave}: Props) {
     const [form] = Form.useForm<UpdateInvestmentRiskProfileRequest>()
@@ -24,9 +27,8 @@ export function RiskProfileDrawer({open, profile, onClose, onSave}: Props) {
         }
     }, [form, open, profile])
 
-    async function save() {
+    async function save(values: UpdateInvestmentRiskProfileRequest) {
         if (saving || !profile) return
-        const values = await form.validateFields()
         setSaving(true)
         setError(undefined)
         try {
@@ -40,17 +42,18 @@ export function RiskProfileDrawer({open, profile, onClose, onSave}: Props) {
     }
 
     return (
-        <Drawer
-            destroyOnHidden
-            extra={<Space><Button disabled={saving} onClick={onClose}>取消</Button>
-                <Button loading={saving} onClick={() => void save()} type="primary">保存风险限制</Button></Space>}
+        <FormDrawer
+            footerHint="保存会整体替换风险限制，服务端按版本号拒绝过期提交。"
+            formId={FORM_ID}
+            loading={saving}
             onClose={onClose}
             open={open}
-            size="large"
+            size="lg"
+            submitText="保存风险限制"
             title="模拟账户风险限制"
         >
-            {error && <Alert description={error} showIcon title="保存失败" type="error"/>}
-            <Form form={form} layout="vertical">
+            {error && <Alert className="page-alert" description={error} showIcon title="保存失败" type="error"/>}
+            <Form form={form} id={FORM_ID} layout="vertical" onFinish={(values) => void save(values)}>
                 <Decimal label="最大杠杆（倍）" name="maxLeverage" min="0.000000000000000001"/>
                 <Decimal label="单笔最大名义价值（USDT）" name="maxOrderNotional" min="0.000000000000000001"/>
                 <Decimal label="单仓最大名义价值（USDT）" name="maxPositionNotional" min="0.000000000000000001"/>
@@ -63,7 +66,7 @@ export function RiskProfileDrawer({open, profile, onClose, onSave}: Props) {
                 <Integer label="行情最大年龄（秒）" name="maxMarketDataAgeSeconds" min={1}/>
                 <Decimal label="最大滑点（基点）" name="maxSlippageBps" min="0"/>
             </Form>
-        </Drawer>
+        </FormDrawer>
     )
 }
 
@@ -74,7 +77,7 @@ function Decimal({label, name, min, max}: {
     max?: string
 }) {
     return <Form.Item label={label} name={name} rules={[{required: true}]}>
-        <InputNumber min={min} max={max} stringMode style={{width: '100%'}}/>
+        <InputNumber className="u-full-width" min={min} max={max} stringMode/>
     </Form.Item>
 }
 
@@ -84,6 +87,6 @@ function Integer({label, name, min}: {
     min: number
 }) {
     return <Form.Item label={label} name={name} rules={[{required: true}]}>
-        <InputNumber min={min} precision={0} style={{width: '100%'}}/>
+        <InputNumber className="u-full-width" min={min} precision={0}/>
     </Form.Item>
 }

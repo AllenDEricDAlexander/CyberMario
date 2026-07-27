@@ -1,10 +1,9 @@
-import {CheckOutlined, ReloadOutlined, SendOutlined} from '@ant-design/icons'
+import {CheckOutlined, ReadOutlined, ReloadOutlined, SendOutlined} from '@ant-design/icons'
 import {
     App,
     Button,
     Card,
     Col,
-    Empty,
     Flex,
     Form,
     Input,
@@ -22,6 +21,8 @@ import {
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {useParams} from 'react-router'
 import {reportGlobalError} from '../../app/globalError'
+import {EmptyState} from '../../components/EmptyState'
+import {PageStack} from '../../components/PageSection'
 import {PageToolbar} from '../../components/PageToolbar'
 import {resolveErrorMessage} from '../../services/request'
 import {voidify} from '../../utils/async'
@@ -324,7 +325,9 @@ function StorytellerGrimoirePage() {
         <>
             <PageToolbar
                 actions={<Button icon={<ReloadOutlined/>} loading={loading} onClick={voidify(load)}>刷新</Button>}
+                back={grimoireBackPath(numericRoomId)}
                 description={grimoire ? `${grimoire.phase.phase} · 第 ${grimoire.phase.dayNo} 天 / 第 ${grimoire.phase.nightNo} 夜` : '管理身份、标记、夜晚顺序和说书人裁定。'}
+                icon={<ReadOutlined/>}
                 title="说书人魔典"
             />
             <Row gutter={[16, 16]}>
@@ -444,11 +447,11 @@ export function FlowPanel({
         flow?.executionCandidate?.resolved,
     ])
     if (!flow) {
-        return <Empty description="暂无流程信息"/>
+        return <EmptyState description="游戏开始后这里会显示阶段、夜晚任务和处决结算。" inline title="暂无流程信息"/>
     }
     const canSubmitExecution = executionNote.trim().length > 0
     return (
-        <Flex gap="middle" style={{width: '100%'}} vertical>
+        <Flex className="u-full-width" gap="middle" vertical>
             <Space wrap>
                 <Typography.Text strong>流程</Typography.Text>
                 <Tag color="blue">{phaseText(flow.phase.phase)}</Tag>
@@ -490,7 +493,7 @@ export function FlowPanel({
                         </Typography.Text>
                     </Space>
                     {flow.phase.phase === 'EXECUTION' && !flow.executionCandidate.resolved && (
-                        <Flex gap="small" style={{width: '100%'}} vertical>
+                        <Flex className="u-full-width" gap="small" vertical>
                             <Input.TextArea
                                 autoSize={{minRows: 2, maxRows: 4}}
                                 onChange={(event) => setExecutionNote(event.target.value)}
@@ -604,7 +607,7 @@ export function GrimoireSeatList({
     rulingLoadingKey: string | null
 }) {
     if (!grimoire || grimoire.seats.length === 0) {
-        return <Empty description="暂无座位"/>
+        return <EmptyState description="等待玩家入座并分配角色后，魔典会显示全部真实身份。" inline title="暂无座位"/>
     }
     return (
         <List
@@ -682,31 +685,35 @@ export function StorytellerGameSurface({
     return (
         <>
             <PageToolbar
+                back={grimoireBackPath(view.roomId)}
                 description={`说书人视角 · ${view.phase}`}
+                icon={<ReadOutlined/>}
                 title="说书人魔典"
             />
             <Row gutter={[16, 16]}>
                 <Col lg={15} xs={24}>
-                    <Card title={roomName ? `${roomName} · 魔典座位` : '魔典座位'}>
-                        <StorytellerGameSeatList seats={view.grimoire}/>
-                    </Card>
-                    <Card style={{marginTop: 16}} title="公开事件">
-                        <EventTimeline events={view.events.map((event) => ({
-                            eventId: event.eventId,
-                            roomId: view.roomId,
-                            seqNo: event.eventSeq,
-                            eventType: event.eventType as ClocktowerEventResponse['eventType'],
-                            phase: event.phase as ClocktowerEventResponse['phase'],
-                            dayNo: event.dayNo,
-                            nightNo: event.nightNo,
-                            actorSeatId: event.actorGameSeatId ?? null,
-                            targetSeatId: event.targetGameSeatId ?? null,
-                            visibility: event.visibility as ClocktowerEventResponse['visibility'],
-                            visibleSeatIds: event.visibleGameSeatIds,
-                            payload: event.payload,
-                            createdAt: event.occurredAt,
-                        }))}/>
-                    </Card>
+                    <PageStack>
+                        <Card title={roomName ? `${roomName} · 魔典座位` : '魔典座位'}>
+                            <StorytellerGameSeatList seats={view.grimoire}/>
+                        </Card>
+                        <Card title="公开事件">
+                            <EventTimeline events={view.events.map((event) => ({
+                                eventId: event.eventId,
+                                roomId: view.roomId,
+                                seqNo: event.eventSeq,
+                                eventType: event.eventType as ClocktowerEventResponse['eventType'],
+                                phase: event.phase as ClocktowerEventResponse['phase'],
+                                dayNo: event.dayNo,
+                                nightNo: event.nightNo,
+                                actorSeatId: event.actorGameSeatId ?? null,
+                                targetSeatId: event.targetGameSeatId ?? null,
+                                visibility: event.visibility as ClocktowerEventResponse['visibility'],
+                                visibleSeatIds: event.visibleGameSeatIds,
+                                payload: event.payload,
+                                createdAt: event.occurredAt,
+                            }))}/>
+                        </Card>
+                    </PageStack>
                 </Col>
                 <Col lg={9} xs={24}>
                     <Card>
@@ -775,7 +782,7 @@ export function StorytellerGameSurface({
 
 function StorytellerGameSeatList({seats}: { seats: ClocktowerGameSeatResponse[] }) {
     if (seats.length === 0) {
-        return <Empty description="暂无魔典座位"/>
+        return <EmptyState description="这局游戏还没有座位记录。" inline title="暂无魔典座位"/>
     }
     return (
         <List
@@ -815,7 +822,7 @@ export function RulingHistory({
     undoingRulingId: number | null
 }) {
     if (rulings.length === 0) {
-        return <Empty description="暂无裁定"/>
+        return <EmptyState description="在「裁定」页提交后，历史记录会出现在这里并可撤销。" inline title="暂无裁定"/>
     }
     return (
         <List
@@ -867,7 +874,7 @@ export function TaskList({
     resolvingTaskId: number | null
 }) {
     if (!grimoire || grimoire.pendingTasks.length === 0) {
-        return <Empty description="暂无待处理任务"/>
+        return <EmptyState description="当前阶段没有需要说书人处理的任务。" inline title="暂无待处理任务"/>
     }
     return (
         <List
@@ -967,7 +974,7 @@ export function RulingForm({
                 />
             </Form.Item>
             <Form.Item label="提名 ID" name="nominationId">
-                <InputNumber min={1} style={{width: '100%'}}/>
+                <InputNumber className="u-full-width" min={1}/>
             </Form.Item>
             <Form.Item label="公开生死" name="publicLifeStatus">
                 <Select
@@ -1049,6 +1056,11 @@ function StorytellerActionForm({
             </Button>
         </Form>
     )
+}
+
+/** Storyteller views are opened from a room, so back returns to that lobby. */
+function grimoireBackPath(roomId: number) {
+    return Number.isFinite(roomId) ? `/clocktower/rooms/${roomId}/lobby` : '/clocktower/rooms'
 }
 
 export const Component = StorytellerGrimoirePage

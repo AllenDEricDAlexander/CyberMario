@@ -27,7 +27,7 @@ export function ActivationLinkModal({title, value, onClose}: ActivationLinkModal
             title={title}
         >
             {value && (
-                <Space orientation="vertical" size="middle" style={{width: '100%'}}>
+                <Space orientation="vertical" size="middle" className="u-full-width">
                     <Typography.Text>
                         链接失效时间：<DateTimeText value={value.expiresAt}/>
                     </Typography.Text>

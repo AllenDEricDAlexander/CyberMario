@@ -1,4 +1,5 @@
-import {Flex, Select, Typography} from 'antd'
+import {Form, Select} from 'antd'
+import {FilterBar} from '../../../components/FilterBar'
 import type {InvestmentReportType} from '../types/investmentResearchTypes'
 
 type InvestmentReportFiltersProps = {
@@ -15,20 +16,28 @@ export const investmentReportTypeOptions: {label: string; value: InvestmentRepor
     {label: 'Agent 分析', value: 'AGENT_ANALYSIS'},
 ]
 
+/**
+ * Report type filter.
+ *
+ * There is a single field and picking it re-queries immediately, so the bar
+ * only offers 重置 — a 查询 button would just repeat what the select already did.
+ */
 export function InvestmentReportFilters({reportType, onReportTypeChange}: InvestmentReportFiltersProps) {
     return (
-        <Flex align="center" gap={12} wrap>
-            <Typography.Text>报告类型</Typography.Text>
-            <Select
-                allowClear
-                aria-label="报告类型筛选"
-                onChange={onReportTypeChange}
-                options={investmentReportTypeOptions}
-                placeholder="全部类型"
-                style={{minWidth: 180}}
-                value={reportType}
-            />
-        </Flex>
+        <FilterBar<{ reportType?: InvestmentReportType }>
+            initialValues={{reportType}}
+            onReset={() => onReportTypeChange(undefined)}
+        >
+            <Form.Item label="报告类型" name="reportType">
+                <Select
+                    allowClear
+                    aria-label="报告类型筛选"
+                    onChange={onReportTypeChange}
+                    options={investmentReportTypeOptions}
+                    placeholder="全部类型"
+                />
+            </Form.Item>
+        </FilterBar>
     )
 }
 

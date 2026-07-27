@@ -1,10 +1,16 @@
-import {EditOutlined, ExperimentOutlined, ReloadOutlined} from '@ant-design/icons'
-import {Alert, App, Button, Card, Form, Input, InputNumber, Popconfirm, Select, Space, Switch, Table, Tag, Typography} from 'antd'
+import {AppstoreOutlined, DeleteOutlined, EditOutlined, ExperimentOutlined, ReloadOutlined} from '@ant-design/icons'
+import {Alert, App, Button, Form, Input, InputNumber, Select, Space, Switch, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useState} from 'react'
 import {clearGlobalError, reportGlobalError} from '../../app/globalError'
+import {DataTable} from '../../components/DataTable'
 import {DateTimeText} from '../../components/DateTimeText'
+import {EmptyState} from '../../components/EmptyState'
+import {FilterBar} from '../../components/FilterBar'
+import {PageSection, PageStack} from '../../components/PageSection'
 import {PageToolbar} from '../../components/PageToolbar'
+import {RowActions, type RowAction} from '../../components/RowActions'
+import {StackedCell} from '../../components/StackedCell'
 import {usePageData} from '../../hooks/usePageData'
 import {voidify} from '../../utils/async'
 import {
@@ -29,6 +35,7 @@ import type {
 import {BoardCandidateTable} from './components/BoardCandidateTable'
 import {RoleTreeSelect, selectedRoleCountText} from './components/RoleTreeSelect'
 import {RoleSummaryTags} from './components/RoleSummaryTags'
+import './clocktower.css'
 
 type BoardEditorFormValues = ClocktowerBoardGenerateRequest & {
     roleCodes: string[]
@@ -255,13 +262,11 @@ function BoardBuilderPage() {
         setValidation(undefined)
     }
 
-    async function querySavedBoards() {
-        const values = await filterForm.validateFields()
+    function querySavedBoards(values: BoardLibraryFilterValues) {
         setBoardQuery(cleanBoardQuery(values))
     }
 
     function resetSavedBoardQuery() {
-        filterForm.resetFields()
         setBoardQuery({})
     }
 
@@ -276,101 +281,116 @@ function BoardBuilderPage() {
             <PageToolbar
                 actions={<Button icon={<ReloadOutlined/>} onClick={() => void loadInitialData()}>刷新</Button>}
                 description="为说书人生成、编辑并校验一局可用配板。"
+                icon={<AppstoreOutlined/>}
                 title="钟楼配板"
             />
-            <Form
-                form={form}
-                initialValues={{
-                    scriptCode: defaultScriptCode,
-                    playerCount: 5,
-                    difficulty: 2,
-                    chaos: 2,
-                    evilPressure: 2,
-                    newbieFriendly: true,
-                    candidateCount: 2,
-                    roleCodes: [],
-                }}
-                layout="vertical"
-                onValuesChange={handleEditorValuesChange}
-            >
-                <Card>
-                    <Space align="end" wrap>
-                        <Form.Item label="剧本" name="scriptCode" rules={[{required: true, message: '请选择剧本'}]}>
-                            <Select options={scriptOptions(scripts)} style={{width: 220}}/>
-                        </Form.Item>
-                        <Form.Item label="人数" name="playerCount" rules={[{required: true}]}>
-                            <InputNumber min={5} max={15}/>
-                        </Form.Item>
-                        <Form.Item label="难度" name="difficulty">
-                            <InputNumber min={1} max={5}/>
-                        </Form.Item>
-                        <Form.Item label="混乱度" name="chaos">
-                            <InputNumber min={1} max={5}/>
-                        </Form.Item>
-                        <Form.Item label="邪恶压力" name="evilPressure">
-                            <InputNumber min={1} max={5}/>
-                        </Form.Item>
-                        <Form.Item label="新手友好" name="newbieFriendly" valuePropName="checked">
-                            <Switch/>
-                        </Form.Item>
-                        <Form.Item label="候选数" name="candidateCount">
-                            <InputNumber min={1} max={5}/>
-                        </Form.Item>
-                        <Form.Item label="随机种子" name="seed">
-                            <Input style={{width: 160}}/>
-                        </Form.Item>
-                        <Button icon={<ExperimentOutlined/>} loading={loading} onClick={voidify(generate)}
-                                type="primary">
-                            生成配板
-                        </Button>
-                    </Space>
-                </Card>
-                <Card
-                    extra={
-                        <Space wrap>
-                            <Typography.Text type="secondary">
-                                {selectedRoleCountText(selectedRoleCodes, selectedPlayerCount)}
-                            </Typography.Text>
-                            <Button loading={validating} onClick={voidify(validateCurrentBoard)}>手动校验</Button>
-                            <Button loading={savingEditor} onClick={voidify(saveCurrentBoard)} type="primary">
-                                保存当前配板
-                            </Button>
-                        </Space>
-                    }
-                    style={{marginTop: 16}}
-                    title="配板编辑器"
+            <PageStack>
+                <Form
+                    form={form}
+                    initialValues={{
+                        scriptCode: defaultScriptCode,
+                        playerCount: 5,
+                        difficulty: 2,
+                        chaos: 2,
+                        evilPressure: 2,
+                        newbieFriendly: true,
+                        candidateCount: 2,
+                        roleCodes: [],
+                    }}
+                    layout="vertical"
+                    onValuesChange={handleEditorValuesChange}
                 >
-                    <Form.Item
-                        label="角色"
-                        name="roleCodes"
-                        rules={[{
-                            validator: (_, value: string[] = []) => value.length
-                                ? Promise.resolve()
-                                : Promise.reject(new Error('请选择角色')),
-                        }]}
-                    >
-                        <RoleTreeSelect loading={rolesLoading} roles={roles} style={{width: '100%'}}/>
-                    </Form.Item>
-                    {validation ? (
-                        <Alert
-                            showIcon
-                            title={`校验结果：${validation.valid ? '校验通过' : '校验未通过'}`}
-                            type={validation.valid ? 'success' : 'warning'}
-                            description={
-                                <div style={{display: 'flex', flexDirection: 'column', gap: 4}}>
-                                    <span>{countSummary(validation.typeCounts)}</span>
-                                    {validation.issues.map((issue) => (
-                                        <span key={issue.code}>{issue.severity}：{issue.message}</span>
-                                    ))}
+                    <PageStack>
+                        <PageSection
+                            description="调整生成参数后点击「生成配板」，可反复生成直到满意。"
+                            title="生成参数"
+                        >
+                            <div className="clocktower-field-row">
+                                <Form.Item label="剧本" name="scriptCode" rules={[{required: true, message: '请选择剧本'}]}>
+                                    <Select options={scriptOptions(scripts)}/>
+                                </Form.Item>
+                                <Form.Item label="人数" name="playerCount" rules={[{required: true}]}>
+                                    <InputNumber min={5} max={15}/>
+                                </Form.Item>
+                                <Form.Item label="难度" name="difficulty">
+                                    <InputNumber min={1} max={5}/>
+                                </Form.Item>
+                                <Form.Item label="混乱度" name="chaos">
+                                    <InputNumber min={1} max={5}/>
+                                </Form.Item>
+                                <Form.Item label="邪恶压力" name="evilPressure">
+                                    <InputNumber min={1} max={5}/>
+                                </Form.Item>
+                                <Form.Item label="新手友好" name="newbieFriendly" valuePropName="checked">
+                                    <Switch/>
+                                </Form.Item>
+                                <Form.Item label="候选数" name="candidateCount">
+                                    <InputNumber min={1} max={5}/>
+                                </Form.Item>
+                                <Form.Item label="随机种子" name="seed">
+                                    <Input placeholder="留空则随机"/>
+                                </Form.Item>
+                                <div className="clocktower-field-row-actions">
+                                    <Button
+                                        icon={<ExperimentOutlined/>}
+                                        loading={loading}
+                                        onClick={voidify(generate)}
+                                        type="primary"
+                                    >
+                                        生成配板
+                                    </Button>
                                 </div>
+                            </div>
+                        </PageSection>
+                        <PageSection
+                            actions={
+                                <>
+                                    <Typography.Text type="secondary">
+                                        {selectedRoleCountText(selectedRoleCodes, selectedPlayerCount)}
+                                    </Typography.Text>
+                                    <Button loading={validating} onClick={voidify(validateCurrentBoard)}>手动校验</Button>
+                                    <Button loading={savingEditor} onClick={voidify(saveCurrentBoard)} type="primary">
+                                        保存当前配板
+                                    </Button>
+                                </>
                             }
-                        />
-                    ) : (
-                        <Typography.Text type="secondary">校验结果：尚未校验</Typography.Text>
-                    )}
-                </Card>
-            </Form>
-            <Card style={{marginTop: 16}} title="候选配板">
+                            title="配板编辑器"
+                        >
+                            <Form.Item
+                                label="角色"
+                                name="roleCodes"
+                                rules={[{
+                                    validator: (_, value: string[] = []) => value.length
+                                        ? Promise.resolve()
+                                        : Promise.reject(new Error('请选择角色')),
+                                }]}
+                            >
+                                <RoleTreeSelect className="u-full-width" loading={rolesLoading} roles={roles}/>
+                            </Form.Item>
+                            {validation ? (
+                                <Alert
+                                    showIcon
+                                    title={`校验结果：${validation.valid ? '校验通过' : '校验未通过'}`}
+                                    type={validation.valid ? 'success' : 'warning'}
+                                    description={
+                                        <Space orientation="vertical" size={4}>
+                                            <span>{countSummary(validation.typeCounts)}</span>
+                                            {validation.issues.map((issue) => (
+                                                <span key={issue.code}>{issue.severity}：{issue.message}</span>
+                                            ))}
+                                        </Space>
+                                    }
+                                />
+                            ) : (
+                                <EmptyState
+                                    description="选好角色后点击「手动校验」，保存前即可确认配板是否符合剧本规则。"
+                                    inline
+                                    title="校验结果：尚未校验"
+                                />
+                            )}
+                        </PageSection>
+                    </PageStack>
+                </Form>
                 <BoardCandidateTable
                     candidates={candidates}
                     loading={loading}
@@ -378,47 +398,50 @@ function BoardBuilderPage() {
                     onSave={saveCandidate}
                     savingCandidateId={savingCandidateId}
                 />
-            </Card>
-            <Card style={{marginTop: 16}} title="我的配板库">
-                <Form form={filterForm} layout="inline" onFinish={voidify(querySavedBoards)} style={{marginBottom: 16}}>
-                    <Form.Item label="剧本" name="scriptCode">
-                        <Select allowClear options={scriptOptions(scripts)} style={{width: 220}}/>
-                    </Form.Item>
-                    <Form.Item label="人数" name="playerCount">
-                        <InputNumber min={5} max={15}/>
-                    </Form.Item>
-                    <Form.Item label="校验" name="valid">
-                        <Select
-                            allowClear
-                            options={[
-                                {label: '通过', value: true},
-                                {label: '未通过', value: false},
-                            ]}
-                            style={{width: 130}}
+                <PageSection title="我的配板库">
+                    <PageStack>
+                        <FilterBar<BoardLibraryFilterValues>
+                            form={filterForm}
+                            loading={savedBoardsLoading}
+                            onReset={resetSavedBoardQuery}
+                            onSearch={querySavedBoards}
+                        >
+                            <Form.Item label="剧本" name="scriptCode">
+                                <Select allowClear options={scriptOptions(scripts)}/>
+                            </Form.Item>
+                            <Form.Item label="人数" name="playerCount">
+                                <InputNumber min={5} max={15}/>
+                            </Form.Item>
+                            <Form.Item label="校验" name="valid">
+                                <Select
+                                    allowClear
+                                    options={[
+                                        {label: '通过', value: true},
+                                        {label: '未通过', value: false},
+                                    ]}
+                                />
+                            </Form.Item>
+                        </FilterBar>
+                        <DataTable<ClocktowerBoardConfigResponse>
+                            columns={savedBoardColumns(deleteSavedBoard, editSavedBoard)}
+                            count={total}
+                            dataSource={savedBoards}
+                            emptyDescription="生成或手动编辑一份配板并保存后，就会出现在这里。"
+                            emptyTitle="配板库还是空的"
+                            loading={savedBoardsLoading}
+                            pagination={{
+                                current: page,
+                                pageSize: size,
+                                total,
+                                onChange: (nextPage, nextSize) => void reloadSavedBoards(nextPage, nextSize),
+                            }}
+                            rowKey="boardId"
+                            scroll={{x: 1000}}
+                            title="已保存配板"
                         />
-                    </Form.Item>
-                    <Form.Item>
-                        <Space>
-                            <Button htmlType="submit" type="primary">查询</Button>
-                            <Button onClick={resetSavedBoardQuery}>重置</Button>
-                        </Space>
-                    </Form.Item>
-                </Form>
-                <Table<ClocktowerBoardConfigResponse>
-                    columns={savedBoardColumns(deleteSavedBoard, editSavedBoard)}
-                    dataSource={savedBoards}
-                    loading={savedBoardsLoading}
-                    pagination={{
-                        current: page,
-                        pageSize: size,
-                        total,
-                        showSizeChanger: true,
-                        onChange: (nextPage, nextSize) => void reloadSavedBoards(nextPage, nextSize),
-                    }}
-                    rowKey="boardId"
-                    scroll={{x: 1100}}
-                />
-            </Card>
+                    </PageStack>
+                </PageSection>
+            </PageStack>
         </>
     )
 }
@@ -460,9 +483,14 @@ export function savedBoardColumns(
     onEdit?: (board: ClocktowerBoardConfigResponse) => void,
 ): ColumnsType<ClocktowerBoardConfigResponse> {
     return [
-        {title: '配板编号', dataIndex: 'boardCode', width: 180, render: (value) => <Tag>{value}</Tag>},
-        {title: '剧本', dataIndex: 'scriptCode', width: 160},
-        {title: '人数', dataIndex: 'playerCount', width: 90},
+        {
+            title: '配板',
+            dataIndex: 'boardCode',
+            width: 200,
+            render: (value: string, record) => (
+                <StackedCell primary={<Tag>{value}</Tag>} secondary={`${record.scriptCode} · ${record.playerCount} 人`}/>
+            ),
+        },
         {
             title: '角色',
             dataIndex: 'roleCodes',
@@ -486,27 +514,26 @@ export function savedBoardColumns(
             title: '操作',
             fixed: 'right',
             width: 160,
-            render: (_, record) => (
-                <Space>
-                    <Button
-                        disabled={!onEdit}
-                        icon={<EditOutlined/>}
-                        onClick={() => onEdit?.(record)}
-                        size="small"
-                    >
-                        编辑
-                    </Button>
-                    <Popconfirm
-                        cancelText="取消"
-                        okText="删除"
-                        okType="danger"
-                        onConfirm={() => void onDelete(record.boardId)}
-                        title="删除已保存配板？"
-                    >
-                        <Button danger size="small">删除</Button>
-                    </Popconfirm>
-                </Space>
-            ),
+            render: (_, record) => {
+                const actions: RowAction[] = [
+                    {
+                        key: 'edit',
+                        label: '编辑',
+                        icon: <EditOutlined/>,
+                        disabled: !onEdit,
+                        onClick: () => onEdit?.(record),
+                    },
+                    {
+                        key: 'delete',
+                        label: '删除',
+                        icon: <DeleteOutlined/>,
+                        danger: true,
+                        confirm: '删除已保存配板？删除后无法恢复。',
+                        onClick: () => void onDelete(record.boardId),
+                    },
+                ]
+                return <RowActions actions={actions}/>
+            },
         },
     ]
 }

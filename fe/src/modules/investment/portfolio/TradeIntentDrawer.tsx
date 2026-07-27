@@ -1,5 +1,7 @@
-import {Alert, Button, Descriptions, Drawer, Form, Input, InputNumber, List, Select, Space, Switch, Tag} from 'antd'
+import {Alert, Descriptions, Form, Input, InputNumber, List, Select, Switch, Tag} from 'antd'
 import {useEffect, useState} from 'react'
+import {FormDrawer} from '../../../components/FormDrawer'
+import {PageStack} from '../../../components/PageSection'
 import type {
     InvestmentPaperTradeResult,
     SubmitInvestmentPaperTradeRequest,
@@ -12,6 +14,8 @@ type Props = {
     onClose: () => void
     onSubmit: (request: SubmitInvestmentPaperTradeRequest) => Promise<InvestmentPaperTradeResult>
 }
+
+const FORM_ID = 'investment-trade-intent-form'
 
 export function TradeIntentDrawer({open, onClose, onSubmit}: Props) {
     const [form] = Form.useForm<TradeForm>()
@@ -35,9 +39,8 @@ export function TradeIntentDrawer({open, onClose, onSubmit}: Props) {
         }
     }, [form, open])
 
-    async function submit() {
+    async function submit(values: TradeForm) {
         if (submitting) return
-        const values = await form.validateFields()
         setSubmitting(true)
         setError(undefined)
         setResult(undefined)
@@ -59,18 +62,24 @@ export function TradeIntentDrawer({open, onClose, onSubmit}: Props) {
 
     const failedChecks = result?.riskResults.filter((check) => !check.passed) ?? []
     return (
-        <Drawer
-            destroyOnHidden
-            extra={<Space><Button disabled={submitting} onClick={onClose}>关闭</Button>
-                <Button loading={submitting} onClick={() => void submit()} type="primary">提交模拟委托</Button></Space>}
+        <FormDrawer
+            cancelText="关闭"
+            formId={FORM_ID}
+            loading={submitting}
             onClose={onClose}
             open={open}
-            size="large"
+            size="lg"
+            submitText="提交模拟委托"
             title="提交合约模拟委托"
         >
-            <Space orientation="vertical" size={16} style={{width: '100%'}}>
-                <Alert description="仅进入模拟账户撮合与风控链路，所有资金变化均为虚拟记账。" showIcon type="info"/>
-                {error && <Alert description={error} showIcon title="提交失败" type="error"/>}
+            <PageStack>
+                <Alert
+                    className="page-alert"
+                    description="仅进入模拟账户撮合与风控链路，所有资金变化均为虚拟记账。"
+                    showIcon
+                    type="info"
+                />
+                {error && <Alert className="page-alert" description={error} showIcon title="提交失败" type="error"/>}
                 {result && <TradeResult result={result}/>}
                 {failedChecks.length > 0 && (
                     <List
@@ -87,9 +96,9 @@ export function TradeIntentDrawer({open, onClose, onSubmit}: Props) {
                         )}
                     />
                 )}
-                <Form form={form} layout="vertical">
+                <Form form={form} id={FORM_ID} layout="vertical" onFinish={(values) => void submit(values)}>
                     <Form.Item label="内部合约 ID" name="instrumentId" rules={[{required: true}]}>
-                        <InputNumber min={1} precision={0} style={{width: '100%'}}/>
+                        <InputNumber className="u-full-width" min={1} precision={0}/>
                     </Form.Item>
                     <Form.Item label="仓位动作" name="positionAction" rules={[{required: true}]}>
                         <Select options={[{label: '开仓', value: 'OPEN'}, {label: '平仓', value: 'CLOSE'}]}/>
@@ -107,8 +116,8 @@ export function TradeIntentDrawer({open, onClose, onSubmit}: Props) {
                     <Form.Item label="仅减仓" name="reduceOnly" valuePropName="checked"><Switch/></Form.Item>
                     <Form.Item label="原因" name="reason"><Input.TextArea maxLength={2000} rows={3}/></Form.Item>
                 </Form>
-            </Space>
-        </Drawer>
+            </PageStack>
+        </FormDrawer>
     )
 }
 
@@ -128,7 +137,7 @@ function TradeResult({result}: {result: InvestmentPaperTradeResult}) {
 
 function Decimal({label, name, min}: {label: string; name: keyof TradeForm; min: string}) {
     return <Form.Item label={label} name={name} rules={[{required: true}]}>
-        <InputNumber min={min} stringMode style={{width: '100%'}}/>
+        <InputNumber className="u-full-width" min={min} stringMode/>
     </Form.Item>
 }
 

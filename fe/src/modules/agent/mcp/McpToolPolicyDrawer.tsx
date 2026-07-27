@@ -1,5 +1,6 @@
-import {Alert, Button, Drawer, Form, Select, Switch} from 'antd'
+import {Alert, Form, Select, Switch} from 'antd'
 import {useEffect} from 'react'
+import {FormDrawer} from '../../../components/FormDrawer'
 import {voidify} from '../../../utils/async'
 import type {McpToolResponse, McpToolRiskLevel, UpdateMcpToolPolicyRequest} from './mcpTypes'
 
@@ -36,13 +37,14 @@ export function McpToolPolicyDrawer({open, loading, tool, onClose, onSubmit}: Mc
     }
 
     return (
-        <Drawer
-            destroyOnHidden
-            extra={<Button form="mcp-tool-policy-form" htmlType="submit" loading={loading} type="primary">保存</Button>}
+        <FormDrawer
+            description={tool?.toolKey}
+            formId="mcp-tool-policy-form"
+            loading={loading}
             onClose={onClose}
             open={open}
-            title={`工具策略：${tool?.toolKey ?? ''}`}
-            width={480}
+            size="sm"
+            title="工具策略"
         >
             <Form form={form} id="mcp-tool-policy-form" layout="vertical" onFinish={voidify(handleFinish)}
                   requiredMark={false}>
@@ -59,6 +61,6 @@ export function McpToolPolicyDrawer({open, loading, tool, onClose, onSubmit}: Mc
                     <Alert message="需要确认的工具在第一阶段不会暴露给 ReactAgent。" showIcon type="warning"/>
                 )}
             </Form>
-        </Drawer>
+        </FormDrawer>
     )
 }

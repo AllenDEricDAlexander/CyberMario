@@ -1,14 +1,24 @@
-import {ReloadOutlined} from '@ant-design/icons'
-import {Button, Card, Descriptions, Empty, Space, Tag, Tabs, Timeline, Typography} from 'antd'
-import type {DescriptionsProps} from 'antd'
+import {
+    ApartmentOutlined,
+    EyeOutlined,
+    HistoryOutlined,
+    NumberOutlined,
+    ReloadOutlined,
+    ThunderboltOutlined,
+} from '@ant-design/icons'
+import {Button, Card, Space, Tag, Tabs, Timeline, Typography} from 'antd'
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {useParams} from 'react-router'
 import {reportGlobalError} from '../../app/globalError'
 import {DateTimeText} from '../../components/DateTimeText'
+import {EmptyState} from '../../components/EmptyState'
+import {PageSection, PageStack} from '../../components/PageSection'
 import {PageToolbar} from '../../components/PageToolbar'
+import {StatCard, StatGrid} from '../../components/StatCard'
 import {voidify} from '../../utils/async'
 import {getClocktowerGameReplay} from './clocktowerService'
 import type {ClocktowerGameEventResponse, ClocktowerGameReplayResponse} from './clocktowerTypes'
+import './clocktower.css'
 
 function ReplayPage() {
     const {gameId} = useParams()
@@ -58,52 +68,83 @@ function ReplayPage() {
                         刷新
                     </Button>
                 )}
+                back="/clocktower/replays"
                 description="按游戏 ID 查看公开、私密与审计可见事件。"
+                icon={<HistoryOutlined/>}
                 title="钟楼回放"
             />
-            <Card loading={loading} style={{marginBottom: 16}} title="游戏信息">
-                <Descriptions bordered column={{xs: 1, sm: 2, lg: 3}} items={metadataItems(replay, numericGameId)}/>
-            </Card>
-            <Card>
-                <Tabs
-                    items={[
-                        {
-                            key: 'public',
-                            label: '公开事件',
-                            children: <GameEventTimeline events={publicEvents}/>,
-                        },
-                        {
-                            key: 'private',
-                            label: '私密事件',
-                            children: <GameEventTimeline events={privateEvents}/>,
-                        },
-                        {
-                            key: 'all',
-                            label: '全量可见',
-                            children: <GameEventTimeline events={replay?.events ?? []}/>,
-                        },
-                    ]}
-                />
-            </Card>
+            <PageStack>
+                <PageSection title="游戏信息">
+                    <GameMetadata gameId={numericGameId} loading={loading} replay={replay}/>
+                </PageSection>
+                <Card>
+                    <Tabs
+                        items={[
+                            {
+                                key: 'public',
+                                label: '公开事件',
+                                children: <GameEventTimeline events={publicEvents}/>,
+                            },
+                            {
+                                key: 'private',
+                                label: '私密事件',
+                                children: <GameEventTimeline events={privateEvents}/>,
+                            },
+                            {
+                                key: 'all',
+                                label: '全量可见',
+                                children: <GameEventTimeline events={replay?.events ?? []}/>,
+                            },
+                        ]}
+                    />
+                </Card>
+            </PageStack>
         </>
     )
 }
 
-function metadataItems(
-    replay: ClocktowerGameReplayResponse | null,
-    numericGameId: number,
-): DescriptionsProps['items'] {
-    return [
-        {key: 'gameId', label: '游戏 ID', children: replay?.gameId ?? (Number.isFinite(numericGameId) ? numericGameId : '-')},
-        {key: 'roomId', label: '房间', children: replay ? `#${replay.roomId}` : '-'},
-        {key: 'viewerMode', label: '视角', children: replay?.viewerMode ?? '-'},
-        {key: 'eventCount', label: '事件数', children: replay?.events.length ?? '-'},
-    ]
+function GameMetadata({gameId, loading, replay}: {
+    gameId: number
+    loading: boolean
+    replay: ClocktowerGameReplayResponse | null
+}) {
+    return (
+        <StatGrid>
+            <StatCard
+                icon={<NumberOutlined/>}
+                label="游戏 ID"
+                loading={loading}
+                value={replay?.gameId ?? (Number.isFinite(gameId) ? gameId : '-')}
+            />
+            <StatCard
+                icon={<ApartmentOutlined/>}
+                label="房间"
+                loading={loading}
+                tone="sky"
+                value={replay ? `#${replay.roomId}` : '-'}
+            />
+            <StatCard
+                icon={<EyeOutlined/>}
+                label="视角"
+                loading={loading}
+                tone="violet"
+                value={replay?.viewerMode ?? '-'}
+            />
+            <StatCard
+                hint="包含当前视角可见的全部事件"
+                icon={<ThunderboltOutlined/>}
+                label="事件数"
+                loading={loading}
+                tone="amber"
+                value={replay?.events.length ?? '-'}
+            />
+        </StatGrid>
+    )
 }
 
 function GameEventTimeline({events}: { events: ClocktowerGameEventResponse[] }) {
     if (events.length === 0) {
-        return <Empty description="暂无事件"/>
+        return <EmptyState description="这一档可见范围内还没有记录任何事件。" inline title="暂无事件"/>
     }
 
     return (
@@ -119,7 +160,7 @@ function GameEventTimeline({events}: { events: ClocktowerGameEventResponse[] }) 
                     </Space>
                 ),
                 content: (
-                    <Space orientation="vertical" size={4} style={{width: '100%'}}>
+                    <Space className="u-full-width" orientation="vertical" size={4}>
                         <Typography.Text type="secondary">
                             {event.phase} · 第 {event.dayNo} 天 / 第 {event.nightNo} 夜 · <DateTimeText value={event.occurredAt}/>
                         </Typography.Text>
@@ -128,7 +169,7 @@ function GameEventTimeline({events}: { events: ClocktowerGameEventResponse[] }) 
                             <Tag>target={event.targetGameSeatId ?? '-'}</Tag>
                             <Tag>visible={event.visibleGameSeatIds.length > 0 ? event.visibleGameSeatIds.join(',') : '-'}</Tag>
                         </Space>
-                        <Typography.Paragraph copyable style={{marginBottom: 0, whiteSpace: 'pre-wrap'}}>
+                        <Typography.Paragraph className="clocktower-payload" copyable>
                             {formatPayload(event.payload)}
                         </Typography.Paragraph>
                     </Space>

@@ -1,23 +1,61 @@
+/*
+ * Investment workspace chrome.
+ *
+ * Every value here resolves through `src/styles/tokens.css`, so the shell tracks
+ * the active `data-theme` instead of pinning light-mode spacing and colours.
+ */
+
 .investment-workspace-shell {
     display: flex;
     flex-direction: column;
     min-width: 0;
+    color: var(--text);
 }
 
 .investment-workspace-header {
     align-items: flex-end;
     display: flex;
-    gap: 24px;
+    gap: var(--space-lg);
     justify-content: space-between;
-    margin-bottom: 8px;
+    margin-bottom: var(--space-xs);
 }
 
 .investment-workspace-header .ant-typography {
     margin-bottom: 0;
+    color: var(--text-strong);
+}
+
+.investment-workspace-header .ant-typography.ant-typography-secondary {
+    color: var(--muted);
+}
+
+.investment-workspace-nav .ant-tabs-nav {
+    margin-bottom: var(--space-md);
 }
 
 .investment-create-error {
-    margin-bottom: 16px;
+    margin-bottom: var(--space-md);
+}
+
+/*
+ * Selects that live outside a `FilterBar` — workspace pickers, table toolbars,
+ * chart headers — have no grid track to stretch into. They get a floor width
+ * from here so no page has to reach for an inline `min-width` again.
+ */
+.investment-inline-select.ant-select {
+    min-width: 180px;
+}
+
+.investment-inline-select.is-compact.ant-select {
+    min-width: 120px;
+}
+
+.investment-inline-select.is-wide.ant-select {
+    min-width: 240px;
+}
+
+.investment-inline-select.is-xl.ant-select {
+    min-width: 320px;
 }
 
 @media (max-width: 768px) {

@@ -1,7 +1,11 @@
 import {Line} from '@ant-design/charts'
-import {Alert, Button, Descriptions, Drawer, Empty, Flex, Space, Spin, Table, Tag, Typography} from 'antd'
+import {Alert, Button, Descriptions, Spin, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useEffect, useMemo, useRef, useState} from 'react'
+import {DataTable} from '../../../components/DataTable'
+import {EmptyState} from '../../../components/EmptyState'
+import {FormDrawer} from '../../../components/FormDrawer'
+import {PageStack} from '../../../components/PageSection'
 import {InvestmentDecimalText} from '../components/InvestmentDecimalText'
 import {
     getInvestmentBacktestEquity,
@@ -76,18 +80,20 @@ export function InvestmentBacktestDrawer({open, runId, onClose}: InvestmentBackt
     })), [equity])
 
     return (
-        <Drawer
-            destroyOnHidden
+        <FormDrawer
             extra={<Button loading={polling} onClick={refresh}>刷新</Button>}
+            footer={false}
             onClose={onClose}
             open={open}
-            size="large"
+            size="lg"
             title={runId === undefined ? '回测详情' : `回测 #${runId}`}
         >
-            {!run && !pollingError && <Flex justify="center"><Spin/></Flex>}
-            {pollingError && <Alert description={pollingError} showIcon title="回测状态刷新失败" type="warning"/>}
+            {!run && !pollingError && <div className="state-block"><Spin/></div>}
+            {pollingError && (
+                <Alert className="page-alert" description={pollingError} showIcon title="回测状态刷新失败" type="warning"/>
+            )}
             {run && (
-                <Space orientation="vertical" size={20} style={{width: '100%'}}>
+                <PageStack>
                     <Descriptions
                         bordered
                         column={2}
@@ -106,51 +112,72 @@ export function InvestmentBacktestDrawer({open, runId, onClose}: InvestmentBackt
                     />
                     {run.status === 'FAILED' && (
                         <Alert
+                            className="page-alert"
                             description={run.errorMessage ?? '回测执行失败'}
                             showIcon
                             title={run.errorCode ?? 'BACKTEST_FAILED'}
                             type="error"
                         />
                     )}
-                    {run.status === 'SUCCEEDED' && resultLoading && <Flex justify="center"><Spin/></Flex>}
-                    {resultError && <Alert description={resultError} showIcon title="回测结果加载失败" type="error"/>}
+                    {run.status === 'SUCCEEDED' && resultLoading && <div className="state-block"><Spin/></div>}
+                    {resultError && (
+                        <Alert className="page-alert" description={resultError} showIcon title="回测结果加载失败" type="error"/>
+                    )}
                     {run.status === 'SUCCEEDED' && !resultLoading && !resultError && (
                         <>
                             <section aria-label="回测权益曲线">
                                 <Typography.Title level={5}>权益曲线</Typography.Title>
-                                {equityData.length === 0 ? <Empty description="暂无权益点"/> : (
+                                {equityData.length === 0 ? (
+                                    <EmptyState
+                                        description="该回测没有产生权益快照，通常说明区间内没有任何持仓变化。"
+                                        inline
+                                        title="暂无权益点"
+                                    />
+                                ) : (
                                     <Line data={equityData} height={240} xField="time" yField="value"/>
                                 )}
                             </section>
                             <section aria-label="回测回撤曲线">
                                 <Typography.Title level={5}>回撤曲线</Typography.Title>
-                                {drawdownData.length === 0 ? <Empty description="暂无回撤点"/> : (
+                                {drawdownData.length === 0 ? (
+                                    <EmptyState
+                                        description="没有权益快照就无法计算回撤，先确认回测区间内有成交。"
+                                        inline
+                                        title="暂无回撤点"
+                                    />
+                                ) : (
                                     <Line data={drawdownData} height={180} xField="time" yField="value"/>
                                 )}
                             </section>
-                            <Typography.Title level={5}>交易记录</Typography.Title>
-                            <Table
+                            <DataTable<InvestmentBacktestTradeResponse>
                                 columns={tradeColumns}
+                                count={trades.length}
                                 dataSource={trades}
+                                emptyDescription="策略在该区间内没有开平任何仓位。"
+                                emptyTitle="暂无成交记录"
                                 pagination={{pageSize: 20, hideOnSinglePage: true}}
                                 rowKey="tradeId"
                                 scroll={{x: 1_200}}
                                 size="small"
+                                title="交易记录"
                             />
-                            <Typography.Title level={5}>事件流水</Typography.Title>
-                            <Table
+                            <DataTable<InvestmentBacktestEventResponse>
                                 columns={eventColumns}
+                                count={events.length}
                                 dataSource={events}
+                                emptyDescription="资金费、手续费与强平等事件都会记录在这里。"
+                                emptyTitle="暂无事件流水"
                                 pagination={{pageSize: 20, hideOnSinglePage: true}}
                                 rowKey="eventId"
                                 scroll={{x: 900}}
                                 size="small"
+                                title="事件流水"
                             />
                         </>
                     )}
-                </Space>
+                </PageStack>
             )}
-        </Drawer>
+        </FormDrawer>
     )
 }
 

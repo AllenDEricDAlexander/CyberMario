@@ -86,7 +86,7 @@ describe('InvestmentResearchPage', () => {
         renderPage()
         await screen.findByText('全部类型 暂无报告')
 
-        await userEvent.click(screen.getByRole('button', {name: '创建报告'}))
+        await userEvent.click(screen.getByRole('button', {name: /创建报告/}))
         await userEvent.click(screen.getByRole('button', {name: '加入生成队列'}))
 
         await waitFor(() => expect(mocks.create).toHaveBeenCalledWith(7, {reportType: 'MARKET_OVERVIEW'}))
@@ -103,7 +103,7 @@ describe('InvestmentResearchPage', () => {
             .mockRejectedValueOnce(new Error('gateway timeout'))
         renderPage()
         await screen.findByText('全部类型 暂无报告')
-        await userEvent.click(screen.getByRole('button', {name: '创建报告'}))
+        await userEvent.click(screen.getByRole('button', {name: /创建报告/}))
 
         await userEvent.click(screen.getByRole('button', {name: '加入生成队列'}))
         expect(await screen.findByText('报告能力尚未接入')).toBeTruthy()
@@ -138,7 +138,7 @@ describe('InvestmentResearchPage', () => {
         renderPage()
         await screen.findByText('全部类型 暂无报告')
 
-        expect(screen.queryByRole('button', {name: '创建报告'})).toBeNull()
+        expect(screen.queryByRole('button', {name: /创建报告/})).toBeNull()
     })
 })
 

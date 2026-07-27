@@ -1,9 +1,13 @@
-import {Alert, App, Button, Card, Flex, Select, Space, Table, Tag, Typography} from 'antd'
+import {RobotOutlined} from '@ant-design/icons'
+import {Alert, App, Button, Select, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useRef, useState} from 'react'
+import {DataTable} from '../../../components/DataTable'
+import {PageSection, PageStack} from '../../../components/PageSection'
+import {PageToolbar} from '../../../components/PageToolbar'
 import {resolveErrorMessage} from '../../../services/request'
 import {canUseRbacButton, useAuth} from '../../auth/authStore'
-import {InvestmentAsyncState} from '../components/InvestmentAsyncState'
+import {InvestmentAsyncState, InvestmentTableFailure, investmentTableLocale} from '../components/InvestmentAsyncState'
 import {useInvestmentWorkspace} from '../hooks/useInvestmentWorkspace'
 import {investmentButtonCodes} from '../investmentPermissionCodes'
 import {listInvestmentInstruments} from '../services/investmentMarketService'
@@ -159,33 +163,33 @@ export default function InvestmentAgentPage() {
     const valid = validRunRequest(runType, accountId, instrumentIds)
 
     return (
-        <Space orientation="vertical" size={16} style={{width: '100%'}}>
-            <Card>
-                <Flex align="center" gap={12} justify="space-between" wrap>
-                    <div>
-                        <Typography.Title level={4}>Investment Agent 模拟交易</Typography.Title>
-                        <Typography.Text type="secondary">
-                            固定预设 {FIXED_PRESET} 使用服务端绑定的数据、工作区和模拟账户进行分析。
-                        </Typography.Text>
-                    </div>
-                    <Tag color="blue">固定代码预设</Tag>
-                </Flex>
-            </Card>
+        <PageStack>
+            <PageToolbar
+                description={`固定预设 ${FIXED_PRESET} 使用服务端绑定的数据、工作区和模拟账户进行分析。`}
+                eyebrow={<Tag color="blue">固定代码预设</Tag>}
+                icon={<RobotOutlined/>}
+                title="Investment Agent 模拟交易"
+            />
             <Alert
+                className="page-alert"
                 description="没有逐单确认弹窗；AUTO_TRADE 的结构化决策通过服务端校验和账户风控后进入统一模拟盘链路。"
                 showIcon
                 title="仅模拟盘，风控通过后自动执行"
                 type="warning"
             />
-            <Card title="发起 Agent 运行">
+            <PageSection
+                description="运行范围由服务端预设固定，这里只挑选运行类型、模拟账户与合约。"
+                title="发起 Agent 运行"
+            >
                 <InvestmentAsyncState
                     error={scopeError}
                     onRetry={() => void loadScope()}
                     state={scopeState}
                 >
-                    <Space orientation="vertical" size={12} style={{width: '100%'}}>
+                    <PageStack>
                         {instruments.length === 0 && (
                             <Alert
+                                className="page-alert"
                                 description="组合复盘仍可运行；其他运行类型需要等待服务端在代码中接入合约数据。"
                                 showIcon
                                 title="暂无代码接入的可分析合约"
@@ -194,25 +198,26 @@ export default function InvestmentAgentPage() {
                         )}
                         <Select
                             aria-label="Agent 运行类型"
+                            className="u-full-width"
                             onChange={setRunType}
                             options={runTypeOptions}
-                            style={{width: '100%'}}
                             value={runType}
                         />
                         <Select
                             allowClear
                             aria-label="Agent 模拟账户"
+                            className="u-full-width"
                             onChange={setAccountId}
                             options={accounts.map((account) => ({
                                 label: `${account.name} #${account.id}${account.agentAutoTradeEnabled ? ' · Agent 已启用' : ''}`,
                                 value: account.id,
                             }))}
                             placeholder={runType === 'AUTO_TRADE' ? 'AUTO_TRADE 必须选择模拟账户' : '可选：绑定模拟账户上下文'}
-                            style={{width: '100%'}}
                             value={accountId}
                         />
                         <Select
                             aria-label="Agent 分析合约"
+                            className="u-full-width"
                             mode="multiple"
                             onChange={setInstrumentIds}
                             options={instruments.map((instrument) => ({
@@ -220,11 +225,11 @@ export default function InvestmentAgentPage() {
                                 value: instrument.instrumentId,
                             }))}
                             placeholder={runType === 'PORTFOLIO_REVIEW' ? '组合复盘可不选合约' : '选择服务端代码已接入的合约'}
-                            style={{width: '100%'}}
                             value={instrumentIds}
                         />
                         {runType === 'AUTO_TRADE' && selectedAccount && !selectedAccount.agentAutoTradeEnabled && (
                             <Alert
+                                className="page-alert"
                                 description="仍可运行并查看分析；任何自动交易意图都会由账户风控明确拒绝，不会产生委托。"
                                 showIcon
                                 title="该模拟账户尚未开启 Agent 自动交易"
@@ -236,37 +241,37 @@ export default function InvestmentAgentPage() {
                                 发起固定预设运行
                             </Button>
                         )}
-                    </Space>
+                    </PageStack>
                 </InvestmentAsyncState>
-            </Card>
-            <Card title="Agent 运行记录">
-                <InvestmentAsyncState
-                    emptyDescription="当前工作区暂无 Agent 运行"
-                    error={runError}
-                    onRetry={() => void loadRuns(page)}
-                    state={runState}
-                >
-                    <Table
-                        columns={runColumns(setSelectedRunId)}
-                        dataSource={runs?.records ?? []}
-                        pagination={{
-                            current: runs?.page ?? page,
-                            pageSize: runs?.size ?? PAGE_SIZE,
-                            total: runs?.total ?? 0,
-                            showSizeChanger: false,
-                            onChange: setPage,
-                        }}
-                        rowKey="id"
-                        scroll={{x: 1_050}}
-                    />
-                </InvestmentAsyncState>
-            </Card>
+            </PageSection>
+            <DataTable<InvestmentAgentRunResponse>
+                columns={runColumns(setSelectedRunId)}
+                count={runs?.total ?? 0}
+                dataSource={runs?.records ?? []}
+                emptyDescription="用上面的表单发起一次固定预设运行，运行记录会出现在这里。"
+                emptyTitle="当前工作区暂无 Agent 运行"
+                loading={runState === 'loading'}
+                locale={investmentTableLocale(
+                    runState,
+                    <InvestmentTableFailure error={runError} onRetry={() => void loadRuns(page)} state={runState}/>,
+                )}
+                pagination={{
+                    current: runs?.page ?? page,
+                    pageSize: runs?.size ?? PAGE_SIZE,
+                    total: runs?.total ?? 0,
+                    showSizeChanger: false,
+                    onChange: setPage,
+                }}
+                rowKey="id"
+                scroll={{x: 1_050}}
+                title="Agent 运行记录"
+            />
             <InvestmentAgentRunDrawer
                 onClose={() => setSelectedRunId(undefined)}
                 open={selectedRunId !== undefined}
                 runId={selectedRunId}
             />
-        </Space>
+        </PageStack>
     )
 }
 
@@ -297,7 +302,17 @@ function runColumns(onOpen: (runId: number) => void): ColumnsType<InvestmentAgen
         {title: '数据截止', dataIndex: 'dataAsOf'},
         {title: '报告', dataIndex: 'reportId', render: (value: number | null) => value ? `#${value}` : '-'},
         {title: '创建时间', dataIndex: 'createdAt'},
-        {title: '操作', key: 'action', render: (_, record) => <Button onClick={() => onOpen(record.id)} size="small">查看</Button>},
+        {
+            title: '操作',
+            key: 'action',
+            fixed: 'right',
+            width: 100,
+            render: (_, record) => (
+                <Button aria-label={`查看 Agent 运行 #${record.id}`} onClick={() => onOpen(record.id)} size="small">
+                    查看
+                </Button>
+            ),
+        },
     ]
 }
 

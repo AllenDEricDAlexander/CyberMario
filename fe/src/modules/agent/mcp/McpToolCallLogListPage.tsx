@@ -1,9 +1,11 @@
-import {ReloadOutlined} from '@ant-design/icons'
-import {Button, Space, Table, Tag, Typography} from 'antd'
+import {HistoryOutlined, ReloadOutlined} from '@ant-design/icons'
+import {Button, Space, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback} from 'react'
+import {DataTable} from '../../../components/DataTable'
 import {DateTimeText} from '../../../components/DateTimeText'
 import {PageToolbar} from '../../../components/PageToolbar'
+import {StackedCell} from '../../../components/StackedCell'
 import {usePageData} from '../../../hooks/usePageData'
 import {voidify} from '../../../utils/async'
 import {getMcpToolCallLogs} from './mcpService'
@@ -24,21 +26,23 @@ function McpToolCallLogListPage() {
             width: 110,
             render: (value: McpToolCallStatus) => <Tag color={statusColor(value)}>{value}</Tag>,
         },
-        {title: '服务', dataIndex: 'serverCode', width: 150},
         {
-            title: 'Tool Key',
+            title: '工具',
             dataIndex: 'toolKey',
-            width: 260,
-            render: (value: string) => <Typography.Text copyable ellipsis={{tooltip: value}}>{value}</Typography.Text>,
+            width: 300,
+            render: (_, record) => <StackedCell primary={record.toolKey} secondary={record.serverCode}/>,
         },
-        {title: '用户 ID', dataIndex: 'userId', width: 100, render: valueOrDash},
         {
-            title: '线程',
+            title: '调用方',
             dataIndex: 'threadId',
-            width: 220,
-            render: (value?: string) => value
-                ? <Typography.Text copyable ellipsis={{tooltip: value}}>{value}</Typography.Text>
-                : '-',
+            width: 240,
+            render: (_, record) => (
+                <StackedCell
+                    plain
+                    primary={record.threadId || '-'}
+                    secondary={`用户 ID ${record.userId ?? '-'}`}
+                />
+            ),
         },
         {title: '耗时', dataIndex: 'costMs', width: 100, render: (value: number) => `${value}ms`},
         {
@@ -55,20 +59,24 @@ function McpToolCallLogListPage() {
             <PageToolbar
                 actions={<Button icon={<ReloadOutlined/>} loading={loading} onClick={() => void load()}>刷新</Button>}
                 description="查看 ReactAgent 调用 MCP 工具的状态、耗时和请求响应摘要。"
+                icon={<HistoryOutlined/>}
                 title="MCP 调用日志"
             />
-            <Table<McpToolCallLogResponse>
+            <DataTable<McpToolCallLogResponse>
                 columns={columns}
+                count={total}
                 dataSource={records}
+                emptyDescription="ReactAgent 调用任意 MCP 工具后，这里会记录状态、耗时和载荷摘要。"
+                emptyTitle="还没有调用记录"
                 expandable={{
                     expandedRowRender: (record) => (
-                        <Space direction="vertical" size={12} style={{width: '100%'}}>
+                        <Space className="u-full-width" direction="vertical" size={12}>
                             <Typography.Text strong>请求摘要</Typography.Text>
-                            <Typography.Paragraph copyable style={{marginBottom: 0, whiteSpace: 'pre-wrap'}}>
+                            <Typography.Paragraph className="payload-text" copyable>
                                 {record.requestArgsSummary || '-'}
                             </Typography.Paragraph>
                             <Typography.Text strong>响应摘要</Typography.Text>
-                            <Typography.Paragraph copyable style={{marginBottom: 0, whiteSpace: 'pre-wrap'}}>
+                            <Typography.Paragraph className="payload-text" copyable>
                                 {record.responseSummary || '-'}
                             </Typography.Paragraph>
                         </Space>
@@ -76,16 +84,13 @@ function McpToolCallLogListPage() {
                     rowExpandable: (record) => Boolean(record.requestArgsSummary || record.responseSummary),
                 }}
                 loading={loading}
-                pagination={{current: page, pageSize: size, total, showSizeChanger: true, onChange: voidify(load)}}
+                pagination={{current: page, pageSize: size, total, onChange: voidify(load)}}
                 rowKey="id"
-                scroll={{x: 1400}}
+                scroll={{x: 1200}}
+                title="调用记录"
             />
         </>
     )
-}
-
-function valueOrDash(value?: string | number | null) {
-    return value ?? '-'
 }
 
 function renderDateTime(value?: string | number | null) {

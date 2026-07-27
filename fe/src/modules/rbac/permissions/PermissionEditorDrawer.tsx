@@ -1,5 +1,6 @@
-import {Button, Drawer, Form, Input, InputNumber, Select, Switch, TreeSelect} from 'antd'
+import {Form, Input, InputNumber, Select, Switch, TreeSelect} from 'antd'
 import {useEffect, useMemo} from 'react'
+import {FormDrawer} from '../../../components/FormDrawer'
 import {voidify} from '../../../utils/async'
 import {toTreeSelectOptions} from '../../../utils/tree'
 import {
@@ -87,17 +88,14 @@ export function PermissionEditorDrawer({
     }
 
     return (
-        <Drawer
-            destroyOnHidden
+        <FormDrawer
+            description={value?.permCode ?? editorHint(fixedType)}
+            formId="permission-editor-form"
+            loading={loading}
             onClose={onClose}
             open={open}
+            size="md"
             title={title}
-            width={560}
-            extra={(
-                <Button form="permission-editor-form" htmlType="submit" loading={loading} type="primary">
-                    保存
-                </Button>
-            )}
         >
             <Form
                 form={form}
@@ -116,13 +114,13 @@ export function PermissionEditorDrawer({
                     <Select disabled={Boolean(fixedType)} options={PERMISSION_TYPE_OPTIONS}/>
                 </Form.Item>
                 <Form.Item label="父权限 ID" name="parentId">
-                    <InputNumber min={1} style={{width: '100%'}}/>
+                    <InputNumber className="u-full-width" min={1}/>
                 </Form.Item>
                 <Form.Item label="状态" name="status" rules={[{required: true, message: '请选择状态'}]}>
                     <Select options={PERMISSION_STATUS_OPTIONS}/>
                 </Form.Item>
                 <Form.Item label="排序" name="sortNo">
-                    <InputNumber style={{width: '100%'}}/>
+                    <InputNumber className="u-full-width"/>
                 </Form.Item>
                 <Form.Item label="描述" name="description">
                     <Input.TextArea rows={3}/>
@@ -220,8 +218,22 @@ export function PermissionEditorDrawer({
                     </>
                 )}
             </Form>
-        </Drawer>
+        </FormDrawer>
     )
+}
+
+/** Sub-heading for a new permission — explains what the fixed type is used for. */
+function editorHint(fixedType?: 'MENU' | 'BUTTON' | 'API') {
+    if (fixedType === 'MENU') {
+        return '菜单权限决定用户能进入哪些页面。'
+    }
+    if (fixedType === 'BUTTON') {
+        return '按钮权限控制页面内的操作，可再绑定后端 API 权限。'
+    }
+    if (fixedType === 'API') {
+        return 'API 权限用于后端动态鉴权，按 URL 与请求方法匹配。'
+    }
+    return '选择权限类型后，表单会展开对应的扩展字段。'
 }
 
 function toFormValues(value?: PermissionResponse | null, fixedType?: 'MENU' | 'BUTTON' | 'API'): PermissionFormValues {

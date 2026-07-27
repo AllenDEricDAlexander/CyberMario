@@ -1,11 +1,21 @@
-import {DeleteOutlined, EditOutlined, ExperimentOutlined, PlusOutlined, SearchOutlined, ToolOutlined} from '@ant-design/icons'
-import {App, Button, Popconfirm, Space, Switch, Table, Tag, Typography} from 'antd'
+import {
+    ApiOutlined,
+    DeleteOutlined,
+    EditOutlined,
+    ExperimentOutlined,
+    PlusOutlined,
+    SearchOutlined,
+    ToolOutlined,
+} from '@ant-design/icons'
+import {App, Button, Switch, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
-import type {ReactNode} from 'react'
 import {useEffect, useState} from 'react'
 import {reportGlobalError} from '../../../app/globalError'
+import {DataTable} from '../../../components/DataTable'
 import {DateTimeText} from '../../../components/DateTimeText'
 import {PageToolbar} from '../../../components/PageToolbar'
+import {RowActions, type RowAction} from '../../../components/RowActions'
+import {StackedCell} from '../../../components/StackedCell'
 import {canUseRbacButton, useAuth} from '../../auth/authStore'
 import {mcpButtonCodes} from './mcpPermissionCodes'
 import {
@@ -151,8 +161,13 @@ function McpServerListPage() {
     }
 
     const columns: ColumnsType<McpServerResponse> = [
-        {title: '编码', dataIndex: 'serverCode', fixed: 'left', width: 170},
-        {title: '名称', dataIndex: 'serverName', width: 180},
+        {
+            title: '服务',
+            dataIndex: 'serverCode',
+            fixed: 'left',
+            width: 220,
+            render: (_, record) => <StackedCell primary={record.serverName} secondary={record.serverCode}/>,
+        },
         {
             title: '传输',
             dataIndex: 'transportType',
@@ -160,12 +175,11 @@ function McpServerListPage() {
             render: (value: McpTransportType) => <Tag color="blue">{value}</Tag>,
         },
         {
-            title: 'Base URL',
+            title: '地址',
             dataIndex: 'baseUrl',
-            width: 260,
-            render: (value: string) => <Typography.Text copyable ellipsis={{tooltip: value}}>{value}</Typography.Text>,
+            width: 300,
+            render: (_, record) => <StackedCell plain primary={record.baseUrl} secondary={record.endpoint}/>,
         },
-        {title: 'Endpoint', dataIndex: 'endpoint', width: 160},
         {
             title: '状态',
             dataIndex: 'status',
@@ -190,47 +204,52 @@ function McpServerListPage() {
         {
             title: '操作',
             fixed: 'right',
-            width: 430,
+            width: 180,
             render: (_, record) => renderActions(record),
         },
     ]
 
     function renderActions(record: McpServerResponse) {
-        const actions: ReactNode[] = []
-        if (canEdit) {
-            actions.push(
-                <Button icon={<EditOutlined/>} key="edit" onClick={() => openEditor(record)} size="small">编辑</Button>,
-            )
-        }
-        if (canTest) {
-            actions.push(
-                <Button icon={<ExperimentOutlined/>} key="test" onClick={() => void testServer(record)} size="small">
-                    测试
-                </Button>,
-            )
-        }
-        if (canDiscover) {
-            actions.push(
-                <Button icon={<SearchOutlined/>} key="discover" onClick={() => void discoverTools(record)} size="small">
-                    发现
-                </Button>,
-            )
-        }
-        if (canManageToolPolicy) {
-            actions.push(
-                <Button icon={<ToolOutlined/>} key="tool-policy" onClick={() => openToolPolicy(record)} size="small">
-                    工具策略
-                </Button>,
-            )
-        }
-        if (canDelete) {
-            actions.push(
-                <Popconfirm key="delete" title="确认删除该 MCP 服务？" onConfirm={() => void removeServer(record)}>
-                    <Button danger icon={<DeleteOutlined/>} size="small">删除</Button>
-                </Popconfirm>,
-            )
-        }
-        return actions.length ? <Space wrap>{actions}</Space> : '-'
+        const actions: RowAction[] = [
+            {
+                key: 'edit',
+                label: '编辑',
+                icon: <EditOutlined/>,
+                hidden: !canEdit,
+                onClick: () => openEditor(record),
+            },
+            {
+                key: 'test',
+                label: '测试',
+                icon: <ExperimentOutlined/>,
+                hidden: !canTest,
+                onClick: () => void testServer(record),
+            },
+            {
+                key: 'discover',
+                label: '发现工具',
+                icon: <SearchOutlined/>,
+                hidden: !canDiscover,
+                onClick: () => void discoverTools(record),
+            },
+            {
+                key: 'tool-policy',
+                label: '工具策略',
+                icon: <ToolOutlined/>,
+                hidden: !canManageToolPolicy,
+                onClick: () => openToolPolicy(record),
+            },
+            {
+                key: 'delete',
+                label: '删除',
+                icon: <DeleteOutlined/>,
+                danger: true,
+                hidden: !canDelete,
+                confirm: '确认删除该 MCP 服务？已发现的工具会一并移除。',
+                onClick: () => void removeServer(record),
+            },
+        ]
+        return <RowActions actions={actions} maxInline={2}/>
     }
 
     return (
@@ -239,15 +258,23 @@ function McpServerListPage() {
                 actions={canCreate &&
                     <Button icon={<PlusOutlined/>} onClick={() => openEditor()} type="primary">新建服务</Button>}
                 description="维护 ReactAgent 可连接的 MCP 服务、连接参数和工具发现状态。"
+                icon={<ApiOutlined/>}
                 title="MCP 服务配置"
             />
-            <Table<McpServerResponse>
+            <DataTable<McpServerResponse>
                 columns={columns}
+                count={servers.length}
                 dataSource={servers}
+                emptyAction={canCreate && (
+                    <Button icon={<PlusOutlined/>} onClick={() => openEditor()} type="primary">新建服务</Button>
+                )}
+                emptyDescription="新建一个 MCP 服务后，ReactAgent 就能连接它并发现可用工具。"
+                emptyTitle="还没有 MCP 服务"
                 loading={loading}
                 pagination={false}
                 rowKey="id"
-                scroll={{x: 1770}}
+                scroll={{x: 1260}}
+                title="服务列表"
             />
             <McpServerEditorDrawer
                 loading={saving}

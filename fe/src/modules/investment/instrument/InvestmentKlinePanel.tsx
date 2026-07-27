@@ -1,6 +1,8 @@
-import {Alert, Card, Flex, Select, Table, Typography} from 'antd'
+import {Alert, Flex, Select, Typography} from 'antd'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import type {CandlestickData, UTCTimestamp} from 'lightweight-charts'
+import {DataTable} from '../../../components/DataTable'
+import {PageSection} from '../../../components/PageSection'
 import {InvestmentAsyncState} from '../components/InvestmentAsyncState'
 import {InvestmentCandlestickChart} from '../components/InvestmentCandlestickChart'
 import {InvestmentDecimalText} from '../components/InvestmentDecimalText'
@@ -242,31 +244,33 @@ export function InvestmentKlinePanel({
     )
 
     return (
-        <Card title="K 线与技术指标">
-            <Flex gap={12} justify="space-between" wrap>
-                <Flex gap={12} wrap>
-                    <Select
-                        aria-label="K 线价型"
-                        onChange={setPriceType}
-                        options={availablePriceTypes.map((value) => ({label: value, value}))}
-                        style={{minWidth: 120}}
-                        value={priceType}
-                    />
-                    <Select
-                        aria-label="K 线周期"
-                        onChange={setInterval}
-                        options={availableIntervals.map((value) => ({label: value, value}))}
-                        style={{minWidth: 120}}
-                        value={interval}
-                    />
-                    <Typography.Text type="secondary">
-                        初始及每次向左加载 {candleWindowLabel(interval)}
-                    </Typography.Text>
-                </Flex>
+        <PageSection
+            actions={(
                 <Typography.Text type="secondary">
                     {candles.length > 0
                         ? `${candles[0].openTime} 至 ${candles.at(-1)?.closeTime}，共 ${candles.length} 根已关闭 K 线`
                         : '等待已关闭 K 线'}
+                </Typography.Text>
+            )}
+            title="K 线与技术指标"
+        >
+            <Flex gap={12} wrap>
+                <Select
+                    aria-label="K 线价型"
+                    className="investment-inline-select is-compact"
+                    onChange={setPriceType}
+                    options={availablePriceTypes.map((value) => ({label: value, value}))}
+                    value={priceType}
+                />
+                <Select
+                    aria-label="K 线周期"
+                    className="investment-inline-select is-compact"
+                    onChange={setInterval}
+                    options={availableIntervals.map((value) => ({label: value, value}))}
+                    value={interval}
+                />
+                <Typography.Text type="secondary">
+                    初始及每次向左加载 {candleWindowLabel(interval)}
                 </Typography.Text>
             </Flex>
             <InvestmentAsyncState
@@ -287,13 +291,14 @@ export function InvestmentKlinePanel({
                 {!canLoadEarlier && <Typography.Text type="secondary">已到达当前可用历史数据起点</Typography.Text>}
                 {loadEarlierError && (
                     <Alert
+                        className="page-alert"
                         description={loadEarlierError}
                         showIcon
                         title="历史 K 线分片加载失败"
                         type="warning"
                     />
                 )}
-                <Table
+                <DataTable<InvestmentCandleResponse>
                     columns={[
                         {title: '开盘时间', dataIndex: 'openTime'},
                         {title: '开', dataIndex: 'open', render: (value: InvestmentDecimal) => <InvestmentDecimalText value={value}/>},
@@ -301,22 +306,36 @@ export function InvestmentKlinePanel({
                         {title: '低', dataIndex: 'low', render: (value: InvestmentDecimal) => <InvestmentDecimalText value={value}/>},
                         {title: '收', dataIndex: 'close', render: (value: InvestmentDecimal) => <InvestmentDecimalText value={value}/>},
                     ]}
+                    count={candles.length}
                     dataSource={candles}
+                    emptyDescription="向左滑动加载更早的分片，或换一个价型与周期组合。"
+                    emptyTitle="当前范围暂无已关闭 K 线"
                     pagination={{pageSize: 20, hideOnSinglePage: true}}
                     rowKey={(candle) => `${candle.openTime}:${candle.revision}`}
                     size="small"
                 />
             </InvestmentAsyncState>
             {accountId === undefined && (
-                <Alert showIcon title="选择当前工作区的模拟账户后可叠加私人成交与强平标记" type="info"/>
+                <Alert
+                    className="page-alert"
+                    showIcon
+                    title="选择当前工作区的模拟账户后可叠加私人成交与强平标记"
+                    type="info"
+                />
             )}
             {tradeActivityError && (
-                <Alert description={tradeActivityError} showIcon title="私人交易标记独立加载失败" type="warning"/>
+                <Alert
+                    className="page-alert"
+                    description={tradeActivityError}
+                    showIcon
+                    title="私人交易标记独立加载失败"
+                    type="warning"
+                />
             )}
             {accountId !== undefined && !tradeActivityError && (
                 <section aria-label="模拟盘活动文本摘要">
                     <Typography.Title level={5}>模拟盘成交与强平活动</Typography.Title>
-                    <Table
+                    <DataTable<InvestmentFillMarker>
                         columns={[
                             {title: '事件时间', dataIndex: 'eventTime'},
                             {title: '方向', dataIndex: 'side'},
@@ -327,8 +346,10 @@ export function InvestmentKlinePanel({
                             {title: '数量', dataIndex: 'quantity', render: (value: InvestmentDecimal) => <InvestmentDecimalText value={value}/>},
                             {title: '强平', dataIndex: 'liquidation', render: (value: boolean) => value ? '是' : '否'},
                         ]}
+                        count={visibleTradeActivity.length}
                         dataSource={visibleTradeActivity}
-                        locale={{emptyText: '当前 K 线范围暂无私人模拟盘活动'}}
+                        emptyDescription="该账户在当前 K 线范围内没有成交或强平；换一个范围再看。"
+                        emptyTitle="当前 K 线范围暂无私人模拟盘活动"
                         pagination={{pageSize: 20, hideOnSinglePage: true}}
                         rowKey="id"
                         scroll={{x: 900}}
@@ -336,7 +357,9 @@ export function InvestmentKlinePanel({
                     />
                 </section>
             )}
-            {indicatorError && <Alert description={indicatorError} showIcon title="技术指标独立加载失败" type="warning"/>}
+            {indicatorError && (
+                <Alert className="page-alert" description={indicatorError} showIcon title="技术指标独立加载失败" type="warning"/>
+            )}
             {latestIndicator && (
                 <Flex gap={16} wrap>
                     <Typography.Text type="secondary">
@@ -349,7 +372,7 @@ export function InvestmentKlinePanel({
                     <Typography.Text>ATR14：<InvestmentDecimalText value={latestIndicator.atr14}/></Typography.Text>
                 </Flex>
             )}
-        </Card>
+        </PageSection>
     )
 }
 

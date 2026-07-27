@@ -1,4 +1,5 @@
-import {Descriptions, Drawer, Space, Tag} from 'antd'
+import {Descriptions, Space, Tag, Typography} from 'antd'
+import {FormDrawer} from '../../../components/FormDrawer'
 import type {EffectivePermissionResponse, UserResponse} from '../rbacTypes'
 
 type UserPermissionDrawerProps = {
@@ -10,10 +11,17 @@ type UserPermissionDrawerProps = {
 
 export function UserPermissionDrawer({open, user, value, onClose}: UserPermissionDrawerProps) {
     return (
-        <Drawer onClose={onClose} open={open} title={`有效权限：${user?.username ?? ''}`} width={720}>
+        <FormDrawer
+            description={user?.username}
+            footer={false}
+            onClose={onClose}
+            open={open}
+            size="lg"
+            title="有效权限"
+        >
             <Descriptions bordered column={1} size="small">
                 <Descriptions.Item label="角色">
-                    <TagList values={value?.roleCodes}/>
+                    <TagList color="blue" values={value?.roleCodes}/>
                 </Descriptions.Item>
                 <Descriptions.Item label="菜单权限">
                     <TagList values={value?.menuCodes}/>
@@ -25,18 +33,18 @@ export function UserPermissionDrawer({open, user, value, onClose}: UserPermissio
                     <TagList values={value?.apiCodes}/>
                 </Descriptions.Item>
             </Descriptions>
-        </Drawer>
+        </FormDrawer>
     )
 }
 
-function TagList({values = []}: { values?: string[] }) {
+function TagList({values = [], color}: { values?: string[]; color?: string }) {
     if (!values.length) {
-        return <span>-</span>
+        return <Typography.Text type="secondary">无</Typography.Text>
     }
     return (
-        <Space wrap>
+        <Space size={[4, 4]} wrap>
             {values.map((value) => (
-                <Tag key={value}>{value}</Tag>
+                <Tag color={color} key={value}>{value}</Tag>
             ))}
         </Space>
     )

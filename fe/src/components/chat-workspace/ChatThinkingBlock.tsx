@@ -20,7 +20,7 @@ export function ChatThinkingBlock(props: ChatThinkingBlockProps) {
             className="chat-workspace-x-thinking"
             defaultExpanded={defaultExpanded ?? loading}
             loading={loading}
-            title={loading ? 'Generating reasoning' : 'Reasoning'}
+            title={loading ? '正在推理…' : '推理过程'}
         >
             {hasContent ? (
                 <div className="chat-workspace-x-thinking-content">
@@ -28,7 +28,7 @@ export function ChatThinkingBlock(props: ChatThinkingBlockProps) {
                 </div>
             ) : (
                 <Typography.Text type="secondary">
-                    {loading ? 'Reasoning is streaming...' : 'No reasoning content.'}
+                    {loading ? '推理内容生成中…' : '本次回答没有推理过程。'}
                 </Typography.Text>
             )}
         </Think>

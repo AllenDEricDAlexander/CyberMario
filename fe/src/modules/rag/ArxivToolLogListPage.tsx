@@ -1,9 +1,11 @@
-import {ReloadOutlined} from '@ant-design/icons'
-import {Button, Table, Tag, Typography} from 'antd'
+import {FileSearchOutlined, ReloadOutlined} from '@ant-design/icons'
+import {Button, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback} from 'react'
+import {DataTable} from '../../components/DataTable'
 import {DateTimeText} from '../../components/DateTimeText'
 import {PageToolbar} from '../../components/PageToolbar'
+import {StackedCell} from '../../components/StackedCell'
 import {usePageData} from '../../hooks/usePageData'
 import {voidify} from '../../utils/async'
 import {getArxivToolLogs} from './ragService'
@@ -17,25 +19,16 @@ function ArxivToolLogListPage() {
     const {loading, records, page, size, total, load} = usePageData<ArxivToolLogResponse>(loadLogs)
 
     const columns: ColumnsType<ArxivToolLogResponse> = [
-        {title: '日志 ID', dataIndex: 'id', width: 90},
-        {title: '请求用户', dataIndex: 'requestUsername', width: 130, render: valueOrDash},
         {
             title: '查询',
             dataIndex: 'query',
-            width: 240,
+            fixed: 'left',
+            width: 260,
             render: (_, record) => (
-                <Typography.Text ellipsis={{tooltip: record.query}}>{record.query}</Typography.Text>
-            ),
-        },
-        {title: '结果数', dataIndex: 'resultCount', width: 90},
-        {
-            title: '全文',
-            dataIndex: 'includeFullText',
-            width: 80,
-            render: (_, record) => (
-                <Tag color={record.includeFullText ? 'processing' : 'default'}>
-                    {record.includeFullText ? '是' : '否'}
-                </Tag>
+                <StackedCell
+                    primary={<Typography.Text ellipsis={{tooltip: record.query}}>{record.query}</Typography.Text>}
+                    secondary={`#${record.id} · ${record.requestUsername ?? '未知用户'}`}
+                />
             ),
         },
         {
@@ -45,9 +38,21 @@ function ArxivToolLogListPage() {
             render: (value: ArxivToolLogStatus) => <Tag color={statusColor(value)}>{value}</Tag>,
         },
         {
+            title: '结果',
+            dataIndex: 'resultCount',
+            width: 130,
+            render: (_, record) => (
+                <StackedCell
+                    plain
+                    primary={`${record.resultCount} 条`}
+                    secondary={record.includeFullText ? '含全文' : '仅摘要'}
+                />
+            ),
+        },
+        {
             title: '论文',
             dataIndex: 'title',
-            width: 260,
+            width: 280,
             render: (_, record) => {
                 if (!record.title) {
                     return '-'
@@ -63,27 +68,52 @@ function ArxivToolLogListPage() {
                 )
             },
         },
-        {title: '文档 ID', dataIndex: 'documentId', width: 100, render: valueOrDash},
-        {title: '入库任务', dataIndex: 'ragIngestionJobId', width: 100, render: valueOrDash},
+        {
+            title: '入库',
+            dataIndex: 'documentId',
+            width: 150,
+            render: (_, record) => (
+                <StackedCell
+                    plain
+                    primary={record.documentId ? `文档 ${record.documentId}` : '未入库'}
+                    secondary={record.ragIngestionJobId ? `任务 ${record.ragIngestionJobId}` : undefined}
+                />
+            ),
+        },
         {title: '错误', dataIndex: 'errorMessage', render: valueOrDash},
-        {title: '创建时间', dataIndex: 'createdAt', width: 190, render: renderDateTime},
-        {title: '完成时间', dataIndex: 'finishedAt', width: 190, render: renderDateTime},
+        {
+            title: '时间',
+            dataIndex: 'createdAt',
+            width: 210,
+            render: (_, record) => (
+                <StackedCell
+                    plain
+                    primary={<DateTimeText value={record.createdAt}/>}
+                    secondary={<>完成 <DateTimeText value={record.finishedAt}/></>}
+                />
+            ),
+        },
     ]
 
     return (
         <>
             <PageToolbar
-                actions={<Button icon={<ReloadOutlined/>} onClick={() => void load()}>刷新</Button>}
+                actions={<Button icon={<ReloadOutlined/>} loading={loading} onClick={() => void load()}>刷新</Button>}
                 description="查看 arXiv 检索、PDF 下载和导入 super-admin-arxiv 知识库的后台任务记录。"
+                icon={<FileSearchOutlined/>}
                 title="arXiv 日志"
             />
-            <Table<ArxivToolLogResponse>
+            <DataTable<ArxivToolLogResponse>
                 columns={columns}
+                count={total}
                 dataSource={records}
+                emptyDescription="Agent 调用 arXiv 工具检索或导入论文后，这里会留下记录。"
+                emptyTitle="还没有 arXiv 记录"
                 loading={loading}
-                pagination={{current: page, pageSize: size, total, showSizeChanger: true, onChange: voidify(load)}}
+                pagination={{current: page, pageSize: size, total, onChange: voidify(load)}}
                 rowKey="id"
-                scroll={{x: 1600}}
+                scroll={{x: 1500}}
+                title="arXiv 调用记录"
             />
         </>
     )
@@ -91,10 +121,6 @@ function ArxivToolLogListPage() {
 
 function valueOrDash(value?: string | number | null) {
     return value ?? '-'
-}
-
-function renderDateTime(value?: string | number | null) {
-    return <DateTimeText value={value}/>
 }
 
 function statusColor(status: ArxivToolLogStatus) {

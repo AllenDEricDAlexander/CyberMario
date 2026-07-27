@@ -48,7 +48,7 @@ describe('MemberHealthPage', () => {
         renderNutritionPage(<MemberHealthPage/>)
 
         await screen.findAllByText('Mario')
-        await user.click(screen.getByRole('button', {name: '健康档案 Mario'}))
+        await user.click(screen.getByRole('button', {name: '健康档案'}))
         const calories = screen.getByLabelText('目标热量')
         await user.clear(calories)
         await user.type(calories, '2100')
@@ -88,12 +88,15 @@ describe('MemberHealthPage', () => {
         renderNutritionPage(<MemberHealthPage/>)
         await screen.findAllByText('Luigi')
 
-        await user.click(screen.getByRole('button', {name: '绑定用户 Luigi'}))
+        // Account actions live past the inline budget, so they open from the row overflow menu.
+        await user.click(screen.getByRole('button', {name: '更多操作'}))
+        await user.click(await screen.findByRole('menuitem', {name: '绑定用户'}))
         await user.type(screen.getByLabelText('用户 ID'), '8')
         await user.click(screen.getByRole('button', {name: /确\s*认绑定/}))
         expect(bindNutritionMemberUser).toHaveBeenCalledWith(family.id, regularMember.id, {userId: 8})
 
-        await user.click(screen.getByRole('button', {name: '添加监护人 Luigi'}))
+        await user.click(screen.getByRole('button', {name: '更多操作'}))
+        await user.click(await screen.findByRole('menuitem', {name: '添加监护人'}))
         await user.type(screen.getByLabelText('监护用户 ID'), '9')
         await user.click(screen.getByRole('button', {name: /确\s*认添加/}))
         expect(assignNutritionProfileGuardian).toHaveBeenCalledWith(family.id, regularMember.id, {userId: 9})
@@ -105,7 +108,9 @@ describe('MemberHealthPage', () => {
         await screen.findByText('家庭所有者')
 
         expect(screen.getByText('mario')).toBeTruthy()
-        expect(screen.queryByRole('button', {name: '绑定用户 Mario'})).toBeNull()
+        // The owner row keeps every remaining action inline, so nothing is hidden behind an overflow menu.
+        expect(screen.queryByRole('button', {name: '更多操作'})).toBeNull()
+        expect(screen.queryByRole('button', {name: '绑定用户'})).toBeNull()
         expect(screen.queryByRole('button', {name: '解绑'})).toBeNull()
         expect(screen.queryByRole('button', {name: '停用'})).toBeNull()
     })
@@ -116,7 +121,7 @@ describe('MemberHealthPage', () => {
         renderNutritionPage(<MemberHealthPage/>)
         await screen.findAllByText('Mario')
 
-        await user.click(screen.getByRole('button', {name: '健康档案 Mario'}))
+        await user.click(screen.getByRole('button', {name: '健康档案'}))
         await user.click(screen.getByRole('button', {name: /保\s*存健康档案/}))
 
         expect(await screen.findByText('标签编码不存在')).toBeTruthy()

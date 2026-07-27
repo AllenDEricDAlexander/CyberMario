@@ -280,6 +280,85 @@ export function findMenuPath(key: string) {
     return menuPathByKey[key]
 }
 
+/** Submenu keys that must stay expanded for `pathname` to be visible. */
+export function openMenuKeysFor(pathname: string, items: AdminMenuItem[]): string[] {
+    const selected = selectedAdminMenuKey(pathname, flattenMenuKeys(items))
+    if (!selected) {
+        return []
+    }
+    const open: string[] = []
+    for (const item of items) {
+        if (item && 'children' in item && item.children) {
+            if (flattenMenuKeys(item.children).includes(selected)) {
+                open.push(String(item.key))
+            }
+        }
+    }
+    return open
+}
+
+/**
+ * Trail from the menu root down to `pathname`, used by the header breadcrumb.
+ * Parent groups are not routable, so only the leaf carries a link target.
+ */
+export function adminMenuBreadcrumb(pathname: string, items: AdminMenuItem[]): { title: string; to?: string }[] {
+    const selected = selectedAdminMenuKey(pathname, flattenMenuKeys(items))
+    if (!selected) {
+        return []
+    }
+    for (const item of items) {
+        if (!item) continue
+        if ('children' in item && item.children) {
+            const child = item.children.find((entry) => entry && String(entry.key) === selected)
+            if (child) {
+                return [
+                    {title: menuItemLabel(item)},
+                    {title: menuItemLabel(child), to: findMenuPath(selected)},
+                ]
+            }
+            continue
+        }
+        if (String(item.key) === selected) {
+            return [{title: menuItemLabel(item), to: findMenuPath(selected)}]
+        }
+    }
+    return []
+}
+
+/** Menu labels are authored as plain strings in `adminMenuItems`; anything else is unsearchable. */
+function menuItemLabel(item: AdminMenuItem): string {
+    if (typeof item === 'object' && item && 'label' in item && typeof item.label === 'string') {
+        return item.label
+    }
+    return ''
+}
+
+/**
+ * Keyword filter for the sider search box. A group survives when its own label
+ * matches, or when at least one child does — in which case only the matching
+ * children are kept.
+ */
+export function filterMenuItemsByKeyword(items: AdminMenuItem[], keyword: string): AdminMenuItem[] {
+    const needle = keyword.trim().toLowerCase()
+    if (!needle) {
+        return items
+    }
+    return items.flatMap((item) => {
+        if (!item) {
+            return []
+        }
+        const label = menuItemLabel(item).toLowerCase()
+        if ('children' in item && item.children) {
+            if (label.includes(needle)) {
+                return [item]
+            }
+            const children = filterMenuItemsByKeyword(item.children, keyword)
+            return children.length ? [{...item, children}] : []
+        }
+        return label.includes(needle) || String(item.key).toLowerCase().includes(needle) ? [item] : []
+    })
+}
+
 export function buildAuthorizedAdminMenuItems(menus: MenuTreeResponse[], canBypass: boolean, roleCodes: string[] = []) {
     const superAdminOnlyPaths = superAdminMenuPathSet(roleCodes)
     if (canBypass) {

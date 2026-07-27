@@ -1,16 +1,13 @@
+import {DatabaseOutlined} from '@ant-design/icons'
 import {
     Alert,
     App,
     Button,
-    Card,
     DatePicker,
-    Empty,
     Form,
-    Modal,
     Popconfirm,
     Select,
     Space,
-    Table,
     Tabs,
     Tag,
     Typography,
@@ -18,6 +15,12 @@ import {
 import type {RangePickerProps} from 'antd/es/date-picker'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useRef, useState} from 'react'
+import {DataTable} from '../../../components/DataTable'
+import {ErrorState} from '../../../components/ErrorState'
+import {FormDrawer} from '../../../components/FormDrawer'
+import {PageStack} from '../../../components/PageSection'
+import {PageToolbar} from '../../../components/PageToolbar'
+import {StackedCell} from '../../../components/StackedCell'
 import {canUseRbacButton, useAuth} from '../../auth/authStore'
 import {investmentButtonCodes} from '../investmentPermissionCodes'
 import {
@@ -344,12 +347,11 @@ export default function InvestmentPlatformPage() {
             key: 'dataType',
             width: 150,
             render: (_, job) => (
-                <Space orientation="vertical" size={0}>
-                    <span>{job.capability ?? '-'}</span>
-                    <Typography.Text type="secondary">
-                        {[job.priceType, job.interval].filter(Boolean).join(' / ') || '-'}
-                    </Typography.Text>
-                </Space>
+                <StackedCell
+                    plain
+                    primary={job.capability ?? '-'}
+                    secondary={[job.priceType, job.interval].filter(Boolean).join(' / ') || '-'}
+                />
             ),
         },
         {
@@ -448,85 +450,120 @@ export default function InvestmentPlatformPage() {
     ]
 
     return (
-        <Card
-            extra={canPull && (
-                <Button
-                    disabled={supportedSubscriptions.length === 0}
-                    onClick={openPullModal}
-                    type="primary"
-                >
-                    手动拉取
-                </Button>
-            )}
-            title="Investment 平台数据监控"
-        >
-            <Typography.Paragraph type="secondary">
-                订阅范围由服务端 Java 代码声明；页面不提供新增、修改或删除订阅的入口。
-            </Typography.Paragraph>
+        <PageStack>
+            <PageToolbar
+                actions={canPull && (
+                    <Button
+                        disabled={supportedSubscriptions.length === 0}
+                        onClick={openPullModal}
+                        type="primary"
+                    >
+                        手动拉取
+                    </Button>
+                )}
+                description="订阅范围由服务端 Java 代码声明；页面不提供新增、修改或删除订阅的入口。"
+                icon={<DatabaseOutlined/>}
+                title="Investment 平台数据监控"
+            />
             <Tabs activeKey={activeTab} items={[
                 {
                     key: 'subscriptions',
                     label: '代码订阅',
                     children: subscriptionsError
-                        ? <Alert description={subscriptionsError} showIcon type="error"/>
-                        : subscriptions.length === 0 && !subscriptionsLoading
-                            ? <Empty description="尚未在代码中接入任何行情订阅"/>
-                            : <Table
+                        ? (
+                            <ErrorState
+                                inline
+                                message={subscriptionsError}
+                                onRetry={() => void loadSubscriptions()}
+                                title="代码订阅加载失败"
+                            />
+                        )
+                        : (
+                            <DataTable<InvestmentPlatformSubscriptionResponse>
                                 columns={subscriptionColumns}
+                                count={subscriptions.length}
                                 dataSource={subscriptions}
+                                emptyDescription="订阅在服务端 Java 代码里声明，接入后会自动出现在这里。"
+                                emptyTitle="尚未在代码中接入任何行情订阅"
                                 loading={subscriptionsLoading}
                                 pagination={false}
                                 rowKey={(item) => `${item.sourceCode}:${item.productType}:${item.symbol}`}
-                            />,
+                                title="代码订阅"
+                            />
+                        ),
                 },
                 {
                     key: 'jobs',
                     label: '同步任务',
                     children: jobsError
-                        ? <Alert description={jobsError} showIcon type="error"/>
-                        : <Table
-                            columns={jobColumns}
-                            dataSource={jobs?.records ?? []}
-                            loading={jobsLoading}
-                            pagination={{
-                                current: jobs?.page ?? jobPage,
-                                pageSize: jobs?.size ?? PAGE_SIZE,
-                                total: jobs?.total ?? 0,
-                                showSizeChanger: false,
-                                onChange: setJobPage,
-                            }}
-                            rowKey="id"
-                            scroll={{x: 1_950}}
-                        />,
+                        ? (
+                            <ErrorState
+                                inline
+                                message={jobsError}
+                                onRetry={() => void loadJobs()}
+                                title="平台任务加载失败"
+                            />
+                        )
+                        : (
+                            <DataTable<InvestmentPlatformJobResponse>
+                                columns={jobColumns}
+                                count={jobs?.total ?? 0}
+                                dataSource={jobs?.records ?? []}
+                                emptyDescription="定时同步与手动拉取产生的任务都会记录在这里。"
+                                emptyTitle="暂无平台同步任务"
+                                loading={jobsLoading}
+                                pagination={{
+                                    current: jobs?.page ?? jobPage,
+                                    pageSize: jobs?.size ?? PAGE_SIZE,
+                                    total: jobs?.total ?? 0,
+                                    showSizeChanger: false,
+                                    onChange: setJobPage,
+                                }}
+                                rowKey="id"
+                                scroll={{x: 1_950}}
+                                title="同步任务"
+                            />
+                        ),
                 },
                 {
                     key: 'quality',
                     label: '数据质量',
                     children: issuesError
-                        ? <Alert description={issuesError} showIcon type="error"/>
-                        : <Table
-                            columns={issueColumns}
-                            dataSource={issues?.records ?? []}
-                            loading={issuesLoading}
-                            pagination={{
-                                current: issues?.page ?? issuePage,
-                                pageSize: issues?.size ?? PAGE_SIZE,
-                                total: issues?.total ?? 0,
-                                showSizeChanger: false,
-                                onChange: setIssuePage,
-                            }}
-                            rowKey="id"
-                        />,
+                        ? (
+                            <ErrorState
+                                inline
+                                message={issuesError}
+                                onRetry={() => void loadIssues()}
+                                title="质量问题加载失败"
+                            />
+                        )
+                        : (
+                            <DataTable<InvestmentDataQualityIssueResponse>
+                                columns={issueColumns}
+                                count={issues?.total ?? 0}
+                                dataSource={issues?.records ?? []}
+                                emptyDescription="服务端校验发现的缺口、异常价格都会登记在这里。"
+                                emptyTitle="暂无未处理的数据质量问题"
+                                loading={issuesLoading}
+                                pagination={{
+                                    current: issues?.page ?? issuePage,
+                                    pageSize: issues?.size ?? PAGE_SIZE,
+                                    total: issues?.total ?? 0,
+                                    showSizeChanger: false,
+                                    onChange: setIssuePage,
+                                }}
+                                rowKey="id"
+                                title="数据质量"
+                            />
+                        ),
                 },
             ]} onChange={setActiveTab}/>
-            <Modal
-                cancelButtonProps={{disabled: pulling}}
-                confirmLoading={pulling}
-                destroyOnHidden
-                okText="创建拉取任务"
-                onCancel={closePullModal}
-                onOk={() => void submitMarketDataPull()}
+            <FormDrawer
+                loading={pulling}
+                onClose={closePullModal}
+                onSubmit={() => void submitMarketDataPull()}
                 open={pullOpen}
+                submitText="创建拉取任务"
                 title="手动拉取 Bitget 行情数据"
             >
                 <Form form={pullForm} layout="vertical">
@@ -568,17 +605,17 @@ export default function InvestmentPlatformPage() {
                     >
                         <RangePicker
                             aria-label="拉取时间范围"
+                            className="u-full-width"
                             disabledDate={(current) => current.valueOf() > Date.now()}
                             showTime
-                            style={{width: '100%'}}
                         />
                     </Form.Item>
                 </Form>
                 {pullError && (
-                    <Alert description={pullError} showIcon title="任务创建失败" type="error"/>
+                    <Alert className="page-alert" description={pullError} showIcon title="任务创建失败" type="error"/>
                 )}
-            </Modal>
-        </Card>
+            </FormDrawer>
+        </PageStack>
     )
 }
 

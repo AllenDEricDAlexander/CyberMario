@@ -1,6 +1,7 @@
 import {Button, Space, Tag, Tooltip} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {Link} from 'react-router'
+import {StackedCell} from '../../../components/StackedCell'
 import {InvestmentDecimalText} from '../components/InvestmentDecimalText'
 import type {InvestmentInstrumentSummaryResponse} from '../types/investmentMarketTypes'
 
@@ -22,10 +23,10 @@ export function investmentMarketColumns({
             title: '合约',
             key: 'symbol',
             render: (_, record) => (
-                <div>
-                    <strong>{record.symbol}</strong>
-                    <div>{record.venueCode} · {record.baseAsset}/{record.quoteAsset}</div>
-                </div>
+                <StackedCell
+                    primary={record.symbol}
+                    secondary={`${record.venueCode} · ${record.baseAsset}/${record.quoteAsset}`}
+                />
             ),
         },
         {

@@ -22,10 +22,20 @@ type PageParams = {
     size?: number
 }
 
-export function getUsers(params: PageParams) {
+export type UserQueryParams = PageParams & {
+    /** Matched server-side against account no, username, nickname, email and mobile. */
+    keyword?: string
+    status?: string
+    activationStatus?: string
+}
+
+export function getUsers(params: UserQueryParams) {
     return requestJson<PageResult<UserResponse>>(`/api/admin/users?${buildSearchParams({
         page: params.page ?? 1,
         size: params.size ?? 20,
+        keyword: params.keyword,
+        status: params.status,
+        activationStatus: params.activationStatus,
     })}`)
 }
 

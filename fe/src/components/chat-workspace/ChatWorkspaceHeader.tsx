@@ -37,17 +37,17 @@ export function ChatWorkspaceHeader(props: ChatWorkspaceHeaderProps) {
             </div>
 
             <Space className="chat-workspace-x-header-actions" wrap>
-                {status ?? <Tag color="success">Ready</Tag>}
-                <Tag>{messageCount} messages</Tag>
+                {status ?? <Tag color="success">就绪</Tag>}
+                <Tag>{messageCount} 条消息</Tag>
                 {actions}
                 {onReload && (
-                    <Tooltip title="Reload">
-                        <Button aria-label="Reload" icon={<ReloadOutlined/>} onClick={onReload}/>
+                    <Tooltip title="刷新会话">
+                        <Button aria-label="刷新会话" icon={<ReloadOutlined/>} onClick={onReload}/>
                     </Tooltip>
                 )}
                 {onOpenSettings && (
-                    <Tooltip title="Settings">
-                        <Button aria-label="Settings" icon={<SettingOutlined/>} onClick={onOpenSettings}/>
+                    <Tooltip title="会话设置">
+                        <Button aria-label="会话设置" icon={<SettingOutlined/>} onClick={onOpenSettings}/>
                     </Tooltip>
                 )}
             </Space>

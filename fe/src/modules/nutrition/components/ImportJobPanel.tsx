@@ -1,5 +1,8 @@
 import {Button, Card, Space, Table, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
+import {EmptyState} from '../../../components/EmptyState'
+import {ErrorState} from '../../../components/ErrorState'
+import {PageStack} from '../../../components/PageSection'
 import type {NutritionImportErrorResponse, NutritionImportJobResponse} from '../nutritionTypes'
 
 type ImportJobPanelProps = {
@@ -33,7 +36,7 @@ export function ImportJobPanel({job, loading, confirming, onConfirm}: ImportJobP
             )}
             title="导入校验"
         >
-            <div style={{display: 'flex', flexDirection: 'column', gap: 16, width: '100%'}}>
+            <PageStack>
                 {job ? (
                     <>
                         <Space wrap>
@@ -47,20 +50,35 @@ export function ImportJobPanel({job, loading, confirming, onConfirm}: ImportJobP
                                 警告行：{job.warningRows}
                             </Typography.Text>
                         </Space>
-                        {job.errorSummary && <Typography.Text type="danger">{job.errorSummary}</Typography.Text>}
+                        {job.errorSummary && (
+                            <ErrorState inline message={job.errorSummary} title="导入校验未通过"/>
+                        )}
                         <Table
                             columns={errorColumns}
                             dataSource={job.errors}
                             loading={loading}
+                            locale={{
+                                emptyText: (
+                                    <EmptyState
+                                        description="所有数据行都通过了校验，可以直接确认导入。"
+                                        inline
+                                        title="没有需要处理的问题行"
+                                    />
+                                ),
+                            }}
                             pagination={false}
                             rowKey="id"
                             size="small"
                         />
                     </>
                 ) : (
-                    <Typography.Text type="secondary">暂无导入任务</Typography.Text>
+                    <EmptyState
+                        description="在上方创建导入任务后，这里会显示预览校验结果与失败行明细。"
+                        inline
+                        title="暂无导入任务"
+                    />
                 )}
-            </div>
+            </PageStack>
         </Card>
     )
 }

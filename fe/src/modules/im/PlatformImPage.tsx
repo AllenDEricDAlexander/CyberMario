@@ -1,4 +1,5 @@
-import {Alert, Button, Spin} from 'antd'
+import {Alert, Spin} from 'antd'
+import {ErrorState} from '../../components/ErrorState'
 import {ImActivityRail} from './components/ImActivityRail'
 import {ImChannelPane} from './components/ImChannelPane'
 import {ImConversationPane} from './components/ImConversationPane'
@@ -28,12 +29,10 @@ export function PlatformImWorkspaceView({workspace}: {workspace: PlatformImWorks
 
     if (workspace.status === 'error' && !workspace.currentUser) {
         return (
-            <Alert
-                action={<Button onClick={() => void workspace.reload()}>重试</Button>}
-                description={workspace.error}
-                message="即时通信加载失败"
-                showIcon
-                type="error"
+            <ErrorState
+                message={workspace.error ?? '无法连接即时通信服务，请稍后重试。'}
+                onRetry={() => void workspace.reload()}
+                title="即时通信加载失败"
             />
         )
     }
@@ -63,7 +62,7 @@ export function PlatformImWorkspaceView({workspace}: {workspace: PlatformImWorks
     return (
         <div className="platform-im-shell">
             {workspace.error && (
-                <Alert banner closable message={workspace.error} showIcon type="error"/>
+                <Alert banner className="page-alert" closable message={workspace.error} showIcon type="error"/>
             )}
             <div className="platform-im-workspace">
                 <ImActivityRail

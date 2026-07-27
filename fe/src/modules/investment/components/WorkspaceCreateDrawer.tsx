@@ -1,5 +1,6 @@
-import {Alert, Button, Drawer, Form, Input, Space} from 'antd'
+import {Alert, Form, Input} from 'antd'
 import {useEffect, useState} from 'react'
+import {FormDrawer} from '../../../components/FormDrawer'
 
 type WorkspaceCreateDrawerProps = {
     open: boolean
@@ -7,6 +8,8 @@ type WorkspaceCreateDrawerProps = {
     onClose: () => void
     onCreate: (name: string) => Promise<unknown>
 }
+
+const FORM_ID = 'investment-workspace-create-form'
 
 export function WorkspaceCreateDrawer({open, creating, onClose, onCreate}: WorkspaceCreateDrawerProps) {
     const [form] = Form.useForm<{name: string}>()
@@ -19,8 +22,7 @@ export function WorkspaceCreateDrawer({open, creating, onClose, onCreate}: Works
         }
     }, [form, open])
 
-    async function submit() {
-        const values = await form.validateFields()
+    async function submit(values: {name: string}) {
         setError(undefined)
         try {
             await onCreate(values.name)
@@ -32,21 +34,17 @@ export function WorkspaceCreateDrawer({open, creating, onClose, onCreate}: Works
     }
 
     return (
-        <Drawer
-            destroyOnHidden
-            extra={(
-                <Space>
-                    <Button disabled={creating} onClick={onClose}>取消</Button>
-                    <Button loading={creating} onClick={() => void submit()} type="primary">创建</Button>
-                </Space>
-            )}
+        <FormDrawer
+            formId={FORM_ID}
+            loading={creating}
             onClose={onClose}
             open={open}
-            size="default"
+            size="sm"
+            submitText="创建"
             title="创建投资工作区"
         >
             {error && <Alert className="investment-create-error" description={error} showIcon type="error"/>}
-            <Form form={form} layout="vertical">
+            <Form form={form} id={FORM_ID} layout="vertical" onFinish={(values) => void submit(values)}>
                 <Form.Item
                     label="工作区名称"
                     name="name"
@@ -58,6 +56,6 @@ export function WorkspaceCreateDrawer({open, creating, onClose, onCreate}: Works
                     <Input autoComplete="off" placeholder="例如：合约研究"/>
                 </Form.Item>
             </Form>
-        </Drawer>
+        </FormDrawer>
     )
 }

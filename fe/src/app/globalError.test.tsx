@@ -1,3 +1,7 @@
+/// <reference types="node" />
+
+import {readFileSync} from 'node:fs'
+import {resolve} from 'node:path'
 import {renderToStaticMarkup} from 'react-dom/server'
 import {describe, expect, test, vi} from 'vitest'
 import {
@@ -17,11 +21,18 @@ describe('global error reporting', () => {
         expect(markup).toContain('ant-alert-error')
         expect(markup).toContain('ant-alert-close-icon')
         expect(markup).toContain('global-error-alert-popup')
-        expect(markup).toContain('position:fixed')
-        expect(markup).toContain('left:50%')
-        expect(markup).toContain('transform:translateX(-50%)')
-        expect(markup).toContain('width:max-content')
-        expect(markup).toContain('max-width:calc(100vw - 32px)')
+    })
+
+    test('pins the banner to the top centre of the viewport', () => {
+        // Positioning moved from inline styles into the themed stylesheet.
+        const css = readFileSync(resolve(process.cwd(), 'src/styles/components.css'), 'utf8')
+        const rule = css.match(/\.global-error-alert-popup\s*\{([^}]*)\}/)?.[1] ?? ''
+
+        expect(rule).toContain('position: fixed')
+        expect(rule).toContain('left: 50%')
+        expect(rule).toContain('transform: translateX(-50%)')
+        expect(rule).toContain('width: max-content')
+        expect(rule).toContain('max-width: calc(100vw - 32px)')
     })
 
     test('reports and clears resolved error messages', () => {

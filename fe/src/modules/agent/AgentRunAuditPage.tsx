@@ -1,26 +1,30 @@
-import {EyeOutlined, ReloadOutlined, SearchOutlined} from '@ant-design/icons'
+import {AuditOutlined, EyeOutlined, ReloadOutlined} from '@ant-design/icons'
 import type {CollapseProps} from 'antd'
 import {
     Button,
-    Card,
     Collapse,
     DatePicker,
     Descriptions,
-    Drawer,
     Form,
     Input,
     InputNumber,
     Select,
     Space,
-    Table,
     Tag,
-    Typography
+    Typography,
 } from 'antd'
 import type {RangePickerProps} from 'antd/es/date-picker'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useRef, useState} from 'react'
+import {DataTable} from '../../components/DataTable'
 import {DateTimeText} from '../../components/DateTimeText'
+import {ErrorState} from '../../components/ErrorState'
+import {FilterBar} from '../../components/FilterBar'
+import {FormDrawer} from '../../components/FormDrawer'
+import {PageSection, PageStack} from '../../components/PageSection'
 import {PageToolbar} from '../../components/PageToolbar'
+import {RowActions} from '../../components/RowActions'
+import {StackedCell} from '../../components/StackedCell'
 import {usePageData} from '../../hooks/usePageData'
 import {resolveErrorMessage} from '../../services/request'
 import {voidify} from '../../utils/async'
@@ -77,13 +81,19 @@ function AgentRunAuditPage() {
     }, [load])
 
     const columns: ColumnsType<AgentRunAuditResponse> = [
-        {title: 'ID', dataIndex: 'id', width: 80},
-        {title: '用户', dataIndex: 'username', width: 130, render: valueOrDash},
-        {title: '用户 ID', dataIndex: 'userId', width: 100, render: valueOrDash},
+        {title: 'ID', dataIndex: 'id', fixed: 'left', width: 80},
+        {
+            title: '用户',
+            dataIndex: 'username',
+            width: 170,
+            render: (_, record) => (
+                <StackedCell primary={record.username ?? '-'} secondary={`用户 ID ${record.userId ?? '-'}`}/>
+            ),
+        },
         {
             title: '线程',
             dataIndex: 'threadId',
-            width: 220,
+            width: 240,
             render: (value: string) => <Typography.Text copyable ellipsis={{tooltip: value}}>{value}</Typography.Text>,
         },
         {
@@ -92,9 +102,18 @@ function AgentRunAuditPage() {
             width: 110,
             render: (value: AgentRunAuditStatus) => <Tag color={runStatusColor(value)}>{value}</Tag>,
         },
-        {title: '模型', dataIndex: 'modelCallCount', width: 90, render: countOrZero},
-        {title: '工具', dataIndex: 'toolCallCount', width: 90, render: countOrZero},
-        {title: 'MCP', dataIndex: 'mcpToolCallCount', width: 90, render: countOrZero},
+        {
+            title: '调用次数',
+            dataIndex: 'modelCallCount',
+            width: 150,
+            render: (_, record) => (
+                <StackedCell
+                    plain
+                    primary={`模型 ${countOrZero(record.modelCallCount)}`}
+                    secondary={`工具 ${countOrZero(record.toolCallCount)} · MCP ${countOrZero(record.mcpToolCallCount)}`}
+                />
+            ),
+        },
         {title: '预设', dataIndex: 'presetId', width: 90, render: valueOrDash},
         {
             title: '耗时',
@@ -102,25 +121,46 @@ function AgentRunAuditPage() {
             width: 100,
             render: (value?: number) => value === undefined || value === null ? '-' : `${value}ms`,
         },
-        {title: '请求', dataIndex: 'requestId', width: 180, render: copyableOrDash},
-        {title: 'Trace', dataIndex: 'traceId', width: 180, render: copyableOrDash},
+        {
+            title: '请求 / Trace',
+            dataIndex: 'requestId',
+            width: 230,
+            render: (_, record) => (
+                <StackedCell plain primary={record.requestId ?? '-'} secondary={record.traceId ?? '无 trace'}/>
+            ),
+        },
         {title: '错误', dataIndex: 'errorMessage', width: 220, render: errorOrDash},
-        {title: '开始时间', dataIndex: 'startedAt', width: 190, render: renderDateTime},
-        {title: '完成时间', dataIndex: 'finishedAt', width: 190, render: renderDateTime},
+        {
+            title: '时间',
+            dataIndex: 'startedAt',
+            width: 210,
+            render: (_, record) => (
+                <StackedCell
+                    plain
+                    primary={<DateTimeText value={record.startedAt}/>}
+                    secondary={<>完成 <DateTimeText value={record.finishedAt}/></>}
+                />
+            ),
+        },
         {
             title: '操作',
             key: 'action',
             fixed: 'right',
-            width: 100,
+            width: 90,
             render: (_, record) => (
-                <Button icon={<EyeOutlined/>} onClick={() => void openDetail(record)} size="small">详情</Button>
+                <RowActions
+                    actions={[
+                        {
+                            key: 'detail',
+                            label: '详情',
+                            icon: <EyeOutlined/>,
+                            onClick: () => void openDetail(record),
+                        },
+                    ]}
+                />
             ),
         },
     ]
-
-    async function search() {
-        setFilters(toFilters(await form.validateFields()))
-    }
 
     async function openDetail(record: AgentRunAuditResponse) {
         const requestSeq = detailRequestSeq.current + 1
@@ -155,99 +195,118 @@ function AgentRunAuditPage() {
             <PageToolbar
                 actions={<Button icon={<ReloadOutlined/>} loading={loading} onClick={() => void load()}>刷新</Button>}
                 description="按最近运行查看 Agent ReAct 链路、模型轮次、工具调用和完整明文载荷，仅 SUPER_ADMIN 可访问。"
+                icon={<AuditOutlined/>}
                 title="运行审计"
             />
-            <Card className="dashboard-filter-card">
-                <Form form={form} layout="vertical">
-                    <Space wrap>
-                        <Form.Item label="用户 ID" name="userId">
-                            <InputNumber min={1}/>
-                        </Form.Item>
-                        <Form.Item label="时间范围" name="timeRange">
-                            <RangePicker showTime style={{width: 360}}/>
-                        </Form.Item>
-                        <Form.Item label="用户名" name="username">
-                            <Input allowClear/>
-                        </Form.Item>
-                        <Form.Item label="线程 ID" name="threadId">
-                            <Input allowClear style={{width: 220}}/>
-                        </Form.Item>
-                        <Form.Item label="请求 ID" name="requestId">
-                            <Input allowClear style={{width: 220}}/>
-                        </Form.Item>
-                        <Form.Item label="Trace ID" name="traceId">
-                            <Input allowClear style={{width: 220}}/>
-                        </Form.Item>
-                        <Form.Item label="预设 ID" name="presetId">
-                            <InputNumber min={1}/>
-                        </Form.Item>
-                        <Form.Item label="工具名" name="toolName">
-                            <Input allowClear style={{width: 180}}/>
-                        </Form.Item>
-                        <Form.Item label="MCP 服务" name="mcpServerCode">
-                            <Input allowClear style={{width: 160}}/>
-                        </Form.Item>
-                        <Form.Item label="状态" name="status">
-                            <Select allowClear style={{width: 160}} options={[
-                                {label: 'RUNNING', value: 'RUNNING'},
-                                {label: 'SUCCESS', value: 'SUCCESS'},
-                                {label: 'FAILED', value: 'FAILED'},
-                                {label: 'CANCELLED', value: 'CANCELLED'},
-                            ]}/>
-                        </Form.Item>
-                        <Form.Item label=" ">
-                            <Button icon={<SearchOutlined/>} onClick={voidify(search)} type="primary">查询</Button>
-                        </Form.Item>
-                    </Space>
-                </Form>
-            </Card>
-            <Table<AgentRunAuditResponse>
-                columns={columns}
-                dataSource={records}
+            <FilterBar<RunAuditQueryForm>
+                form={form}
                 loading={loading}
-                pagination={{current: page, pageSize: size, total, showSizeChanger: true, onChange: voidify(load)}}
+                onReset={() => setFilters({})}
+                onSearch={(values) => setFilters(toFilters(values))}
+            >
+                <Form.Item label="时间范围" name="timeRange">
+                    <RangePicker showTime/>
+                </Form.Item>
+                <Form.Item label="用户 ID" name="userId">
+                    <InputNumber min={1} placeholder="全部"/>
+                </Form.Item>
+                <Form.Item label="用户名" name="username">
+                    <Input allowClear placeholder="全部"/>
+                </Form.Item>
+                <Form.Item label="线程 ID" name="threadId">
+                    <Input allowClear placeholder="全部"/>
+                </Form.Item>
+                <Form.Item label="请求 ID" name="requestId">
+                    <Input allowClear placeholder="全部"/>
+                </Form.Item>
+                <Form.Item label="Trace ID" name="traceId">
+                    <Input allowClear placeholder="全部"/>
+                </Form.Item>
+                <Form.Item label="预设 ID" name="presetId">
+                    <InputNumber min={1} placeholder="全部"/>
+                </Form.Item>
+                <Form.Item label="工具名" name="toolName">
+                    <Input allowClear placeholder="全部"/>
+                </Form.Item>
+                <Form.Item label="MCP 服务" name="mcpServerCode">
+                    <Input allowClear placeholder="全部"/>
+                </Form.Item>
+                <Form.Item label="状态" name="status">
+                    <Select
+                        allowClear
+                        options={[
+                            {label: 'RUNNING', value: 'RUNNING'},
+                            {label: 'SUCCESS', value: 'SUCCESS'},
+                            {label: 'FAILED', value: 'FAILED'},
+                            {label: 'CANCELLED', value: 'CANCELLED'},
+                        ]}
+                        placeholder="全部"
+                    />
+                </Form.Item>
+            </FilterBar>
+            <DataTable<AgentRunAuditResponse>
+                columns={columns}
+                count={total}
+                dataSource={records}
+                emptyDescription="放宽时间范围或清空筛选条件后重新查询。"
+                emptyTitle="没有匹配的运行记录"
+                loading={loading}
+                pagination={{current: page, pageSize: size, total, onChange: voidify(load)}}
                 rowKey="id"
-                scroll={{x: 2100}}
-                style={{marginTop: 16}}
+                scroll={{x: 1700}}
+                title="运行记录"
             />
-            <Drawer onClose={() => setDrawerOpen(false)} open={drawerOpen} title="运行审计详情" width={980}>
+            <FormDrawer
+                description={selected ? `线程 ${selected.threadId}` : undefined}
+                footer={false}
+                onClose={() => setDrawerOpen(false)}
+                open={drawerOpen}
+                size="xl"
+                title="运行审计详情"
+            >
                 {selected && (
-                    <Space direction="vertical" size={16} style={{width: '100%'}}>
+                    <PageStack>
                         <Space wrap>
                             <Tag>ID={selected.id}</Tag>
                             <Tag color={runStatusColor(selected.status)}>{selected.status}</Tag>
-                            <Tag>thread={selected.threadId}</Tag>
                             {selected.requestId && <Tag>request={selected.requestId}</Tag>}
                             {selected.traceId && <Tag>trace={selected.traceId}</Tag>}
                         </Space>
                         <Descriptions bordered column={2} size="small">
                             <Descriptions.Item label="用户">{selected.username ?? '-'}</Descriptions.Item>
                             <Descriptions.Item label="用户 ID">{selected.userId ?? '-'}</Descriptions.Item>
-                            <Descriptions.Item label="模型轮次">{selected.modelCallCount ?? 0}</Descriptions.Item>
-                            <Descriptions.Item label="工具调用">{selected.toolCallCount ?? 0}</Descriptions.Item>
-                            <Descriptions.Item label="MCP 调用">{selected.mcpToolCallCount ?? 0}</Descriptions.Item>
-                            <Descriptions.Item
-                                label="耗时">{selected.durationMs === undefined || selected.durationMs === null ? '-' : `${selected.durationMs}ms`}</Descriptions.Item>
+                            <Descriptions.Item label="模型轮次">{countOrZero(selected.modelCallCount)}</Descriptions.Item>
+                            <Descriptions.Item label="工具调用">{countOrZero(selected.toolCallCount)}</Descriptions.Item>
+                            <Descriptions.Item label="MCP 调用">{countOrZero(selected.mcpToolCallCount)}</Descriptions.Item>
+                            <Descriptions.Item label="耗时">{formatDuration(selected.durationMs)}</Descriptions.Item>
                         </Descriptions>
-                        <Card size="small" title="运行配置">
+                        <PageSection title="运行配置">
                             <PayloadText value={selected.effectiveConfigJson}/>
-                        </Card>
-                        <Card size="small" title="用户输入">
+                        </PageSection>
+                        <PageSection title="用户输入">
                             <PayloadText value={selected.userMessage}/>
-                        </Card>
+                        </PageSection>
                         {(selected.finalThinking || selected.finalMessage || selected.errorMessage) && (
-                            <Card size="small" title="最终结果">
-                                {selected.finalThinking &&
-                                    <PayloadBlock title="Thinking" value={selected.finalThinking}/>}
-                                {selected.finalMessage && <PayloadBlock title="Message" value={selected.finalMessage}/>}
-                                {selected.errorMessage && <PayloadBlock danger title={selected.errorCode ?? 'Error'}
-                                                                        value={selected.errorMessage}/>}
-                            </Card>
+                            <PageSection title="最终结果">
+                                {selected.finalThinking && (
+                                    <PayloadBlock title="Thinking" value={selected.finalThinking}/>
+                                )}
+                                {selected.finalMessage && (
+                                    <PayloadBlock title="Message" value={selected.finalMessage}/>
+                                )}
+                                {selected.errorMessage && (
+                                    <PayloadBlock danger title={selected.errorCode ?? 'Error'}
+                                                  value={selected.errorMessage}/>
+                                )}
+                            </PageSection>
                         )}
-                        {detailError && <Typography.Text type="danger">{detailError}</Typography.Text>}
-                        <Table<AgentRunEventAuditResponse>
+                        {detailError && <ErrorState inline message={detailError} title="运行明细加载失败"/>}
+                        <DataTable<AgentRunEventAuditResponse>
                             columns={eventColumns()}
+                            count={events.length}
                             dataSource={events}
+                            emptyDescription="这次运行没有记录 ReAct 事件，可能在首轮模型调用前就结束了。"
+                            emptyTitle="暂无事件"
                             expandable={{
                                 expandedRowRender: (record) => <EventPayload event={record}/>,
                                 rowExpandable: hasEventPayload,
@@ -255,11 +314,12 @@ function AgentRunAuditPage() {
                             loading={detailLoading}
                             pagination={false}
                             rowKey="id"
-                            scroll={{x: 1300}}
+                            scroll={{x: 1200}}
+                            title="ReAct 事件"
                         />
-                    </Space>
+                    </PageStack>
                 )}
-            </Drawer>
+            </FormDrawer>
         </>
     )
 }
@@ -281,18 +341,27 @@ function eventColumns(): ColumnsType<AgentRunEventAuditResponse> {
             title: '状态',
             dataIndex: 'status',
             width: 110,
-            render: (value: AgentRunEventStatus) => <Tag color={eventStatusColor(value)}>{value}</Tag>
+            render: (value: AgentRunEventStatus) => <Tag color={eventStatusColor(value)}>{value}</Tag>,
         },
         {title: '轮次', dataIndex: 'reactRound', width: 80, render: valueOrDash},
-        {title: '工具', dataIndex: 'toolName', width: 180, render: copyableOrDash},
-        {title: '类型', dataIndex: 'toolType', width: 90, render: valueOrDash},
-        {title: 'MCP 服务', dataIndex: 'mcpServerCode', width: 130, render: valueOrDash},
+        {
+            title: '工具',
+            dataIndex: 'toolName',
+            width: 200,
+            render: (_, record) => (
+                <StackedCell
+                    plain
+                    primary={record.toolName ?? '-'}
+                    secondary={[record.toolType, record.mcpServerCode].filter(Boolean).join(' · ')}
+                />
+            ),
+        },
         {title: '模型', dataIndex: 'modelName', width: 160, render: valueOrDash},
         {
             title: '耗时',
             dataIndex: 'durationMs',
             width: 100,
-            render: (value?: number) => value === undefined || value === null ? '-' : `${value}ms`
+            render: (value?: number) => formatDuration(value),
         },
         {title: '错误', dataIndex: 'errorMessage', width: 220, render: errorOrDash},
         {title: '开始时间', dataIndex: 'startedAt', width: 190, render: renderDateTime},
@@ -317,7 +386,7 @@ function EventPayload({event}: { event: AgentRunEventAuditResponse }) {
 
 function PayloadBlock({title, value, danger = false}: { title: string; value?: string; danger?: boolean }) {
     return (
-        <Space direction="vertical" size={4} style={{width: '100%'}}>
+        <Space className="u-full-width" direction="vertical" size={4}>
             <Typography.Text strong type={danger ? 'danger' : undefined}>{title}</Typography.Text>
             <PayloadText value={value}/>
         </Space>
@@ -326,7 +395,7 @@ function PayloadBlock({title, value, danger = false}: { title: string; value?: s
 
 function PayloadText({value}: { value?: string }) {
     return (
-        <Typography.Paragraph copyable style={{marginBottom: 0, whiteSpace: 'pre-wrap'}}>
+        <Typography.Paragraph className="payload-text" copyable>
             {formatPayload(value)}
         </Typography.Paragraph>
     )
@@ -364,12 +433,8 @@ function countOrZero(value?: number | null) {
     return value ?? 0
 }
 
-function copyableOrDash(value?: string | number | null) {
-    if (value === undefined || value === null || value === '') {
-        return '-'
-    }
-    const text = String(value)
-    return <Typography.Text copyable ellipsis={{tooltip: text}}>{text}</Typography.Text>
+function formatDuration(value?: number | null) {
+    return value === undefined || value === null ? '-' : `${value}ms`
 }
 
 function errorOrDash(value?: string | null) {

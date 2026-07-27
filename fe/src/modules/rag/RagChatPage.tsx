@@ -1,6 +1,8 @@
-import {App, Checkbox, Drawer, Form, InputNumber, Select, Space, Switch, Tag, Typography} from 'antd'
+import {App, Checkbox, Form, InputNumber, Select, Space, Switch, Tag, Typography} from 'antd'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {reportGlobalError} from '../../app/globalError'
+import {EmptyState} from '../../components/EmptyState'
+import {FormDrawer} from '../../components/FormDrawer'
 import {
     applyRagEventToMessage,
     ChatSettingsModal,
@@ -510,30 +512,32 @@ function RagChatPage() {
                 onStop={abort}
             />
 
-            <Drawer onClose={closeSourceDrawer} open={sourceOpen} title="引用来源" width={560}>
-                <Space direction="vertical" style={{width: '100%'}}>
-                    {sources.map((source, index) => (
-                        <section
-                            aria-label={`来源 ${index + 1}`}
-                            key={source.sourceId}
-                            style={{border: '1px solid #f0f0f0', borderRadius: 8, padding: 12}}
-                        >
-                            <Space wrap>
-                                <Tag color="blue">score={source.score.toFixed(4)}</Tag>
-                                {source.rerankScore !== undefined && <Tag color="purple">rerank={source.rerankScore.toFixed(4)}</Tag>}
-                                {source.matchedBy && <Tag>{source.matchedBy}</Tag>}
-                                <Tag>chunk={source.chunkIndex}</Tag>
-                                <Typography.Text strong>
-                                    {source.documentName || `文档 ${source.documentId}`}
-                                </Typography.Text>
-                            </Space>
-                            <Typography.Paragraph copyable style={{marginTop: 8}}>
-                                {source.content}
-                            </Typography.Paragraph>
-                        </section>
-                    ))}
-                </Space>
-            </Drawer>
+            <FormDrawer footer={false} onClose={closeSourceDrawer} open={sourceOpen} size="md" title="引用来源">
+                {sources.length === 0
+                    ? <EmptyState description="这条回答没有命中知识库内容。" title="暂无引用来源"/>
+                    : (
+                        <div className="page-stack">
+                            {sources.map((source, index) => (
+                                <section aria-label={`来源 ${index + 1}`} className="rag-source-card" key={source.sourceId}>
+                                    <Space wrap>
+                                        <Tag color="blue">相关度 {source.score.toFixed(4)}</Tag>
+                                        {source.rerankScore !== undefined && (
+                                            <Tag color="purple">重排 {source.rerankScore.toFixed(4)}</Tag>
+                                        )}
+                                        {source.matchedBy && <Tag>{source.matchedBy}</Tag>}
+                                        <Tag>切片 {source.chunkIndex}</Tag>
+                                        <Typography.Text strong>
+                                            {source.documentName || `文档 ${source.documentId}`}
+                                        </Typography.Text>
+                                    </Space>
+                                    <Typography.Paragraph className="rag-source-content" copyable>
+                                        {source.content}
+                                    </Typography.Paragraph>
+                                </section>
+                            ))}
+                        </div>
+                    )}
+            </FormDrawer>
         </>
     )
 }

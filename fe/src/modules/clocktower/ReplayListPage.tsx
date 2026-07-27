@@ -1,11 +1,14 @@
-import {EyeOutlined, ReloadOutlined} from '@ant-design/icons'
-import {Button, Card, Empty, Space, Table, Tag} from 'antd'
+import {EyeOutlined, HistoryOutlined, ReloadOutlined} from '@ant-design/icons'
+import {Button, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useEffect, useState} from 'react'
 import {useNavigate} from 'react-router'
 import {reportGlobalError} from '../../app/globalError'
+import {DataTable} from '../../components/DataTable'
 import {DateTimeText} from '../../components/DateTimeText'
 import {PageToolbar} from '../../components/PageToolbar'
+import {RowActions} from '../../components/RowActions'
+import {StackedCell} from '../../components/StackedCell'
 import {voidify} from '../../utils/async'
 import {listClocktowerGameHistory} from './clocktowerService'
 import type {ClocktowerGameHistoryResponse} from './clocktowerTypes'
@@ -37,10 +40,7 @@ function ReplayListPage() {
             key: 'identity',
             width: 180,
             render: (_, record) => (
-                <Space orientation="vertical" size={0}>
-                    <span>房间 #{record.roomId}</span>
-                    <Tag>gameId={record.gameId}</Tag>
-                </Space>
+                <StackedCell primary={`房间 #${record.roomId}`} secondary={`gameId=${record.gameId}`}/>
             ),
         },
         {title: '剧本', dataIndex: 'scriptCode', width: 180, render: valueOrDash},
@@ -57,16 +57,16 @@ function ReplayListPage() {
         {
             title: '操作',
             fixed: 'right',
-            width: 120,
+            width: 140,
             render: (_, record) => (
-                <Button
-                    icon={<EyeOutlined/>}
-                    onClick={() => void navigate(`/clocktower/games/${record.gameId}/replay`)}
-                    size="small"
-                    type="primary"
-                >
-                    查看回放
-                </Button>
+                <RowActions
+                    actions={[{
+                        key: 'replay',
+                        label: '查看回放',
+                        icon: <EyeOutlined/>,
+                        onClick: () => void navigate(`/clocktower/games/${record.gameId}/replay`),
+                    }]}
+                />
             ),
         },
     ]
@@ -76,18 +76,20 @@ function ReplayListPage() {
             <PageToolbar
                 actions={<Button icon={<ReloadOutlined/>} loading={loading} onClick={voidify(loadGames)}>刷新</Button>}
                 description="按游戏记录查看钟楼事件回放。房间名称与身份信息当前未包含在历史接口中。"
+                icon={<HistoryOutlined/>}
                 title="钟楼回放复盘"
             />
-            <Card>
-                <Table<ClocktowerGameHistoryResponse>
-                    columns={columns}
-                    dataSource={games}
-                    loading={loading}
-                    locale={{emptyText: <Empty description="暂无游戏历史可查看回放"/>}}
-                    rowKey="gameId"
-                    scroll={{x: 1300}}
-                />
-            </Card>
+            <DataTable<ClocktowerGameHistoryResponse>
+                columns={columns}
+                count={games.length}
+                dataSource={games}
+                emptyDescription="完成一局游戏后，这里会列出可回放的对局。"
+                emptyTitle="暂无游戏历史可查看回放"
+                loading={loading}
+                rowKey="gameId"
+                scroll={{x: 1300}}
+                title="对局历史"
+            />
         </>
     )
 }

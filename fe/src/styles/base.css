@@ -1,0 +1,212 @@
+/* Document reset, scrollbars, shared keyframes and layout utilities. */
+
+:root {
+    color: var(--text);
+    background: var(--page);
+    font-family: var(--font-sans);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    min-width: 320px;
+    min-height: 100svh;
+    margin: 0;
+    overflow: hidden;
+    color: var(--text);
+    background: var(--page-gradient);
+    transition: background var(--motion-slow) var(--motion-ease), color var(--motion-mid) var(--motion-ease);
+}
+
+button,
+textarea,
+input,
+select {
+    font-family: inherit;
+}
+
+::selection {
+    background: var(--line-glow);
+    color: var(--text-strong);
+}
+
+/* -------------------------------------------------------------- scroll --- */
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+*::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: var(--radius-pill);
+    background: var(--scrollbar-thumb);
+    background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+    background-clip: content-box;
+}
+
+*::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+/* ------------------------------------------------------------ utilities --- */
+
+/*
+ * Small layout helpers so pages stop reaching for `style={{...}}` to set widths
+ * and gaps. Anything wider than these belongs in a component.
+ */
+
+.u-full-width {
+    width: 100%;
+}
+
+.u-block {
+    display: block;
+}
+
+.u-nowrap {
+    white-space: nowrap;
+}
+
+.u-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.u-break-word {
+    overflow-wrap: anywhere;
+}
+
+.u-muted {
+    color: var(--muted);
+}
+
+.u-mono {
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+}
+
+.u-scroll-y {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+/* --------------------------------------------------------------- motion --- */
+
+@keyframes surface-enter {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes message-enter {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes glow-drift {
+    from {
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+    to {
+        transform: translate3d(18px, -14px, 0) scale(1.08);
+    }
+}
+
+@keyframes particle-float {
+    0% {
+        opacity: 0;
+        transform: translate3d(0, 14px, 0) scale(0.8);
+    }
+    16%,
+    82% {
+        opacity: 0.72;
+    }
+    100% {
+        opacity: 0;
+        transform: translate3d(14px, -28px, 0) scale(1);
+    }
+}
+
+@keyframes slow-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes shimmer {
+    from {
+        background-position: 200% 0;
+    }
+    to {
+        background-position: -200% 0;
+    }
+}
+
+.route-loading {
+    min-height: 100svh;
+    display: grid;
+    place-items: center;
+    animation: fade-in var(--motion-slow) var(--motion-ease) both;
+}
+
+/* Ant Design's `description` only renders in nested mode, so it needs a child. */
+.route-loading-target {
+    width: 120px;
+    height: 40px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+
+    .visual-backdrop-particles,
+    .auth-orbit {
+        display: none;
+    }
+}

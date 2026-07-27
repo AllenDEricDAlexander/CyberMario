@@ -80,7 +80,7 @@ export function ChatMessageList(props: ChatMessageListProps) {
     if (items.length === 0) {
         return (
             <div className="chat-workspace-x-message-list chat-workspace-x-message-list-empty">
-                <Empty description="No messages yet" image={Empty.PRESENTED_IMAGE_SIMPLE}/>
+                <Empty description="还没有消息，在下方输入框开始对话" image={Empty.PRESENTED_IMAGE_SIMPLE}/>
             </div>
         )
     }
@@ -144,7 +144,7 @@ function renderMessageContent(options: RenderMessageContentOptions) {
                     <ReactMarkdown remarkPlugins={markdownPlugins}>{message.content}</ReactMarkdown>
                 </div>
             ) : isPending ? (
-                <Typography.Text type="secondary">Generating response...</Typography.Text>
+                <Typography.Text type="secondary">正在生成回答…</Typography.Text>
             ) : message.error ? (
                 <Alert showIcon title={message.error} type="error"/>
             ) : null}
@@ -160,7 +160,7 @@ function renderMessageContent(options: RenderMessageContentOptions) {
 
             <ChatSourcesPanel
                 sources={message.sources}
-                title="Referenced sources"
+                title="引用来源"
                 onSourceSelect={onSourceSelect}
             />
 

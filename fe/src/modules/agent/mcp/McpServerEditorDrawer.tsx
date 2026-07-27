@@ -1,5 +1,6 @@
-import {Button, Drawer, Form, Input, InputNumber, Select} from 'antd'
+import {Form, Input, InputNumber, Select} from 'antd'
 import {useEffect, useState} from 'react'
+import {FormDrawer} from '../../../components/FormDrawer'
 import {voidify} from '../../../utils/async'
 import type {CreateMcpServerRequest, McpServerResponse, McpTransportType, UpdateMcpServerRequest,} from './mcpTypes'
 
@@ -52,14 +53,13 @@ export function McpServerEditorDrawer({open, loading, server, onClose, onSubmit}
     }
 
     return (
-        <Drawer
-            destroyOnHidden
-            extra={<Button form="mcp-server-editor-form" htmlType="submit" loading={loading}
-                           type="primary">保存</Button>}
+        <FormDrawer
+            description={editing ? server?.serverCode : '连接参数保存后可立即测试并发现工具'}
+            formId="mcp-server-editor-form"
+            loading={loading}
             onClose={onClose}
             open={open}
             title={editing ? '编辑 MCP 服务' : '新建 MCP 服务'}
-            width={560}
         >
             <Form form={form} id="mcp-server-editor-form" layout="vertical" onFinish={voidify(handleFinish)}
                   requiredMark={false}>
@@ -89,13 +89,13 @@ export function McpServerEditorDrawer({open, loading, server, onClose, onSubmit}
                     <Input.TextArea autoSize={{minRows: 4, maxRows: 8}}/>
                 </Form.Item>
                 <Form.Item label="连接超时（毫秒）" name="connectTimeoutMs">
-                    <InputNumber max={60000} min={1000} style={{width: '100%'}}/>
+                    <InputNumber className="u-full-width" max={60000} min={1000}/>
                 </Form.Item>
                 <Form.Item label="请求超时（毫秒）" name="requestTimeoutMs">
-                    <InputNumber max={120000} min={1000} style={{width: '100%'}}/>
+                    <InputNumber className="u-full-width" max={120000} min={1000}/>
                 </Form.Item>
             </Form>
-        </Drawer>
+        </FormDrawer>
     )
 }
 

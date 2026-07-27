@@ -1,5 +1,8 @@
-import {Button, Space, Table, Tag} from 'antd'
+import {CopyOutlined, SaveOutlined} from '@ant-design/icons'
+import {Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
+import {DataTable} from '../../../components/DataTable'
+import {RowActions, type RowAction} from '../../../components/RowActions'
 import type {ClocktowerBoardCandidateResponse} from '../clocktowerTypes'
 import {RoleSummaryTags} from './RoleSummaryTags'
 
@@ -43,34 +46,41 @@ export function BoardCandidateTable({candidates, loading, savingCandidateId, onC
         {
             title: '操作',
             fixed: 'right',
-            width: 210,
-            render: (_, record) => (
-                <Space>
-                    <Button disabled={!onCopy} onClick={() => onCopy?.(record)} size="small">
-                        复制到编辑器
-                    </Button>
-                    <Button
-                        disabled={!onSave}
-                        loading={savingCandidateId === record.candidateId}
-                        onClick={() => void onSave?.(record)}
-                        size="small"
-                        type="primary"
-                    >
-                        保存
-                    </Button>
-                </Space>
-            ),
+            width: 200,
+            render: (_, record) => {
+                const actions: RowAction[] = [
+                    {
+                        key: 'copy',
+                        label: '复制到编辑器',
+                        icon: <CopyOutlined/>,
+                        disabled: !onCopy,
+                        onClick: () => onCopy?.(record),
+                    },
+                    {
+                        key: 'save',
+                        label: '保存',
+                        icon: <SaveOutlined/>,
+                        disabled: !onSave || savingCandidateId === record.candidateId,
+                        onClick: () => void onSave?.(record),
+                    },
+                ]
+                return <RowActions actions={actions}/>
+            },
         },
     ]
 
     return (
-        <Table
+        <DataTable<ClocktowerBoardCandidateResponse>
             columns={columns}
+            count={candidates.length}
             dataSource={candidates}
+            emptyDescription="设置生成参数后点击「生成配板」，候选方案会显示在这里。"
+            emptyTitle="还没有候选配板"
             loading={loading}
             pagination={false}
             rowKey="candidateId"
-            scroll={{x: 1120}}
+            scroll={{x: 1000}}
+            title="候选配板"
         />
     )
 }

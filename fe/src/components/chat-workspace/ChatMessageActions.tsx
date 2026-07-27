@@ -29,10 +29,10 @@ export type ChatMessageActionsProps = {
 }
 
 const feedbackActions: Array<MessageActionDefinition & {key: RagFeedbackType}> = [
-    {key: 'HELPFUL', label: 'Helpful', icon: <LikeOutlined/>},
-    {key: 'NOT_HELPFUL', label: 'Not helpful', icon: <DislikeOutlined/>},
-    {key: 'BAD_SOURCE', label: 'Bad source', icon: <SearchOutlined/>},
-    {key: 'NO_ANSWER', label: 'No answer', icon: <StopOutlined/>},
+    {key: 'HELPFUL', label: '有帮助', icon: <LikeOutlined/>},
+    {key: 'NOT_HELPFUL', label: '没帮助', icon: <DislikeOutlined/>},
+    {key: 'BAD_SOURCE', label: '引用有误', icon: <SearchOutlined/>},
+    {key: 'NO_ANSWER', label: '未作答', icon: <StopOutlined/>},
 ]
 
 export function ChatMessageActions(props: ChatMessageActionsProps) {
@@ -43,14 +43,14 @@ export function ChatMessageActions(props: ChatMessageActionsProps) {
 
         if (onCopy) {
             nextItems.push(createActionItem(
-                {key: 'copy', label: 'Copy', icon: <CopyOutlined/>},
+                {key: 'copy', label: '复制', icon: <CopyOutlined/>},
                 onCopy
             ))
         }
 
         if (onReload) {
             nextItems.push(createActionItem(
-                {key: 'reload', label: 'Retry', icon: <ReloadOutlined/>},
+                {key: 'reload', label: '重试', icon: <ReloadOutlined/>},
                 onReload
             ))
         }

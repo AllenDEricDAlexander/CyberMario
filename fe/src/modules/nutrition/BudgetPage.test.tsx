@@ -102,7 +102,7 @@ describe('BudgetPage', () => {
         await user.click(screen.getByRole('button', {name: /保存规则/}))
         await waitFor(() => expect(createNutritionBudgetRule).toHaveBeenCalled())
 
-        await user.click(screen.getByRole('button', {name: '编辑预算规则 801'}))
+        await user.click(screen.getByRole('button', {name: '编辑'}))
         const amount = screen.getByLabelText('预算上限')
         await user.clear(amount)
         await user.type(amount, '750')
@@ -113,7 +113,10 @@ describe('BudgetPage', () => {
             expect.objectContaining({amountLimit: 750}),
         ))
 
-        await user.click(screen.getByRole('button', {name: '停用预算规则 801'}))
+        // Deactivation is destructive, so the row action now asks for confirmation first.
+        await user.click(screen.getByRole('button', {name: '停用'}))
+        expect(deactivateNutritionBudgetRule).not.toHaveBeenCalled()
+        await user.click(await screen.findByRole('button', {name: /确\s*认/}))
         expect(deactivateNutritionBudgetRule).toHaveBeenCalledWith(family.id, rule.id)
     })
 

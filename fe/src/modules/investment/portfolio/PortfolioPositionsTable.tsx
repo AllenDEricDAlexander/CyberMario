@@ -1,5 +1,6 @@
-import {Table, Tag} from 'antd'
+import {Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
+import {DataTable} from '../../../components/DataTable'
 import {InvestmentDecimalText} from '../components/InvestmentDecimalText'
 import type {InvestmentPosition} from '../types/investmentPortfolioTypes'
 
@@ -8,11 +9,12 @@ export function PortfolioPositionsTable({positions, loading}: {
     loading?: boolean
 }) {
     return (
-        <Table
+        <DataTable<InvestmentPosition>
             columns={columns}
             dataSource={positions}
+            emptyDescription="开仓后，服务端计算的数量、保证金与强平价会出现在这里。"
+            emptyTitle="当前账户暂无持仓"
             loading={loading}
-            locale={{emptyText: '当前账户暂无持仓'}}
             pagination={false}
             rowKey="id"
             scroll={{x: 1_400}}

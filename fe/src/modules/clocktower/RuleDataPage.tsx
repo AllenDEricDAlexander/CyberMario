@@ -1,9 +1,13 @@
-import {ReloadOutlined, SearchOutlined} from '@ant-design/icons'
-import {Button, Card, Empty, Form, Input, Select, Space, Table, Tabs, Tag, Typography} from 'antd'
+import {BookOutlined, ReloadOutlined} from '@ant-design/icons'
+import {Button, Card, Form, Input, Select, Tabs, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {reportGlobalError} from '../../app/globalError'
+import {DataTable} from '../../components/DataTable'
+import {FilterBar} from '../../components/FilterBar'
+import {PageSection, PageStack} from '../../components/PageSection'
 import {PageToolbar} from '../../components/PageToolbar'
+import {StackedCell} from '../../components/StackedCell'
 import {voidify} from '../../utils/async'
 import {enumCode, enumDesc} from '../../utils/enum'
 import {
@@ -25,6 +29,7 @@ import type {
     ClocktowerTermResponse,
 } from './clocktowerTypes'
 import {RoleTypeTag} from './components/RoleTypeTag'
+import './clocktower.css'
 
 const roleTypeOptions: Array<{ label: string; value: ClocktowerRoleTypeCode }> = [
     {label: '镇民', value: 'TOWNSFOLK'},
@@ -221,6 +226,7 @@ function RuleDataPage() {
                     </Button>
                 }
                 description="查看剧本角色、夜晚顺序、术语和相克规则。"
+                icon={<BookOutlined/>}
                 title="钟楼规则"
             />
             <Card>
@@ -286,20 +292,22 @@ type TermRulePanelProps = {
 
 function TermRulePanel({form, loading, onSearch, terms}: TermRulePanelProps) {
     return (
-        <Space orientation="vertical" size="middle" style={{width: '100%'}}>
-            <Form form={form} layout="inline">
+        <PageStack>
+            <FilterBar<TermFilterValues>
+                form={form}
+                loading={loading}
+                onReset={voidify(onSearch)}
+                onSearch={voidify(onSearch)}
+            >
                 <Form.Item label="关键词" name="keyword">
-                    <Input allowClear placeholder="术语或说明" style={{width: 200}}/>
+                    <Input allowClear placeholder="术语或说明"/>
                 </Form.Item>
                 <Form.Item label="分类" name="category">
-                    <Input allowClear placeholder="分类" style={{width: 160}}/>
+                    <Input allowClear placeholder="按分类精确过滤"/>
                 </Form.Item>
-                <Button icon={<SearchOutlined/>} loading={loading} onClick={voidify(onSearch)} type="primary">
-                    查询
-                </Button>
-            </Form>
+            </FilterBar>
             <TermTable loading={loading} terms={terms}/>
-        </Space>
+        </PageStack>
     )
 }
 
@@ -312,20 +320,22 @@ type JinxRulePanelProps = {
 
 function JinxRulePanel({form, jinxRules, loading, onSearch}: JinxRulePanelProps) {
     return (
-        <Space orientation="vertical" size="middle" style={{width: '100%'}}>
-            <Form form={form} layout="inline">
+        <PageStack>
+            <FilterBar<JinxRuleFilterValues>
+                form={form}
+                loading={loading}
+                onReset={voidify(onSearch)}
+                onSearch={voidify(onSearch)}
+            >
                 <Form.Item label="角色代码" name="roleCode">
-                    <Input allowClear placeholder="角色代码" style={{width: 200}}/>
+                    <Input allowClear placeholder="角色代码"/>
                 </Form.Item>
                 <Form.Item label="严重级别" name="severity">
-                    <Input allowClear placeholder="INFO / WARNING / BLOCKER" style={{width: 220}}/>
+                    <Input allowClear placeholder="INFO / WARNING / BLOCKER"/>
                 </Form.Item>
-                <Button icon={<SearchOutlined/>} loading={loading} onClick={voidify(onSearch)} type="primary">
-                    查询
-                </Button>
-            </Form>
+            </FilterBar>
             <JinxRuleTable jinxRules={jinxRules} loading={loading}/>
-        </Space>
+        </PageStack>
     )
 }
 
@@ -357,58 +367,56 @@ function ScriptRulePanel({
     const selectedScript = scripts.find((script) => script.scriptCode === scriptCode)
 
     return (
-        <Space orientation="vertical" size="large" style={{width: '100%'}}>
-            <Space align="end" wrap>
-                <Space orientation="vertical" size={4}>
-                    <Typography.Text type="secondary">剧本</Typography.Text>
-                    <Select
-                        loading={nightOrderLoading || roleLoading}
-                        onChange={onScriptChange}
-                        options={scriptOptions}
-                        placeholder="选择剧本"
-                        style={{minWidth: 240}}
-                        value={scriptCode}
-                    />
-                </Space>
-                <Space orientation="vertical" size={4}>
-                    <Typography.Text type="secondary">角色类型</Typography.Text>
-                    <Select
-                        allowClear
-                        onChange={onRoleTypeChange}
-                        options={roleTypeOptions}
-                        placeholder="全部类型"
-                        style={{minWidth: 160}}
-                        value={roleType}
-                    />
-                </Space>
-                {selectedScript && (
-                    <Space wrap>
+        <PageStack>
+            {/* Instant filters: changing either select reloads the script data, so
+                this row deliberately stays outside `FilterBar`'s submit flow. */}
+            <PageSection
+                actions={selectedScript && (
+                    <>
                         <Tag>{selectedScript.edition}</Tag>
-                        <Tag>
-                            {selectedScript.minPlayers}-{selectedScript.maxPlayers} 人
-                        </Tag>
+                        <Tag>{selectedScript.minPlayers}-{selectedScript.maxPlayers} 人</Tag>
                         <Tag>{selectedScript.roleCount} 个角色</Tag>
-                    </Space>
+                    </>
                 )}
-            </Space>
-            <Card size="small" title="角色">
-                <RoleTable loading={roleLoading} roles={roles}/>
-            </Card>
-            <Card size="small" title="夜晚顺序">
-                <NightOrderTables loading={nightOrderLoading} nightOrder={nightOrder}/>
-            </Card>
-        </Space>
+            >
+                <div className="clocktower-field-row">
+                    <label>
+                        <Typography.Text type="secondary">剧本</Typography.Text>
+                        <Select
+                            loading={nightOrderLoading || roleLoading}
+                            onChange={onScriptChange}
+                            options={scriptOptions}
+                            placeholder="选择剧本"
+                            value={scriptCode}
+                        />
+                    </label>
+                    <label>
+                        <Typography.Text type="secondary">角色类型</Typography.Text>
+                        <Select
+                            allowClear
+                            onChange={onRoleTypeChange}
+                            options={roleTypeOptions}
+                            placeholder="全部类型"
+                            value={roleType}
+                        />
+                    </label>
+                </div>
+            </PageSection>
+            <RoleTable loading={roleLoading} roles={roles}/>
+            <NightOrderTables loading={nightOrderLoading} nightOrder={nightOrder}/>
+        </PageStack>
     )
 }
 
 function RoleTable({loading, roles}: { loading: boolean; roles: ClocktowerRoleResponse[] }) {
     const columns: ColumnsType<ClocktowerRoleResponse> = [
-        {title: '角色代码', dataIndex: 'roleCode', width: 160},
         {
-            title: '名称',
-            dataIndex: 'roleName',
-            width: 140,
-            render: (_, record) => nullableText(record.roleName ?? record.name)
+            title: '角色',
+            dataIndex: 'roleCode',
+            width: 200,
+            render: (_, record) => (
+                <StackedCell primary={nullableText(record.roleName ?? record.name)} secondary={record.roleCode}/>
+            ),
         },
         {
             title: '类型',
@@ -416,7 +424,12 @@ function RoleTable({loading, roles}: { loading: boolean; roles: ClocktowerRoleRe
             width: 120,
             render: (value: ClocktowerRoleType) => <RoleTypeTag value={value}/>,
         },
-        {title: '阵营', dataIndex: 'alignment', width: 100, render: (value: ClocktowerRoleResponse['alignment']) => <Tag>{enumDesc(value)}</Tag>},
+        {
+            title: '阵营',
+            dataIndex: 'alignment',
+            width: 100,
+            render: (value: ClocktowerRoleResponse['alignment']) => <Tag>{enumDesc(value)}</Tag>,
+        },
         {title: '能力', dataIndex: 'abilityText'},
         {
             title: '首夜',
@@ -439,38 +452,45 @@ function RoleTable({loading, roles}: { loading: boolean; roles: ClocktowerRoleRe
     ]
 
     return (
-        <Table<ClocktowerRoleResponse>
+        <DataTable<ClocktowerRoleResponse>
             columns={columns}
+            count={roles.length}
             dataSource={roles}
+            emptyDescription="换一个剧本或清空角色类型筛选后再试。"
+            emptyTitle="暂无角色规则"
             loading={loading}
-            locale={{emptyText: <Empty description="暂无角色规则"/>}}
             pagination={false}
             rowKey="roleCode"
-            scroll={{x: 1100}}
+            scroll={{x: 1000}}
+            title="角色"
         />
     )
 }
 
 function NightOrderTables({loading, nightOrder}: { loading: boolean; nightOrder: ClocktowerNightOrderGroupResponse }) {
     return (
-        <Space direction="vertical" size="large" style={{width: '100%'}}>
-            <Space direction="vertical" size="small" style={{width: '100%'}}>
-                <Typography.Text strong>首夜</Typography.Text>
-                <NightOrderTable loading={loading} nightOrder={nightOrder.firstNight}/>
-            </Space>
-            <Space direction="vertical" size="small" style={{width: '100%'}}>
-                <Typography.Text strong>其他夜晚</Typography.Text>
-                <NightOrderTable loading={loading} nightOrder={nightOrder.otherNight}/>
-            </Space>
-        </Space>
+        <PageSection description="按说书人唤醒顺序排列，未参与夜晚的角色不会出现在这里。" title="夜晚顺序">
+            <PageStack>
+                <NightOrderTable loading={loading} nightOrder={nightOrder.firstNight} title="首夜"/>
+                <NightOrderTable loading={loading} nightOrder={nightOrder.otherNight} title="其他夜晚"/>
+            </PageStack>
+        </PageSection>
     )
 }
 
-function NightOrderTable({loading, nightOrder}: { loading: boolean; nightOrder: ClocktowerNightOrderResponse[] }) {
+function NightOrderTable({loading, nightOrder, title}: {
+    loading: boolean
+    nightOrder: ClocktowerNightOrderResponse[]
+    title: string
+}) {
     const columns: ColumnsType<ClocktowerNightOrderResponse> = [
         {title: '顺序', dataIndex: 'orderNo', width: 90, render: (_, record) => record.orderNo ?? record.sortOrder},
-        {title: '角色代码', dataIndex: 'roleCode', width: 160},
-        {title: '名称', dataIndex: 'roleName', width: 140},
+        {
+            title: '角色',
+            dataIndex: 'roleCode',
+            width: 200,
+            render: (_, record) => <StackedCell primary={record.roleName} secondary={record.roleCode}/>,
+        },
         {
             title: '类型',
             dataIndex: 'roleType',
@@ -481,14 +501,17 @@ function NightOrderTable({loading, nightOrder}: { loading: boolean; nightOrder: 
     ]
 
     return (
-        <Table<ClocktowerNightOrderResponse>
+        <DataTable<ClocktowerNightOrderResponse>
             columns={columns}
+            count={nightOrder.length}
             dataSource={nightOrder}
+            emptyDescription="该剧本在此夜晚没有需要唤醒的角色。"
+            emptyTitle="暂无夜晚顺序"
             loading={loading}
-            locale={{emptyText: <Empty description="暂无夜晚顺序"/>}}
             pagination={false}
             rowKey={(record) => `${enumCode(record.nightType)}-${record.orderNo ?? record.sortOrder}-${record.roleCode}`}
-            scroll={{x: 780}}
+            scroll={{x: 720}}
+            title={title}
         />
     )
 }
@@ -506,22 +529,31 @@ function TermTable({loading, terms}: { loading: boolean; terms: ClocktowerTermRe
     ]
 
     return (
-        <Table<ClocktowerTermResponse>
+        <DataTable<ClocktowerTermResponse>
             columns={columns}
+            count={terms.length}
             dataSource={terms}
+            emptyDescription="没有匹配的术语，换一个关键词或清空分类后重试。"
+            emptyTitle="暂无术语"
             loading={loading}
-            locale={{emptyText: <Empty description="暂无术语"/>}}
             pagination={false}
             rowKey={(record) => `${record.category}-${record.term}`}
             scroll={{x: 720}}
+            title="术语表"
         />
     )
 }
 
 function JinxRuleTable({jinxRules, loading}: { jinxRules: ClocktowerJinxRuleResponse[]; loading: boolean }) {
     const columns: ColumnsType<ClocktowerJinxRuleResponse> = [
-        {title: '角色 A', dataIndex: 'roleACode', width: 160},
-        {title: '角色 B', dataIndex: 'roleBCode', width: 160},
+        {
+            title: '角色组合',
+            dataIndex: 'roleACode',
+            width: 220,
+            render: (_, record) => (
+                <StackedCell primary={`${record.roleACode} × ${record.roleBCode}`} secondary={record.effectType}/>
+            ),
+        },
         {
             title: '范围',
             dataIndex: 'scope',
@@ -529,19 +561,21 @@ function JinxRuleTable({jinxRules, loading}: { jinxRules: ClocktowerJinxRuleResp
             render: (value: string) => <Tag>{value}</Tag>,
         },
         {title: '严重度', dataIndex: 'severity', width: 120, render: severityTag},
-        {title: '效果', dataIndex: 'effectType', width: 140},
         {title: '规则', dataIndex: 'ruleText'},
     ]
 
     return (
-        <Table<ClocktowerJinxRuleResponse>
+        <DataTable<ClocktowerJinxRuleResponse>
             columns={columns}
+            count={jinxRules.length}
             dataSource={jinxRules}
+            emptyDescription="没有匹配的相克规则，换一个角色代码或严重级别后重试。"
+            emptyTitle="暂无相克规则"
             loading={loading}
-            locale={{emptyText: <Empty description="暂无相克规则"/>}}
             pagination={false}
             rowKey={(record) => `${record.roleACode}-${record.roleBCode}-${record.effectType}-${record.scope}-${record.severity}-${record.ruleText}`}
-            scroll={{x: 980}}
+            scroll={{x: 900}}
+            title="相克规则"
         />
     )
 }

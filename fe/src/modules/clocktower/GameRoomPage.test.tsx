@@ -10,6 +10,7 @@ import {
 import type {ClocktowerGameViewResponse} from './clocktowerTypes'
 
 vi.mock('react-router', () => ({
+    useNavigate: () => vi.fn(),
     useParams: () => ({roomId: '7'}),
 }))
 

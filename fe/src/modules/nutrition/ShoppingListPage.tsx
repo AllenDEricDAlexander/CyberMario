@@ -1,7 +1,13 @@
-import {CheckCircleOutlined, PlayCircleOutlined, SaveOutlined, ShoppingCartOutlined} from '@ant-design/icons'
-import {Alert, App, Button, Checkbox, Descriptions, Drawer, Form, Input, InputNumber, Select, Space, Table, Tag} from 'antd'
+import {CheckCircleOutlined, PlayCircleOutlined, ShoppingCartOutlined} from '@ant-design/icons'
+import {Alert, App, Button, Checkbox, Form, Input, InputNumber, Select, Space, Tag} from 'antd'
+import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useRef, useState} from 'react'
+import {DataTable} from '../../components/DataTable'
+import {FormDrawer} from '../../components/FormDrawer'
+import {PageSection} from '../../components/PageSection'
 import {PageToolbar} from '../../components/PageToolbar'
+import {StackedCell} from '../../components/StackedCell'
+import {StatCard, StatGrid} from '../../components/StatCard'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {CurrentFamilySelect} from './components/CurrentFamilySelect'
 import {MoneyText} from './components/MoneyText'
@@ -29,8 +35,25 @@ import type {
     NutritionShoppingListResponse,
     NutritionShoppingListStatus,
 } from './nutritionTypes'
-import {NutritionSection, NutritionStack} from './NutritionPageLayout'
+import {NutritionStack} from './NutritionPageLayout'
 import {useNutritionFamilySelection} from './useNutritionFamilySelection'
+import './nutrition.css'
+
+/** The drawer footer submits the form by id, so the button lives outside the `<Form>`. */
+const priceFormId = 'nutrition-shopping-price-form'
+
+const priceRecordColumns: ColumnsType<NutritionFoodPriceRecordResponse> = [
+    {
+        title: '食材',
+        dataIndex: 'rawFoodName',
+        render: (value: string, row) => (
+            <StackedCell primary={value} secondary={[row.channel, row.brand].filter(Boolean).join(' · ') || '未记录渠道'}/>
+        ),
+    },
+    {title: '总价', dataIndex: 'totalPrice', width: 110, render: (value: NutritionAmount | null | undefined) => <MoneyText value={value}/>},
+    {title: '归一单价', dataIndex: 'normalizedUnitPrice', width: 120, render: (value: NutritionAmount | null | undefined) => <MoneyText value={value}/>},
+    {title: '价格日期', dataIndex: 'priceDate', width: 130},
+]
 
 function ShoppingListPage() {
     const auth = useAuth()
@@ -249,12 +272,12 @@ function ShoppingListPage() {
                         {mealPlans.length > 0 && (
                             <Select
                                 aria-label="选择采购菜单"
+                                className="nutrition-select-wide"
                                 onChange={(value) => void selectMealPlan(value)}
                                 options={mealPlans.map((plan) => ({
                                     label: `${plan.planDate} · ${plan.title} · ${plan.status}`,
                                     value: plan.id,
                                 }))}
-                                style={{minWidth: 280}}
                                 value={mealPlan?.id}
                             />
                         )}
@@ -279,6 +302,7 @@ function ShoppingListPage() {
                     </Space>
                 )}
                 description="确认中可查看采购预览；确认关闭后仍可回查正式清单，并持续记录采购项、渠道和价格。"
+                icon={<ShoppingCartOutlined/>}
                 title="采购清单"
             />
             {mutationError && <Alert closable={{onClose: () => setMutationError(undefined)}} showIcon title={mutationError} type="error"/>}
@@ -291,68 +315,89 @@ function ShoppingListPage() {
                 state={visibleState}
             >
                 <NutritionStack>
-                    <NutritionSection title={preview ? '预览清单' : '正式清单'}>
-                        <Descriptions bordered column={3} size="small">
-                            <Descriptions.Item label="清单状态"><Tag>{shoppingList?.status}</Tag></Descriptions.Item>
-                            <Descriptions.Item label="预估成本"><MoneyText value={shoppingList?.estimatedTotalPrice}/></Descriptions.Item>
-                            <Descriptions.Item label="实际成本"><MoneyText value={shoppingList?.actualTotalPrice}/></Descriptions.Item>
-                        </Descriptions>
-                    </NutritionSection>
-                    <NutritionSection title="采购项">
-                        <Table<NutritionShoppingListItemResponse>
-                            columns={[
-                                {title: '采购项', dataIndex: 'rawFoodName'},
-                                {title: '分类', dataIndex: 'category'},
-                                {title: '计划数量', render: (_, row) => `${row.plannedAmount ?? '-'}${row.plannedUnit ?? ''}`},
-                                {title: '状态', dataIndex: 'itemStatus'},
-                                {title: '价格', render: (_, row) => <MoneyText value={row.totalPrice}/>},
-                                {title: '操作', render: (_, row) => (
-                                    <Space>
-                                        <Checkbox
-                                            aria-label={`勾选${row.rawFoodName}`}
-                                            checked={row.itemStatus === 'CHECKED'}
-                                            disabled={!shoppingEditable || !canManage}
-                                            onChange={(event) => void toggleItem(row, event.target.checked)}
-                                        />
-                                        <Button aria-label={`记录${row.rawFoodName}价格`} disabled={!shoppingEditable || !canManage} onClick={() => openPrice(row)} size="small">记录价格</Button>
-                                    </Space>
-                                )},
-                            ]}
-                            dataSource={shoppingList?.items ?? []}
-                            pagination={false}
-                            rowKey="id"
-                            scroll={{x: 900}}
-                            size="small"
-                        />
-                    </NutritionSection>
-                    <NutritionSection title="历史价格记录">
-                        <Table<NutritionFoodPriceRecordResponse>
-                            columns={[
-                                {title: '食材', dataIndex: 'rawFoodName'},
-                                {title: '渠道', dataIndex: 'channel'},
-                                {title: '品牌', dataIndex: 'brand'},
-                                {title: '总价', dataIndex: 'totalPrice', render: (value: NutritionAmount | null | undefined) => <MoneyText value={value}/>},
-                                {title: '归一单价', dataIndex: 'normalizedUnitPrice', render: (value: NutritionAmount | null | undefined) => <MoneyText value={value}/>},
-                                {title: '价格日期', dataIndex: 'priceDate'},
-                            ]}
-                            dataSource={priceRecords}
-                            pagination={false}
-                            rowKey="id"
-                            size="small"
-                        />
-                    </NutritionSection>
+                    <PageSection title={preview ? '预览清单' : '正式清单'}>
+                        <StatGrid columns={3}>
+                            <StatCard label="清单状态" value={<Tag>{shoppingList?.status}</Tag>}/>
+                            <StatCard
+                                label="预估成本"
+                                tone="sky"
+                                value={<MoneyText value={shoppingList?.estimatedTotalPrice}/>}
+                            />
+                            <StatCard
+                                hint="按已记录的采购价格累计"
+                                label="实际成本"
+                                tone="amber"
+                                value={<MoneyText value={shoppingList?.actualTotalPrice}/>}
+                            />
+                        </StatGrid>
+                    </PageSection>
+                    <DataTable<NutritionShoppingListItemResponse>
+                        columns={[
+                            {
+                                title: '采购项',
+                                dataIndex: 'rawFoodName',
+                                render: (value: string, row) => (
+                                    <StackedCell
+                                        primary={value}
+                                        secondary={`${row.category ?? '未分类'} · ${row.plannedAmount ?? '-'}${row.plannedUnit ?? ''}`}
+                                    />
+                                ),
+                            },
+                            {title: '状态', dataIndex: 'itemStatus', width: 110},
+                            {title: '价格', width: 110, render: (_, row) => <MoneyText value={row.totalPrice}/>},
+                            {title: '操作', width: 160, render: (_, row) => (
+                                <Space>
+                                    <Checkbox
+                                        aria-label={`勾选${row.rawFoodName}`}
+                                        checked={row.itemStatus === 'CHECKED'}
+                                        disabled={!shoppingEditable || !canManage}
+                                        onChange={(event) => void toggleItem(row, event.target.checked)}
+                                    />
+                                    <Button aria-label={`记录${row.rawFoodName}价格`} disabled={!shoppingEditable || !canManage} onClick={() => openPrice(row)} size="small">记录价格</Button>
+                                </Space>
+                            )},
+                        ]}
+                        count={shoppingList?.items.length ?? 0}
+                        dataSource={shoppingList?.items ?? []}
+                        emptyDescription="菜单确认后会按菜谱食材汇总出采购项。"
+                        emptyTitle="清单里还没有采购项"
+                        pagination={false}
+                        rowKey="id"
+                        scroll={{x: 720}}
+                        size="small"
+                        title="采购项"
+                    />
+                    <DataTable<NutritionFoodPriceRecordResponse>
+                        columns={priceRecordColumns}
+                        count={priceRecords.length}
+                        dataSource={priceRecords}
+                        emptyDescription="在采购项上点击「记录价格」，之后即可比较不同渠道的归一单价。"
+                        emptyTitle="暂无历史价格记录"
+                        pagination={false}
+                        rowKey="id"
+                        size="small"
+                        title="历史价格记录"
+                    />
                 </NutritionStack>
             </NutritionAsyncState>
-            <Drawer destroyOnHidden loading={saving} onClose={() => setPriceItem(undefined)} open={Boolean(priceItem)} size={480} title={`记录${priceItem?.rawFoodName ?? ''}价格`}>
-                <Form form={priceForm} layout="vertical" onFinish={(values) => void savePrice(values)}>
+            <FormDrawer
+                footerHint="归一单价由规格数量与总价自动换算，用于跨渠道比价。"
+                formId={priceFormId}
+                loading={saving}
+                onClose={() => setPriceItem(undefined)}
+                open={Boolean(priceItem)}
+                size="sm"
+                submitText="保存价格"
+                title={`记录${priceItem?.rawFoodName ?? ''}价格`}
+            >
+                <Form form={priceForm} id={priceFormId} layout="vertical" onFinish={(values) => void savePrice(values)}>
                     <Form.Item label="采购渠道" name="channel"><Input aria-label="采购渠道"/></Form.Item>
                     <Form.Item label="品牌" name="brand"><Input/></Form.Item>
-                    <Form.Item label="规格数量" name="specAmount"><InputNumber min={0} style={{width: '100%'}}/></Form.Item>
+                    <Form.Item label="规格数量" name="specAmount"><InputNumber className="u-full-width" min={0}/></Form.Item>
                     <Form.Item label="规格单位" name="specUnit"><Input/></Form.Item>
-                    <Form.Item label="总价" name="totalPrice" rules={[{required: true}]}><InputNumber aria-label="总价" min={0} precision={2} style={{width: '100%'}}/></Form.Item>
-                    <Button htmlType="submit" icon={<SaveOutlined/>} loading={saving} type="primary">保存价格</Button>
+                    <Form.Item label="总价" name="totalPrice" rules={[{required: true}]}><InputNumber aria-label="总价" className="u-full-width" min={0} precision={2}/></Form.Item>
                 </Form>
-            </Drawer>
+            </FormDrawer>
         </NutritionStack>
     )
 }

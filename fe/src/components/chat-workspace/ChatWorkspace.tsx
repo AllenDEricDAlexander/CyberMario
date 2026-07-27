@@ -80,11 +80,11 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
                 onReload={onReloadConversations}
             />
 
-            <section className="chat-workspace-x-main" aria-label="Chat workspace">
+            <section className="chat-workspace-x-main" aria-label="对话工作区">
                 <ChatWorkspaceHeader
                     actions={headerActions}
                     messageCount={messages.length}
-                    status={sending ? <Tag color="processing">Responding</Tag> : undefined}
+                    status={sending ? <Tag color="processing">生成中</Tag> : undefined}
                     subtitle={subtitle}
                     title={title}
                     onOpenSettings={onOpenSettings}

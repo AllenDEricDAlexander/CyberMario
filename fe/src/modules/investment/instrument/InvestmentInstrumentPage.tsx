@@ -1,6 +1,9 @@
-import {Alert, Card, Descriptions, Flex, Space, Table, Tag, Typography} from 'antd'
+import {Alert, Descriptions, Space, Tag, Typography} from 'antd'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {useParams} from 'react-router'
+import {DataTable} from '../../../components/DataTable'
+import {PageSection, PageStack} from '../../../components/PageSection'
+import {PageToolbar} from '../../../components/PageToolbar'
 import {InvestmentAsyncState} from '../components/InvestmentAsyncState'
 import {InvestmentDecimalText} from '../components/InvestmentDecimalText'
 import {useInvestmentWorkspace} from '../hooks/useInvestmentWorkspace'
@@ -130,7 +133,7 @@ export default function InvestmentInstrumentPage() {
     return (
         <InvestmentAsyncState error={loadError} onRetry={() => void load()} state={loadState}>
             {instrument && (
-                <Space direction="vertical" size={16} style={{width: '100%'}}>
+                <PageStack>
                     <InstrumentHeader instrument={instrument}/>
                     <QuoteCard instrument={instrument} quote={quote}/>
                     <ContractSpecCard instrument={instrument}/>
@@ -142,7 +145,7 @@ export default function InvestmentInstrumentPage() {
                             instrumentId={instrument.instrumentId}
                         />
                     ) : (
-                        <Alert showIcon title="该合约尚未接入 K 线能力" type="info"/>
+                        <Alert className="page-alert" showIcon title="该合约尚未接入 K 线能力" type="info"/>
                     )}
                     <InvestmentInstrumentReportsPanel
                         instrumentId={instrument.instrumentId}
@@ -158,7 +161,7 @@ export default function InvestmentInstrumentPage() {
                         error={tierError}
                         tiers={positionTiers}
                     />
-                </Space>
+                </PageStack>
             )}
         </InvestmentAsyncState>
     )
@@ -166,19 +169,19 @@ export default function InvestmentInstrumentPage() {
 
 function InstrumentHeader({instrument}: {instrument: InvestmentInstrumentDetailResponse}) {
     return (
-        <Flex align="flex-start" gap={12} justify="space-between" wrap>
-            <div>
-                <Typography.Title level={4}>{instrument.symbol}</Typography.Title>
-                <Typography.Text type="secondary">
-                    {instrument.venueCode} · {instrument.baseAsset}/{instrument.quoteAsset} · {instrument.contractType}
-                </Typography.Text>
-            </div>
-            <Space wrap>
-                <Tag>{instrument.status}</Tag>
-                <Tag color={freshnessColor(instrument.freshness.status)}>{instrument.freshness.status}</Tag>
-                <Typography.Text type="secondary">数据截止：{instrument.dataAsOf}</Typography.Text>
-            </Space>
-        </Flex>
+        <PageToolbar
+            back="/investment/market"
+            breadcrumb={[{title: '合约行情', to: '/investment/market'}, {title: instrument.symbol}]}
+            description={`${instrument.venueCode} · ${instrument.baseAsset}/${instrument.quoteAsset} · ${instrument.contractType}`}
+            eyebrow={(
+                <Space wrap>
+                    <Tag>{instrument.status}</Tag>
+                    <Tag color={freshnessColor(instrument.freshness.status)}>{instrument.freshness.status}</Tag>
+                    <Typography.Text type="secondary">数据截止：{instrument.dataAsOf}</Typography.Text>
+                </Space>
+            )}
+            title={instrument.symbol}
+        />
     )
 }
 
@@ -187,10 +190,10 @@ function QuoteCard({instrument, quote}: {
     quote?: InvestmentQuoteResponse
 }) {
     if (!instrument.availableCapabilities.includes('LATEST_TICKER')) {
-        return <Alert showIcon title="该合约尚未接入最新行情能力" type="info"/>
+        return <Alert className="page-alert" showIcon title="该合约尚未接入最新行情能力" type="info"/>
     }
     return (
-        <Card title="最新行情">
+        <PageSection title="最新行情">
             {quote && (
                 <Descriptions column={{xs: 1, sm: 2, lg: 4}} size="small">
                     <Descriptions.Item label="最新价"><InvestmentDecimalText value={quote.lastPrice}/></Descriptions.Item>
@@ -207,17 +210,17 @@ function QuoteCard({instrument, quote}: {
                     <Descriptions.Item label="持仓量"><InvestmentDecimalText value={quote.openInterest}/></Descriptions.Item>
                 </Descriptions>
             )}
-        </Card>
+        </PageSection>
     )
 }
 
 function ContractSpecCard({instrument}: {instrument: InvestmentInstrumentDetailResponse}) {
     const spec = instrument.contractSpec
     if (!instrument.contractSpecAvailable || !spec) {
-        return <Alert showIcon title="该合约尚无可用规格快照" type="info"/>
+        return <Alert className="page-alert" showIcon title="该合约尚无可用规格快照" type="info"/>
     }
     return (
-        <Card title="合约规格">
+        <PageSection title="合约规格">
             <Descriptions column={{xs: 1, sm: 2, lg: 4}} size="small">
                 <Descriptions.Item label="价格精度">{spec.pricePrecision}</Descriptions.Item>
                 <Descriptions.Item label="数量精度">{spec.quantityPrecision}</Descriptions.Item>
@@ -234,7 +237,7 @@ function ContractSpecCard({instrument}: {instrument: InvestmentInstrumentDetailR
                 <Descriptions.Item label="资金费间隔">{spec.fundingIntervalHours} 小时</Descriptions.Item>
                 <Descriptions.Item label="规格版本">{spec.revision}</Descriptions.Item>
             </Descriptions>
-        </Card>
+        </PageSection>
     )
 }
 
@@ -244,24 +247,28 @@ function FundingRateCard({available, error, fundingRates}: {
     fundingRates: InvestmentFundingRateResponse[]
 }) {
     return (
-        <Card title="近 30 天资金费率">
-            {!available && <Alert showIcon title="该合约尚未接入资金费率" type="info"/>}
-            {error && <Alert description={error} showIcon title="资金费率独立加载失败" type="warning"/>}
+        <PageSection title="近 30 天资金费率">
+            {!available && <Alert className="page-alert" showIcon title="该合约尚未接入资金费率" type="info"/>}
+            {error && (
+                <Alert className="page-alert" description={error} showIcon title="资金费率独立加载失败" type="warning"/>
+            )}
             {available && !error && (
-                <Table
+                <DataTable<InvestmentFundingRateResponse>
                     columns={[
                         {title: '结算时间', dataIndex: 'fundingTime'},
                         {title: '资金费率', dataIndex: 'fundingRate', render: (value: InvestmentDecimal) => <InvestmentDecimalText value={value}/>},
                         {title: '数据修订', dataIndex: 'revision'},
                     ]}
+                    count={fundingRates.length}
                     dataSource={fundingRates}
-                    locale={{emptyText: '当前范围暂无资金费率'}}
+                    emptyDescription="服务端只保留已结算的资金费；换一个时间范围或等待下一次结算。"
+                    emptyTitle="当前范围暂无资金费率"
                     pagination={{pageSize: 10, hideOnSinglePage: true}}
                     rowKey={(rate) => `${rate.fundingTime}:${rate.revision}`}
                     size="small"
                 />
             )}
-        </Card>
+        </PageSection>
     )
 }
 
@@ -271,11 +278,13 @@ function PositionTierCard({available, error, tiers}: {
     tiers: InvestmentPositionTierResponse[]
 }) {
     return (
-        <Card title="仓位档位">
-            {!available && <Alert showIcon title="该合约尚未接入仓位档位" type="info"/>}
-            {error && <Alert description={error} showIcon title="仓位档位独立加载失败" type="warning"/>}
+        <PageSection title="仓位档位">
+            {!available && <Alert className="page-alert" showIcon title="该合约尚未接入仓位档位" type="info"/>}
+            {error && (
+                <Alert className="page-alert" description={error} showIcon title="仓位档位独立加载失败" type="warning"/>
+            )}
             {available && !error && (
-                <Table
+                <DataTable<InvestmentPositionTierResponse>
                     columns={[
                         {title: '档位', dataIndex: 'tierLevel'},
                         {title: '起始名义价值', dataIndex: 'startNotional', render: (value: InvestmentDecimal) => <InvestmentDecimalText value={value}/>},
@@ -283,14 +292,16 @@ function PositionTierCard({available, error, tiers}: {
                         {title: '最高杠杆', dataIndex: 'maxLeverage', render: (value: InvestmentDecimal) => <InvestmentDecimalText value={value}/>},
                         {title: '维持保证金率', dataIndex: 'maintenanceMarginRate', render: (value: InvestmentDecimal) => <InvestmentDecimalText value={value}/>},
                     ]}
+                    count={tiers.length}
                     dataSource={tiers}
-                    locale={{emptyText: '当前没有仓位档位'}}
+                    emptyDescription="档位随合约规格由服务端同步；接入后会自动出现在这里。"
+                    emptyTitle="当前没有仓位档位"
                     pagination={false}
                     rowKey={(tier) => `${tier.observedAt}:${tier.tierLevel}`}
                     size="small"
                 />
             )}
-        </Card>
+        </PageSection>
     )
 }
 

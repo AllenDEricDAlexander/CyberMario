@@ -11,6 +11,7 @@ import top.egon.mario.rbac.dto.request.UpdateCurrentUserProfileRequest;
 import top.egon.mario.rbac.dto.request.UpdateUserRequest;
 import top.egon.mario.rbac.dto.response.UserResponse;
 import top.egon.mario.rbac.po.UserPo;
+import top.egon.mario.rbac.service.model.UserQuery;
 
 import java.util.Collection;
 import java.util.Set;
@@ -27,6 +28,9 @@ public interface RbacUserService {
     UserResponse getUser(@NotNull Long userId);
 
     Page<UserResponse> getUserPage(@NotNull Pageable pageable);
+
+    /** Same as {@link #getUserPage(Pageable)} but filtered in the database. */
+    Page<UserResponse> getUserPage(UserQuery userQuery, @NotNull Pageable pageable);
 
     UserResponse updateUser(@NotNull Long userId, @Valid @NotNull UpdateUserRequest request);
 

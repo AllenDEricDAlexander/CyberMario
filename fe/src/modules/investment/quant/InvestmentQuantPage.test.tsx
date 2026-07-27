@@ -42,7 +42,7 @@ describe('InvestmentQuantPage', () => {
         renderPage()
 
         expect(await screen.findByText('尚未部署可用的生产代码策略')).toBeTruthy()
-        expect(screen.queryByRole('button', {name: '发起回测'})).toBeNull()
+        expect(screen.queryByRole('button', {name: /发起回测/})).toBeNull()
         expect(screen.queryByText(/策略参数编辑/)).toBeNull()
     })
 
@@ -52,7 +52,7 @@ describe('InvestmentQuantPage', () => {
 
         expect(await screen.findByText('EMA 交叉 / 1.0.0')).toBeTruthy()
         expect(screen.getByText('默认杠杆')).toBeTruthy()
-        await userEvent.click(screen.getByRole('button', {name: '发起回测'}))
+        await userEvent.click(screen.getByRole('button', {name: /发起回测/}))
 
         expect(screen.getByLabelText('回测策略')).toBeTruthy()
         expect(screen.getByLabelText('回测合约 ID')).toBeTruthy()

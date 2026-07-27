@@ -1,7 +1,12 @@
-import {App, Card, Flex, Select, Table, Typography} from 'antd'
+import {LineChartOutlined} from '@ant-design/icons'
+import {App, Form, Select} from 'antd'
 import {useCallback, useEffect, useRef, useState} from 'react'
+import {DataTable} from '../../../components/DataTable'
+import {FilterBar} from '../../../components/FilterBar'
+import {PageStack} from '../../../components/PageSection'
+import {PageToolbar} from '../../../components/PageToolbar'
 import type {PageResult} from '../../../types/api'
-import {InvestmentAsyncState} from '../components/InvestmentAsyncState'
+import {InvestmentTableFailure, investmentTableLocale} from '../components/InvestmentAsyncState'
 import {useInvestmentWorkspace} from '../hooks/useInvestmentWorkspace'
 import {
     addInvestmentWatchlistItem,
@@ -18,13 +23,19 @@ import type {
 import {investmentMarketColumns} from './investmentMarketColumns'
 
 const PAGE_SIZE = 20
+const DEFAULT_SORT: InvestmentMarketSort = 'SYMBOL_ASC'
+
+type MarketFilters = {
+    status?: InvestmentInstrumentStatus
+    sort?: InvestmentMarketSort
+}
 
 export default function InvestmentMarketPage() {
     const {message} = App.useApp()
     const {currentWorkspace} = useInvestmentWorkspace()
     const [page, setPage] = useState(1)
     const [status, setStatus] = useState<InvestmentInstrumentStatus>()
-    const [sort, setSort] = useState<InvestmentMarketSort>('SYMBOL_ASC')
+    const [sort, setSort] = useState<InvestmentMarketSort>(DEFAULT_SORT)
     const [result, setResult] = useState<PageResult<InvestmentInstrumentSummaryResponse>>()
     const [loadState, setLoadState] = useState<InvestmentLoadState>('loading')
     const [loadError, setLoadError] = useState<string>()
@@ -109,6 +120,12 @@ export default function InvestmentMarketPage() {
         }
     }
 
+    function applyFilters(values: MarketFilters) {
+        setPage(1)
+        setStatus(values.status)
+        setSort(values.sort ?? DEFAULT_SORT)
+    }
+
     const columns = investmentMarketColumns({
         canAddToWatchlist,
         watchlistDisabledReason,
@@ -117,74 +134,70 @@ export default function InvestmentMarketPage() {
     })
 
     return (
-        <Card>
-            <Flex align="center" gap={12} justify="space-between" wrap>
-                <div>
-                    <Typography.Title level={4}>永续合约行情</Typography.Title>
-                    <Typography.Text type="secondary">仅展示服务端代码已接入的数据范围</Typography.Text>
-                </div>
-                <Flex gap={12} wrap>
-                    {currentWorkspace && watchlists.length > 0 && (
-                        <Select
-                            aria-label="目标自选列表"
-                            onChange={setCurrentWatchlistId}
-                            options={watchlists.map(({id, name}) => ({label: name, value: id}))}
-                            style={{minWidth: 180}}
-                            value={currentWatchlistId}
-                        />
-                    )}
+        <PageStack>
+            <PageToolbar
+                description="仅展示服务端代码已接入的数据范围"
+                icon={<LineChartOutlined/>}
+                title="永续合约行情"
+            />
+            <FilterBar<MarketFilters>
+                initialValues={{sort: DEFAULT_SORT}}
+                instant
+                onReset={() => applyFilters({sort: DEFAULT_SORT})}
+                onSearch={applyFilters}
+            >
+                <Form.Item label="合约状态" name="status">
                     <Select
                         allowClear
-                        aria-label="合约状态"
-                        onChange={(value) => {
-                            setPage(1)
-                            setStatus(value)
-                        }}
                         options={[
                             {label: '交易中', value: 'ACTIVE'},
                             {label: '暂停', value: 'SUSPENDED'},
                             {label: '下线', value: 'OFFLINE'},
                         ]}
                         placeholder="全部状态"
-                        style={{minWidth: 140}}
-                        value={status}
                     />
+                </Form.Item>
+                <Form.Item label="合约排序" name="sort">
                     <Select
-                        aria-label="合约排序"
-                        onChange={(value) => {
-                            setPage(1)
-                            setSort(value)
-                        }}
                         options={[
                             {label: '合约升序', value: 'SYMBOL_ASC'},
                             {label: '合约降序', value: 'SYMBOL_DESC'},
                         ]}
-                        style={{minWidth: 140}}
-                        value={sort}
                     />
-                </Flex>
-            </Flex>
-            <InvestmentAsyncState
-                emptyDescription="暂无代码接入的合约"
-                error={loadError}
-                onRetry={() => void loadMarket()}
-                state={loadState}
-            >
-                <Table
-                    columns={columns}
-                    dataSource={result?.records ?? []}
-                    pagination={{
-                        current: result?.page ?? page,
-                        pageSize: result?.size ?? PAGE_SIZE,
-                        total: result?.total ?? 0,
-                        showSizeChanger: false,
-                        onChange: setPage,
-                    }}
-                    rowKey="instrumentId"
-                    scroll={{x: 1100}}
-                />
-            </InvestmentAsyncState>
-        </Card>
+                </Form.Item>
+            </FilterBar>
+            <DataTable<InvestmentInstrumentSummaryResponse>
+                columns={columns}
+                count={result?.total ?? 0}
+                dataSource={result?.records ?? []}
+                emptyDescription="行情范围由服务端代码接入决定；换一个状态筛选，或等待管理员接入更多合约。"
+                emptyTitle="暂无代码接入的合约"
+                loading={loadState === 'loading'}
+                locale={investmentTableLocale(
+                    loadState,
+                    <InvestmentTableFailure error={loadError} onRetry={() => void loadMarket()} state={loadState}/>,
+                )}
+                pagination={{
+                    current: result?.page ?? page,
+                    pageSize: result?.size ?? PAGE_SIZE,
+                    total: result?.total ?? 0,
+                    showSizeChanger: false,
+                    onChange: setPage,
+                }}
+                rowKey="instrumentId"
+                scroll={{x: 1100}}
+                title="合约列表"
+                toolbar={currentWorkspace && watchlists.length > 0 && (
+                    <Select
+                        aria-label="目标自选列表"
+                        className="investment-inline-select"
+                        onChange={setCurrentWatchlistId}
+                        options={watchlists.map(({id, name}) => ({label: name, value: id}))}
+                        value={currentWatchlistId}
+                    />
+                )}
+            />
+        </PageStack>
     )
 }
 

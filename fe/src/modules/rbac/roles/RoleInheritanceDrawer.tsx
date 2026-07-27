@@ -1,7 +1,8 @@
 import type {TransferProps} from 'antd'
-import {Drawer, Transfer} from 'antd'
+import {Transfer} from 'antd'
 import {useEffect, useState} from 'react'
-import {voidify} from '../../../utils/async'
+import {EmptyState} from '../../../components/EmptyState'
+import {FormDrawer} from '../../../components/FormDrawer'
 import type {RoleResponse} from '../rbacTypes'
 
 type RoleInheritanceDrawerProps = {
@@ -44,23 +45,32 @@ export function RoleInheritanceDrawer({
         }))
 
     return (
-        <Drawer
-            destroyOnHidden
-            extra={<button className="drawer-submit" disabled={saving}
-                           onClick={voidify(() => onSubmit(targetKeys.map(Number)))}>保存</button>}
+        <FormDrawer
+            description={role?.roleCode}
+            footerHint={`已继承 ${targetKeys.length} 个角色`}
+            loading={saving}
             onClose={onClose}
+            onSubmit={() => void onSubmit(targetKeys.map(Number))}
             open={open}
+            size="lg"
             title={`角色继承：${role?.roleName ?? ''}`}
-            width={680}
         >
-            <Transfer<RoleTransferItem>
-                dataSource={dataSource}
-                listStyle={{width: 290, height: 420}}
-                onChange={(nextTargetKeys: TransferProps['targetKeys']) => setTargetKeys((nextTargetKeys ?? []).map(String))}
-                render={(item) => item.title}
-                targetKeys={targetKeys}
-                titles={['可继承角色', '已继承角色']}
-            />
-        </Drawer>
+            {dataSource.length ? (
+                <Transfer<RoleTransferItem>
+                    className="drawer-transfer"
+                    dataSource={dataSource}
+                    onChange={(nextTargetKeys: TransferProps['targetKeys']) => setTargetKeys((nextTargetKeys ?? []).map(String))}
+                    render={(item) => item.title}
+                    targetKeys={targetKeys}
+                    titles={['可继承角色', '已继承角色']}
+                />
+            ) : (
+                <EmptyState
+                    description="当前只有这一个角色，先创建其他角色后才能配置继承关系。"
+                    inline
+                    title="暂无可继承的角色"
+                />
+            )}
+        </FormDrawer>
     )
 }

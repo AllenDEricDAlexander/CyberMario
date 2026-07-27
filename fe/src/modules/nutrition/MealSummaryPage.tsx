@@ -1,7 +1,10 @@
-import {SaveOutlined, StopOutlined} from '@ant-design/icons'
-import {Alert, App, Button, Descriptions, Input, InputNumber, Select, Space, Table, Tag} from 'antd'
+import {PieChartOutlined, SaveOutlined, StopOutlined} from '@ant-design/icons'
+import {Alert, App, Button, Descriptions, Input, InputNumber, Select, Space, Tag} from 'antd'
 import {useCallback, useEffect, useRef, useState} from 'react'
+import {DataTable} from '../../components/DataTable'
+import {EmptyState} from '../../components/EmptyState'
 import {PageToolbar} from '../../components/PageToolbar'
+import {StackedCell} from '../../components/StackedCell'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {CurrentFamilySelect} from './components/CurrentFamilySelect'
 import {MoneyText} from './components/MoneyText'
@@ -22,6 +25,7 @@ import type {
 } from './nutritionTypes'
 import {NutritionPageGrid, NutritionSection, NutritionStack} from './NutritionPageLayout'
 import {useNutritionFamilySelection} from './useNutritionFamilySelection'
+import './nutrition.css'
 
 function MealSummaryPage() {
     const auth = useAuth()
@@ -137,12 +141,12 @@ function MealSummaryPage() {
                         {mealPlans.length > 0 && (
                             <Select
                                 aria-label="选择餐食汇总菜单"
+                                className="nutrition-select-wide"
                                 onChange={(value) => void selectMealPlan(value)}
                                 options={mealPlans.map((plan) => ({
                                     label: `${plan.planDate} · ${plan.title} · ${plan.status}`,
                                     value: plan.id,
                                 }))}
-                                style={{minWidth: 280}}
                                 value={mealPlan?.id}
                             />
                         )}
@@ -156,6 +160,7 @@ function MealSummaryPage() {
                     </Space>
                 )}
                 description="汇总确认、离家和未确认人数，并按菜品统计最终份数。"
+                icon={<PieChartOutlined/>}
                 title="餐食汇总"
             />
             {mutationError && <Alert closable={{onClose: () => setMutationError(undefined)}} showIcon title={mutationError} type="error"/>}
@@ -186,12 +191,46 @@ function MealSummaryPage() {
                         <NutritionSection title="确认备注">
                             {(summary?.remarks.length ?? 0) > 0
                                 ? summary?.remarks.map((remark) => <div key={remark}>{remark}</div>)
-                                : '-'}
+                                : <EmptyState description="成员确认时填写的备注会出现在这里。" inline title="暂无确认备注"/>}
                         </NutritionSection>
                     </NutritionPageGrid>
-                    <NutritionSection
-                        extra={confirmedMenuEditable && (
-                            <Space wrap>
+                    <DataTable
+                        columns={[
+                            {
+                                title: '菜品',
+                                dataIndex: 'dishName',
+                                render: (value: string, dish) => (
+                                    <StackedCell
+                                        primary={value}
+                                        secondary={`${dish.mealType} · 原 ${dish.servingCount} 份 · ${dish.selectedMemberCount} 人选择`}
+                                    />
+                                ),
+                            },
+                            {title: '确认份数', dataIndex: 'confirmedServingTotal', width: 110},
+                            {title: '最终采购份数', width: 150, render: (_, dish) => confirmedMenuEditable ? (
+                                <InputNumber
+                                    aria-label={`最终采购份数 ${dish.dishName}`}
+                                    className="u-full-width"
+                                    min={0}
+                                    onChange={(value) => setFinalServings((current) => ({
+                                        ...current,
+                                        [dish.itemId]: value ?? 0,
+                                    }))}
+                                    step={0.5}
+                                    value={finalServings[dish.itemId]}
+                                />
+                            ) : dish.finalServingCount},
+                        ]}
+                        count={summary?.dishes.length ?? 0}
+                        dataSource={summary?.dishes ?? []}
+                        emptyDescription="菜单发布后，成员确认的菜品份数会汇总到这里。"
+                        emptyTitle="暂无菜品份数"
+                        pagination={false}
+                        rowKey="itemId"
+                        size="small"
+                        title={mealPlan?.status === 'CONFIRM_CLOSED' ? '确认后菜单' : '菜品份数汇总'}
+                        toolbar={confirmedMenuEditable && (
+                            <>
                                 <Input
                                     aria-label="确认后菜单调整说明"
                                     onChange={(event) => setAdjustmentNote(event.target.value)}
@@ -204,36 +243,9 @@ function MealSummaryPage() {
                                     onClick={() => void saveConfirmedMenu()}
                                     type="primary"
                                 >保存确认后菜单调整</Button>
-                            </Space>
+                            </>
                         )}
-                        title={mealPlan?.status === 'CONFIRM_CLOSED' ? '确认后菜单' : '菜品份数汇总'}
-                    >
-                        <Table
-                            columns={[
-                                {title: '菜品', dataIndex: 'dishName'},
-                                {title: '餐次', dataIndex: 'mealType'},
-                                {title: '原菜单份数', dataIndex: 'servingCount'},
-                                {title: '选择人数', dataIndex: 'selectedMemberCount'},
-                                {title: '确认份数', dataIndex: 'confirmedServingTotal'},
-                                {title: '最终采购份数', render: (_, dish) => confirmedMenuEditable ? (
-                                    <InputNumber
-                                        aria-label={`最终采购份数 ${dish.dishName}`}
-                                        min={0}
-                                        onChange={(value) => setFinalServings((current) => ({
-                                            ...current,
-                                            [dish.itemId]: value ?? 0,
-                                        }))}
-                                        step={0.5}
-                                        value={finalServings[dish.itemId]}
-                                    />
-                                ) : dish.finalServingCount},
-                            ]}
-                            dataSource={summary?.dishes ?? []}
-                            pagination={false}
-                            rowKey="itemId"
-                            size="small"
-                        />
-                    </NutritionSection>
+                    />
                 </NutritionStack>
             </NutritionAsyncState>
         </NutritionStack>

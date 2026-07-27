@@ -1,6 +1,9 @@
-import {Alert, Button, Card, Empty, Space, Table, Tag, Typography} from 'antd'
+import {Alert, Button, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useRef, useState} from 'react'
+import {DataTable} from '../../../components/DataTable'
+import {EmptyState} from '../../../components/EmptyState'
+import {PageSection, PageStack} from '../../../components/PageSection'
 import {InvestmentAsyncState} from '../components/InvestmentAsyncState'
 import {InvestmentReportDrawer} from '../research/InvestmentReportDrawer'
 import {investmentReportTypeLabel} from '../research/InvestmentReportFilters'
@@ -54,18 +57,23 @@ export function InvestmentInstrumentReportsPanel({
 
     if (workspaceId === undefined) {
         return (
-            <Card title="合约分析报告">
-                <Alert showIcon title="选择私人投资工作区后可查看固定版本的传统与 Agent 报告" type="info"/>
-            </Card>
+            <PageSection title="合约分析报告">
+                <Alert
+                    className="page-alert"
+                    showIcon
+                    title="选择私人投资工作区后可查看固定版本的传统与 Agent 报告"
+                    type="info"
+                />
+            </PageSection>
         )
     }
     const traditional = reports.filter((report) => report.reportType !== 'AGENT_ANALYSIS')
     const agent = reports.filter((report) => report.reportType === 'AGENT_ANALYSIS')
 
     return (
-        <Card title="合约分析报告">
+        <PageSection title="合约分析报告">
             <InvestmentAsyncState error={loadError} onRetry={() => void load()} state={loadState}>
-                <Space orientation="vertical" size={20} style={{width: '100%'}}>
+                <PageStack>
                     <ReportGroup
                         emptyText="当前合约暂无传统分析报告"
                         onOpen={setSelectedReportId}
@@ -78,14 +86,14 @@ export function InvestmentInstrumentReportsPanel({
                         reports={agent}
                         title="Agent 分析"
                     />
-                </Space>
+                </PageStack>
             </InvestmentAsyncState>
             <InvestmentReportDrawer
                 onClose={() => setSelectedReportId(undefined)}
                 open={selectedReportId !== undefined}
                 reportId={selectedReportId}
             />
-        </Card>
+        </PageSection>
     )
 }
 
@@ -103,9 +111,16 @@ function ReportGroup({
     return (
         <section aria-label={title}>
             <Typography.Title level={5}>{title}</Typography.Title>
-            {reports.length === 0 ? <Empty description={emptyText} image={Empty.PRESENTED_IMAGE_SIMPLE}/> : (
-                <Table
+            {reports.length === 0 ? (
+                <EmptyState
+                    description="在「传统分析报告」页为该合约创建一份报告，固定版本会汇总到这里。"
+                    inline
+                    title={emptyText}
+                />
+            ) : (
+                <DataTable<InvestmentReportSummaryResponse>
                     columns={reportColumns(onOpen)}
+                    count={reports.length}
                     dataSource={reports}
                     pagination={false}
                     rowKey="reportId"

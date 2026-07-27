@@ -1,6 +1,11 @@
-import {Alert, Button, Card, Descriptions, Empty, Flex, Space, Statistic, Tag, Typography} from 'antd'
+import {FundProjectionScreenOutlined} from '@ant-design/icons'
+import {Alert, Button, Card, Descriptions, Space, Tag} from 'antd'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {useNavigate} from 'react-router'
+import {EmptyState} from '../../../components/EmptyState'
+import {PageStack} from '../../../components/PageSection'
+import {PageToolbar} from '../../../components/PageToolbar'
+import {StatCard, StatGrid} from '../../../components/StatCard'
 import {resolveErrorMessage} from '../../../services/request'
 import {InvestmentAsyncState} from '../components/InvestmentAsyncState'
 import {InvestmentDecimalText} from '../components/InvestmentDecimalText'
@@ -57,25 +62,25 @@ export default function InvestmentOverviewPage() {
     }, [load])
 
     if (workspaceId === undefined) {
-        return <Empty description="请先选择或创建一个私人投资工作区，再查看投资总览"/>
+        return (
+            <EmptyState
+                description="总览按工作区隔离，请用页面顶部的工作区选择器选择一个，或创建新的工作区。"
+                title="请先选择或创建一个私人投资工作区，再查看投资总览"
+            />
+        )
     }
 
     return (
-        <Space orientation="vertical" size={16} style={{width: '100%'}}>
-            <Card>
-                <Flex align="center" gap={12} justify="space-between" wrap>
-                    <div>
-                        <Typography.Title level={4}>投资总览</Typography.Title>
-                        <Typography.Text type="secondary">
-                            一个服务端快照汇总行情、量化、模拟盘与 Agent 状态，不在前端重算业务指标。
-                        </Typography.Text>
-                    </div>
-                    {overview && <Tag color="blue">数据截止：{overview.dataAsOf}</Tag>}
-                </Flex>
-            </Card>
+        <PageStack>
+            <PageToolbar
+                description="一个服务端快照汇总行情、量化、模拟盘与 Agent 状态，不在前端重算业务指标。"
+                eyebrow={overview && <Tag color="blue">数据截止：{overview.dataAsOf}</Tag>}
+                icon={<FundProjectionScreenOutlined/>}
+                title="投资总览"
+            />
             <InvestmentAsyncState error={loadError} onRetry={() => void load()} state={loadState}>
                 {overview && (
-                    <Space orientation="vertical" size={16} style={{width: '100%'}}>
+                    <PageStack>
                         <MarketSection
                             onNavigate={() => void navigate('/investment/market')}
                             section={section(overview, 'MARKET')}
@@ -92,10 +97,10 @@ export default function InvestmentOverviewPage() {
                             onNavigate={() => void navigate('/investment/agent')}
                             section={section(overview, 'AGENT')}
                         />
-                    </Space>
+                    </PageStack>
                 )}
             </InvestmentAsyncState>
-        </Space>
+        </PageStack>
     )
 }
 
@@ -105,17 +110,25 @@ function MarketSection({section, onNavigate}: SectionProps) {
             {section.status === 'AVAILABLE' && (() => {
                 const data = section.data as InvestmentMarketOverviewData
                 return (
-                    <Space orientation="vertical" size={12} style={{width: '100%'}}>
-                        <Flex gap={28} wrap>
-                            <Statistic title="代码接入合约" value={data.subscribedInstrumentCount}/>
-                            <Statistic title="新鲜报价" value={data.freshQuoteCount}/>
-                            <Statistic title="陈旧或缺失" value={data.staleOrMissingQuoteCount}/>
-                            <Statistic title="开放质量问题" value={data.openQualityIssueCount}/>
-                        </Flex>
+                    <PageStack>
+                        <StatGrid>
+                            <StatCard label="代码接入合约" value={data.subscribedInstrumentCount}/>
+                            <StatCard label="新鲜报价" tone="sky" value={data.freshQuoteCount}/>
+                            <StatCard
+                                label="陈旧或缺失"
+                                tone={data.staleOrMissingQuoteCount > 0 ? 'coral' : 'accent'}
+                                value={data.staleOrMissingQuoteCount}
+                            />
+                            <StatCard
+                                label="开放质量问题"
+                                tone={data.openQualityIssueCount > 0 ? 'amber' : 'accent'}
+                                value={data.openQualityIssueCount}
+                            />
+                        </StatGrid>
                         {data.staleOrMissingQuoteCount > 0 && (
                             <Alert showIcon title="存在陈旧或缺失行情，分析与交易可能被服务端拒绝" type="warning"/>
                         )}
-                    </Space>
+                    </PageStack>
                 )
             })()}
         </OverviewCard>
@@ -128,21 +141,40 @@ function PortfolioSection({section, onNavigate}: SectionProps) {
             {section.status === 'AVAILABLE' && (() => {
                 const data = section.data as InvestmentPortfolioOverviewData
                 return (
-                    <Space orientation="vertical" size={12} style={{width: '100%'}}>
-                        <Flex gap={28} wrap>
-                            <Statistic title="模拟账户" value={data.accountCount}/>
-                            <Statistic title="持仓" value={data.positionCount}/>
-                            <Statistic title="风险提示" value={data.riskWarningCount}/>
-                        </Flex>
-                        <Descriptions column={{xs: 1, md: 3}} size="small">
-                            <Descriptions.Item label="权益"><InvestmentDecimalText value={data.equity}/></Descriptions.Item>
-                            <Descriptions.Item label="可用余额"><InvestmentDecimalText value={data.availableBalance}/></Descriptions.Item>
-                            <Descriptions.Item label="未实现盈亏"><InvestmentDecimalText value={data.unrealizedPnl}/></Descriptions.Item>
-                            <Descriptions.Item label="总敞口"><InvestmentDecimalText value={data.grossExposure}/></Descriptions.Item>
-                            <Descriptions.Item label="最大回撤"><InvestmentDecimalText value={data.maxDrawdown}/></Descriptions.Item>
-                        </Descriptions>
+                    <PageStack>
+                        <StatGrid>
+                            <StatCard label="模拟账户" value={data.accountCount}/>
+                            <StatCard label="持仓" tone="sky" value={data.positionCount}/>
+                            <StatCard
+                                label="风险提示"
+                                tone={data.riskWarningCount > 0 ? 'coral' : 'accent'}
+                                value={data.riskWarningCount}
+                            />
+                            <StatCard label="权益" suffix="USDT" value={<InvestmentDecimalText value={data.equity}/>}/>
+                            <StatCard
+                                label="可用余额"
+                                suffix="USDT"
+                                value={<InvestmentDecimalText value={data.availableBalance}/>}
+                            />
+                            <StatCard
+                                label="未实现盈亏"
+                                suffix="USDT"
+                                tone="violet"
+                                value={<InvestmentDecimalText value={data.unrealizedPnl}/>}
+                            />
+                            <StatCard
+                                label="总敞口"
+                                suffix="USDT"
+                                value={<InvestmentDecimalText value={data.grossExposure}/>}
+                            />
+                            <StatCard
+                                label="最大回撤"
+                                tone="amber"
+                                value={<InvestmentDecimalText value={data.maxDrawdown}/>}
+                            />
+                        </StatGrid>
                         {data.riskWarningCount > 0 && <Alert showIcon title="模拟账户存在风险提示" type="warning"/>}
-                    </Space>
+                    </PageStack>
                 )
             })()}
         </OverviewCard>
@@ -154,9 +186,17 @@ function QuantSection({section, onNavigate}: SectionProps) {
         <OverviewCard action="进入量化回测" onNavigate={onNavigate} section={section} title="量化回测">
             {section.status === 'AVAILABLE' && (() => {
                 const data = section.data as InvestmentQuantOverviewData
-                if (data.recentBacktests.length === 0) return <Empty description="当前工作区暂无成功回测"/>
+                if (data.recentBacktests.length === 0) {
+                    return (
+                        <EmptyState
+                            description="在「量化回测」页发起一次回测，成功的运行会汇总到这里。"
+                            inline
+                            title="当前工作区暂无成功回测"
+                        />
+                    )
+                }
                 return (
-                    <Space orientation="vertical" size={8} style={{width: '100%'}}>
+                    <PageStack>
                         {data.recentBacktests.map((run) => (
                             <Descriptions bordered column={{xs: 1, md: 4}} key={run.runId} size="small">
                                 <Descriptions.Item label="Run">#{run.runId}</Descriptions.Item>
@@ -165,7 +205,7 @@ function QuantSection({section, onNavigate}: SectionProps) {
                                 <Descriptions.Item label="完成时间">{run.finishedAt}</Descriptions.Item>
                             </Descriptions>
                         ))}
-                    </Space>
+                    </PageStack>
                 )
             })()}
         </OverviewCard>
@@ -177,9 +217,17 @@ function AgentSection({section, onNavigate}: SectionProps) {
         <OverviewCard action="进入 Agent 交易" onNavigate={onNavigate} section={section} title="Agent 运行">
             {section.status === 'AVAILABLE' && (() => {
                 const data = section.data as InvestmentAgentOverviewData
-                if (data.recentRuns.length === 0) return <Empty description="当前工作区暂无成功 Agent 运行"/>
+                if (data.recentRuns.length === 0) {
+                    return (
+                        <EmptyState
+                            description="在「Agent 交易」页发起一次固定预设运行，成功的运行会汇总到这里。"
+                            inline
+                            title="当前工作区暂无成功 Agent 运行"
+                        />
+                    )
+                }
                 return (
-                    <Space orientation="vertical" size={8} style={{width: '100%'}}>
+                    <PageStack>
                         {data.recentRuns.map((run) => (
                             <Descriptions bordered column={{xs: 1, md: 4}} key={run.runId} size="small">
                                 <Descriptions.Item label="Run">#{run.runId}</Descriptions.Item>
@@ -188,7 +236,7 @@ function AgentSection({section, onNavigate}: SectionProps) {
                                 <Descriptions.Item label="数据截止">{run.dataAsOf}</Descriptions.Item>
                             </Descriptions>
                         ))}
-                    </Space>
+                    </PageStack>
                 )
             })()}
         </OverviewCard>

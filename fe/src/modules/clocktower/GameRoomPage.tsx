@@ -1,8 +1,10 @@
-import {ReloadOutlined} from '@ant-design/icons'
-import {Alert, App, Button, Card, Col, Empty, List, Row, Space, Tabs, Tag, Typography} from 'antd'
+import {PlayCircleOutlined, ReloadOutlined} from '@ant-design/icons'
+import {Alert, App, Button, Card, Col, List, Row, Space, Tabs, Tag, Typography} from 'antd'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useParams} from 'react-router'
 import {reportGlobalError} from '../../app/globalError'
+import {EmptyState} from '../../components/EmptyState'
+import {PageStack} from '../../components/PageSection'
 import {PageToolbar} from '../../components/PageToolbar'
 import {voidify} from '../../utils/async'
 import {
@@ -112,71 +114,88 @@ function GameRoomPage() {
         <>
             <PageToolbar
                 actions={<Button icon={<ReloadOutlined/>} loading={loading} onClick={voidify(loadView)}>刷新</Button>}
+                back={backToLobby(numericRoomId)}
                 description={phaseLabel}
+                icon={<PlayCircleOutlined/>}
                 title={view?.room.name ?? '游戏房间'}
             />
             <Row gutter={[16, 16]}>
                 <Col lg={16} xs={24}>
-                    <Card loading={loading} title="公共座位">
-                        <SeatPublicList seats={view?.publicSeats ?? []}/>
-                    </Card>
-                    <Card style={{marginTop: 16}} title="公共事件">
-                        <EventTimeline events={events}/>
-                    </Card>
+                    <PageStack>
+                        <Card loading={loading} title="公共座位">
+                            <SeatPublicList seats={view?.publicSeats ?? []}/>
+                        </Card>
+                        <Card title="公共事件">
+                            <EventTimeline events={events}/>
+                        </Card>
+                    </PageStack>
                 </Col>
                 <Col lg={8} xs={24}>
-                    <Card title="我的身份">
-                        {view?.mySeat ? (
-                            <Space orientation="vertical">
-                                <Typography.Text strong>{view.mySeat.displayName}</Typography.Text>
-                                <Space wrap>
-                                    <Tag>{view.mySeat.roleCode ?? '未知角色'}</Tag>
-                                    <RoleTypeTag value={view.mySeat.roleType}/>
-                                    <Tag color={view.mySeat.lifeStatus === 'ALIVE' ? 'success' : 'error'}>{view.mySeat.lifeStatus}</Tag>
-                                    <Tag color={view.mySeat.hasDeadVote ? 'warning' : 'default'}>
-                                        {view.mySeat.hasDeadVote ? '死票可用' : '死票已用'}
-                                    </Tag>
+                    <PageStack>
+                        <Card title="我的身份">
+                            {view?.mySeat ? (
+                                <Space orientation="vertical">
+                                    <Typography.Text strong>{view.mySeat.displayName}</Typography.Text>
+                                    <Space wrap>
+                                        <Tag>{view.mySeat.roleCode ?? '未知角色'}</Tag>
+                                        <RoleTypeTag value={view.mySeat.roleType}/>
+                                        <Tag color={view.mySeat.lifeStatus === 'ALIVE' ? 'success' : 'error'}>{view.mySeat.lifeStatus}</Tag>
+                                        <Tag color={view.mySeat.hasDeadVote ? 'warning' : 'default'}>
+                                            {view.mySeat.hasDeadVote ? '死票可用' : '死票已用'}
+                                        </Tag>
+                                    </Space>
                                 </Space>
-                            </Space>
-                        ) : <Empty description="暂无座位身份"/>}
-                    </Card>
-                    <Card style={{marginTop: 16}}>
-                        <Tabs
-                            items={[
-                                {
-                                    key: 'actions',
-                                    label: '操作',
-                                    children: (
-                                        <VotePanel
-                                            actions={view?.availableActions ?? []}
-                                            loading={submitting}
-                                            onSubmit={submitAction}
-                                            seats={view?.publicSeats ?? []}
-                                        />
-                                    ),
-                                },
-                                {
-                                    key: 'private',
-                                    label: '私聊',
-                                    children: <PrivateThreadList threads={view?.privateThreads ?? []}/>,
-                                },
-                                {
-                                    key: 'recent',
-                                    label: '最近事件',
-                                    children: <EventTimeline events={events.slice(-5)}/>,
-                                },
-                            ]}
-                        />
-                    </Card>
+                            ) : (
+                                <EmptyState
+                                    description="你当前以旁观身份进入，说书人分配座位后会显示在这里。"
+                                    inline
+                                    title="暂无座位身份"
+                                />
+                            )}
+                        </Card>
+                        <Card>
+                            <Tabs
+                                items={[
+                                    {
+                                        key: 'actions',
+                                        label: '操作',
+                                        children: (
+                                            <VotePanel
+                                                actions={view?.availableActions ?? []}
+                                                loading={submitting}
+                                                onSubmit={submitAction}
+                                                seats={view?.publicSeats ?? []}
+                                            />
+                                        ),
+                                    },
+                                    {
+                                        key: 'private',
+                                        label: '私聊',
+                                        children: <PrivateThreadList threads={view?.privateThreads ?? []}/>,
+                                    },
+                                    {
+                                        key: 'recent',
+                                        label: '最近事件',
+                                        children: <EventTimeline events={events.slice(-5)}/>,
+                                    },
+                                ]}
+                            />
+                        </Card>
+                    </PageStack>
                 </Col>
             </Row>
         </>
     )
 }
 
+/** Detail pages route back to the room lobby; fall back to the list for bad ids. */
+function backToLobby(roomId: number) {
+    return Number.isFinite(roomId) ? `/clocktower/rooms/${roomId}/lobby` : '/clocktower/rooms'
+}
+
 export function SeatPublicList({seats}: { seats: Array<PublicSeatResponse | ClocktowerGameSeatResponse> }) {
     if (seats.length === 0) {
-        return <Empty description="暂无座位"/>
+        return <EmptyState description="等待玩家入座，座位分配后会实时出现在这里。" inline title="暂无座位"/>
     }
     return (
         <List
@@ -315,81 +334,84 @@ export function GameRoomSurface({
     return (
         <>
             <PageToolbar
+                back={backToLobby(view.roomId)}
                 description={`${viewerModeLabel} · ${view.phase}`}
+                icon={<PlayCircleOutlined/>}
                 title={roomName ?? `游戏 #${view.gameNo}`}
             />
             <Row gutter={[16, 16]}>
                 <Col lg={16} xs={24}>
-                    <Card title="公共座位">
-                        <SeatPublicList seats={useGameActionApi ? view.publicSeats : publicSeats}/>
-                    </Card>
-                    <Card style={{marginTop: 16}} title="公共事件">
-                        <EventTimeline events={events}/>
-                    </Card>
+                    <PageStack>
+                        <Card title="公共座位">
+                            <SeatPublicList seats={useGameActionApi ? view.publicSeats : publicSeats}/>
+                        </Card>
+                        <Card title="公共事件">
+                            <EventTimeline events={events}/>
+                        </Card>
+                    </PageStack>
                 </Col>
                 <Col lg={8} xs={24}>
-                    {view.viewerMode === 'SPECTATOR' ? (
-                        <Alert
-                            title="旁观视角"
-                            showIcon
-                            style={{marginBottom: 16}}
-                            type="info"
-                        />
-                    ) : (
-                        <Card title="我的身份">
-                            <GameSeatIdentity seat={view.mySeat}/>
-                        </Card>
-                    )}
-                    {useGameActionApi && (
-                        <div style={{marginTop: view.viewerMode === 'SPECTATOR' ? 0 : 16}}>
+                    <PageStack>
+                        {view.viewerMode === 'SPECTATOR' ? (
+                            <Alert
+                                title="旁观视角"
+                                showIcon
+                                type="info"
+                            />
+                        ) : (
+                            <Card title="我的身份">
+                                <GameSeatIdentity seat={view.mySeat}/>
+                            </Card>
+                        )}
+                        {useGameActionApi && (
                             <PublicMicPanel
                                 gameId={view.gameId}
                                 myGameSeatId={view.mySeat?.gameSeatId}
                                 onSubmitSpeech={submitPublicSpeech}
                                 viewerMode={view.viewerMode}
                             />
-                        </div>
-                    )}
-                    <Card style={{marginTop: view.viewerMode === 'SPECTATOR' ? 0 : 16}}>
-                        <Tabs
-                            items={[
-                                ...(view.viewerMode === 'PLAYER' && actionControlsEnabled ? [{
-                                    key: 'actions',
-                                    label: '操作',
-                                    children: (
-                                        <Space orientation="vertical" style={{width: '100%'}}>
-                                            <ActionSummary actions={view.availableActions}/>
-                                            <VotePanel
-                                                actions={view.availableActions}
-                                                loading={submitting}
-                                                onSubmit={submitAction}
-                                                seats={publicSeats}
+                        )}
+                        <Card>
+                            <Tabs
+                                items={[
+                                    ...(view.viewerMode === 'PLAYER' && actionControlsEnabled ? [{
+                                        key: 'actions',
+                                        label: '操作',
+                                        children: (
+                                            <Space className="u-full-width" orientation="vertical">
+                                                <ActionSummary actions={view.availableActions}/>
+                                                <VotePanel
+                                                    actions={view.availableActions}
+                                                    loading={submitting}
+                                                    onSubmit={submitAction}
+                                                    seats={publicSeats}
+                                                />
+                                            </Space>
+                                        ),
+                                    }] : []),
+                                    {
+                                        key: 'chat',
+                                        label: '聊天',
+                                        forceRender: true,
+                                        children: (
+                                            <ClocktowerChatPanel
+                                                conversations={view.conversations}
+                                                gameId={view.gameId}
+                                                phase={view.phase}
+                                                roomId={view.roomId}
+                                                viewerMode={view.viewerMode}
                                             />
-                                        </Space>
-                                    ),
-                                }] : []),
-                                {
-                                    key: 'chat',
-                                    label: '聊天',
-                                    forceRender: true,
-                                    children: (
-                                        <ClocktowerChatPanel
-                                            conversations={view.conversations}
-                                            gameId={view.gameId}
-                                            phase={view.phase}
-                                            roomId={view.roomId}
-                                            viewerMode={view.viewerMode}
-                                        />
-                                    ),
-                                },
-                                {
-                                    key: 'recent',
-                                    label: '最近事件',
-                                    children: <EventTimeline events={events.slice(-5)}/>,
-                                },
-                            ]}
-                        />
-                    </Card>
+                                        ),
+                                    },
+                                    {
+                                        key: 'recent',
+                                        label: '最近事件',
+                                        children: <EventTimeline events={events.slice(-5)}/>,
+                                    },
+                                ]}
+                            />
+                        </Card>
+                    </PageStack>
                 </Col>
             </Row>
         </>
@@ -398,7 +420,7 @@ export function GameRoomSurface({
 
 function GameSeatIdentity({seat}: { seat?: ClocktowerGameSeatResponse | null }) {
     if (!seat) {
-        return <Empty description="暂无座位身份"/>
+        return <EmptyState description="这一局你没有绑定座位，只能查看公开信息。" inline title="暂无座位身份"/>
     }
     return (
         <Space orientation="vertical">
@@ -417,7 +439,7 @@ function GameSeatIdentity({seat}: { seat?: ClocktowerGameSeatResponse | null }) 
 
 function ActionSummary({actions}: { actions: ClocktowerGameViewResponse['availableActions'] }) {
     if (actions.length === 0) {
-        return <Empty description="暂无可用操作"/>
+        return <EmptyState description="当前阶段没有轮到你行动，等待说书人推进流程。" inline title="暂无可用操作"/>
     }
     return (
         <Space wrap>
@@ -489,7 +511,7 @@ function mapGameEvent(roomId: number, event: ClocktowerGameEventResponse): Clock
 
 function PrivateThreadList({threads}: { threads: ClocktowerPlayerViewResponse['privateThreads'] }) {
     if (threads.length === 0) {
-        return <Empty description="暂无私聊"/>
+        return <EmptyState description="还没有人给你发私聊消息。" inline title="暂无私聊"/>
     }
     return (
         <List

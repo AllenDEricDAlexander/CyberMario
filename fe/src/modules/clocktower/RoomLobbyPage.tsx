@@ -1,15 +1,21 @@
 import {
+    ApartmentOutlined,
     HeartOutlined,
+    IdcardOutlined,
     PlayCircleOutlined,
     ReloadOutlined,
     SendOutlined,
     TeamOutlined,
+    UserOutlined,
 } from '@ant-design/icons'
-import {Alert, App, Badge, Button, Card, Empty, Flex, Space, Tabs, Tag, Typography} from 'antd'
+import {Alert, App, Badge, Button, Card, Flex, Space, Tabs, Tag, Typography} from 'antd'
 import {useCallback, useEffect, useState} from 'react'
 import {useNavigate, useParams} from 'react-router'
 import {reportGlobalError} from '../../app/globalError'
+import {EmptyState} from '../../components/EmptyState'
+import {PageStack} from '../../components/PageSection'
 import {PageToolbar} from '../../components/PageToolbar'
+import {StatCard, StatGrid} from '../../components/StatCard'
 import {voidify} from '../../utils/async'
 import {useAuth} from '../auth/authStore'
 import {
@@ -169,9 +175,6 @@ function RoomLobbyPage() {
                         >
                             心跳
                         </Button>
-                        <Tag color={lastHeartbeatAt ? 'success' : 'default'}>
-                            {lastHeartbeatAt ? `心跳 ${lastHeartbeatAt}` : '心跳待发送'}
-                        </Tag>
                         <RoomLobbyManagementActions
                             currentUserId={currentUserId}
                             onOpenInvitation={() => setInvitationOpen(true)}
@@ -183,7 +186,14 @@ function RoomLobbyPage() {
                         />
                     </Space>
                 }
+                back="/clocktower/rooms"
                 description={room ? `${room.roomCode} · ${room.scriptCode}` : '进入大厅后可先旁观，再认领开放座位。'}
+                eyebrow={(
+                    <Tag color={lastHeartbeatAt ? 'success' : 'default'}>
+                        {lastHeartbeatAt ? `心跳 ${lastHeartbeatAt}` : '心跳待发送'}
+                    </Tag>
+                )}
+                icon={<ApartmentOutlined/>}
                 title={room?.name ?? '房间大厅'}
             />
             <Card loading={loading}>
@@ -194,7 +204,11 @@ function RoomLobbyPage() {
                         room={room}
                     />
                 ) : (
-                    <Empty description="暂无房间数据"/>
+                    <EmptyState
+                        description="房间可能已解散或还在加载，点击右上角「刷新」重试。"
+                        inline
+                        title="暂无房间数据"
+                    />
                 )}
             </Card>
             {canManageRoom && room && (
@@ -271,7 +285,7 @@ export function RoomLobbyTabs({room, claimingSeatNo, onClaimSeat}: {
                     key: 'seats',
                     label: '座位',
                     children: (
-                        <Space orientation="vertical" size="middle" style={{width: '100%'}}>
+                        <PageStack>
                             <LobbyStatus room={room}/>
                             <ClocktowerSeatGrid
                                 claimingSeatNo={claimingSeatNo}
@@ -279,7 +293,7 @@ export function RoomLobbyTabs({room, claimingSeatNo, onClaimSeat}: {
                                 reservations={room.reservations}
                                 seats={room.seats}
                             />
-                        </Space>
+                        </PageStack>
                     ),
                 },
                 {
@@ -313,28 +327,51 @@ function LobbyStatus({room}: { room: ClocktowerRoomResponse }) {
     const readyToStart = canStartClocktowerRoom(room)
 
     return (
-        <Flex align="center" justify="space-between" gap="middle" wrap>
+        <PageStack>
             <Space wrap>
                 <Tag color={room.status === 'RUNNING' ? 'processing' : 'default'}>{room.status}</Tag>
                 <Tag color="blue">{room.phase}</Tag>
                 <Badge status={readyToStart ? 'success' : 'warning'} text={readyToStart ? '可开始' : '等待就绪'}/>
             </Space>
-            <Space wrap>
-                <Typography.Text type="secondary">玩家 {counts.occupied}/{counts.required}</Typography.Text>
-                <Typography.Text type="secondary">预留 {counts.reserved}</Typography.Text>
-                <Typography.Text type="secondary">说书人 {room.storytellerUserId ?? '-'}</Typography.Text>
-            </Space>
-        </Flex>
+            <StatGrid minWidth={160}>
+                <StatCard
+                    hint={`还差 ${Math.max(0, counts.required - counts.occupied)} 人`}
+                    icon={<UserOutlined/>}
+                    label="玩家"
+                    suffix={`/ ${counts.required}`}
+                    value={counts.occupied}
+                />
+                <StatCard
+                    hint="预留座位需要先被认领或过期"
+                    icon={<IdcardOutlined/>}
+                    label="预留"
+                    tone="amber"
+                    value={counts.reserved}
+                />
+                <StatCard
+                    icon={<TeamOutlined/>}
+                    label="说书人"
+                    tone="violet"
+                    value={room.storytellerUserId ?? '-'}
+                />
+            </StatGrid>
+        </PageStack>
     )
 }
 
 function InvitationSummary({room}: { room: ClocktowerRoomResponse }) {
     if (!room.reservations?.length) {
-        return <Empty description="暂无活动邀请或座位预留"/>
+        return (
+            <EmptyState
+                description="使用右上角的邀请按钮，可以为指定玩家预留座位。"
+                inline
+                title="暂无活动邀请或座位预留"
+            />
+        )
     }
 
     return (
-        <Space orientation="vertical" size="small" style={{width: '100%'}}>
+        <Space className="u-full-width" orientation="vertical" size="small">
             {room.reservations.map((reservation) => (
                 <Flex key={reservation.invitationId} align="center" justify="space-between" gap="middle" wrap>
                     <Typography.Text>邀请 #{reservation.invitationId}</Typography.Text>
@@ -351,11 +388,13 @@ function InvitationSummary({room}: { room: ClocktowerRoomResponse }) {
 
 function MemberSummary({room}: { room: ClocktowerRoomResponse }) {
     if (!room.members?.length) {
-        return <Empty description="暂无成员数据"/>
+        return (
+            <EmptyState description="还没有人进入这个房间。" inline title="暂无成员数据"/>
+        )
     }
 
     return (
-        <Space orientation="vertical" size="small" style={{width: '100%'}}>
+        <Space className="u-full-width" orientation="vertical" size="small">
             {room.members.map((member) => (
                 <Flex key={member.memberId} align="center" justify="space-between" gap="middle" wrap>
                     <Typography.Text>{member.displayName || `用户 ${member.userId}`}</Typography.Text>

@@ -53,11 +53,11 @@ export function mcpRuntimeStatusColor(value: McpToolRuntimeStatus) {
 
 export function renderMcpToolExpandedRow(record: McpToolResponse) {
     return (
-        <Space direction="vertical" size={12} style={{width: '100%'}}>
-            <Typography.Paragraph style={{marginBottom: 0}}>
+        <Space className="u-full-width" direction="vertical" size={12}>
+            <Typography.Paragraph className="payload-text">
                 {record.description || '暂无描述'}
             </Typography.Paragraph>
-            <Typography.Paragraph copyable style={{marginBottom: 0, whiteSpace: 'pre-wrap'}}>
+            <Typography.Paragraph className="payload-text" copyable>
                 {formatMcpToolInputSchema(record.inputSchemaJson)}
             </Typography.Paragraph>
         </Space>

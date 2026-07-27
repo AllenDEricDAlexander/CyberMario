@@ -30,7 +30,7 @@ export function MemorySessionControls(props: MemorySessionControlsProps) {
                     value: item.sessionId,
                 }))}
                 placeholder="选择会话"
-                style={{minWidth: 220}}
+                className="inline-control"
                 value={props.sessionId}
                 onChange={(value) => {
                     props.onSelect(value)

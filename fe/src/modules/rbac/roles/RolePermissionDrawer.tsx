@@ -1,8 +1,9 @@
-import {Checkbox, Drawer, Space, Switch, Tree} from 'antd'
+import {Checkbox, Space, Tree} from 'antd'
 import type {DataNode} from 'antd/es/tree'
 import type {Key} from 'react'
 import {useEffect, useMemo, useState} from 'react'
-import {voidify} from '../../../utils/async'
+import {EmptyState} from '../../../components/EmptyState'
+import {FormDrawer} from '../../../components/FormDrawer'
 import {enumDesc} from '../../../utils/enum'
 import type {PermissionResponse, RoleResponse} from '../rbacTypes'
 
@@ -44,28 +45,36 @@ export function RolePermissionDrawer({
     )
 
     return (
-        <Drawer
-            destroyOnHidden
-            extra={<button className="drawer-submit" disabled={saving}
-                           onClick={voidify(() => onSubmit(checkedKeys.map(Number), syncButtonApis))}>保存</button>}
+        <FormDrawer
+            description={role?.roleCode}
+            footerHint={`已选 ${checkedKeys.length} 项权限`}
+            loading={saving}
             onClose={onClose}
+            onSubmit={() => void onSubmit(checkedKeys.map(Number), syncButtonApis)}
             open={open}
+            size="lg"
             title={`分配权限：${role?.roleName ?? ''}`}
-            width={680}
         >
             <Space className="drawer-inline-toolbar">
                 <Checkbox checked={syncButtonApis} onChange={(event) => setSyncButtonApis(event.target.checked)}>
                     同步按钮关联 API
                 </Checkbox>
-                <Switch checked={syncButtonApis} onChange={setSyncButtonApis}/>
             </Space>
-            <Tree
-                checkable
-                checkedKeys={checkedKeys}
-                height={520}
-                onCheck={(keys) => setCheckedKeys(Array.isArray(keys) ? keys : keys.checked)}
-                treeData={treeData}
-            />
-        </Drawer>
+            {treeData.length ? (
+                <Tree
+                    checkable
+                    checkedKeys={checkedKeys}
+                    height={520}
+                    onCheck={(keys) => setCheckedKeys(Array.isArray(keys) ? keys : keys.checked)}
+                    treeData={treeData}
+                />
+            ) : (
+                <EmptyState
+                    description="请先在“权限管理”中创建权限，之后即可分配给角色。"
+                    inline
+                    title="暂无可分配的权限"
+                />
+            )}
+        </FormDrawer>
     )
 }

@@ -1,5 +1,4 @@
 import {TreeSelect} from 'antd'
-import type {CSSProperties} from 'react'
 import {enumCode} from '../../../utils/enum'
 import type {ClocktowerRoleResponse, ClocktowerRoleType, ClocktowerRoleTypeCode} from '../clocktowerTypes'
 
@@ -14,11 +13,11 @@ type RoleTreeNode = {
 }
 
 type RoleTreeSelectProps = {
+    className?: string
     disabled?: boolean
     loading?: boolean
     placeholder?: string
     roles: ClocktowerRoleResponse[]
-    style?: CSSProperties
     value?: string[]
     onChange?: (value: string[]) => void
 }
@@ -69,17 +68,18 @@ export function selectedRoleCountText(roleCodes: string[] | undefined, playerCou
 }
 
 export function RoleTreeSelect({
+    className,
     disabled,
     loading,
     placeholder = '请选择角色',
     roles,
-    style,
     value,
     onChange,
 }: RoleTreeSelectProps) {
     return (
         <TreeSelect
             allowClear
+            className={className}
             disabled={disabled}
             loading={loading}
             maxTagCount="responsive"
@@ -87,7 +87,6 @@ export function RoleTreeSelect({
             placeholder={placeholder}
             showCheckedStrategy={TreeSelect.SHOW_CHILD}
             showSearch={{filterTreeNode: filterRoleTreeNode}}
-            style={style}
             treeCheckable
             treeData={buildRoleTreeData(roles)}
             treeDefaultExpandAll

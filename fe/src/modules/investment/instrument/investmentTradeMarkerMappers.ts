@@ -1,4 +1,5 @@
 import type {SeriesMarker, SeriesMarkerBar, UTCTimestamp} from 'lightweight-charts'
+import {palette} from '../../../theme/designTokens'
 import type {InvestmentCandleResponse} from '../types/investmentMarketTypes'
 import type {InvestmentFillMarker} from '../types/investmentPortfolioTypes'
 
@@ -36,20 +37,26 @@ export function toInvestmentTradeMarkers(
     }).sort((left, right) => Number(left.time) - Number(right.time) || String(left.id).localeCompare(String(right.id)))
 }
 
+/**
+ * Marker colours come from the shared `palette` rather than `var(--…)`:
+ * Lightweight Charts paints markers into a canvas, which cannot resolve CSS
+ * custom properties. Sourcing the literals from the design tokens keeps them in
+ * step with the rest of the console even though the theme cannot swap them.
+ */
 function markerStyle(fill: InvestmentFillMarker): Omit<SeriesMarkerBar<UTCTimestamp>, 'id' | 'time'> {
     if (fill.liquidation) {
-        return {position: 'aboveBar', shape: 'circle', color: '#b42318', text: '强平'}
+        return {position: 'aboveBar', shape: 'circle', color: palette.error, text: '强平'}
     }
     if (fill.actionType === 'OPEN' && fill.side === 'LONG') {
-        return {position: 'belowBar', shape: 'arrowUp', color: '#067647', text: '开多'}
+        return {position: 'belowBar', shape: 'arrowUp', color: palette.success, text: '开多'}
     }
     if (fill.actionType === 'OPEN' && fill.side === 'SHORT') {
-        return {position: 'aboveBar', shape: 'arrowDown', color: '#b42318', text: '开空'}
+        return {position: 'aboveBar', shape: 'arrowDown', color: palette.error, text: '开空'}
     }
     return {
         position: fill.side === 'LONG' ? 'aboveBar' : 'belowBar',
         shape: 'square',
-        color: '#b54708',
+        color: palette.amber,
         text: fill.actionType === 'REDUCE' ? '减仓' : '平仓',
     }
 }

@@ -1,10 +1,17 @@
-import {Alert, App, Button, Card, DatePicker, Empty, Flex, InputNumber, Modal, Select, Space, Table, Tag, Typography} from 'antd'
+import {FileSearchOutlined, PlusOutlined} from '@ant-design/icons'
+import {Alert, App, Button, DatePicker, InputNumber, Select, Tag} from 'antd'
 import type {RangePickerProps} from 'antd/es/date-picker'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useRef, useState} from 'react'
+import {DataTable} from '../../../components/DataTable'
+import {EmptyState} from '../../../components/EmptyState'
+import {FormDrawer} from '../../../components/FormDrawer'
+import {PageGrid, PageStack} from '../../../components/PageSection'
+import {PageToolbar} from '../../../components/PageToolbar'
+import {StackedCell} from '../../../components/StackedCell'
 import {ApiRequestError} from '../../../types/api'
 import {canUseRbacButton, useAuth} from '../../auth/authStore'
-import {InvestmentAsyncState} from '../components/InvestmentAsyncState'
+import {InvestmentTableFailure, investmentTableLocale} from '../components/InvestmentAsyncState'
 import {useInvestmentWorkspace} from '../hooks/useInvestmentWorkspace'
 import {investmentButtonCodes} from '../investmentPermissionCodes'
 import {
@@ -146,15 +153,30 @@ export default function InvestmentResearchPage() {
     }
 
     const columns: ColumnsType<InvestmentReportSummaryResponse> = [
-        {title: '报告', dataIndex: 'title'},
-        {title: '类型', dataIndex: 'reportType', render: (value: InvestmentReportType) => investmentReportTypeLabel(value)},
-        {title: '状态', dataIndex: 'status', render: (value: string) => <Tag color={statusColor(value)}>{value}</Tag>},
-        {title: '版本', dataIndex: 'reportVersion', render: (value: number) => `v${value}`},
-        {title: '数据截止', dataIndex: 'dataAsOf'},
-        {title: '摘要', dataIndex: 'summary', render: (value: string | null) => value ?? '-'},
+        {
+            title: '报告',
+            dataIndex: 'title',
+            render: (_, record) => <StackedCell primary={record.title} secondary={record.summary ?? '暂无摘要'}/>,
+        },
+        {
+            title: '类型',
+            dataIndex: 'reportType',
+            width: 160,
+            render: (_, record) => (
+                <StackedCell
+                    plain
+                    primary={investmentReportTypeLabel(record.reportType)}
+                    secondary={`v${record.reportVersion}`}
+                />
+            ),
+        },
+        {title: '状态', dataIndex: 'status', width: 110, render: (value: string) => <Tag color={statusColor(value)}>{value}</Tag>},
+        {title: '数据截止', dataIndex: 'dataAsOf', width: 230},
         {
             title: '操作',
             key: 'action',
+            fixed: 'right',
+            width: 100,
             render: (_, record) => (
                 <Button
                     aria-label={`查看报告 ${record.title}`}
@@ -170,113 +192,111 @@ export default function InvestmentResearchPage() {
     const createValid = installed && isCreateInputValid(createReportType, instrumentId, range)
 
     return (
-        <Space orientation="vertical" size={16} style={{width: '100%'}}>
-            <Card>
-                <Flex align="center" gap={12} justify="space-between" wrap>
-                    <div>
-                        <Typography.Title level={4}>传统分析报告</Typography.Title>
-                        <Typography.Text type="secondary">报告版本与数据截止时间固定，后续行情不会静默改写历史结果。</Typography.Text>
-                    </div>
-                    {canCreate && <Button onClick={openCreate} type="primary">创建报告</Button>}
-                </Flex>
-                <InvestmentReportFilters
-                    onReportTypeChange={(value) => {
-                        setPage(1)
-                        setReportType(value)
-                    }}
-                    reportType={reportType}
-                />
-            </Card>
-            <Card>
-                <InvestmentAsyncState
-                    emptyDescription={emptyDescription(reportType)}
-                    error={loadError}
-                    onRetry={() => void loadReports()}
-                    state={loadState}
-                >
-                    <Table
-                        columns={columns}
-                        dataSource={result?.records ?? []}
-                        pagination={{
-                            current: result?.page ?? page,
-                            pageSize: result?.size ?? PAGE_SIZE,
-                            total: result?.total ?? 0,
-                            showSizeChanger: false,
-                            onChange: setPage,
-                        }}
-                        rowKey="reportId"
-                        scroll={{x: 1100}}
-                    />
-                </InvestmentAsyncState>
-            </Card>
+        <PageStack>
+            <PageToolbar
+                actions={canCreate && (
+                    <Button icon={<PlusOutlined/>} onClick={openCreate} type="primary">创建报告</Button>
+                )}
+                description="报告版本与数据截止时间固定，后续行情不会静默改写历史结果。"
+                icon={<FileSearchOutlined/>}
+                title="传统分析报告"
+            />
+            <InvestmentReportFilters
+                onReportTypeChange={(value) => {
+                    setPage(1)
+                    setReportType(value)
+                }}
+                reportType={reportType}
+            />
+            <DataTable<InvestmentReportSummaryResponse>
+                columns={columns}
+                count={result?.total ?? 0}
+                dataSource={result?.records ?? []}
+                emptyDescription="报告由服务端代码生成器产出；换一个报告类型，或创建一个新的生成任务。"
+                emptyTitle={emptyDescription(reportType)}
+                loading={loadState === 'loading'}
+                locale={investmentTableLocale(
+                    loadState,
+                    <InvestmentTableFailure error={loadError} onRetry={() => void loadReports()} state={loadState}/>,
+                )}
+                pagination={{
+                    current: result?.page ?? page,
+                    pageSize: result?.size ?? PAGE_SIZE,
+                    total: result?.total ?? 0,
+                    showSizeChanger: false,
+                    onChange: setPage,
+                }}
+                rowKey="reportId"
+                scroll={{x: 900}}
+                title="报告列表"
+            />
             <InvestmentReportDrawer
                 onClose={() => setSelectedReportId(undefined)}
                 open={selectedReportId !== undefined}
                 reportId={selectedReportId}
             />
-            <Modal
-                destroyOnHidden
-                okButtonProps={{disabled: !createValid}}
-                okText="加入生成队列"
-                confirmLoading={creating}
-                onCancel={() => setCreateOpen(false)}
-                onOk={() => void submitCreate()}
+            <FormDrawer
+                footerHint={installed ? undefined : '该报告类型的代码生成器尚未接入'}
+                loading={creating}
+                onClose={() => setCreateOpen(false)}
+                onSubmit={() => void submitCreate()}
                 open={createOpen}
+                submitDisabled={!createValid}
+                submitText="加入生成队列"
                 title="创建不可变分析报告"
             >
-                <Space orientation="vertical" size={16} style={{width: '100%'}}>
+                <PageStack>
                     <Select
                         aria-label="创建报告类型"
+                        className="u-full-width"
                         onChange={(value) => {
                             setCreateReportType(value)
                             setCreateError(undefined)
                             setCreateCapabilityMissing(false)
                         }}
                         options={investmentReportTypeOptions}
-                        style={{width: '100%'}}
                         value={createReportType}
                     />
                     {!installed && (
-                        <Empty
-                            description={`${investmentReportTypeLabel(createReportType)} 的代码生成器尚未接入`}
-                            image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        <EmptyState
+                            description="请改选一个已接入的报告类型；生成器由服务端 Java 代码声明，前端无法开启。"
+                            inline
+                            title={`${investmentReportTypeLabel(createReportType)} 的代码生成器尚未接入`}
                         />
                     )}
                     {createReportType === 'INSTRUMENT_ANALYSIS' && installed && (
-                        <Space orientation="vertical" size={12} style={{width: '100%'}}>
+                        <PageStack>
                             <InputNumber
                                 aria-label="合约 ID"
+                                className="u-full-width"
                                 min={1}
                                 onChange={setInstrumentId}
                                 placeholder="内部合约 ID"
                                 precision={0}
-                                style={{width: '100%'}}
                                 value={instrumentId}
                             />
-                            <Flex gap={12}>
+                            <PageGrid minWidth={160}>
                                 <Select
                                     aria-label="分析价型"
                                     onChange={setPriceType}
                                     options={['MARKET', 'MARK', 'INDEX'].map((value) => ({label: value, value}))}
-                                    style={{flex: 1}}
                                     value={priceType}
                                 />
                                 <Select
                                     aria-label="分析周期"
                                     onChange={setInterval}
                                     options={['M1', 'M5', 'M15', 'M30', 'H1', 'H4', 'D1'].map((value) => ({label: value, value}))}
-                                    style={{flex: 1}}
                                     value={interval}
                                 />
-                            </Flex>
+                            </PageGrid>
                             <RangePicker
                                 aria-label="分析时间范围"
+                                className="u-full-width"
                                 onChange={setRange}
                                 showTime
-                                style={{width: '100%'}}
                                 value={range}
                             />
-                        </Space>
+                        </PageStack>
                     )}
                     {createError && (
                         <Alert
@@ -286,9 +306,9 @@ export default function InvestmentResearchPage() {
                             type={createCapabilityMissing ? 'info' : 'error'}
                         />
                     )}
-                </Space>
-            </Modal>
-        </Space>
+                </PageStack>
+            </FormDrawer>
+        </PageStack>
     )
 }
 

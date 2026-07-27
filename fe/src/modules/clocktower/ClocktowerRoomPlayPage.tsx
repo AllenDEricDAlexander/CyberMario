@@ -1,8 +1,10 @@
-import {ReloadOutlined} from '@ant-design/icons'
-import {Alert, Button, Card, Empty, Space} from 'antd'
+import {PlayCircleOutlined, ReloadOutlined} from '@ant-design/icons'
+import {Button, Card, Space} from 'antd'
 import {useCallback, useEffect, useState} from 'react'
 import {Link, useParams} from 'react-router'
 import {reportGlobalError} from '../../app/globalError'
+import {EmptyState} from '../../components/EmptyState'
+import {ErrorState} from '../../components/ErrorState'
 import {PageToolbar} from '../../components/PageToolbar'
 import {voidify} from '../../utils/async'
 import {getClocktowerGameView, getClocktowerRoom} from './clocktowerService'
@@ -41,10 +43,10 @@ function ClocktowerRoomPlayPage() {
 
     if (!Number.isFinite(numericRoomId)) {
         return (
-            <Alert
-                showIcon
+            <ErrorState
+                extra={<Link to="/clocktower/rooms"><Button>返回房间列表</Button></Link>}
+                message="地址里的房间编号不是有效数字，请从房间列表重新进入。"
                 title="房间地址无效"
-                type="error"
             />
         )
     }
@@ -54,7 +56,9 @@ function ClocktowerRoomPlayPage() {
             <>
                 <PageToolbar
                     actions={<Button icon={<ReloadOutlined/>} loading={loading} onClick={voidify(load)}>刷新</Button>}
+                    back="/clocktower/rooms"
                     description="正在解析房间和当前游戏视角。"
+                    icon={<PlayCircleOutlined/>}
                     title="游戏入口"
                 />
                 <Card loading={loading}/>
@@ -99,22 +103,26 @@ export function ClocktowerRoomPlaySurface({
                     actions={onReload && (
                         <Button icon={<ReloadOutlined/>} loading={loading} onClick={voidify(onReload)}>刷新</Button>
                     )}
+                    back={`/clocktower/rooms/${room.roomId}/lobby`}
                     description={`${room.status} · ${room.phase}`}
+                    icon={<PlayCircleOutlined/>}
                     title={room.name}
                 />
                 <Card>
-                    <Empty
-                        description="游戏尚未开始"
-                    >
-                        <Space wrap>
-                            <Link to={`/clocktower/rooms/${room.roomId}/lobby`}>
-                                <Button type="primary">返回大厅</Button>
-                            </Link>
-                            <Link to="/clocktower/rooms">
-                                <Button>房间列表</Button>
-                            </Link>
-                        </Space>
-                    </Empty>
+                    <EmptyState
+                        action={(
+                            <Space wrap>
+                                <Link to={`/clocktower/rooms/${room.roomId}/lobby`}>
+                                    <Button type="primary">返回大厅</Button>
+                                </Link>
+                                <Link to="/clocktower/rooms">
+                                    <Button>房间列表</Button>
+                                </Link>
+                            </Space>
+                        )}
+                        description="回到大厅认领座位并等待说书人开局。"
+                        title="游戏尚未开始"
+                    />
                 </Card>
             </>
         )
@@ -147,15 +155,21 @@ export function ClocktowerRoomPlaySurface({
                 actions={onReload && (
                     <Button icon={<ReloadOutlined/>} loading={loading} onClick={voidify(onReload)}>刷新</Button>
                 )}
+                back={`/clocktower/rooms/${room.roomId}/lobby`}
                 description={`${room.status} · ${room.phase}`}
+                icon={<PlayCircleOutlined/>}
                 title={room.name}
             />
             <Card>
-                <Empty description="当前账号还没有可用游戏视角">
-                    <Link to={`/clocktower/rooms/${room.roomId}/lobby`}>
-                        <Button type="primary">返回大厅</Button>
-                    </Link>
-                </Empty>
+                <EmptyState
+                    action={(
+                        <Link to={`/clocktower/rooms/${room.roomId}/lobby`}>
+                            <Button type="primary">返回大厅</Button>
+                        </Link>
+                    )}
+                    description="你既不是这局的玩家也不是说书人，回到大厅可以申请旁观。"
+                    title="当前账号还没有可用游戏视角"
+                />
             </Card>
         </>
     )

@@ -1,5 +1,6 @@
-import {Table, Tag} from 'antd'
+import {Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
+import {DataTable} from '../../../components/DataTable'
 import {InvestmentDecimalText} from '../components/InvestmentDecimalText'
 import type {InvestmentLedgerPage} from '../types/investmentPortfolioTypes'
 
@@ -18,11 +19,12 @@ export function PortfolioLedgerTable({page, loading, onPageChange}: {
         {title: '发生时间', dataIndex: 'occurredAt'},
     ]
     return (
-        <Table
+        <DataTable<InvestmentLedgerPage['records'][number]>
             columns={columns}
             dataSource={page?.records ?? []}
+            emptyDescription="保证金占用、手续费、资金费与强平都会在这里留下一条流水。"
+            emptyTitle="当前账户暂无资金流水"
             loading={loading}
-            locale={{emptyText: '当前账户暂无资金流水'}}
             pagination={{
                 current: page?.page ?? 1,
                 pageSize: page?.size ?? 50,

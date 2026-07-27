@@ -1,9 +1,12 @@
-import {EditOutlined, PlusOutlined} from '@ant-design/icons'
-import {App, Button, Popconfirm, Space, Tree} from 'antd'
+import {DeleteOutlined, EditOutlined, MenuOutlined, PlusOutlined} from '@ant-design/icons'
+import {App, Button, Flex, Form, Input, Tag, Tree, Typography} from 'antd'
 import type {DataNode} from 'antd/es/tree'
-import type {ReactNode} from 'react'
+import type {Key} from 'react'
 import {useEffect, useMemo, useState} from 'react'
+import {EmptyState} from '../../../components/EmptyState'
+import {FilterBar} from '../../../components/FilterBar'
 import {PageToolbar} from '../../../components/PageToolbar'
+import {RowActions, type RowAction} from '../../../components/RowActions'
 import {enumEquals} from '../../../utils/enum'
 import {canUseRbacButton, useAuth} from '../../auth/authStore'
 import {rbacButtonCodes} from '../rbacPermissionCodes'
@@ -15,6 +18,10 @@ type MenuTreeNode = DataNode & {
     raw: MenuTreeResponse
 }
 
+type MenuFilters = {
+    keyword?: string
+}
+
 function MenuTreePage() {
     const {message} = App.useApp()
     const auth = useAuth()
@@ -24,6 +31,8 @@ function MenuTreePage() {
     const [permissions, setPermissions] = useState<PermissionResponse[]>([])
     const [editingMenu, setEditingMenu] = useState<PermissionResponse | null>(null)
     const [editorOpen, setEditorOpen] = useState(false)
+    const [filters, setFilters] = useState<MenuFilters>({})
+    const [expandedKeys, setExpandedKeys] = useState<Key[]>([])
 
     async function load() {
         setLoading(true)
@@ -43,7 +52,16 @@ function MenuTreePage() {
         void load()
     }, [])
 
-    const treeData = useMemo<MenuTreeNode[]>(() => toTreeData(menus), [menus])
+    /** Filtering runs client-side over the loaded tree — the menu API has no query params. */
+    const visibleMenus = useMemo(() => filterMenuTree(menus, filters.keyword), [filters.keyword, menus])
+    const treeData = useMemo<MenuTreeNode[]>(() => toTreeData(visibleMenus), [visibleMenus])
+
+    // Mirrors the previous `defaultExpandAll`, but also re-expands after a search
+    // narrows the tree. Collapsing afterwards still sticks until the next search.
+    useEffect(() => {
+        setExpandedKeys(collectKeys(treeData))
+    }, [treeData])
+
     const menuPermissions = useMemo(
         () => permissions.filter((permission) => enumEquals(permission.permType, 1) || enumEquals(permission.permType, 'MENU')),
         [permissions],
@@ -81,42 +99,78 @@ function MenuTreePage() {
     }
 
     function renderNodeTitle(node: MenuTreeNode) {
-        const actions: ReactNode[] = []
-        if (canEdit) {
-            actions.push(<Button icon={<EditOutlined/>} key="edit" size="small"
-                                 onClick={() => openEditor(node.raw)}>编辑</Button>)
-        }
-        if (canDelete) {
-            actions.push(
-                <Popconfirm key="delete" title="确认删除该菜单？" onConfirm={() => void remove(Number(node.key))}>
-                    <Button danger size="small">删除</Button>
-                </Popconfirm>,
-            )
-        }
+        const actions: RowAction[] = [
+            {
+                key: 'edit',
+                label: '编辑',
+                icon: <EditOutlined/>,
+                hidden: !canEdit,
+                onClick: () => openEditor(node.raw),
+            },
+            {
+                key: 'delete',
+                label: '删除',
+                icon: <DeleteOutlined/>,
+                danger: true,
+                hidden: !canDelete,
+                confirm: '确认删除该菜单？子菜单需要先移除。',
+                onClick: () => void remove(Number(node.key)),
+            },
+        ]
         return (
-            <Space>
-                <span>{node.title as string}</span>
-                {actions}
-            </Space>
+            <Flex align="center" gap="small" justify="space-between">
+                <Flex align="center" gap="small">
+                    <span>{node.raw.permName}</span>
+                    <Typography.Text type="secondary">
+                        {node.raw.routePath || node.raw.permCode}
+                    </Typography.Text>
+                    {node.raw.hidden && <Tag>隐藏</Tag>}
+                </Flex>
+                <RowActions actions={actions} emptyText={null} maxInline={2}/>
+            </Flex>
         )
     }
 
     return (
         <>
             <PageToolbar
-                actions={canCreate &&
-                    <Button icon={<PlusOutlined/>} onClick={() => openEditor()} type="primary">新建菜单</Button>}
+                actions={canCreate && (
+                    <Button icon={<PlusOutlined/>} onClick={() => openEditor()} type="primary">新建菜单</Button>
+                )}
                 description="以树形结构维护前端菜单权限。"
+                icon={<MenuOutlined/>}
                 title="菜单管理"
             />
+            <FilterBar<MenuFilters>
+                loading={loading}
+                onReset={() => setFilters({})}
+                onSearch={setFilters}
+            >
+                <Form.Item label="关键词" name="keyword">
+                    <Input allowClear placeholder="菜单名称、编码、路由"/>
+                </Form.Item>
+            </FilterBar>
             <div className="split-panel">
-                <Tree<MenuTreeNode>
-                    blockNode
-                    defaultExpandAll
-                    disabled={loading}
-                    titleRender={renderNodeTitle}
-                    treeData={treeData}
-                />
+                {treeData.length ? (
+                    <Tree<MenuTreeNode>
+                        blockNode
+                        disabled={loading}
+                        expandedKeys={expandedKeys}
+                        onExpand={setExpandedKeys}
+                        titleRender={renderNodeTitle}
+                        treeData={treeData}
+                    />
+                ) : (
+                    <EmptyState
+                        action={canCreate && (
+                            <Button icon={<PlusOutlined/>} onClick={() => openEditor()} type="primary">新建菜单</Button>
+                        )}
+                        description={filters.keyword
+                            ? '换一个关键词试试，或清空筛选查看完整菜单树。'
+                            : '还没有配置任何菜单，先创建一个顶层菜单再逐级补充子菜单。'}
+                        title={filters.keyword ? '没有匹配的菜单' : '暂无菜单'}
+                    />
+                )}
             </div>
             <PermissionEditorDrawer
                 fixedType="MENU"
@@ -132,6 +186,26 @@ function MenuTreePage() {
     )
 }
 
+/** Keeps a branch when the node itself matches, or when any descendant does. */
+function filterMenuTree(menus: MenuTreeResponse[], rawKeyword?: string): MenuTreeResponse[] {
+    const keyword = rawKeyword?.trim().toLowerCase()
+    if (!keyword) {
+        return menus
+    }
+    return menus.flatMap((menu) => {
+        if (matchesMenu(menu, keyword)) {
+            return [menu]
+        }
+        const children = filterMenuTree(menu.children ?? [], keyword)
+        return children.length ? [{...menu, children}] : []
+    })
+}
+
+function matchesMenu(menu: MenuTreeResponse, keyword: string) {
+    return [menu.permName, menu.permCode, menu.routePath, menu.routeName]
+        .some((field) => field?.toLowerCase().includes(keyword))
+}
+
 function toTreeData(menus: MenuTreeResponse[]): MenuTreeNode[] {
     return menus.map((menu) => ({
         key: menu.permissionId,
@@ -139,6 +213,10 @@ function toTreeData(menus: MenuTreeResponse[]): MenuTreeNode[] {
         raw: menu,
         children: toTreeData(menu.children ?? []),
     }))
+}
+
+function collectKeys(nodes: MenuTreeNode[]): Key[] {
+    return nodes.flatMap((node) => [node.key, ...collectKeys((node.children ?? []) as MenuTreeNode[])])
 }
 
 export const Component = MenuTreePage

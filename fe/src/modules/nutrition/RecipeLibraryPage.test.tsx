@@ -90,7 +90,7 @@ describe('RecipeLibraryPage', () => {
             )
         })
 
-        await user.click(screen.getByRole('button', {name: '校验 鸡胸肉沙拉'}))
+        await user.click(screen.getByRole('button', {name: '校验'}))
         expect(await screen.findByText('营养信息需要复核')).toBeTruthy()
     })
 })

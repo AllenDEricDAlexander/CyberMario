@@ -1,5 +1,8 @@
-import {Card, Space, Tag, Typography} from 'antd'
+import {Tag} from 'antd'
 import {useLocation} from 'react-router'
+import {EmptyState} from '../../../components/EmptyState'
+import {PageToolbar} from '../../../components/PageToolbar'
+import {NutritionStack} from '../NutritionPageLayout'
 
 const nutritionRouteTitles: Record<string, string> = {
     '/nutrition/home': '营养首页',
@@ -19,17 +22,15 @@ function NutritionPlaceholderPage() {
     const location = useLocation()
     const title = nutritionRouteTitles[location.pathname] ?? '营养管理'
     return (
-        <Card>
-            <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
-                <Space>
-                    <Typography.Title level={3} style={{margin: 0}}>{title}</Typography.Title>
-                    <Tag color="processing">MVP</Tag>
-                </Space>
-                <Typography.Text type="secondary">
-                    页面业务将在后续任务接入，当前模块提供路由、服务和共享组件基础。
-                </Typography.Text>
+        <NutritionStack>
+            <PageToolbar eyebrow={<Tag color="processing">MVP</Tag>} title={title}/>
+            <div className="state-card">
+                <EmptyState
+                    description="页面业务将在后续任务接入；当前模块已提供路由、服务和共享组件基础。"
+                    title="该页面还在建设中"
+                />
             </div>
-        </Card>
+        </NutritionStack>
     )
 }
 

@@ -5,9 +5,11 @@ import {
     ReloadOutlined,
     ThunderboltOutlined,
 } from '@ant-design/icons'
-import {App, Button, Drawer, Empty, List, Space, Spin, Tag, Typography} from 'antd'
+import {App, Button, List, Space, Spin, Tag, Typography} from 'antd'
 import {useCallback, useEffect, useState} from 'react'
 import {reportGlobalError} from '../../../app/globalError'
+import {EmptyState} from '../../../components/EmptyState'
+import {FormDrawer} from '../../../components/FormDrawer'
 import {
     getClocktowerAgentMemory,
     getClocktowerAgentTasks,
@@ -101,22 +103,31 @@ export function StorytellerAgentPanel({gameId}: { gameId: number }) {
                 onResume={(agent) => void runAgentAction(agent, 'resume')}
                 onRunNow={(agent) => void runAgentAction(agent, 'run-now')}
             />
-            <Drawer
-                destroyOnHidden
+            <FormDrawer
+                description={selectedAgent ? `座位 #${selectedAgent.seatNo ?? '-'} · ${selectedAgent.status}` : undefined}
+                footer={false}
                 onClose={() => setSelectedAgent(null)}
                 open={Boolean(selectedAgent)}
+                size="md"
                 title={selectedAgent ? `${selectedAgent.displayName ?? selectedAgent.agentInstanceId} · 记忆` : 'Agent 记忆'}
-                width={520}
             >
                 <Spin spinning={memoryLoading}>
-                    <Space direction="vertical" size="middle" style={{width: '100%'}}>
+                    <Space className="u-full-width" orientation="vertical" size="middle">
                         <Typography.Text strong>记忆摘要</Typography.Text>
                         <List
                             dataSource={memory}
-                            locale={{emptyText: '暂无记忆'}}
+                            locale={{
+                                emptyText: (
+                                    <EmptyState
+                                        description="该 Agent 还没有写入记忆，运行一次任务后会在这里出现。"
+                                        inline
+                                        title="暂无记忆"
+                                    />
+                                ),
+                            }}
                             renderItem={(item) => (
                                 <List.Item>
-                                    <Space direction="vertical" size={4}>
+                                    <Space orientation="vertical" size={4}>
                                         <Space wrap>
                                             <Tag>{item.memoryType}</Tag>
                                             <Tag>{item.visibility}</Tag>
@@ -130,10 +141,18 @@ export function StorytellerAgentPanel({gameId}: { gameId: number }) {
                         <Typography.Text strong>最近任务</Typography.Text>
                         <List
                             dataSource={tasks}
-                            locale={{emptyText: '暂无任务'}}
+                            locale={{
+                                emptyText: (
+                                    <EmptyState
+                                        description="使用「立即运行」触发一次任务后，执行结果会显示在这里。"
+                                        inline
+                                        title="暂无任务"
+                                    />
+                                ),
+                            }}
                             renderItem={(item) => (
                                 <List.Item>
-                                    <Space direction="vertical" size={4}>
+                                    <Space orientation="vertical" size={4}>
                                         <Space wrap>
                                             <Tag>{item.status}</Tag>
                                             <Typography.Text>{item.triggerType}</Typography.Text>
@@ -147,7 +166,7 @@ export function StorytellerAgentPanel({gameId}: { gameId: number }) {
                         />
                     </Space>
                 </Spin>
-            </Drawer>
+            </FormDrawer>
         </>
     )
 }
@@ -173,16 +192,20 @@ export function StorytellerAgentPanelContent({
 }) {
     return (
         <Spin spinning={loading}>
-            <Space direction="vertical" size="middle" style={{width: '100%'}}>
+            <Space className="u-full-width" orientation="vertical" size="middle">
                 <Button icon={<ReloadOutlined/>} onClick={onRefresh}>刷新</Button>
                 {agents.length === 0 ? (
-                    <Empty description="暂无 Agent"/>
+                    <EmptyState
+                        description="该局游戏还没有接管座位的 Agent，为座位分配 Agent 后会显示在这里。"
+                        inline
+                        title="暂无 Agent"
+                    />
                 ) : (
                     <List
                         dataSource={agents}
                         renderItem={(agent) => (
                             <List.Item>
-                                <Space direction="vertical" size="small" style={{width: '100%'}}>
+                                <Space className="u-full-width" orientation="vertical" size="small">
                                     <Space wrap>
                                         <Typography.Text strong>
                                             #{agent.seatNo ?? '-'} {agent.displayName ?? `Agent ${agent.agentInstanceId}`}

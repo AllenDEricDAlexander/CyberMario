@@ -1,13 +1,18 @@
-import {PlusOutlined, ReloadOutlined} from '@ant-design/icons'
-import {App, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Switch, Table, Tag} from 'antd'
+import {EyeOutlined, HomeOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined} from '@ant-design/icons'
+import {App, Button, Form, Input, InputNumber, Select, Space, Switch, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useState} from 'react'
 import {useNavigate} from 'react-router'
 import {reportGlobalError} from '../../app/globalError'
+import {DataTable} from '../../components/DataTable'
+import {FormDrawer} from '../../components/FormDrawer'
 import {PageToolbar} from '../../components/PageToolbar'
+import {RowActions, type RowAction} from '../../components/RowActions'
+import {StackedCell} from '../../components/StackedCell'
 import {voidify} from '../../utils/async'
 import {createClocktowerRoom, listClocktowerBoards, listClocktowerRooms} from './clocktowerService'
 import {RoleSummaryTags} from './components/RoleSummaryTags'
+import './clocktower.css'
 import type {
     ClocktowerBoardConfigResponse,
     ClocktowerRoomCreateRequest,
@@ -16,6 +21,8 @@ import type {
     ClocktowerScriptCode,
     ClocktowerVisibility,
 } from './clocktowerTypes'
+
+const roomCreateFormId = 'clocktower-room-create-form'
 
 const scriptOptions: Array<{ label: string; value: ClocktowerScriptCode }> = [
     {label: '暗流涌动', value: 'TROUBLE_BREWING'},
@@ -128,8 +135,7 @@ function RoomListPage() {
         })
     }
 
-    async function saveRoom() {
-        const values = await form.validateFields()
+    async function saveRoom(values: ClocktowerRoomCreateRequest) {
         setSaving(true)
         try {
             const room = await createClocktowerRoom({
@@ -162,25 +168,35 @@ function RoomListPage() {
                     </Space>
                 }
                 description="创建房间、进入大厅并跳转到玩家或说书人视图。"
+                icon={<HomeOutlined/>}
                 title="钟楼房间"
             />
-            <Card>
-                <Table
-                    columns={columns}
-                    dataSource={rooms}
-                    loading={loading}
-                    rowKey="roomId"
-                    scroll={{x: 1200}}
-                />
-            </Card>
-            <Modal
-                confirmLoading={saving}
-                onCancel={() => setCreatorOpen(false)}
-                onOk={voidify(saveRoom)}
+            <DataTable<ClocktowerRoomResponse>
+                columns={columns}
+                count={rooms.length}
+                dataSource={rooms}
+                emptyAction={<Button icon={<PlusOutlined/>} onClick={openCreator} type="primary">创建房间</Button>}
+                emptyDescription="还没有任何钟楼房间，创建一个并邀请玩家入座。"
+                emptyTitle="暂无房间"
+                loading={loading}
+                rowKey="roomId"
+                scroll={{x: 1100}}
+                title="房间列表"
+            />
+            <FormDrawer
+                formId={roomCreateFormId}
+                loading={saving}
+                onClose={() => setCreatorOpen(false)}
                 open={creatorOpen}
+                submitText="创建房间"
                 title="创建钟楼房间"
             >
-                <Form form={form} layout="vertical">
+                <Form
+                    form={form}
+                    id={roomCreateFormId}
+                    layout="vertical"
+                    onFinish={voidify(saveRoom)}
+                >
                     <Form.Item hidden name="boardCode">
                         <Select options={[]}/>
                     </Form.Item>
@@ -193,21 +209,27 @@ function RoomListPage() {
                     <Form.Item label="剧本" name="scriptCode" rules={[{required: true, message: '请选择剧本'}]}>
                         <Select options={scriptOptions}/>
                     </Form.Item>
-                    <Space align="start" wrap>
+                    <div className="clocktower-field-row">
                         <Form.Item label="人数" name="playerCount" rules={[{required: true}]}>
                             <InputNumber min={5} max={15}/>
                         </Form.Item>
                         <Form.Item label="Agent 座位数" name="agentSeatCount">
                             <InputNumber min={0} max={15}/>
                         </Form.Item>
-                    </Space>
+                    </div>
                     <Form.Item label="说书人模式" name="storytellerMode">
                         <Select options={[{label: '人工说书人', value: 'HUMAN'}]}/>
                     </Form.Item>
                     <Form.Item label="入座策略" name="seatingPolicy" rules={[{required: true, message: '请选择入座策略'}]}>
                         <Select options={seatingPolicyOptions}/>
                     </Form.Item>
-                    <Form.Item label="通过配板" name="boardConfigId">
+                    <Form.Item
+                        extra={selectedBoard && (
+                            <RoleSummaryTags roleCodes={selectedBoard.roleCodes} roles={selectedBoard.roles}/>
+                        )}
+                        label="通过配板"
+                        name="boardConfigId"
+                    >
                         <Select
                             allowClear
                             loading={boardLoading}
@@ -219,21 +241,16 @@ function RoomListPage() {
                             placeholder="可选，只展示校验通过的配板"
                         />
                     </Form.Item>
-                    {selectedBoard && (
-                        <div style={{marginTop: -12, marginBottom: 16}}>
-                            <RoleSummaryTags roleCodes={selectedBoard.roleCodes} roles={selectedBoard.roles}/>
-                        </div>
-                    )}
-                    <Space align="start" wrap>
+                    <div className="clocktower-field-row">
                         <Form.Item label="允许旁观" name="allowSpectators" valuePropName="checked">
                             <Switch/>
                         </Form.Item>
                         <Form.Item label="允许私聊" name="allowPrivateChat" valuePropName="checked">
                             <Switch/>
                         </Form.Item>
-                    </Space>
+                    </div>
                 </Form>
-            </Modal>
+            </FormDrawer>
         </>
     )
 }
@@ -246,13 +263,8 @@ export function createRoomListColumns(navigate: (path: string) => void): Columns
             title: '房间',
             dataIndex: 'name',
             key: 'room',
-            width: 220,
-            render: (_, record) => (
-                <Space orientation="vertical" size={0}>
-                    <span>{record.name}</span>
-                    <Tag>{record.roomCode}</Tag>
-                </Space>
-            ),
+            width: 240,
+            render: (_, record) => <StackedCell primary={record.name} secondary={record.roomCode}/>,
         },
         {title: '剧本', dataIndex: 'scriptCode', key: 'script', width: 180},
         {
@@ -300,26 +312,30 @@ export function createRoomListColumns(navigate: (path: string) => void): Columns
             title: '操作',
             fixed: 'right',
             key: 'actions',
-            width: 260,
-            render: (_, record) => (
-                <Space>
-                    <Button size="small" onClick={() => {
-                        navigate(`/clocktower/rooms/${record.roomId}/lobby`)
-                    }}>
-                        大厅
-                    </Button>
-                    <Button size="small" onClick={() => {
-                        navigate(`/clocktower/rooms/${record.roomId}/play`)
-                    }}>
-                        游戏
-                    </Button>
-                    <Button size="small" onClick={() => {
-                        navigate(`/clocktower/replays/${record.roomId}`)
-                    }}>
-                        回放
-                    </Button>
-                </Space>
-            ),
+            width: 200,
+            render: (_, record) => {
+                const actions: RowAction[] = [
+                    {
+                        key: 'lobby',
+                        label: '大厅',
+                        icon: <HomeOutlined/>,
+                        onClick: () => navigate(`/clocktower/rooms/${record.roomId}/lobby`),
+                    },
+                    {
+                        key: 'play',
+                        label: '游戏',
+                        icon: <PlayCircleOutlined/>,
+                        onClick: () => navigate(`/clocktower/rooms/${record.roomId}/play`),
+                    },
+                    {
+                        key: 'replay',
+                        label: '回放',
+                        icon: <EyeOutlined/>,
+                        onClick: () => navigate(`/clocktower/replays/${record.roomId}`),
+                    },
+                ]
+                return <RowActions actions={actions}/>
+            },
         },
     ]
 }

@@ -1,8 +1,13 @@
-import {ImportOutlined, PlusOutlined} from '@ant-design/icons'
-import {Alert, App, Button, Drawer, Form, Input, InputNumber, Select, Space, Switch, Table, Tag} from 'antd'
+import {ImportOutlined, PlusOutlined, SettingOutlined} from '@ant-design/icons'
+import {Alert, App, Button, Form, Input, InputNumber, Select, Space, Switch, Tag} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import {useCallback, useEffect, useState} from 'react'
+import {DataTable} from '../../components/DataTable'
+import {FormDrawer} from '../../components/FormDrawer'
+import {PageGrid} from '../../components/PageSection'
 import {PageToolbar} from '../../components/PageToolbar'
+import {RowActions, type RowAction} from '../../components/RowActions'
+import {StackedCell} from '../../components/StackedCell'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
 import {ImportJobPanel} from './components/ImportJobPanel'
 import {NutritionAsyncState, nutritionLoadFailure} from './components/NutritionAsyncState'
@@ -35,7 +40,11 @@ import type {
     NutritionStandardFoodResponse,
     NutritionUpsertHealthTagRequest,
 } from './nutritionTypes'
-import {NutritionPageGrid, NutritionSection, NutritionStack} from './NutritionPageLayout'
+import {NutritionPageGrid, NutritionStack} from './NutritionPageLayout'
+
+/** Each drawer footer submits its form by id, so the buttons live outside the `<Form>`. */
+const importFormId = 'nutrition-platform-import-form'
+const editorFormId = 'nutrition-platform-editor-form'
 
 type EditorMode = 'food' | 'tag' | 'recipe'
 type NutritionEditorFormValues = Partial<
@@ -196,50 +205,87 @@ function PlatformNutritionConfigPage() {
         }
     }
 
+    /** 编辑 + 停用 for every platform dictionary — the label only differs in the confirm copy. */
+    function dictionaryActions(
+        mode: EditorMode,
+        record: NutritionStandardFoodResponse | NutritionHealthTagResponse | NutritionRecipeResponse,
+        options: {name: string; deactivate: () => Promise<void>; success: string},
+    ): RowAction[] {
+        return [
+            {key: 'edit', label: '编辑', disabled: !canMutate, onClick: () => openEditor(mode, record)},
+            {
+                key: 'deactivate',
+                label: '停用',
+                danger: true,
+                disabled: !canMutate,
+                confirm: `确认停用「${options.name}」？停用后所有家庭都不再可选。`,
+                onClick: () => void mutate(async () => {
+                    await options.deactivate()
+                    await loadData()
+                }, options.success),
+            },
+        ]
+    }
+
     const foodColumns: ColumnsType<NutritionStandardFoodResponse> = [
-        {title: '标准食材', dataIndex: 'nameCn'},
-        {title: '英文名', dataIndex: 'nameEn'},
-        {title: '分类', dataIndex: 'category', width: 110},
+        {
+            title: '标准食材',
+            dataIndex: 'nameCn',
+            render: (value: string, record) => (
+                <StackedCell primary={value} secondary={[record.nameEn, record.category].filter(Boolean).join(' · ')}/>
+            ),
+        },
         {title: '热量/100g', dataIndex: 'caloriesPer100g', width: 110},
         {title: '状态', dataIndex: 'status', width: 90, render: (value) => <Tag>{value}</Tag>},
         {
-            title: '操作', width: 150, render: (_, record) => <Space size="small">
-                <Button disabled={!canMutate} onClick={() => openEditor('food', record)} size="small">编辑</Button>
-                <Button danger disabled={!canMutate} onClick={() => void mutate(async () => {
-                    await deactivateNutritionStandardFood(record.id)
-                    await loadData()
-                }, '标准食材已停用')} size="small">停用</Button>
-            </Space>,
+            title: '操作',
+            width: 150,
+            render: (_, record) => (
+                <RowActions actions={dictionaryActions('food', record, {
+                    name: record.nameCn,
+                    deactivate: () => deactivateNutritionStandardFood(record.id).then(() => undefined),
+                    success: '标准食材已停用',
+                })}/>
+            ),
         },
     ]
     const tagColumns: ColumnsType<NutritionHealthTagResponse> = [
-        {title: '标签', dataIndex: 'name'},
-        {title: '编码', dataIndex: 'tagCode'},
-        {title: '类型', dataIndex: 'tagType'},
+        {
+            title: '标签',
+            dataIndex: 'name',
+            render: (value: string, record) => <StackedCell primary={value} secondary={`${record.tagCode} · ${record.tagType}`}/>,
+        },
         {title: '排序', dataIndex: 'sortOrder', width: 80},
         {
-            title: '操作', width: 150, render: (_, record) => <Space size="small">
-                <Button disabled={!canMutate} onClick={() => openEditor('tag', record)} size="small">编辑</Button>
-                <Button danger disabled={!canMutate} onClick={() => void mutate(async () => {
-                    await deactivateNutritionPlatformHealthTag(record.id)
-                    await loadData()
-                }, '标签已停用')} size="small">停用</Button>
-            </Space>,
+            title: '操作',
+            width: 150,
+            render: (_, record) => (
+                <RowActions actions={dictionaryActions('tag', record, {
+                    name: record.name,
+                    deactivate: () => deactivateNutritionPlatformHealthTag(record.id).then(() => undefined),
+                    success: '标签已停用',
+                })}/>
+            ),
         },
     ]
     const recipeColumns: ColumnsType<NutritionRecipeResponse> = [
-        {title: '公共菜谱', dataIndex: 'name'},
-        {title: '分类', dataIndex: 'category'},
-        {title: '份数', dataIndex: 'servingCount', width: 80},
-        {title: '食材数', render: (_, record) => record.ingredients.length, width: 90},
         {
-            title: '操作', width: 150, render: (_, record) => <Space size="small">
-                <Button disabled={!canMutate} onClick={() => openEditor('recipe', record)} size="small">编辑</Button>
-                <Button danger disabled={!canMutate} onClick={() => void mutate(async () => {
-                    await deactivateNutritionPlatformRecipe(record.id)
-                    await loadData()
-                }, '公共菜谱已停用')} size="small">停用</Button>
-            </Space>,
+            title: '公共菜谱',
+            dataIndex: 'name',
+            render: (value: string, record) => (
+                <StackedCell primary={value} secondary={`${record.category ?? '未分类'} · ${record.servingCount} 份 · ${record.ingredients.length} 种食材`}/>
+            ),
+        },
+        {
+            title: '操作',
+            width: 150,
+            render: (_, record) => (
+                <RowActions actions={dictionaryActions('recipe', record, {
+                    name: record.name,
+                    deactivate: () => deactivateNutritionPlatformRecipe(record.id).then(() => undefined),
+                    success: '公共菜谱已停用',
+                })}/>
+            ),
         },
     ]
 
@@ -255,50 +301,94 @@ function PlatformNutritionConfigPage() {
                     </Space>
                 )}
                 description="仅平台管理员可维护标准食材、标签、公共菜谱和九类平台导入任务。"
+                icon={<SettingOutlined/>}
                 title="营养平台"
             />
             <Alert showIcon title="仅平台管理员：本页配置会影响所有家庭的 AI 菜单、风险检查和导入模板。" type="warning"/>
             {mutationError && <Alert closable={{onClose: () => setMutationError(undefined)}} showIcon title={mutationError} type="error"/>}
             <NutritionAsyncState error={error} onRetry={() => void loadData()} state={state}>
                 <NutritionPageGrid>
-                    <NutritionSection title="标准食材">
-                        <Table columns={foodColumns} dataSource={foods} pagination={false} rowKey="id" scroll={{x: 900}} size="small"/>
-                    </NutritionSection>
-                    <NutritionSection title="标签配置">
-                        <Table columns={tagColumns} dataSource={tags} pagination={false} rowKey="id" scroll={{x: 760}} size="small"/>
-                    </NutritionSection>
-                    <NutritionSection title="公共菜谱">
-                        <Table columns={recipeColumns} dataSource={recipes} pagination={false} rowKey="id" scroll={{x: 760}} size="small"/>
-                    </NutritionSection>
+                    <DataTable<NutritionStandardFoodResponse>
+                        columns={foodColumns}
+                        count={foods.length}
+                        dataSource={foods}
+                        emptyDescription="新增一条标准食材，或用导入任务批量建库。"
+                        emptyTitle="暂无标准食材"
+                        pagination={false}
+                        rowKey="id"
+                        scroll={{x: 620}}
+                        size="small"
+                        title="标准食材"
+                    />
+                    <DataTable<NutritionHealthTagResponse>
+                        columns={tagColumns}
+                        count={tags.length}
+                        dataSource={tags}
+                        emptyDescription="标签用于健康档案的过敏、不喜与饮食目标选项。"
+                        emptyTitle="暂无标签配置"
+                        pagination={false}
+                        rowKey="id"
+                        scroll={{x: 560}}
+                        size="small"
+                        title="标签配置"
+                    />
+                    <DataTable<NutritionRecipeResponse>
+                        columns={recipeColumns}
+                        count={recipes.length}
+                        dataSource={recipes}
+                        emptyDescription="公共菜谱对所有家庭可见，可作为 AI 配餐的候选。"
+                        emptyTitle="暂无公共菜谱"
+                        pagination={false}
+                        rowKey="id"
+                        scroll={{x: 560}}
+                        size="small"
+                        title="公共菜谱"
+                    />
                 </NutritionPageGrid>
             </NutritionAsyncState>
             <ImportJobPanel confirming={confirming} job={importJob} onConfirm={(jobId) => void confirmImport(jobId)}/>
-            <Drawer destroyOnHidden loading={saving} onClose={() => setImportOpen(false)} open={importOpen} size={560} title="创建导入任务">
-                <Form form={importForm} layout="vertical" onFinish={(values) => void createImportPreview(values)}>
+            <FormDrawer
+                footerHint="预览只做校验，确认后才会写入平台字典。"
+                formId={importFormId}
+                loading={saving}
+                onClose={() => setImportOpen(false)}
+                open={importOpen}
+                size="md"
+                submitText="生成预览"
+                title="创建导入任务"
+            >
+                <Form form={importForm} id={importFormId} layout="vertical" onFinish={(values) => void createImportPreview(values)}>
                     <Form.Item label="导入类型" name="importType" rules={[{required: true}]}>
                         <Select aria-label="导入类型" options={importTypeOptions}/>
                     </Form.Item>
-                    <Form.Item label="家庭 ID" name="familyId"><InputNumber min={1} style={{width: '100%'}}/></Form.Item>
+                    <Form.Item label="家庭 ID" name="familyId"><InputNumber className="u-full-width" min={1}/></Form.Item>
                     <Form.Item label="文件名" name="fileName" rules={[{required: true}]}><Input aria-label="文件名"/></Form.Item>
                     <Form.Item label="CSV 内容" name="csvContent" rules={[{required: true}]}><Input.TextArea aria-label="CSV 内容" rows={12}/></Form.Item>
-                    <Button htmlType="submit" loading={saving} type="primary">生成预览</Button>
                 </Form>
-            </Drawer>
-            <Drawer destroyOnHidden loading={saving} onClose={() => setEditorMode(undefined)} open={Boolean(editorMode)} size={760} title={editorTitle(editorMode, Boolean(editingRecord))}>
-                <Form form={editorForm} layout="vertical" onFinish={(values) => void saveEditor(values)}>
+            </FormDrawer>
+            <FormDrawer
+                formId={editorFormId}
+                loading={saving}
+                onClose={() => setEditorMode(undefined)}
+                open={Boolean(editorMode)}
+                size="lg"
+                submitText="保存配置"
+                title={editorTitle(editorMode, Boolean(editingRecord))}
+            >
+                <Form form={editorForm} id={editorFormId} layout="vertical" onFinish={(values) => void saveEditor(values)}>
                     {editorMode === 'food' && <FoodEditor/>}
                     {editorMode === 'tag' && <TagEditor/>}
                     {editorMode === 'recipe' && <RecipeEditor/>}
-                    <Button htmlType="submit" loading={saving} type="primary">保存配置</Button>
                 </Form>
-            </Drawer>
+            </FormDrawer>
         </NutritionStack>
     )
 }
 
 function FoodEditor() {
     return <>
-        <NutritionPageGrid>
+        {/* Many short fields — a tighter minimum than the page grid keeps them side by side. */}
+        <PageGrid minWidth={200}>
             <Form.Item label="中文名" name="nameCn" rules={[{required: true}]}><Input/></Form.Item>
             <Form.Item label="英文名" name="nameEn"><Input/></Form.Item>
             <Form.Item label="分类" name="category" rules={[{required: true}]}><Input/></Form.Item>
@@ -306,10 +396,10 @@ function FoodEditor() {
             <Form.Item label="状态" name="status" rules={[{required: true}]}><Select options={statusOptions}/></Form.Item>
             <Form.Item label="外部来源" name="externalSource"><Input/></Form.Item>
             <Form.Item label="外部食材 ID" name="externalFoodId"><Input/></Form.Item>
-            {nutrientFields.map((field) => <Form.Item key={field.name} label={field.label} name={field.name}><InputNumber min={0} style={{width: '100%'}}/></Form.Item>)}
+            {nutrientFields.map((field) => <Form.Item key={field.name} label={field.label} name={field.name}><InputNumber className="u-full-width" min={0}/></Form.Item>)}
             <Form.Item label="嘌呤等级" name="purineLevel"><Input/></Form.Item>
-            <Form.Item label="GI" name="giValue"><InputNumber min={0} style={{width: '100%'}}/></Form.Item>
-        </NutritionPageGrid>
+            <Form.Item label="GI" name="giValue"><InputNumber className="u-full-width" min={0}/></Form.Item>
+        </PageGrid>
         <Form.Item label="别名" name="aliases"><Select mode="tags"/></Form.Item>
         <Form.Item label="过敏标签" name="allergenTags"><Select mode="tags"/></Form.Item>
         <Form.Item label="适用标签" name="suitableTags"><Select mode="tags"/></Form.Item>
@@ -328,13 +418,13 @@ function TagEditor() {
 
 function RecipeEditor() {
     return <>
-        <NutritionPageGrid>
+        <PageGrid minWidth={200}>
             <Form.Item label="菜谱名称" name="name" rules={[{required: true}]}><Input/></Form.Item>
             <Form.Item label="分类" name="category"><Input/></Form.Item>
-            <Form.Item label="份数" name="servingCount"><InputNumber min={1}/></Form.Item>
-            <Form.Item label="烹饪分钟" name="cookingMinutes"><InputNumber min={0}/></Form.Item>
+            <Form.Item label="份数" name="servingCount"><InputNumber className="u-full-width" min={1}/></Form.Item>
+            <Form.Item label="烹饪分钟" name="cookingMinutes"><InputNumber className="u-full-width" min={0}/></Form.Item>
             <Form.Item label="难度" name="difficultyLevel"><Input/></Form.Item>
-        </NutritionPageGrid>
+        </PageGrid>
         <Form.Item label="描述" name="description"><Input.TextArea/></Form.Item>
         <Form.Item label="适用标签" name="suitableTags"><Select mode="tags"/></Form.Item>
         <Form.Item label="过敏标签" name="allergenTags"><Select mode="tags"/></Form.Item>

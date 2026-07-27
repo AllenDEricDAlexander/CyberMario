@@ -570,7 +570,7 @@ function AgentDebugPage() {
                                 name="name"
                                 rules={[{required: true, message: '请输入名称'}]}
                             >
-                                <Input maxLength={128} style={{minWidth: 260}}/>
+                                <Input maxLength={128} className="inline-control-wide"/>
                             </Form.Item>
                             <Form.Item label="启用" name="enabled" valuePropName="checked">
                                 <Switch
@@ -630,7 +630,7 @@ function AgentDebugPage() {
                                         label: tool,
                                         value: tool,
                                     }))}
-                                    style={{minWidth: 260}}
+                                    className="inline-control-wide"
                                 />
                             </Form.Item>
                         </Space>

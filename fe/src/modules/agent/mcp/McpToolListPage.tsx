@@ -1,7 +1,9 @@
-import {ReloadOutlined} from '@ant-design/icons'
-import {App, Button, Card, Form, Select, Space, Table} from 'antd'
+import {ReloadOutlined, ToolOutlined} from '@ant-design/icons'
+import {App, Button, Form, Select} from 'antd'
 import {useEffect, useState} from 'react'
 import {reportGlobalError} from '../../../app/globalError'
+import {DataTable} from '../../../components/DataTable'
+import {FilterBar} from '../../../components/FilterBar'
 import {PageToolbar} from '../../../components/PageToolbar'
 import {canUseRbacButton, useAuth} from '../../auth/authStore'
 import {mcpButtonCodes} from './mcpPermissionCodes'
@@ -117,29 +119,33 @@ function McpToolListPage() {
                 actions={<Button icon={<ReloadOutlined/>} loading={loading}
                                  onClick={() => void loadTools()}>刷新</Button>}
                 description="查看已发现的 MCP 工具，并维护风险等级、只读和启用策略。"
+                icon={<ToolOutlined/>}
                 title="MCP 工具策略"
             />
-            <Card className="dashboard-filter-card">
-                <Form form={form} layout="vertical">
-                    <Space wrap>
-                        <Form.Item label="MCP 服务" name="serverId">
-                            <Select
-                                allowClear
-                                onChange={(value?: number) => setSelectedServerId(value)}
-                                options={servers.map((server) => ({
-                                    label: `${server.serverName} (${server.serverCode})`,
-                                    value: server.id,
-                                }))}
-                                placeholder="全部服务"
-                                style={{width: 280}}
-                            />
-                        </Form.Item>
-                    </Space>
-                </Form>
-            </Card>
-            <Table<McpToolResponse>
+            <FilterBar<McpToolFilterForm>
+                form={form}
+                instant
+                loading={loading}
+                onReset={() => setSelectedServerId(undefined)}
+                onSearch={(values) => setSelectedServerId(values.serverId)}
+            >
+                <Form.Item label="MCP 服务" name="serverId">
+                    <Select
+                        allowClear
+                        options={servers.map((server) => ({
+                            label: `${server.serverName} (${server.serverCode})`,
+                            value: server.id,
+                        }))}
+                        placeholder="全部服务"
+                    />
+                </Form.Item>
+            </FilterBar>
+            <DataTable<McpToolResponse>
                 columns={columns}
+                count={tools.length}
                 dataSource={tools}
+                emptyDescription="先在“MCP 服务配置”里对目标服务执行一次“发现工具”。"
+                emptyTitle="没有已发现的工具"
                 expandable={{
                     expandedRowRender: renderMcpToolExpandedRow,
                     rowExpandable: isMcpToolRowExpandable,
@@ -148,7 +154,7 @@ function McpToolListPage() {
                 pagination={false}
                 rowKey="id"
                 scroll={{x: 1600}}
-                style={{marginTop: 16}}
+                title="工具列表"
             />
             <McpToolPolicyDrawer
                 loading={saving}

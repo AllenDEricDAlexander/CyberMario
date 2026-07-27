@@ -1,10 +1,13 @@
-import {FileAddOutlined, ReloadOutlined} from '@ant-design/icons'
-import {App, Button, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Upload} from 'antd'
+import {DeleteOutlined, FileAddOutlined, FileTextOutlined, ReloadOutlined} from '@ant-design/icons'
+import {App, Button, Form, Input, Modal, Select, Tag, Upload} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
 import type {UploadFile} from 'antd/es/upload/interface'
 import {useCallback, useEffect, useState} from 'react'
 import {useNavigate} from 'react-router'
+import {DataTable} from '../../components/DataTable'
 import {PageToolbar} from '../../components/PageToolbar'
+import {RowActions} from '../../components/RowActions'
+import {StackedCell} from '../../components/StackedCell'
 import {usePageData} from '../../hooks/usePageData'
 import {voidify} from '../../utils/async'
 import {canUseRbacButton, useAuth} from '../auth/authStore'
@@ -111,56 +114,82 @@ function DocumentListPage() {
         {
             title: '文档名',
             dataIndex: 'displayName',
-            width: 260,
+            fixed: 'left',
+            width: 280,
             render: (value: RagDocumentResponse['displayName'], record) => (
-                <Button type="link" onClick={() => void navigate(`/rag/documents/${record.id}`)}>{value}</Button>
+                <Button onClick={() => void navigate(`/rag/documents/${record.id}`)} type="link">{value}</Button>
             ),
         },
-        {title: '知识库', dataIndex: 'knowledgeBaseId', width: 100},
-        {title: '类型', dataIndex: 'fileType', width: 90, render: (value: RagDocumentResponse['fileType']) => <Tag>{value}</Tag>},
         {
-            title: '来源',
-            dataIndex: 'sourceType',
-            width: 90,
-            render: (value: RagDocumentResponse['sourceType']) => <Tag>{value}</Tag>,
+            title: '知识库 / 来源',
+            dataIndex: 'knowledgeBaseId',
+            width: 160,
+            render: (_, record) => (
+                <StackedCell
+                    plain
+                    primary={`知识库 ${record.knowledgeBaseId}`}
+                    secondary={`${record.sourceType} · ${record.fileType}`}
+                />
+            ),
         },
         {
             title: '状态',
             dataIndex: 'status',
             width: 110,
-            render: (value: RagDocumentResponse['status']) => <Tag
-                color={value === 'INDEXED' ? 'success' : value === 'FAILED' ? 'error' : 'processing'}>{value}</Tag>,
+            render: (value: RagDocumentResponse['status']) => (
+                <Tag color={documentStatusColor(value)}>{value}</Tag>
+            ),
         },
-        {title: '切片', dataIndex: 'chunkCount', width: 90},
-        {title: '已入库', dataIndex: 'indexedChunkCount', width: 90},
+        {
+            title: '切片',
+            dataIndex: 'chunkCount',
+            width: 130,
+            render: (_, record) => (
+                <StackedCell
+                    plain
+                    primary={`${record.indexedChunkCount ?? 0} / ${record.chunkCount ?? 0}`}
+                    secondary="已入库 / 总数"
+                />
+            ),
+        },
         {
             title: '解析器',
             dataIndex: 'parserType',
-            width: 100,
-            render: (value: RagDocumentResponse['parserType']) => value || '-',
-        },
-        {
-            title: 'Embedding',
-            dataIndex: 'embeddingDimension',
-            width: 110,
-            render: (value: RagDocumentResponse['embeddingDimension']) => value ?? '-',
+            width: 160,
+            render: (_, record) => (
+                <StackedCell
+                    plain
+                    primary={record.parserType || '-'}
+                    secondary={record.embeddingDimension ? `${record.embeddingDimension} 维` : '未向量化'}
+                />
+            ),
         },
         {title: '错误', dataIndex: 'errorMessage', render: (_, record) => record.errorMessage || '-'},
         {
             title: '操作',
             fixed: 'right',
-            width: 190,
+            width: 160,
             render: (_, record) => (
-                <Space>
-                    {canReindex &&
-                        <Button icon={<ReloadOutlined/>} size="small"
-                                onClick={() => void reindex(record.id)}>重建</Button>}
-                    {canDelete && (
-                        <Popconfirm title="确认删除该文档和切片？" onConfirm={() => void remove(record.id)}>
-                            <Button danger size="small">删除</Button>
-                        </Popconfirm>
-                    )}
-                </Space>
+                <RowActions
+                    actions={[
+                        {
+                            key: 'reindex',
+                            label: '重建',
+                            icon: <ReloadOutlined/>,
+                            hidden: !canReindex,
+                            onClick: () => void reindex(record.id),
+                        },
+                        {
+                            key: 'delete',
+                            label: '删除',
+                            icon: <DeleteOutlined/>,
+                            danger: true,
+                            hidden: !canDelete,
+                            confirm: '确认删除该文档和切片？删除后无法恢复。',
+                            onClick: () => void remove(record.id),
+                        },
+                    ]}
+                />
             ),
         },
     ]
@@ -172,29 +201,49 @@ function DocumentListPage() {
             <PageToolbar
                 actions={(canUpload || canImportText) && (
                     <>
-                        {canImportText && <Button icon={<FileAddOutlined/>} onClick={() => setTextOpen(true)}>导入文本</Button>}
-                        {canUpload && <Button icon={<FileAddOutlined/>} onClick={() => setUploadOpen(true)}
-                                type="primary">上传文档</Button>}
+                        {canImportText && (
+                            <Button icon={<FileAddOutlined/>} onClick={() => setTextOpen(true)}>导入文本</Button>
+                        )}
+                        {canUpload && (
+                            <Button icon={<FileAddOutlined/>} onClick={() => setUploadOpen(true)} type="primary">
+                                上传文档
+                            </Button>
+                        )}
                     </>
                 )}
                 description="上传 md、txt、pdf、docx，或导入纯文本。相同内容只保存一份物理文件。"
+                icon={<FileTextOutlined/>}
                 title="文档管理"
             />
-            <Table<RagDocumentResponse>
+            <DataTable<RagDocumentResponse>
                 columns={columns}
+                count={total}
                 dataSource={records}
+                emptyAction={canUpload && (
+                    <Button icon={<FileAddOutlined/>} onClick={() => setUploadOpen(true)} type="primary">
+                        上传文档
+                    </Button>
+                )}
+                emptyDescription="上传 md、txt、pdf、docx，或直接导入一段纯文本来建立第一个文档。"
+                emptyTitle="还没有文档"
                 loading={loading}
-                pagination={{current: page, pageSize: size, total, showSizeChanger: true, onChange: voidify(load)}}
+                pagination={{current: page, pageSize: size, total, onChange: voidify(load)}}
                 rowKey="id"
                 scroll={{x: 1280}}
+                title="文档列表"
             />
-            <Modal confirmLoading={saving} onCancel={() => setUploadOpen(false)} onOk={voidify(submitUpload)}
-                   open={uploadOpen}
-                   title="上传文档">
+            <Modal
+                className="form-modal"
+                confirmLoading={saving}
+                onCancel={() => setUploadOpen(false)}
+                onOk={voidify(submitUpload)}
+                open={uploadOpen}
+                title="上传文档"
+            >
                 <Form form={uploadForm} initialValues={{parseImmediately: true}} layout="vertical">
                     <Form.Item label="知识库" name="knowledgeBaseId"
                                rules={[{required: true, message: '请选择知识库'}]}>
-                        <Select options={kbOptions}/>
+                        <Select options={kbOptions} placeholder="选择目标知识库"/>
                     </Form.Item>
                     <Form.Item label="上传后立即解析" name="parseImmediately">
                         <Select options={[{label: '是', value: true}, {label: '否', value: false}]}/>
@@ -211,13 +260,18 @@ function DocumentListPage() {
                     </Upload.Dragger>
                 </Form>
             </Modal>
-            <Modal confirmLoading={saving} onCancel={() => setTextOpen(false)} onOk={voidify(submitText)}
-                   open={textOpen}
-                   title="导入纯文本">
+            <Modal
+                className="form-modal"
+                confirmLoading={saving}
+                onCancel={() => setTextOpen(false)}
+                onOk={voidify(submitText)}
+                open={textOpen}
+                title="导入纯文本"
+            >
                 <Form form={textForm} initialValues={{parseImmediately: true}} layout="vertical">
                     <Form.Item label="知识库" name="knowledgeBaseId"
                                rules={[{required: true, message: '请选择知识库'}]}>
-                        <Select options={kbOptions}/>
+                        <Select options={kbOptions} placeholder="选择目标知识库"/>
                     </Form.Item>
                     <Form.Item label="标题" name="title" rules={[{required: true, message: '请输入标题'}]}>
                         <Input/>
@@ -232,6 +286,16 @@ function DocumentListPage() {
             </Modal>
         </>
     )
+}
+
+function documentStatusColor(status: RagDocumentResponse['status']) {
+    if (status === 'INDEXED') {
+        return 'success'
+    }
+    if (status === 'FAILED') {
+        return 'error'
+    }
+    return 'processing'
 }
 
 export const Component = DocumentListPage

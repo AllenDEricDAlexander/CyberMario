@@ -1,0 +1,21 @@
+/*
+ * Nutrition module styles.
+ *
+ * Only the handful of rules the shared kit does not cover — Ant Design selects
+ * collapse to their container width inside a `Space`, so pickers whose option
+ * label carries real information need a floor. Everything else uses the global
+ * utilities and components in `src/styles`.
+ *
+ * Imported by each page that uses these classes, matching how `investment.css`
+ * and `clocktower.css` are loaded. The bundler emits the file once.
+ */
+
+/* Family and recipe pickers: enough room for a name plus the dropdown arrow. */
+.nutrition-select {
+    min-width: 220px;
+}
+
+/* Meal-plan pickers read "日期 · 标题 · 状态" and truncate below this width. */
+.nutrition-select-wide {
+    min-width: 280px;
+}

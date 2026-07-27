@@ -53,7 +53,7 @@ export function ChatPage() {
         () => sessions.map(mapSessionToConversation),
         [sessions]
     )
-    const threadLabel = useMemo(() => sessionId || 'New Session', [sessionId])
+    const threadLabel = useMemo(() => sessionId || '新会话', [sessionId])
 
     function nextHistoryRequestToken() {
         historyRequestSeqRef.current += 1
@@ -323,7 +323,7 @@ export function ChatPage() {
     return (
         <ChatWorkspace
             activeConversationKey={sessionId || undefined}
-            brandDescription="Agent memory sessions"
+            brandDescription="Agent 记忆会话"
             brandTitle="CyberMario"
             conversations={conversations}
             headerActions={(

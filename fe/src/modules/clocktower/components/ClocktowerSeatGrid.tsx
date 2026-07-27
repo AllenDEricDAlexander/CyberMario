@@ -1,6 +1,7 @@
 import {CheckCircleOutlined, UserAddOutlined} from '@ant-design/icons'
-import {Badge, Button, Empty, Flex, Space, Table, Tag, Typography} from 'antd'
+import {Badge, Button, Flex, Space, Tag, Typography} from 'antd'
 import type {ColumnsType} from 'antd/es/table'
+import {DataTable} from '../../../components/DataTable'
 import {isAgentSeat} from '../RoomLobbyPage'
 import type {ClocktowerRoomReservationResponse, ClocktowerSeatResponse} from '../clocktowerTypes'
 
@@ -105,10 +106,11 @@ export function ClocktowerSeatGrid({
     ]
 
     return (
-        <Table
+        <DataTable<SeatDraftRow>
             columns={columns}
             dataSource={rows}
-            locale={{emptyText: <Empty description="暂无座位"/>}}
+            emptyDescription="房间还没有生成座位，等待房主配置人数后重试。"
+            emptyTitle="暂无座位"
             pagination={false}
             rowKey={(row) => row.seat.seatId}
             scroll={{x: 760}}

@@ -15,7 +15,7 @@ export function ChatSender(props: ChatSenderProps) {
         input,
         sending = false,
         disabled = false,
-        placeholder = 'Ask a question...',
+        placeholder = '输入你的问题，Enter 发送，Shift + Enter 换行',
         onInputChange,
         onSend,
         onStop,

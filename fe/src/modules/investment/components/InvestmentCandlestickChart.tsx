@@ -12,8 +12,22 @@ import {
     type UTCTimestamp,
 } from 'lightweight-charts'
 import {useEffect, useRef} from 'react'
+import {palette} from '../../../theme/designTokens'
 
 const LOAD_EARLIER_THRESHOLD = 5
+
+/**
+ * Lightweight Charts renders into a canvas and cannot resolve the `var(--…)`
+ * custom properties the rest of the console themes with, so these have to stay
+ * literals. Everything with a design-token equivalent reads from `palette`;
+ * the axis grey has none, and is picked to stay legible on both the light and
+ * the dark canvas background.
+ */
+const chartColor = {
+    axisText: '#5f6b7a',
+    up: palette.success,
+    down: palette.error,
+} as const
 
 type InvestmentCandlestickChartProps = {
     data: CandlestickData<UTCTimestamp>[]
@@ -63,17 +77,17 @@ export function InvestmentCandlestickChart({
             width: container.clientWidth,
             layout: {
                 background: {type: ColorType.Solid, color: 'transparent'},
-                textColor: '#5f6b7a',
+                textColor: chartColor.axisText,
             },
             rightPriceScale: {borderVisible: false},
             timeScale: {borderVisible: false, timeVisible: true, secondsVisible: false},
         })
         const series = chart.addSeries(CandlestickSeries, {
-            upColor: '#16a085',
-            downColor: '#d94f4f',
+            upColor: chartColor.up,
+            downColor: chartColor.down,
             borderVisible: false,
-            wickUpColor: '#16a085',
-            wickDownColor: '#d94f4f',
+            wickUpColor: chartColor.up,
+            wickDownColor: chartColor.down,
         })
         chartRef.current = chart
         seriesRef.current = series
